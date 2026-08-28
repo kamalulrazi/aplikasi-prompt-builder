@@ -925,10 +925,6 @@ body{padding-bottom:calc(16px + var(--safe-b));}
 </head>
 <body>
 
-<!-- PWA: tombol install mengambang — tampil otomatis kalau browser support -->
-<button id="pwa-install-btn" class="hidden" onclick="pwaInstallApp()" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;background:#34d399;color:#0a0a0a;border:none;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,0.4);display:flex;align-items:center;gap:8px;cursor:pointer;">
-  Install App
-</button>
 <script>
   // KUNCI ZOOM (lapis tambahan): blokir gesture pinch-zoom di iOS Safari,
   // blokir double-tap-to-zoom, dan blokir Ctrl+Scroll / Ctrl+Plus/Minus zoom
@@ -954,47 +950,6 @@ body{padding-bottom:calc(16px + var(--safe-b));}
     }
   });
 </script>
-<script>
-  let _pwaDeferredPrompt = null;
-  let _pwaAutoPromptShown = false;
-  window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault();
-    _pwaDeferredPrompt = e;
-    let btn = document.getElementById('pwa-install-btn');
-    if (btn) btn.classList.remove('hidden');
-
-    // AUTO-INSTALL PROMPT: begitu syaratnya kepenuhi, popup instal ASLI dari
-    // browser langsung dimunculin sendiri — user tinggal 1x tap "Install" di
-    // situ, gak perlu tap tombol hijau kita dulu.
-    // Kalau user pernah nutup/tolak, jangan ganggu terus tiap buka — baru
-    // coba tawarin otomatis lagi setelah 7 hari.
-    let lastDismiss = parseInt(localStorage.getItem('pwaInstallDismissedAt') || '0', 10);
-    let sevenDays = 7 * 24 * 60 * 60 * 1000;
-    if (!_pwaAutoPromptShown && (Date.now() - lastDismiss > sevenDays)) {
-      _pwaAutoPromptShown = true;
-      setTimeout(function () { pwaInstallApp(); }, 800);
-    }
-  });
-  function pwaInstallApp() {
-    let btn = document.getElementById('pwa-install-btn');
-    if (!_pwaDeferredPrompt) return;
-    _pwaDeferredPrompt.prompt();
-    _pwaDeferredPrompt.userChoice.then(function (choice) {
-      if (choice.outcome !== 'accepted') {
-        localStorage.setItem('pwaInstallDismissedAt', String(Date.now()));
-      }
-    }).finally(function () {
-      _pwaDeferredPrompt = null;
-      if (btn) btn.classList.add('hidden');
-    });
-  }
-  window.addEventListener('appinstalled', function () {
-    let btn = document.getElementById('pwa-install-btn');
-    if (btn) btn.classList.add('hidden');
-    localStorage.removeItem('pwaInstallDismissedAt');
-  });
-</script>
-
 <!-- HEADER -->
 <div class="header">
   <div class="header-left">
