@@ -4634,6 +4634,17 @@ function _fBuildImportedPromptJSON(ov){
   // "ov.forceProdukSaja || FS.subjek==='produk'") supaya konsisten.
   let isProdukSaja = !!ov.forceProdukSaja || !!FS.importIsProdukSaja;
 
+  // FIX BUG KONTRADIKSI TANGAN: sebelumnya mode produk-saja di jalur import
+  // SELALU menganggap "tidak ada tangan/orang" (intro hardcode "no person or
+  // human visible", placement dipaksa "no hands or person present") — padahal
+  // ada pilihan angle khusus produk-saja "Dipegang Tangan" (scene screen
+  // menyebutkan "hand entering the frame") yang tetap bisa dipilih user untuk
+  // prompt hasil impor. Kalau dipilih, hasil JSON jadi kontradiksi sendiri:
+  // camera_angle bilang ada tangan, tapi prompt/placement bilang tidak ada
+  // orang sama sekali. Disamakan dengan jalur normal (_fBuildPromptJSON,
+  // variabel angleHasHand) supaya konsisten.
+  let angleHasHand = isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle);
+
   // FIX BUG: sebelumnya placement produk di mode import selalu pakai teks
   // beku dari JSON yang diimpor (FS.importProductBlock.placement), jadi
   // kalau user reopen step "Cara Tampil Produk" dan ganti pilihan, itu
@@ -4650,7 +4661,11 @@ function _fBuildImportedPromptJSON(ov){
   // asli (supaya alur multi-shot yang sudah eksplisit set placementOverride
   // sendiri tetap jalan seperti biasa — placementOverride selalu dicek lebih
   // dulu di _fComputePlacement).
-  let placementOv = isProdukSaja ? Object.assign({}, ov, {forceProdukSaja:true}) : ov;
+  // FIX BUG KONTRADIKSI TANGAN (lanjutan): kalau angleHasHand true, JANGAN
+  // paksa forceProdukSaja ke _fComputePlacement — kalau dipaksa, cabang
+  // "no hands or person present" di _fComputePlacement selalu menang duluan
+  // dan hasilnya tidak akan pernah bisa jadi teks "ada tangan" di bawah.
+  let placementOv = (isProdukSaja && !angleHasHand) ? Object.assign({}, ov, {forceProdukSaja:true}) : ov;
   // FIX BUG NAMA PRODUK TIDAK KE-UPDATE: sebelumnya "name" di sini selalu
   // pakai FS.importProductBlock.name (beku dari JSON awal), padahal user BISA
   // mengedit nama produk lewat tombol "ubah" di Ringkasan (lihat
@@ -4659,14 +4674,26 @@ function _fBuildImportedPromptJSON(ov){
   // impor, nama lama tetap yang muncul di JSON hasil generate. Sekarang
   // pakai FS.produkNama (live) dengan fallback ke nama beku kalau belum
   // pernah diedit sama sekali.
+  let effPlacementImp = _fComputePlacement(placementOv);
+  // FIX BUG KONTRADIKSI TANGAN (lanjutan): kalau angle jelas-jelas "Dipegang
+  // Tangan" tapi placement masih kosong (holdKey/hold memang tidak diisi
+  // untuk mode produk-saja), isi teks default yang konsisten dengan angle-nya
+  // — sama seperti fallback di _fBuildPromptJSON (angleHasHand).
+  if(!effPlacementImp && angleHasHand){
+    effPlacementImp = 'held by a hand entering the frame — only the hand is visible, product sharp, fully visible and prominently framed toward camera';
+  }
   let effProductBlock = FS.importProductBlock ? {
     name: FS.produkNama || FS.importProductBlock.name,
-    placement: _fComputePlacement(placementOv),
+    placement: effPlacementImp,
     instruction: FS.importProductBlock.instruction
   } : null;
 
+  let introProdukSajaTextImp = angleHasHand
+    ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
+    : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
+
   let intro = (isProdukSaja
-      ? 'A photorealistic product-only image, clean and detailed, no person or human visible. '
+      ? introProdukSajaTextImp
       : 'A photorealistic image, shot in a candid and natural style. Subject: ' + (FS.importSubject || 'a person') + '. ')
     + (effProductBlock ? 'Hero product: ' + effProductBlock.name + (effProductBlock.placement ? ', ' + effProductBlock.placement + '. ' : '. ') + (effProductBlock.instruction || '') + ' ' : '')
     + 'Scene: ' + effLokasi + '. '
@@ -4680,8 +4707,33 @@ function _fBuildImportedPromptJSON(ov){
     prompt: intro,
     subject: FS.importSubject || (isProdukSaja ? 'product only, no person' : 'a person'),
     mood_and_tone: effMood,
-    ...(FS.importCriticalRule ? {critical_rule: FS.importCriticalRule} : {}),
-    ...(FS.importConflictRule ? {conflict_priority: FS.importConflictRule} : {}),
+    ...(function(){
+      // FIX BUG: critical_rule sebelumnya cuma baca FS.importCriticalRule
+      // (beku dari JSON impor awal). Kalau JSON yang diimpor tidak (atau
+      // belum) punya critical_rule sendiri, reference_photos yang direkonstruksi
+      // dari FS.refs (lihat fix reference_photos di bawah) tidak dapat instruksi
+      // "baca tiap foto secara selektif" sama sekali — padahal jalur normal
+      // SELALU menyertakan default ini kapanpun ada reference_photos.
+      if(FS.importCriticalRule) return {critical_rule: FS.importCriticalRule};
+      let hasRealRefsImp = FS.refs && FS.refs.some(function(r){return r.type!=='outfit_random';});
+      return hasRealRefsImp ? {critical_rule: 'Read each reference photo SELECTIVELY. Extract ONLY the specified elements from each photo and ignore everything else. Every extract_only and ignore_completely directive is ABSOLUTE — do NOT blend elements across photos unless explicitly stated.'} : {};
+    })(),
+    ...(function(){
+      // FIX BUG: conflict_priority sebelumnya cuma baca FS.importConflictRule
+      // (beku dari JSON awal) — tidak pernah baca FS.conflictLevel yang
+      // dihitung ULANG secara live tiap kali user reopen step "Cara Tampil
+      // Produk" (fPickHold/fPickHoldCustom mendeteksi konflik nama produk vs
+      // foto outfit). Akibatnya kalau konflik BARU terdeteksi setelah impor
+      // (mis. user ganti nama produk jadi item yang overlap dengan foto
+      // outfit), instruksi prioritas top-level ini tidak ikut muncul —
+      // padahal instruksi ignore_completely per-foto outfit sudah ikut
+      // ter-update (lihat fix reference_photos di bawah). Disamakan dengan
+      // conflictRule di _fBuildPromptJSON.
+      if(FS.conflictLevel === 1){
+        return {conflict_priority: 'PRIORITY OVERRIDE: The product photo is the SINGLE authoritative source for ' + FS.produkNama + '. Any appearance of a similar item in other reference photos (especially the outfit photo) must be completely IGNORED and replaced by the product from the product reference photo. The product photo takes absolute priority over all other photos for this specific item.'};
+      }
+      return FS.importConflictRule ? {conflict_priority: FS.importConflictRule} : {};
+    })(),
     // FIX BUG KRITIS — REFERENCE_PHOTOS TIDAK PERNAH KE-UPDATE: sebelumnya
     // baris ini ({reference_photos: FS.importRefPhotos}) selalu pakai array
     // MENTAH hasil parse JSON saat pertama kali ditempel — TIDAK PERNAH
@@ -4725,6 +4777,15 @@ function _fBuildImportedPromptJSON(ov){
     // sekarang (sumber kebenaran setelah user edit), bukan array statis hasil
     // parse awal — supaya perubahan teks di Step 1 ikut kepakai saat generate ulang.
     ...(function(){
+      // FIX BUG KONTRADIKSI PRODUK-SAJA: sebelumnya generated_outfit tidak
+      // pernah dicek terhadap isProdukSaja — padahal exclude filter shot
+      // "Detail Produk (tanpa karakter)" (F_SHOT_TYPES.detail.excludeRefTypes)
+      // TIDAK memasukkan 'outfit_random', jadi kalau prompt impor punya
+      // generated_outfit atau ref outfit_random, shot yang seharusnya "no
+      // person" tetap bisa membawa instruksi "generate outfit lengkap untuk
+      // karakter" — kontradiksi diri sendiri. Disamakan dengan jalur normal
+      // (_fBuildPromptJSON, syarat "!ov.forceProdukSaja").
+      if(isProdukSaja) return {};
       let outfitRefsGO = FS.refs ? FS.refs.filter(function(r){return r.type==='outfit_random';}) : [];
       let goList = outfitRefsGO.length ? outfitRefsGO.map(function(r,i){
         return {
@@ -4992,6 +5053,20 @@ function fImportPrompt(){
     FS.subjek = FS.subjek || 'hijab';
     doneCard('f0','fa0', FS.importSubject ? _fTrunc(FS.importSubject,40) : 'Dari prompt lama');
   }
+
+  // FIX BUG PANEL PRODUK-SAJA TIDAK PERNAH DITOGGLE: sebelumnya fToggleF1Panel
+  // (yang switch antara panel "karakter" dan panel "produk-saja" untuk step
+  // Foto Referensi/f1, Lokasi/f5, Cahaya/f7, Angle/f8 — termasuk chip khusus
+  // "Dipegang Tangan" di panel produk-saja f8) HANYA dipanggil dari fPickSubjek
+  // (pilih subjek manual). fImportPrompt men-set FS.subjek='produk' langsung
+  // tanpa pernah memanggil fToggleF1Panel — padahal semua panel produk-saja
+  // default-nya display:none di HTML. Akibatnya kalau user reopen (tap "Edit"
+  // di Ringkasan) step Lokasi/Cahaya/Angle untuk prompt produk-saja hasil
+  // impor, yang muncul adalah panel KARAKTER (salah), bukan panel produk —
+  // chip "Dipegang Tangan" jadi sama sekali tidak reachable dari UI. Sekarang
+  // dipanggil di sini juga, supaya panel yang tampil selalu sinkron dengan
+  // FS.subjek hasil impor.
+  fToggleF1Panel(FS.subjek === 'produk');
 
   // Cara Tampil Produk — cocokkan teks placement ke HOLD_MAP
   if(FS.importProductBlock){
@@ -7172,6 +7247,26 @@ function fRestoreStepUI(cardNum) {
       } else {
         notice.style.display = 'none';
       }
+    }
+    // FIX BUG RESIKO KEHILANGAN DATA: panel produk-saja step 1 defaultnya
+    // menyembunyikan list foto (#f1-produk-saja-slots) & tombol "Selesai →"
+    // (#f1-produk-saja-lanjut) sampai user klik "Konfirmasi →" — tapi tombol
+    // itu (fProdukSajaKonfirmJumlah) me-RESET TOTAL FS.refs lalu bikin slot
+    // kosong baru, didesain untuk alur manual dari nol. Kalau step ini dibuka
+    // ulang untuk prompt HASIL IMPOR (FS.refs sudah terisi dari sinkronisasi),
+    // tanpa fix ini satu-satunya kontrol yang kelihatan cuma tombol itu — kalau
+    // diklik, semua foto referensi hasil impor langsung terhapus padahal
+    // list-nya sebenarnya sudah ada (dirender fRenderList ke container yang
+    // sama, cuma disembunyikan oleh fToggleF1Panel). Sekarang: langsung
+    // tampilkan list & tombol "Selesai →" yang sudah terisi, skip UI stepper
+    // "Jumlah foto", tanpa menyentuh FS.refs sama sekali.
+    if (FS.subjek === 'produk' && FS.importActive) {
+      let slotsImp = document.getElementById('f1-produk-saja-slots');
+      let lanjutImp = document.getElementById('f1-produk-saja-lanjut');
+      if (slotsImp) slotsImp.style.display = 'block';
+      if (lanjutImp) lanjutImp.style.display = 'block';
+      let cntImp = document.getElementById('f1-produk-count');
+      if (cntImp) cntImp.textContent = (FS.refs ? FS.refs.filter(function(r){return r.type!=='outfit_random';}).length : 0) || 1;
     }
   }
 
