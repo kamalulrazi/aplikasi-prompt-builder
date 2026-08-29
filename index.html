@@ -416,6 +416,8 @@ body{
 }
 .btn:hover{filter:brightness(1.06);box-shadow:0 8px 22px rgba(217,184,118,0.3);}
 .btn:active{transform:scale(0.97);filter:brightness(0.97);}
+/* Saat tombol generate menampilkan logo P loading, hilangkan background gold panjang & shadow-nya — logo P tetap seperti semula */
+.btn.btn-loading,.btn:has(.gen-logo-wrap){background:transparent;box-shadow:none;}
 .btn.sm{font-size:12px;padding:9px;}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border-hi);box-shadow:none;}
 .btn.ghost:hover{background:var(--surface2);filter:none;box-shadow:none;}
@@ -431,8 +433,7 @@ body{
 .gen-logo-wrap{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:2px 0;}
 .gen-logo-box{
   width:40px;height:40px;flex-shrink:0;border-radius:10px;
-  background:#0b0b0d;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 3px 12px rgba(217,184,118,0.28),inset 0 0 0 1px rgba(217,184,118,0.18);
+  background:transparent;display:flex;align-items:center;justify-content:center;
   overflow:visible;
 }
 .gen-logo-svg{width:30px;height:30px;overflow:visible;}
@@ -442,8 +443,28 @@ body{
 .p-layer-front{transform:translate(-135px,168px) rotate(-9deg);opacity:1;}
 .gen-logo-wrap.merged .p-layer-back{transform:translate(0,0) rotate(0deg);opacity:1;}
 .gen-logo-wrap.merged .p-layer-front{transform:translate(0,0) rotate(0deg);}
-@keyframes genLogoPulse{0%,100%{box-shadow:0 3px 12px rgba(217,184,118,0.28),inset 0 0 0 1px rgba(217,184,118,0.18);}50%{box-shadow:0 3px 18px rgba(217,184,118,0.5),inset 0 0 0 1px rgba(217,184,118,0.35);}}
-.gen-logo-box{animation:genLogoPulse 1s ease-in-out infinite;}
+
+/* ── SPLASH SCREEN — tampilan awal sebelum masuk app: logo P (sama seperti
+   loading generate) menyatu, lalu muncul tulisan "Prompt Builder" ── */
+.splash-screen{
+  position:fixed;inset:0;z-index:99999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:var(--bg);
+  transition:opacity 0.5s ease;
+}
+.splash-screen.hide{opacity:0;pointer-events:none;}
+.splash-logo-wrap{width:84px;height:84px;display:flex;align-items:center;justify-content:center;overflow:visible;}
+.splash-logo-svg{width:100%;height:100%;overflow:visible;}
+.splash-p-layer{transition:transform 1.1s cubic-bezier(0.16,1,0.3,1),opacity 1.1s ease;}
+.splash-p-layer-back{transform:translate(165px,-185px) rotate(10deg);opacity:0.4;}
+.splash-p-layer-front{transform:translate(-135px,168px) rotate(-9deg);opacity:1;}
+.splash-logo-wrap.merged .splash-p-layer-back{transform:translate(0,0) rotate(0deg);opacity:1;}
+.splash-logo-wrap.merged .splash-p-layer-front{transform:translate(0,0) rotate(0deg);}
+.splash-title{
+  font-family:'Geist',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.2px;
+  color:var(--text);opacity:0;transition:opacity 0.6s ease;
+}
+.splash-title.show{opacity:1;}
 
 /* OUTPUT */
 .output-wrap{margin-top:16px;display:none;}
@@ -942,6 +963,39 @@ body{padding-bottom:calc(16px + var(--safe-b));}
 </style>
 </head>
 <body>
+
+<!-- SPLASH SCREEN — tampilan awal, hilang otomatis setelah animasi logo selesai -->
+<div class="splash-screen" id="splash-screen">
+  <div class="splash-logo-wrap" id="splash-logo-wrap">
+    <svg class="splash-logo-svg" viewBox="0 0 642 635" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="splashPGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#F0D9A0"/>
+          <stop offset="100%" stop-color="#B8965F"/>
+        </linearGradient>
+      </defs>
+      <path class="splash-p-layer splash-p-layer-back" fill="url(#splashPGrad)" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>
+      <path class="splash-p-layer splash-p-layer-front" fill="url(#splashPGrad)" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>
+    </svg>
+  </div>
+  <div class="splash-title" id="splash-title">Prompt Builder</div>
+</div>
+<script>
+  (function(){
+    var wrap = document.getElementById('splash-logo-wrap');
+    var title = document.getElementById('splash-title');
+    var screen = document.getElementById('splash-screen');
+    if(!wrap || !screen) return;
+    // Paksa reflow dulu supaya state "terpisah" ke-render sebelum merge dimulai
+    void wrap.offsetWidth;
+    setTimeout(function(){ wrap.classList.add('merged'); }, 300);
+    setTimeout(function(){ if(title) title.classList.add('show'); }, 300+900);
+    setTimeout(function(){
+      screen.classList.add('hide');
+      setTimeout(function(){ screen.remove(); }, 550);
+    }, 300+900+800);
+  })();
+</script>
 
 <script>
   // KUNCI ZOOM (lapis tambahan): blokir gesture pinch-zoom di iOS Safari,
@@ -4289,6 +4343,7 @@ function fGenerate(){
   let genBtnOrigHTML=genBtn?genBtn.innerHTML:'';
   if(genBtn){
     genBtn.disabled=true;
+    genBtn.classList.add('btn-loading');
     genBtn.innerHTML=
       '<div class="gen-logo-wrap" id="gen-logo-wrap">'+
         '<div class="gen-logo-box">'+
@@ -4320,7 +4375,7 @@ function fGenerate(){
       console.error('fGenerate error:',err);
       showToast('Terjadi kesalahan saat membuat prompt — coba lagi.','error');
     }finally{
-      if(genBtn){genBtn.disabled=false;genBtn.innerHTML=genBtnOrigHTML||'✦ Generate Prompt Foto';}
+      if(genBtn){genBtn.disabled=false;genBtn.classList.remove('btn-loading');genBtn.innerHTML=genBtnOrigHTML||'✦ Generate Prompt Foto';}
     }
   }, 2000);
 }
