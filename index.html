@@ -45,11 +45,15 @@ html{
 html, body{
   touch-action: pan-x pan-y;
   -ms-touch-action: pan-x pan-y;
-  scroll-behavior:smooth;
-  -webkit-overflow-scrolling:touch;
-  overscroll-behavior-y:none;
   scrollbar-width:none; /* Firefox: sembunyikan scrollbar */
   -ms-overflow-style:none; /* Edge lama */
+  /* KUNCI: html & body TIDAK boleh jadi elemen yang di-scroll. Kalau document
+     root sendiri yang discroll, browser/WebView (terutama di Android) suka
+     menggambar indikator scrollbar/overscroll bawaannya sendiri di tepi layar
+     — dan itu tidak bisa disembunyikan lewat CSS apa pun. Scroll dipindah
+     ke .app-shell di bawah supaya indikator native itu tidak pernah muncul. */
+  height:100%;
+  overflow:hidden;
 }
 /* Sembunyikan scrollbar bawaan browser di kanan layar (Chrome/Safari/WebView)
    supaya terasa seperti app native, bukan halaman web. Scroll tetap jalan normal. */
@@ -60,6 +64,15 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
 }
 *{scrollbar-width:none;-ms-overflow-style:none;}
 *::-webkit-scrollbar{width:0;height:0;display:none;}
+/* APP SHELL — satu-satunya elemen yang benar-benar di-scroll di seluruh app.
+   Scrollbar-nya disembunyikan lewat aturan *::-webkit-scrollbar di atas. */
+.app-shell{
+  height:100vh;height:100dvh;width:100%;
+  overflow-y:auto;overflow-x:hidden;
+  scroll-behavior:smooth;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:none;
+}
 :root{
   /* Premium dark palette — deep charcoal with warm undertone */
   --bg:#08080A;
@@ -1022,6 +1035,10 @@ body{padding-bottom:calc(16px + var(--safe-b));}
     }
   });
 </script>
+<!-- APP SHELL — semua konten di-scroll di dalam sini, bukan di document root,
+     supaya browser/WebView tidak menampilkan indikator scrollbar native-nya
+     sendiri di tepi layar (yang bikin app kelihatan seperti "website"). -->
+<div class="app-shell" id="app-shell">
 <!-- HEADER -->
 <div class="header">
   <div class="header-left">
@@ -2145,7 +2162,8 @@ function switchPage(id,btn){
   document.querySelectorAll('.ntab').forEach(e=>e.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
-  window.scrollTo(0,0);
+  let shell=document.getElementById('app-shell');
+  if(shell) shell.scrollTop=0; else window.scrollTo(0,0);
 }
 
 function fJumpStep(id){
@@ -9240,5 +9258,6 @@ window.addEventListener('beforeunload', function(e){
   <span class="footer-sep">·</span>
   <p class="gold">Google Flow · Veo 3</p>
 </div>
+</div><!-- /app-shell -->
 </body>
 </html>
