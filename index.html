@@ -27,9 +27,6 @@
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
-</style>
-<style>
 /* KUNCI ZOOM: cegah pinch-zoom & double-tap zoom di HP, biar kerasa kayak
    app native, bukan halaman web biasa. */
 html{
@@ -132,6 +129,20 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
   --glass:rgba(15,15,18,0.72);
   --glass-hi:rgba(24,24,28,0.82);
 
+  /* Skala spacing — token baru, dipasang di padding/margin/gap yang nilainya
+     cocok dengan salah satu step di bawah (168 tempat). Nilai ad-hoc yang
+     tidak pas skala (5px, 7px, 9px, 11px, 13px, dst) dibiarkan apa adanya
+     supaya tidak mengubah tampilan yang sudah ada — token ini menahan drift
+     ke depannya, bukan memaksa migrasi nilai lama. */
+  --space-1:2px;
+  --space-2:6px;
+  --space-3:8px;
+  --space-4:10px;
+  --space-5:12px;
+  --space-6:14px;
+  --space-7:16px;
+  --space-8:20px;
+
   /* Safe areas for notch / home indicator */
   --safe-t:env(safe-area-inset-top,0px);
   --safe-b:env(safe-area-inset-bottom,0px);
@@ -153,8 +164,8 @@ body{
 
 /* HEADER — app toolbar, glass surface with safe-area */
 .header{
-  padding:calc(16px + var(--safe-t)) 20px 16px;
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:calc(var(--space-7) + var(--safe-t)) var(--space-8) var(--space-7);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);
   background:var(--glass);
   backdrop-filter:blur(22px) saturate(160%);
   -webkit-backdrop-filter:blur(22px) saturate(160%);
@@ -178,28 +189,31 @@ body{
 }
 .header-sub{font-size:11px;color:var(--muted);line-height:1;letter-spacing:0.1px;}
 .h-eyebrow{display:none;}/* removed */
-.h-pills{display:flex;gap:6px;flex-wrap:wrap;}
+.h-pills{display:flex;gap:var(--space-2);flex-wrap:wrap;}
 .h-pill{
   background:var(--surface2);border:1px solid var(--border);
   color:var(--muted);font-size:10px;font-weight:500;
-  padding:4px 10px;border-radius:var(--radius-pill);
+  padding:4px var(--space-4);border-radius:var(--radius-pill);
   font-family:'Geist Mono',monospace;letter-spacing:0.2px;
   box-shadow:var(--shadow-sm);
   transition:border-color 0.15s,color 0.15s;
 }
 
-/* NAV — floating glass segmented control, app tab-bar feel */
+/* NAV — floating glass segmented control, app tab-bar feel.
+   Ditaruh di BAWAH (bottom tab bar) di mobile supaya gampang dijangkau
+   jempol tanpa perlu geser tangan ke atas layar tiap ganti tab. */
 .nav{
   display:flex;gap:4px;
   background:var(--glass-hi);
   backdrop-filter:blur(22px) saturate(160%);
   -webkit-backdrop-filter:blur(22px) saturate(160%);
-  border-bottom:1px solid var(--border);
-  position:sticky;top:0;z-index:100;
-  padding:8px 10px;
+  border-top:1px solid var(--border);
+  position:fixed;left:0;right:0;bottom:0;z-index:100;
+  padding:var(--space-3) var(--space-4) calc(var(--space-3) + var(--safe-b));
+  box-shadow:0 -4px 20px rgba(0,0,0,0.35);
 }
 .ntab{
-  flex:1;padding:10px 8px;
+  flex:1;padding:var(--space-4) var(--space-3);
   font-size:12.5px;font-weight:500;color:var(--muted);
   text-align:center;cursor:pointer;border:none;
   background:transparent;
@@ -207,6 +221,8 @@ body{
   font-family:'Geist',sans-serif;
   transition:color 0.18s,background 0.18s,box-shadow 0.18s;
   letter-spacing:-0.1px;
+  display:flex;align-items:center;justify-content:center;
+  min-height:44px;
 }
 .ntab.active{
   color:#141210;font-weight:700;
@@ -220,7 +236,7 @@ body{
 @keyframes pageIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 .page{display:none;}
 .page.active{display:block;animation:pageIn 0.22s cubic-bezier(0.22,1,0.36,1) both;}
-.wrap{max-width:640px;margin:0 auto;padding:20px 16px 100px;}
+.wrap{max-width:640px;margin:0 auto;padding:var(--space-8) var(--space-7) 100px;}
 
 /* SECTION */
 .sec-title{font-size:var(--fs-lg);font-weight:600;margin-bottom:3px;letter-spacing:-0.3px;}
@@ -229,7 +245,7 @@ body{
 /* WIZARD STEP */
 .wcard{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-lg);margin-bottom:10px;
+  border-radius:var(--radius-lg);margin-bottom:var(--space-4);
   overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;
   box-shadow:var(--shadow-sm);
 }
@@ -239,10 +255,10 @@ body{
 @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 .wcard.anim-in{animation:fadeUp 0.32s cubic-bezier(0.4,0,0.2,1) both;}
-.whead{display:flex;align-items:center;gap:10px;padding:12px 14px;}
+.whead{display:flex;align-items:center;gap:var(--space-4);padding:var(--space-5) var(--space-6);}
 .step-num-inline{
   display:inline-flex;align-items:center;justify-content:center;
-  width:16px;height:16px;margin-right:2px;
+  width:16px;height:16px;margin-right:var(--space-1);
   background:var(--surface3);border:1px solid var(--border-hi);
   color:var(--muted);border-radius:var(--radius-2xs);
   font-size:9px;font-weight:700;font-family:'Geist Mono',monospace;
@@ -264,7 +280,7 @@ body{
 .wtitle{font-size:13px;font-weight:500;flex:1;color:var(--text);}
 .wanswer{font-size:11px;font-weight:500;color:var(--green);text-align:right;max-width:160px;line-height:1.4;}
 .wbody{
-  padding:0 14px 14px;
+  padding:0 var(--space-6) var(--space-6);
   overflow:hidden;
   max-height:1400px;opacity:1;
   transition:max-height 0.32s cubic-bezier(0.4,0,0.2,1),opacity 0.22s ease,padding 0.28s ease;
@@ -276,7 +292,7 @@ body{
 .wcard.done .wback{display:none;}
 .wcard.done #vai-remaja-tone{display:none !important;}
 .wback{
-  padding:7px 14px;font-size:11px;color:var(--muted);
+  padding:7px var(--space-6);font-size:11px;color:var(--muted);
   font-weight:500;cursor:pointer;
   border-top:1px solid var(--border);
   background:transparent;transition:color 0.15s;
@@ -286,8 +302,8 @@ body{
 
 /* SUBJEK CARD */
 .subjek-card{
-  display:flex;align-items:center;gap:12px;
-  padding:13px 14px;
+  display:flex;align-items:center;gap:var(--space-5);
+  padding:13px var(--space-6);
   background:var(--surface2);border:1px solid var(--border);
   border-radius:var(--radius);cursor:pointer;transition:all 0.15s;
 }
@@ -302,16 +318,16 @@ body{
 .sk-icon svg{width:16px;height:16px;stroke:var(--muted2);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;transition:stroke 0.15s;}
 .subjek-card:hover .sk-icon svg,.subjek-card.sel .sk-icon svg{stroke:var(--text);}
 .sk-info{flex:1;}
-.sk-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px;}
+.sk-title{font-size:13px;font-weight:500;color:var(--text);margin-bottom:var(--space-1);}
 .sk-desc{font-size:11px;color:var(--muted);line-height:1.4;}
 
 /* CHIPS */
-.chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chips{display:flex;flex-wrap:wrap;gap:var(--space-2);}
 .clabel{
   width:100%;
   font-size:10px;font-weight:500;
   color:var(--muted2);
-  padding:10px 0 4px;letter-spacing:0.3px;
+  padding:var(--space-4) 0 4px;letter-spacing:0.3px;
   font-family:'Geist Mono',monospace;
 }
 .chip{
@@ -320,6 +336,8 @@ body{
   border:1px solid var(--border);background:var(--surface2);
   color:var(--muted);transition:all 0.15s;
   font-family:'Geist',sans-serif;
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;
 }
 .chip:hover{border-color:var(--border-hi);color:var(--text);background:var(--surface3);}
 .chip:active{transform:scale(0.96);}
@@ -332,7 +350,7 @@ body{
 /* INPUTS */
 .inp{
   width:100%;background:var(--surface2);border:1px solid var(--border);
-  border-radius:var(--radius);padding:10px 12px;font-size:13px;
+  border-radius:var(--radius);padding:var(--space-4) var(--space-5);font-size:13px;
   font-family:'Geist',sans-serif;color:var(--text);outline:none;
   transition:border-color 0.15s,box-shadow 0.15s;
 }
@@ -355,11 +373,11 @@ body{
 .inplabel{
   font-family:'Geist Mono',monospace;font-size:10px;
   color:var(--muted2);display:block;
-  margin-bottom:5px;margin-top:12px;letter-spacing:0.3px;
+  margin-bottom:5px;margin-top:var(--space-5);letter-spacing:0.3px;
 }
 .desc-ta{
   width:100%;background:var(--bg);border:1px solid var(--border);
-  border-radius:var(--radius);padding:8px 11px;font-size:12px;
+  border-radius:var(--radius);padding:var(--space-3) 11px;font-size:12px;
   font-family:'Geist',sans-serif;color:var(--text);outline:none;
   resize:vertical;min-height:56px;line-height:1.6;
   transition:border-color 0.15s;
@@ -370,14 +388,14 @@ body{
 
 /* FOTO PREVIEW BAR */
 .preview-bar{
-  padding:8px 16px;background:var(--surface);
+  padding:var(--space-3) var(--space-7);background:var(--surface);
   border-bottom:1px solid var(--border);
 }
 .preview-bar-label{
   font-family:'Geist Mono',monospace;font-size:9px;
-  color:var(--muted2);margin-bottom:6px;letter-spacing:0.3px;
+  color:var(--muted2);margin-bottom:var(--space-2);letter-spacing:0.3px;
 }
-.preview-slots{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.preview-slots{display:flex;gap:var(--space-2);overflow-x:auto;padding-bottom:var(--space-1);scrollbar-width:none;}
 .preview-slots::-webkit-scrollbar{display:none;}
 .preview-slot{
   flex:0 0 40px;height:40px;border-radius:var(--radius-xs);
@@ -388,7 +406,7 @@ body{
 .preview-slot.filled{border-color:var(--border-hi);background:var(--surface3);}
 .preview-slot-icon{font-size:12px;line-height:1;}
 .preview-slot-num{font-family:'Geist Mono',monospace;font-size:7px;font-weight:600;color:var(--muted);}
-.preview-slot-type{font-size:7px;color:var(--muted2);text-align:center;padding:0 2px;line-height:1.2;}
+.preview-slot-type{font-size:7px;color:var(--muted2);text-align:center;padding:0 var(--space-1);line-height:1.2;}
 .preview-slot.filled .preview-slot-type{color:var(--muted);}
 .preview-slot-del{
   position:absolute;top:-5px;right:-5px;
@@ -397,13 +415,13 @@ body{
   cursor:pointer;font-size:8px;color:#fff;font-weight:700;
 }
 .preview-slot.filled .preview-slot-del{display:flex;}
-.preview-empty{font-size:11px;color:var(--muted2);padding:12px 0;text-align:center;}
+.preview-empty{font-size:11px;color:var(--muted2);padding:var(--space-5) 0;text-align:center;}
 
 /* FOTO TYPE GRID */
-.ftype-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+.ftype-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin-bottom:var(--space-5);}
 .ftype-btn{
   background:var(--surface2);border:1px solid var(--border);
-  border-radius:var(--radius);padding:12px 10px;cursor:pointer;
+  border-radius:var(--radius);padding:var(--space-5) var(--space-4);cursor:pointer;
   transition:all 0.15s;position:relative;text-align:center;user-select:none;
 }
 .ftype-btn:hover{border-color:var(--border-hi);background:var(--surface3);transform:translateY(-1px);}
@@ -416,9 +434,9 @@ body{
 .ftb-name{font-size:11px;font-weight:500;color:var(--text);margin-bottom:1px;}
 .ftb-desc{font-size:10px;color:var(--muted2);line-height:1.3;}
 .ftb-status{
-  display:inline-flex;align-items:center;gap:2px;
+  display:inline-flex;align-items:center;gap:var(--space-1);
   font-size:9px;font-weight:500;color:var(--muted2);
-  margin-top:6px;padding:2px 7px;border-radius:var(--radius-2xs);
+  margin-top:var(--space-2);padding:var(--space-1) 7px;border-radius:var(--radius-2xs);
   border:1px solid var(--border);background:transparent;
   transition:all 0.2s;letter-spacing:0.2px;line-height:1.4;
   font-family:'Geist',sans-serif;
@@ -433,58 +451,59 @@ body{
 }
 
 /* PHOTO CARDS */
-.photo-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:8px;}
-.photo-card-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);}
-.photo-num{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;color:var(--muted);background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-2xs);padding:2px 7px;flex-shrink:0;}
-.photo-del{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;padding:2px 4px;border-radius:var(--radius-2xs);transition:all 0.12s;}
+.photo-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:var(--space-3);}
+.photo-card-head{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);}
+.photo-num{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;color:var(--muted);background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-2xs);padding:var(--space-1) 7px;flex-shrink:0;}
+.photo-del{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;padding:var(--space-1) 4px;border-radius:var(--radius-2xs);transition:all 0.12s;}
 .photo-del:hover{color:var(--red);background:var(--red-dim);}
-.photo-body{padding:8px 10px;}
+.photo-body{padding:var(--space-3) var(--space-4);}
 .note-toggle{background:none;border:none;font-size:11px;color:var(--muted2);cursor:pointer;font-family:'Geist',sans-serif;padding:0;margin-top:5px;display:flex;align-items:center;gap:4px;}
 .note-toggle:hover{color:var(--text);}
 
 /* PRODUK INPUT BOX */
-.produk-box{background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-top:8px;}
-.produk-box-label{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:0.3px;color:var(--muted2);margin-bottom:6px;}
+.produk-box{background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-4);margin-top:var(--space-3);}
+.produk-box-label{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:0.3px;color:var(--muted2);margin-bottom:var(--space-2);}
 
 /* PRODUK CHOICE */
-.produk-choice-grid{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:4px;}
-.produk-choice{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;cursor:pointer;transition:all 0.15s;display:flex;align-items:flex-start;gap:10px;}
+.produk-choice-grid{display:grid;grid-template-columns:1fr;gap:var(--space-2);margin-bottom:4px;}
+.produk-choice{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:13px var(--space-6);cursor:pointer;transition:all 0.15s;display:flex;align-items:flex-start;gap:var(--space-4);}
 .produk-choice:hover{border-color:var(--border-hi);background:var(--surface3);}
 .produk-choice:active{transform:scale(0.98);}
 .produk-choice.sel{border-color:rgba(217,184,118,0.4);background:var(--accent-dim-bg);box-shadow:var(--shadow-glow);}
-.pc-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
-.pc-title{font-size:13px;font-weight:500;margin-bottom:2px;}
+.pc-icon{font-size:20px;flex-shrink:0;margin-top:var(--space-1);}
+.pc-title{font-size:13px;font-weight:500;margin-bottom:var(--space-1);}
 .pc-desc{font-size:11px;color:var(--muted);line-height:1.5;}
 
 /* BUTTONS */
 .btn{
-  width:100%;padding:12px;
+  width:100%;padding:var(--space-5);
   background:linear-gradient(135deg,var(--accent-2),var(--accent-dim));
   color:#171310;
   border:none;border-radius:var(--radius);
   font-size:13px;font-weight:700;cursor:pointer;
   font-family:'Geist',sans-serif;transition:all 0.15s;
   display:flex;align-items:center;justify-content:center;gap:7px;
-  margin-top:10px;letter-spacing:-0.2px;
+  margin-top:var(--space-4);letter-spacing:-0.2px;
   box-shadow:0 6px 18px rgba(217,184,118,0.22);
+  min-height:44px;
 }
 .btn:hover{filter:brightness(1.06);box-shadow:0 8px 22px rgba(217,184,118,0.3);}
 .btn:active{transform:scale(0.97);filter:brightness(0.97);}
 /* Saat tombol generate menampilkan logo P loading, hilangkan background gold panjang & shadow-nya — logo P tetap seperti semula */
 .btn.btn-loading,.btn:has(.gen-logo-wrap){background:transparent;box-shadow:none;}
-.btn.sm{font-size:12px;padding:9px;}
+.btn.sm{font-size:12px;padding:9px;min-height:44px;}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border-hi);box-shadow:none;}
 .btn.ghost:hover{background:var(--surface2);filter:none;box-shadow:none;}
 .reset-btn{
   width:100%;padding:9px;background:transparent;
   color:var(--muted2);border:1px solid var(--border);
   border-radius:var(--radius);font-size:12px;font-weight:500;cursor:pointer;
-  font-family:'Geist',sans-serif;margin-top:8px;transition:all 0.15s;
+  font-family:'Geist',sans-serif;margin-top:var(--space-3);transition:all 0.15s;
 }
 .reset-btn:hover{border-color:var(--border-hi);color:var(--muted);}
 
 /* ── GENERATE LOADING — logo P kebelah jadi utuh (branding) ── */
-.gen-logo-wrap{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:2px 0;}
+.gen-logo-wrap{display:flex;align-items:center;justify-content:center;gap:var(--space-4);width:100%;padding:var(--space-1) 0;}
 .gen-logo-box{
   width:40px;height:40px;flex-shrink:0;border-radius:var(--radius-sm);
   background:transparent;display:flex;align-items:center;justify-content:center;
@@ -502,7 +521,7 @@ body{
    loading generate) menyatu, lalu muncul tulisan "Prompt Builder" ── */
 .splash-screen{
   position:fixed;inset:0;z-index:99999;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-6);
   background:var(--bg);
   transition:opacity 0.5s ease;
 }
@@ -530,44 +549,44 @@ body{
 .tap-target::after{content:'';position:absolute;inset:-11px;}
 
 /* OUTPUT */
-.output-wrap{margin-top:16px;display:none;}
+.output-wrap{margin-top:var(--space-7);display:none;}
 .desktop-only-preview{display:none;}
 .desktop-step-nav{display:none;}
 .out-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-md),var(--shadow-glow);}
-.out-head{background:var(--surface2);padding:11px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.out-head{background:var(--surface2);padding:11px var(--space-6);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
 .out-label{font-family:'Geist Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:0.3px;}
-.copy-btn{background:var(--surface3);color:var(--text);border:1px solid var(--border-hi);padding:6px 13px;border-radius:var(--radius-pill);font-size:11px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;font-family:'Geist',sans-serif;}
+.copy-btn{background:var(--surface3);color:var(--text);border:1px solid var(--border-hi);padding:var(--space-2) 13px;border-radius:var(--radius-pill);font-size:11px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;font-family:'Geist',sans-serif;}
 .copy-btn:hover{background:linear-gradient(135deg,var(--accent-2),var(--accent-dim));color:#171310;border-color:transparent;}
 .copy-btn.copied{background:var(--green-dim);color:var(--green);border-color:rgba(52,211,153,0.3);}
 .out-tabs{display:flex;background:var(--surface2);border-bottom:1px solid var(--border);}
-.otab{padding:8px 14px;font-size:11px;font-weight:500;color:var(--muted2);cursor:pointer;border:none;background:none;border-bottom:1.5px solid transparent;font-family:'Geist',sans-serif;transition:all 0.15s;}
+.otab{padding:var(--space-3) var(--space-6);font-size:11px;font-weight:500;color:var(--muted2);cursor:pointer;border:none;background:none;border-bottom:1.5px solid transparent;font-family:'Geist',sans-serif;transition:all 0.15s;}
 .otab.active{color:var(--text);border-bottom-color:var(--text);}
-.out-body{padding:14px;background:var(--bg);overflow-x:auto;}
+.out-body{padding:var(--space-6);background:var(--bg);overflow-x:auto;}
 .out-body pre{font-family:'Geist Mono',monospace;font-size:11px;line-height:1.8;color:var(--text);white-space:pre-wrap;word-break:break-word;}
 
 /* REF GUIDE */
-.ref-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-top:10px;}
-.ref-card-title{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:0.3px;color:var(--muted2);margin-bottom:8px;}
-.ref-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;}
+.ref-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-5) var(--space-6);margin-top:var(--space-4);}
+.ref-card-title{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:0.3px;color:var(--muted2);margin-bottom:var(--space-3);}
+.ref-row{display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--border);font-size:11px;}
 .ref-row:last-child{border-bottom:none;}
-.ref-tag{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:var(--radius-2xs);flex-shrink:0;}
+.ref-tag{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;color:var(--muted);background:var(--surface3);padding:var(--space-1) 7px;border-radius:var(--radius-2xs);flex-shrink:0;}
 
 /* PANDUAN */
-.guide-item{display:flex;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;}
+.guide-item{display:flex;gap:var(--space-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-5) var(--space-6);margin-bottom:var(--space-3);}
 .guide-n{width:22px;height:22px;background:var(--surface3);border:1px solid var(--border-hi);color:var(--muted);border-radius:var(--radius-xs);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Geist Mono',monospace;}
 .guide-item h4{font-size:13px;font-weight:500;margin-bottom:3px;}
 .guide-item p{font-size:11px;color:var(--muted);line-height:1.6;}
-.tips-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+.tips-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-6);}
 .tips-wrap p{font-size:11px;color:var(--muted);line-height:2.1;}
 .tips-wrap strong{color:var(--text);}
-.rule{height:1px;background:var(--border);margin:20px 0;}
+.rule{height:1px;background:var(--border);margin:var(--space-8) 0;}
 
 /* VIDEO STYLE CARDS */
-.vstyle-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;cursor:pointer;transition:all 0.15s;margin-bottom:0;}
+.vstyle-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-4) var(--space-5);cursor:pointer;transition:all 0.15s;margin-bottom:0;}
 
 /* DAILY LIMIT WIDGET */
 #daily-limit-bar{position:fixed;bottom:calc(64px + var(--safe-b));right:12px;z-index:200;font-family:'Geist Mono',monospace;display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:none;}
-#dlb-badge{pointer-events:auto;display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 9px 3px 6px;cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:border-color 0.15s;user-select:none;touch-action:none;}
+#dlb-badge{pointer-events:auto;display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 9px 3px var(--space-2);cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:border-color 0.15s;user-select:none;touch-action:none;}
 #dlb-badge:hover{border-color:var(--border-hi);}
 #daily-limit-bar.dragging #dlb-badge{cursor:grabbing;}
 #daily-limit-bar.dragging{transition:none!important;}
@@ -576,9 +595,9 @@ body{
 .dlb-dot.warn{background:#FBBF24;}
 .dlb-dot.empty{background:var(--red);}
 #dlb-count{font-size:10px;font-weight:500;color:var(--muted);line-height:1;}
-#dlb-panel{pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:160px;display:none;cursor:grab;}
+#dlb-panel{pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-3) var(--space-4);box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:160px;display:none;cursor:grab;}
 #daily-limit-bar.expanded #dlb-panel{display:block;}
-.dlb-panel-label{font-size:8px;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:6px;}
+.dlb-panel-label{font-size:8px;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:var(--space-2);}
 .dlb-track{height:2px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-bottom:5px;}
 .dlb-fill{height:100%;border-radius:2px;transition:width 0.4s ease,background 0.4s ease;}
 #dlb-reset{font-size:9px;color:var(--muted2);line-height:1.7;}
@@ -586,26 +605,26 @@ body{
 /* VSTYLE */
 .vstyle-card:hover{border-color:var(--border-hi);background:var(--surface3);}
 .vstyle-card.sel{border-color:var(--border-hi);background:var(--surface3);}
-.vstyle-badge{font-size:9px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;padding:2px 7px;background:var(--surface3);border-radius:var(--radius-2xs);color:var(--muted2);font-family:'Geist Mono',monospace;transition:all 0.15s;}
+.vstyle-badge{font-size:9px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;padding:var(--space-1) 7px;background:var(--surface3);border-radius:var(--radius-2xs);color:var(--muted2);font-family:'Geist Mono',monospace;transition:all 0.15s;}
 .vstyle-card.sel .vstyle-badge{background:var(--text);color:var(--bg);}
-.vstyle-preview{background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:10px 12px;display:none;margin-bottom:10px;}
+.vstyle-preview{background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:var(--space-4) var(--space-5);display:none;margin-bottom:var(--space-4);}
 .vstyle-card.sel+.vstyle-preview{display:block;}
 
 /* TOAST */
-#toast{position:fixed;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);padding:8px 16px;border-radius:var(--radius);font-size:12px;font-weight:500;font-family:'Geist',sans-serif;z-index:9999;transition:transform 0.25s,opacity 0.25s;opacity:0;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+#toast{position:fixed;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);padding:var(--space-3) var(--space-7);border-radius:var(--radius);font-size:12px;font-weight:500;font-family:'Geist',sans-serif;z-index:9999;transition:transform 0.25s,opacity 0.25s;opacity:0;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
 /* PROGRESS INDICATOR */
-.progress-wrap{padding:9px 16px;background:var(--glass-hi);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--border);position:sticky;top:var(--nav-h);z-index:99;}
+.progress-wrap{padding:9px var(--space-7);background:var(--glass-hi);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--border);position:sticky;top:var(--nav-h);z-index:99;}
 .progress-bar-track{height:3px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-bottom:5px;}
 .progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent-dim),var(--accent-2));border-radius:3px;transition:width 0.3s ease;}
 .progress-steps{display:flex;justify-content:space-between;align-items:center;}
 .progress-label{font-size:10px;color:var(--muted2);font-family:'Geist Mono',monospace;}
 .progress-label span{color:var(--text);font-weight:600;}
 /* CONFIRM DIALOG */
-.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;}
-.confirm-box{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius-lg);padding:20px;max-width:300px;width:100%;text-align:center;}
-.confirm-box h4{font-size:14px;font-weight:600;margin-bottom:6px;}
-.confirm-box p{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:16px;}
-.confirm-btns{display:flex;gap:8px;}
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:var(--space-8);}
+.confirm-box{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius-lg);padding:var(--space-8);max-width:300px;width:100%;text-align:center;}
+.confirm-box h4{font-size:14px;font-weight:600;margin-bottom:var(--space-2);}
+.confirm-box p{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:var(--space-7);}
+.confirm-btns{display:flex;gap:var(--space-3);}
 .confirm-btns button{flex:1;padding:9px;border-radius:var(--radius);font-size:12px;font-weight:500;cursor:pointer;font-family:'Geist',sans-serif;border:none;transition:all 0.15s;}
 .confirm-cancel{background:var(--surface2);color:var(--muted);border:1px solid var(--border)!important;}
 .confirm-cancel:hover{color:var(--text);}
@@ -620,48 +639,48 @@ body{
 .footer-sep{color:var(--muted2);font-size:10px;}
 .footer p{font-size:11px;color:var(--muted);margin:0;}
 .footer .gold{color:var(--muted);font-weight:500;}
-.app-shell{padding-bottom:calc(16px + var(--safe-b));}
+.app-shell{padding-bottom:calc(var(--space-7) + var(--safe-b));}
 .hidden{display:none!important;}
-.mt8{margin-top:8px;}.mt12{margin-top:12px;}.mt16{margin-top:16px;}
+.mt8{margin-top:var(--space-3);}.mt12{margin-top:var(--space-5);}.mt16{margin-top:var(--space-7);}
 .inp-wrap{position:relative;}
-.inp-counter{font-family:'Geist Mono',monospace;font-size:9px;color:var(--muted2);text-align:right;margin-top:2px;}
+.inp-counter{font-family:'Geist Mono',monospace;font-size:9px;color:var(--muted2);text-align:right;margin-top:var(--space-1);}
 .inp-counter.warn{color:#FBBF24;}
 .inp-counter.over{color:var(--red);}
-.copy-btn .copy-mode{font-size:8px;opacity:0.6;margin-left:2px;font-family:'Geist Mono',monospace;}
-.upload-notice{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:8px;animation:notif-in 0.25s ease;}
+.copy-btn .copy-mode{font-size:8px;opacity:0.6;margin-left:var(--space-1);font-family:'Geist Mono',monospace;}
+.upload-notice{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:var(--space-3);animation:notif-in 0.25s ease;}
 @keyframes notif-in{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
-.upload-notice-head{display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--surface3);border-bottom:1px solid var(--border);}
+.upload-notice-head{display:flex;align-items:center;gap:var(--space-2);padding:7px var(--space-4);background:var(--surface3);border-bottom:1px solid var(--border);}
 .upload-notice-icon{font-size:12px;line-height:1;}
 .upload-notice-label{flex:1;font-size:11px;font-weight:500;}
 .upload-notice-sub{font-size:9px;color:var(--muted2);font-family:'Geist Mono',monospace;}
 .upload-notice-close{width:18px;height:18px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--muted2);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;line-height:1;padding:0;flex-shrink:0;}
 .upload-notice-close:hover{color:var(--text);}
-.upload-notice-body{padding:6px 8px;display:flex;flex-direction:column;gap:3px;}
-.un-row{display:flex;align-items:center;gap:7px;padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);}
+.upload-notice-body{padding:var(--space-2) var(--space-3);display:flex;flex-direction:column;gap:3px;}
+.un-row{display:flex;align-items:center;gap:7px;padding:5px var(--space-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);}
 .un-num{font-size:13px;font-weight:700;color:var(--text);min-width:16px;line-height:1;}
 .un-info{flex:1;}
 .un-type{font-size:11px;font-weight:500;margin-bottom:0;}
 .un-detail{font-size:10px;color:var(--muted);line-height:1.4;}
 /* ── SUMMARY CARD ── */
-.summary-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:12px;animation:summaryIn 0.25s ease;}
+.summary-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:var(--space-5);animation:summaryIn 0.25s ease;}
 @keyframes summaryIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
-.summary-card-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid var(--border);}
-.summary-card-title{font-size:12px;font-weight:600;letter-spacing:-0.2px;display:flex;align-items:center;gap:6px;}
+.summary-card-head{display:flex;align-items:center;justify-content:space-between;padding:var(--space-4) var(--space-5) var(--space-3);border-bottom:1px solid var(--border);}
+.summary-card-title{font-size:12px;font-weight:600;letter-spacing:-0.2px;display:flex;align-items:center;gap:var(--space-2);}
 .summary-card-title-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;}
 .summary-card-subtitle{font-size:9px;color:var(--muted2);font-family:'Geist Mono',monospace;letter-spacing:0.3px;}
 .summary-rows{padding:3px 0;}
-.summary-row{display:flex;align-items:flex-start;gap:7px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);transition:background 0.12s;}
+.summary-row{display:flex;align-items:flex-start;gap:7px;padding:var(--space-3) var(--space-5);border-bottom:1px solid rgba(255,255,255,0.03);transition:background 0.12s;}
 .summary-row:last-child{border-bottom:none;}
 .summary-row:hover{background:rgba(255,255,255,0.02);}
 .summary-row-key{font-size:9px;font-weight:600;color:var(--muted2);font-family:'Geist Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;min-width:64px;max-width:80px;flex-shrink:0;padding-top:1px;}
 .summary-row-val{font-size:12px;color:var(--text);font-weight:400;flex:1;line-height:1.5;}
 .summary-row-val.empty{color:var(--muted2);font-style:italic;}
-.summary-edit{background:none;border:1px solid var(--border);border-radius:var(--radius-2xs);color:var(--muted2);font-size:9px;padding:2px 7px;cursor:pointer;font-family:'Geist Mono',monospace;transition:all 0.12s;flex-shrink:0;margin-left:6px;}
+.summary-edit{background:none;border:1px solid var(--border);border-radius:var(--radius-2xs);color:var(--muted2);font-size:9px;padding:var(--space-1) 7px;cursor:pointer;font-family:'Geist Mono',monospace;transition:all 0.12s;flex-shrink:0;margin-left:var(--space-2);}
 .summary-edit:hover{border-color:var(--border-hi);color:var(--text);}
-.summary-warning{background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);border-radius:var(--radius);padding:8px 10px;margin:0 12px 10px;font-size:11px;color:#FBBF24;line-height:1.6;display:flex;gap:7px;align-items:flex-start;}
-.summary-ok-badge{display:inline-flex;align-items:center;gap:3px;background:var(--green-dim);border:1px solid rgba(52,211,153,0.2);border-radius:var(--radius-2xs);padding:1px 7px;font-size:9px;font-weight:600;color:var(--green);font-family:'Geist Mono',monospace;margin-left:6px;vertical-align:middle;}
+.summary-warning{background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);border-radius:var(--radius);padding:var(--space-3) var(--space-4);margin:0 var(--space-5) var(--space-4);font-size:11px;color:#FBBF24;line-height:1.6;display:flex;gap:7px;align-items:flex-start;}
+.summary-ok-badge{display:inline-flex;align-items:center;gap:3px;background:var(--green-dim);border:1px solid rgba(52,211,153,0.2);border-radius:var(--radius-2xs);padding:1px 7px;font-size:9px;font-weight:600;color:var(--green);font-family:'Geist Mono',monospace;margin-left:var(--space-2);vertical-align:middle;}
 /* ── HABIT TRACKER ── */
-.habit-suggest{display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;transition:all 0.15s;}
+.habit-suggest{display:flex;align-items:center;gap:var(--space-2);padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:var(--space-3);cursor:pointer;transition:all 0.15s;}
 .habit-suggest:hover{border-color:var(--border-hi);background:var(--surface3);}
 .habit-suggest-icon{font-size:13px;flex-shrink:0;}
 .habit-suggest-text{font-size:11px;line-height:1.4;flex:1;}
@@ -670,12 +689,12 @@ body{
 .habit-suggest-btn{background:var(--text);color:var(--bg);border:none;padding:3px 9px;border-radius:var(--radius-2xs);font-size:10px;font-weight:600;cursor:pointer;flex-shrink:0;font-family:'Geist',sans-serif;}
 .habit-count-badge{font-family:'Geist Mono',monospace;font-size:8px;font-weight:600;color:var(--muted);background:var(--surface3);border:1px solid var(--border);padding:1px 5px;border-radius:var(--radius-2xs);margin-left:3px;}
 /* ── CAHAYA ── */
-.cahaya-context-hint{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:var(--radius);margin-bottom:10px;font-size:11px;line-height:1.5;}
+.cahaya-context-hint{display:flex;align-items:center;gap:7px;padding:var(--space-3) var(--space-4);border-radius:var(--radius);margin-bottom:var(--space-4);font-size:11px;line-height:1.5;}
 .cahaya-context-hint.indoor{background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.12);color:var(--text);}
 .cahaya-context-hint.outdoor{background:var(--green-dim);border:1px solid rgba(52,211,153,0.12);color:var(--text);}
 .cahaya-context-hint.studio{background:rgba(129,140,248,0.05);border:1px solid rgba(129,140,248,0.12);color:var(--text);}
 .cahaya-context-hint-icon{font-size:14px;flex-shrink:0;}
-.cahaya-context-recom{font-size:8px;font-weight:600;font-family:'Geist Mono',monospace;padding:2px 5px;border-radius:var(--radius-2xs);margin-left:auto;flex-shrink:0;}
+.cahaya-context-recom{font-size:8px;font-weight:600;font-family:'Geist Mono',monospace;padding:var(--space-1) 5px;border-radius:var(--radius-2xs);margin-left:auto;flex-shrink:0;}
 .cahaya-context-hint.indoor .cahaya-context-recom{background:rgba(251,191,36,0.1);color:#FBBF24;}
 .cahaya-context-hint.outdoor .cahaya-context-recom{background:var(--green-dim);color:var(--green);}
 .cahaya-context-hint.studio .cahaya-context-recom{background:rgba(129,140,248,0.1);color:var(--blue);}
@@ -695,7 +714,7 @@ body{
 /* ── INLINE WIZARD (v7 redesign) ── */
 .wcard{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-lg);margin-bottom:6px;
+  border-radius:var(--radius-lg);margin-bottom:var(--space-2);
   overflow:hidden;transition:border-color 0.2s;
 }
 .wcard.done{border-color:var(--border);}
@@ -703,7 +722,7 @@ body{
 .wcard.done .whead:hover{background:var(--surface2);}
 
 /* collapsed summary row */
-.wcard.done .whead{padding:10px 14px;}
+.wcard.done .whead{padding:var(--space-4) var(--space-6);}
 .wcard.done .wnum{
   background:var(--green-dim);border-color:rgba(52,211,153,0.25);
   color:var(--green);
@@ -724,7 +743,7 @@ body{
   font-family:'Geist Mono',monospace;
   color:var(--muted2);background:var(--surface3);
   border:1px solid var(--border);border-radius:var(--radius-2xs);
-  padding:2px 7px;flex-shrink:0;margin-left:8px;
+  padding:var(--space-1) 7px;flex-shrink:0;margin-left:var(--space-3);
   transition:all 0.12s;
 }
 .wcard.done .wedit-pill{display:inline-flex;}
@@ -762,7 +781,7 @@ body{
 .wcard.done .wback{display:none!important;}
 .wcard.done .whead{
   cursor:pointer;
-  padding:10px 14px;
+  padding:var(--space-4) var(--space-6);
   transition:background 0.12s;
 }
 .wcard.done .whead:hover{background:var(--surface2);}
@@ -813,9 +832,9 @@ body{
   background:var(--surface3);
   border:1px solid var(--border);
   border-radius:var(--radius-2xs);
-  padding:2px 7px;
+  padding:var(--space-1) 7px;
   flex-shrink:0;
-  margin-left:6px;
+  margin-left:var(--space-2);
   transition:all 0.12s;
   white-space:nowrap;
 }
@@ -830,8 +849,8 @@ body{
    kecil sejajar ke samping (bukan kebawah), isinya emoji ikon saja tanpa
    teks, biar sehemat mungkin tempatnya. Tap ikon untuk buka & edit lagi. ── */
 .wchips-row{
-  display:flex;flex-wrap:wrap;gap:6px;
-  margin-bottom:10px;
+  display:flex;flex-wrap:wrap;gap:var(--space-2);
+  margin-bottom:var(--space-4);
 }
 .wchips-row:empty{display:none;margin-bottom:0;}
 .wcard.chip-mode{
@@ -871,13 +890,14 @@ body{
 
 /* ── F1 TYPE CHIPS ── */
 .f1chip{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:6px 10px;
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:var(--space-2) var(--space-4);
   background:var(--surface2);border:1px solid var(--border);
   border-radius:var(--radius-xs);font-size:12px;font-weight:400;
   color:var(--muted);cursor:pointer;
   font-family:'Geist',sans-serif;
   transition:all 0.12s;white-space:nowrap;
+  min-height:44px;
 }
 .f1chip:hover{border-color:var(--border-hi);color:var(--text);}
 .f1chip.has{
@@ -903,8 +923,8 @@ body{
 
 /* compact foto rows */
 .f1-ref-row{
-  display:flex;align-items:flex-start;gap:8px;
-  padding:8px 10px;
+  display:flex;align-items:flex-start;gap:var(--space-3);
+  padding:var(--space-3) var(--space-4);
   background:var(--surface2);border:1px solid var(--border);
   border-radius:var(--radius);margin-bottom:5px;
   cursor:pointer;transition:border-color 0.15s;
@@ -915,14 +935,14 @@ body{
   font-family:'Geist Mono',monospace;font-size:9px;
   font-weight:600;color:var(--muted2);
   background:var(--surface3);border:1px solid var(--border);
-  border-radius:var(--radius-2xs);padding:2px 5px;flex-shrink:0;
+  border-radius:var(--radius-2xs);padding:var(--space-1) 5px;flex-shrink:0;
   margin-top:1px;
 }
 .f1-ref-type{font-size:11px;font-weight:500;color:var(--text);flex-shrink:0;width:72px;}
 .f1-ref-input{flex:1;}
 .f1-ref-del{
   background:none;border:none;color:var(--muted2);
-  cursor:pointer;font-size:14px;padding:0 2px;
+  cursor:pointer;font-size:14px;padding:0 var(--space-1);
   flex-shrink:0;line-height:1;margin-top:1px;
   transition:color 0.12s;
 }
@@ -957,6 +977,10 @@ body{
   .nav{
     max-width:900px;margin:0 auto;
     border-left:1px solid var(--border);border-right:1px solid var(--border);
+    position:sticky;top:0;bottom:auto;
+    border-top:none;border-bottom:1px solid var(--border);
+    box-shadow:none;
+    padding:var(--space-3) var(--space-4);
   }
   .progress-wrap{
     max-width:900px;margin:0 auto;
@@ -989,10 +1013,10 @@ body{
     align-self:start;
     max-height:calc(100vh - 32px);
     overflow-y:auto;
-    margin-top:20px;
+    margin-top:var(--space-8);
     display:flex;
     flex-direction:column;
-    gap:16px;
+    gap:var(--space-7);
   }
   /* Beri sedikit micro-shadow di panel preview biar terasa seperti "kartu" mengambang */
   #f-right-col #f-output-wrap{
@@ -1007,22 +1031,22 @@ body{
     border-radius:var(--radius-lg,12px);
     flex-shrink:0;
   }
-  #f-preview-placeholder{align-items:center;justify-content:center;text-align:center;padding:32px 20px;}
-  #f-history-mini-wrap{padding:14px 16px;}
+  #f-preview-placeholder{align-items:center;justify-content:center;text-align:center;padding:32px var(--space-8);}
+  #f-history-mini-wrap{padding:var(--space-6) var(--space-7);}
 
   /* STEP NAV — daftar step yang bisa diklik, nempel di atas kolom kiri */
   .desktop-step-nav{
-    display:flex;flex-wrap:wrap;gap:6px;
+    display:flex;flex-wrap:wrap;gap:var(--space-2);
     position:sticky;top:0;z-index:50;
     background:var(--bg);
-    padding:14px 0 10px;
+    padding:var(--space-6) 0 var(--space-4);
     margin-bottom:-4px;
     border-bottom:1px solid var(--border);
   }
   .desktop-step-nav a{
     font-size:11px;font-weight:500;color:var(--muted);
     background:var(--surface2);border:1px solid var(--border);
-    padding:5px 10px;border-radius:var(--radius-pill);cursor:pointer;
+    padding:5px var(--space-4);border-radius:var(--radius-pill);cursor:pointer;
     white-space:nowrap;transition:all 0.15s;
     font-family:'Geist',sans-serif;
   }
@@ -1045,6 +1069,21 @@ body{
     <symbol id="ic-edit" viewBox="0 0 16 16"><path d="M10.6 2.3L13.7 5.4L5.4 13.7H2.3V10.6L10.6 2.3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
     <symbol id="ic-refresh" viewBox="0 0 16 16"><path d="M13.2 8A5.2 5.2 0 1 1 11.3 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11.3 1.3V4.3H14.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="ic-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8.2L10.4 9.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <!-- FIX: tombol show/hide API key (vaiToggleKeyVisibility) sebelumnya
+         kosong total di semua state — ikutan migrasi emoji→SVG di atas tapi
+         kelewat, jadi textContent-nya diset ke string kosong di kedua cabang.
+         Ditambahkan 2 ikon mata (senada gaya ikon lain: stroke tipis, 16x16). -->
+    <symbol id="ic-eye" viewBox="0 0 16 16"><path d="M1.3 8S4 3.3 8 3.3 14.7 8 14.7 8 12 12.7 8 12.7 1.3 8 1.3 8Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+    <symbol id="ic-eye-off" viewBox="0 0 16 16"><path d="M2.3 4.3C1.6 5 1.3 8 1.3 8S4 12.7 8 12.7c1.1 0 2.1-.3 3-.8M13.7 8S12.6 5.8 10.6 4.6M6.2 6.2a2 2 0 0 0 2.6 2.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2L14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+    <!-- Ikon tambahan — dipindah dari SVG inline yang gaya ukurannya ditulis
+         manual berulang di banyak tempat, supaya konsisten terpusat di sini. -->
+    <symbol id="ic-face" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="11" r="1" fill="currentColor" stroke="none"/><path d="M9 15c.8 1.2 2 2 3 2s2.2-.8 3-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="ic-outfit" viewBox="0 0 24 24"><path d="M9 3H15M9 3L6 7l-3 1 2 2-1 11h16L19 10l2-2-3-1-3-4M9 3c0 2 1.5 3 3 3s3-1 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="ic-box" viewBox="0 0 24 24"><path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><polyline points="9 22 9 12 15 12 15 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="ic-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M21 21l-4.35-4.35" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="ic-shuffle" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-warning" viewBox="0 0 24 24"><path d="M12 3l10 18H2L12 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10v4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="ic-document" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6M9 17h4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   </defs>
 </svg>
 
@@ -1152,7 +1191,7 @@ body{
           <label class="inplabel">Paste API Key di sini</label>
           <div style="display:flex;gap:8px;">
             <input class="inp" id="gemini-api-key" type="password" placeholder="AIza... atau AQ.... (paste kode dari Google AI Studio)" style="flex:1;font-family:'Geist Mono',monospace;font-size:12px;" oninput="let eb=document.getElementById('vai-key-error');if(eb)eb.classList.add('hidden');" />
-            <button onclick="vaiToggleKeyVisibility(this)" title="Tampilkan/sembunyikan API key" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:0 12px;border-radius:var(--radius-md);cursor:pointer;font-size:16px;"></button>
+            <button onclick="vaiToggleKeyVisibility(this)" title="Tampilkan/sembunyikan API key" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:0 12px;border-radius:var(--radius-md);cursor:pointer;font-size:16px;"><svg class="icon"><use href="#ic-eye"></use></svg></button>
           </div>
           <div id="vai-key-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.12);border:1px solid rgba(224,92,92,0.4);border-radius:var(--radius-md);padding:10px 12px;font-size:11.5px;color:#ff8080;line-height:1.6;"></div>
           <p style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;">Kode ini hanya tersimpan di browser kamu — tidak dikirim ke server manapun selain Google.</p>
@@ -1310,7 +1349,7 @@ body{
         <div id="f1-type-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
 
           <button class="f1chip" id="ftb-wajah" onclick="fAddRef('wajah')">
-            <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;flex-shrink:0;"><circle cx="12" cy="12" r="8"/><circle cx="9" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="11" r="1" fill="currentColor" stroke="none"/><path d="M9 15c.8 1.2 2 2 3 2s2.2-.8 3-2"/></svg>
+            <svg class="icon" style="font-size:13px;flex-shrink:0;"><use href="#ic-face"></use></svg>
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
               <span>Wajah</span>
               <span class="f1chip-sub" id="fts-wajah">Apakah kamu punya fotonya di galeri?</span>
@@ -1319,7 +1358,7 @@ body{
           </button>
 
           <button class="f1chip" id="ftb-outfit" onclick="fAddRef('outfit')">
-            <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;flex-shrink:0;"><path d="M9 3H15M9 3L6 7l-3 1 2 2-1 11h16L19 10l2-2-3-1-3-4M9 3c0 2 1.5 3 3 3s3-1 3-3"/></svg>
+            <svg class="icon" style="font-size:13px;flex-shrink:0;"><use href="#ic-outfit"></use></svg>
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
               <span>Outfit</span>
               <span class="f1chip-sub" id="fts-outfit">Apakah kamu punya fotonya di galeri?</span>
@@ -1328,7 +1367,7 @@ body{
           </button>
 
           <button class="f1chip" id="ftb-produk" onclick="fAddRef('produk')">
-            <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;flex-shrink:0;"><path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <svg class="icon" style="font-size:13px;flex-shrink:0;"><use href="#ic-box"></use></svg>
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
               <span>Produk</span>
               <span class="f1chip-sub" id="fts-produk">Apakah kamu punya fotonya di galeri?</span>
@@ -1337,7 +1376,7 @@ body{
           </button>
 
           <button class="f1chip" id="ftb-objek" onclick="fAddRef('objek')">
-            <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <svg class="icon" style="font-size:13px;flex-shrink:0;"><use href="#ic-search"></use></svg>
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
               <span>Objek</span>
               <span class="f1chip-sub" id="fts-objek">Apakah kamu punya fotonya di galeri?</span>
@@ -1346,7 +1385,7 @@ body{
           </button>
 
           <button class="f1chip f1chip-special" id="ftb-outfit_random" onclick="fOpenOutfitRandom()">
-            <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/></svg>
+            <svg class="icon" style="font-size:13px;flex-shrink:0;"><use href="#ic-shuffle"></use></svg>
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;">
               <span>Isi Outfit Karakter</span>
               <span style="font-size:9px;color:var(--muted2);font-weight:400;line-height:1;">isi sendiri</span>
@@ -1448,9 +1487,9 @@ body{
     <div class="wbody">
       <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">Pilih cara produk ditampilkan — pose akan menyesuaikan otomatis.</p>
       <div class="chips">
-        <div class="chip" onclick="fPickHold('dipakai',this,'Dipakai langsung')">Dipakai ke karakter<br><span style="font-size:10px;color:var(--muted);font-weight:400;">Aksesoris &amp; outfit — jilbab, topi, gelang, dll.</span></div>
-        <div class="chip" onclick="fPickHold('hanger',this,'Pakai hanger — ke kamera')">Produk di hanger<br><span style="font-size:10px;color:var(--muted);font-weight:400;">Baju/celana di hanger, karakter memperlihatkan ke kamera</span></div>
-        <div class="chip" onclick="fPickHold('tangan',this,'Dipegang — diarahkan ke kamera')">Dipegang &amp; diarahkan ke kamera<br><span style="font-size:10px;color:var(--muted);font-weight:400;">Produk digenggam tangan dan diarahkan langsung ke lensa</span></div>
+        <div class="chip" onclick="fPickHold('dipakai',this,'Dipakai langsung')">Dipakai ke karakter</div>
+        <div class="chip" onclick="fPickHold('hanger',this,'Pakai hanger — ke kamera')">Produk di hanger</div>
+        <div class="chip" onclick="fPickHold('tangan',this,'Dipegang — diarahkan ke kamera')">Dipegang &amp; diarahkan ke kamera</div>
       </div>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
@@ -1852,7 +1891,7 @@ body{
         </div>
       </div>
       <div class="summary-warning" id="summary-warning" style="display:none;">
-        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;margin-top:1px;"><path d="M12 3l10 18H2L12 3z"/><path d="M12 10v4"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg><span id="summary-warning-text"></span>
+        <svg class="icon" style="font-size:13px;flex-shrink:0;margin-top:1px;"><use href="#ic-warning"></use></svg><span id="summary-warning-text"></span>
       </div>
       <div class="summary-rows" id="summary-rows"></div>
     </div>
@@ -1887,7 +1926,7 @@ body{
   <div id="f-right-col">
   <!-- LIVE PREVIEW PLACEHOLDER (khusus desktop) — tampil sebelum Generate pertama -->
   <div id="f-preview-placeholder" class="desktop-only-preview">
-    <div style="margin-bottom:10px;color:var(--muted2);"><svg viewBox="0 0 24 24" style="width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg></div>
+    <div style="margin-bottom:10px;color:var(--muted2);"><svg class="icon" style="font-size:28px;"><use href="#ic-document"></use></svg></div>
     <div style="font-size:13px;font-weight:700;margin-bottom:6px;">Preview Prompt</div>
     <div style="font-size:11.5px;color:var(--muted);line-height:1.6;">Isi step di sebelah kiri, lalu klik <strong style="color:var(--text);">Generate</strong> — hasil JSON akan muncul di sini dan tetap terlihat sambil kamu scroll.</div>
   </div>
@@ -3798,24 +3837,28 @@ const POSES_WITH_PRODUK={
       ['Sitting relaxed, product clearly worn and visible, hijab neat, natural posture, candid smile','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, product clearly worn, hijab visible, eyes wide and enthusiastic, warm engaging energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product clearly worn, hijab visible, eyes wide and enthusiastic, warm engaging energy','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the very bottom corner of frame held by fingers — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, product worn as part of outfit clearly visible, face fills most of the frame close-up, eyes looking straight into the lens, warm candid smile, hijab neatly styled, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
     hanger:[
       ['Standing naturally, holding hanger toward camera, product on hanger facing lens, bright natural smile, hijab clearly visible','Berdiri'],
       ['Sitting relaxed, holding hanger extended toward camera, product on hanger fully visible, natural expression, hijab tidy','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, eyes wide and enthusiastic','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, eyes wide and enthusiastic','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, one hand extended toward the viewer gripping the phone with only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, other hand holding the hanger with product angled toward camera and clearly visible, face fills most of the frame, eyes looking straight into the lens, warm candid smile, hijab neatly styled, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
     tangan:[
       ['Standing naturally, holding product with both hands directed toward camera, product faces lens squarely, hijab visible, warm smile','Berdiri'],
       ['Sitting relaxed, both hands holding product extended forward toward camera, product sharp and centered, hijab visible, soft smile','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, one hand extended toward the viewer gripping the phone with only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, other hand holding the product toward camera, product sharp and visible, face fills most of the frame, eyes looking straight into the lens, warm candid smile, hijab neatly styled, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
     custom:[
       ['Standing naturally, product displayed as instructed, hijab visible, warm candid expression','Berdiri'],
       ['Sitting relaxed, product displayed as instructed, hijab neat, candid lifestyle feel','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic engaging energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic engaging energy','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, product displayed as instructed, face fills most of the frame, eyes looking straight into the lens, warm candid smile, hijab neatly styled, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
   },
   pria:{
@@ -3824,24 +3867,28 @@ const POSES_WITH_PRODUK={
       ['Sitting relaxed on chair, product clearly worn, arms resting naturally, casual confident expression','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, engaging masculine energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, engaging masculine energy','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the very bottom corner of frame held by fingers — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, product worn as part of outfit clearly visible, face fills most of the frame close-up, eyes looking straight into the lens, confident relaxed smile, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
     hanger:[
       ['Standing confidently, holding hanger toward camera, product on hanger facing lens, strong natural posture, relaxed smile','Berdiri'],
       ['Sitting relaxed, holding hanger extended forward, product fully visible to camera, natural confident expression','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, enthusiastic energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, enthusiastic energy','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, one hand extended toward the viewer gripping the phone with only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, other hand holding the hanger with product angled toward camera and clearly visible, face fills most of the frame, eyes looking straight into the lens, confident relaxed smile, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
     tangan:[
       ['Standing confidently, holding product with both hands directed toward camera, product faces lens squarely, strong relaxed posture','Berdiri'],
       ['Sitting relaxed, both hands holding product extended forward toward camera, product sharp and centered, confident casual feel','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, one hand extended toward the viewer gripping the phone with only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, other hand holding the product toward camera, product sharp and visible, face fills most of the frame, eyes looking straight into the lens, confident relaxed smile, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
     custom:[
       ['Standing naturally, product displayed as instructed, relaxed masculine posture, candid expression','Berdiri'],
       ['Sitting relaxed, product displayed as instructed, casual confident feel','Duduk'],
       ['Standing, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic masculine energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic masculine energy','Duduk condong ke kamera'],
+      ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, product displayed as instructed, face fills most of the frame, eyes looking straight into the lens, confident relaxed smile, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
     ],
   },
   anak:{
@@ -3850,24 +3897,28 @@ const POSES_WITH_PRODUK={
       ['Child sitting playfully, product clearly worn, cheerful natural expression, candid lifestyle feel','Duduk'],
       ['Child standing, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, joyful energy','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, joyful energy','Duduk condong ke kamera'],
+      ['Child, true first-person POV selfie: the camera itself represents the child\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the very bottom corner of frame held by fingers — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, product worn as part of outfit clearly visible, face fills most of the frame close-up, eyes looking straight into the lens, big cheerful smile, natural handheld phone-selfie perspective, playful natural feel','Selfie — pegang kamera'],
     ],
     hanger:[
       ['Child standing, holding hanger toward camera, bright cheerful smile, product on hanger clearly visible','Berdiri'],
       ['Child sitting, holding hanger extended toward camera, playful expression, product fully visible','Duduk'],
       ['Child standing, leaning forward toward camera with excited expression, holding hanger extended, product sharp, big cheerful smile','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, holding hanger extended, product sharp, big cheerful smile','Duduk condong ke kamera'],
+      ['Child, true first-person POV selfie: the camera itself represents the child\'s own phone front camera, one hand extended toward the viewer gripping the phone with only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, other hand holding the hanger with product angled toward camera and clearly visible, face fills most of the frame, eyes looking straight into the lens, big cheerful smile, natural handheld phone-selfie perspective, playful natural feel','Selfie — pegang kamera'],
     ],
     tangan:[
       ['Child standing, holding product with both hands directed toward camera, product faces lens clearly, bright cheerful smile','Berdiri'],
       ['Child sitting, holding product extended toward camera, product sharp and visible, playful candid expression','Duduk'],
       ['Child standing, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide, joyful energy','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide, joyful energy','Duduk condong ke kamera'],
+      ['Child, true first-person POV selfie: the camera itself represents the child\'s own phone front camera, one hand extended toward the viewer gripping the phone with only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, other hand holding the product toward camera, product sharp and visible, face fills most of the frame, eyes looking straight into the lens, big cheerful smile, natural handheld phone-selfie perspective, playful natural feel','Selfie — pegang kamera'],
     ],
     custom:[
       ['Child standing naturally, product displayed as instructed, cheerful candid expression','Berdiri'],
       ['Child sitting playfully, product displayed as instructed, joyful unstaged feel','Duduk'],
       ['Child standing, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic playful energy','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic playful energy','Duduk condong ke kamera'],
+      ['Child, true first-person POV selfie: the camera itself represents the child\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the bottom corner of frame — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, product displayed as instructed, face fills most of the frame, eyes looking straight into the lens, big cheerful smile, natural handheld phone-selfie perspective, playful natural feel','Selfie — pegang kamera'],
     ],
   },
 };
@@ -3878,21 +3929,21 @@ const POSES_NO_PRODUK={
     ['Sitting relaxed on chair or sofa, natural posture, slight smile looking at camera, hands resting naturally, hijab neat and styled','Duduk'],
     ['Standing, leaning forward toward camera with excited expression, eyes wide and enthusiastic, hijab visible, warm engaging energy','Berdiri condong ke kamera'],
     ['Sitting, leaning forward toward camera with excited expression, eyes wide and enthusiastic, hijab visible, warm engaging energy','Duduk condong ke kamera'],
-    ['Standing, holding phone/camera up with one arm extended taking a selfie, looking directly into the lens, warm candid smile, hijab neatly styled, natural selfie angle, casual authentic feel','Selfie — pegang kamera'],
+    ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the very bottom corner of frame held by fingers — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, her face fills most of the frame close-up, eyes looking straight into the lens, warm candid smile, hijab neatly styled, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
   ],
   pria:[
     ['Standing naturally, arms relaxed at sides, confident expression, direct eye contact with camera','Berdiri'],
     ['Sitting relaxed on chair, arms resting casually, slight smile, masculine candid feel','Duduk'],
     ['Standing, leaning forward toward camera with excited expression, eyes wide and enthusiastic, engaging masculine energy','Berdiri condong ke kamera'],
     ['Sitting, leaning forward toward camera with excited expression, eyes wide and enthusiastic, engaging masculine energy','Duduk condong ke kamera'],
-    ['Standing, holding phone/camera up with one arm extended taking a selfie, looking directly into the lens, confident relaxed smile, natural selfie angle, casual authentic feel','Selfie — pegang kamera'],
+    ['True first-person POV selfie: the camera itself represents the character\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the very bottom corner of frame held by fingers — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, his face fills most of the frame close-up, eyes looking straight into the lens, confident relaxed smile, natural handheld phone-selfie perspective, casual authentic feel','Selfie — pegang kamera'],
   ],
   anak:[
     ['Child standing naturally, hands at sides, bright innocent smile, looking at camera','Berdiri'],
     ['Child sitting playfully on floor, big cheerful smile, candid natural feel','Duduk'],
     ['Child standing, leaning forward toward camera with excited expression, eyes wide and enthusiastic, joyful playful energy','Berdiri condong ke kamera'],
     ['Child sitting, leaning forward toward camera with excited expression, eyes wide and enthusiastic, joyful playful energy','Duduk condong ke kamera'],
-    ['Child standing, holding phone/camera up with one arm extended taking a selfie, looking directly into the lens, big cheerful smile, natural playful selfie angle','Selfie — pegang kamera'],
+    ['Child, true first-person POV selfie: the camera itself represents the child\'s own phone front camera, arm extended toward the viewer with hand gripping the phone, only a small sliver of the phone\'s top edge/bezel visible at the very bottom corner of frame held by fingers — do NOT show the phone\'s back panel or rear camera lenses facing the viewer, face fills most of the frame close-up, eyes looking straight into the lens, big cheerful smile, natural handheld phone-selfie perspective, playful natural feel','Selfie — pegang kamera'],
   ],
 };
 
@@ -4500,6 +4551,44 @@ function _fDoGenerate(){
 // angle/pose/mood/framing) tetap ambil dari FS terkini — jadi kalau
 // user reopen salah satu step itu buat diubah, hasilnya ikut berubah.
 // ============================================================
+// ============================================================
+// Fungsi bersama: hitung teks "placement" (cara produk ditampilkan/
+// dipegang) berdasarkan pilihan FS.holdKey / FS.hold TERKINI. Dipakai
+// oleh _fBuildPromptJSON (mode normal) DAN _fBuildImportedPromptJSON
+// (mode import) — supaya kalau user reopen step "Cara Tampil Produk"
+// dan ganti pilihan, perubahannya konsisten kepakai di kedua mode,
+// bukan cuma di salah satu.
+// ============================================================
+function _fComputePlacement(ov){
+  ov = ov || {};
+  let placement = '';
+  if(ov.placementOverride){
+    placement = ov.placementOverride;
+  } else if(ov.forceProdukSaja){
+    placement = 'displayed clearly and prominently as the sole focus of the frame, no hands or person present, centered composition showing full product detail';
+  } else if(FS.holdKey === 'dipakai'){
+    placement = 'worn directly on the character as an accessory or garment — naturally integrated into the outfit';
+  } else if(FS.holdKey === 'hanger'){
+    placement = 'displayed on a hanger presented by the character to the camera — ' + FS.hold;
+  } else if(FS.holdKey === 'tangan'){
+    // FIX BUG: kalau pose yang dipilih adalah selfie (satu tangan pegang HP,
+    // satu tangan pegang produk), placement default "both hands" di atas jadi
+    // kontradiksi dengan instruksi pose. Deteksi via poseLabel dan pakai
+    // placement khusus 1 tangan untuk kasus ini.
+    let _isSelfiePose = (ov.poseOverride || FS.poseDesc || FS.pose || '').indexOf('POV selfie') !== -1;
+    placement = _isSelfiePose
+      ? 'held in one hand and directed toward the camera lens — the other hand is holding the phone for the selfie shot, product still faces the lens clearly, sharp and fully visible'
+      : 'held in both hands directed straight toward the camera lens — product faces lens squarely, clearly visible and sharp';
+  } else if(FS.produkMode === 'dipakai'){
+    placement = 'worn as part of the outfit by the character';
+  } else if(FS.hold){
+    placement = 'held or displayed by the character — ' + FS.hold;
+  } else if(FS.produkMode === 'pegang'){
+    placement = 'held or presented by the character toward the camera';
+  }
+  return placement;
+}
+
 function _fBuildImportedPromptJSON(ov){
   let effPose = ov.poseOverride || FS.poseDesc || FS.pose;
   let effKamera = ov.kameraNote || FS.kamera;
@@ -4508,10 +4597,23 @@ function _fBuildImportedPromptJSON(ov){
   let effAngle = FS.angleDesc || FS.angle;
   let isProdukSaja = !!FS.importIsProdukSaja;
 
+  // FIX BUG: sebelumnya placement produk di mode import selalu pakai teks
+  // beku dari JSON yang diimpor (FS.importProductBlock.placement), jadi
+  // kalau user reopen step "Cara Tampil Produk" dan ganti pilihan, itu
+  // TIDAK PERNAH kepakai di hasil akhir. Sekarang: placement dihitung ulang
+  // dari FS.hold/FS.holdKey terkini via _fComputePlacement (fungsi yang sama
+  // dipakai mode normal), sementara name & instruction asli dari produk yang
+  // diimpor tetap dipertahankan apa adanya.
+  let effProductBlock = FS.importProductBlock ? {
+    name: FS.importProductBlock.name,
+    placement: _fComputePlacement(ov),
+    instruction: FS.importProductBlock.instruction
+  } : null;
+
   let intro = (isProdukSaja
       ? 'A photorealistic product-only image, clean and detailed, no person or human visible. '
       : 'A photorealistic image, shot in a candid and natural style. Subject: ' + (FS.importSubject || 'a person') + '. ')
-    + (FS.importProductBlock ? 'Hero product: ' + FS.importProductBlock.name + (FS.importProductBlock.placement ? ', ' + FS.importProductBlock.placement + '. ' : '. ') + (FS.importProductBlock.instruction || '') + ' ' : '')
+    + (effProductBlock ? 'Hero product: ' + effProductBlock.name + (effProductBlock.placement ? ', ' + effProductBlock.placement + '. ' : '. ') + (effProductBlock.instruction || '') + ' ' : '')
     + 'Scene: ' + effLokasi + '. '
     + 'Lighting: ' + effCahaya + '. '
     + (isProdukSaja ? '' : (effPose ? 'Character pose: ' + effPose + '. ' : ''))
@@ -4541,7 +4643,7 @@ function _fBuildImportedPromptJSON(ov){
       }) : (FS.importGeneratedOutfit || []);
       return goList.length ? {generated_outfit: goList} : {};
     })(),
-    ...(FS.importProductBlock ? {product: FS.importProductBlock} : {}),
+    ...(effProductBlock ? {product: effProductBlock} : {}),
     scene: {
       location: effLokasi,
       ...(isProdukSaja || !effPose ? {} : {pose: effPose}),
@@ -4606,6 +4708,7 @@ function _fFindHoldLabel(text){
   let t = String(text).trim();
   if(t.indexOf('worn directly on the character as an accessory or garment')===0) return 'Dipakai langsung';
   if(t.indexOf('held in both hands directed straight toward the camera lens')===0) return 'Dipegang — diarahkan ke kamera';
+  if(t.indexOf('held in one hand and directed toward the camera lens')===0) return 'Dipegang — diarahkan ke kamera';
   if(t.indexOf('displayed on a hanger presented by the character to the camera')===0) return 'Pakai hanger — ke kamera';
   return null;
 }
@@ -4897,27 +5000,42 @@ function _fBuildPromptJSON(ov){
   let isProdukSaja = ov.forceProdukSaja || FS.subjek==='produk';
   let subjekDesc=isProdukSaja?'product only, no person':({'hijab':'a woman','pria':'a man'}[FS.subjek]||'a person');
 
+  // Dipindah lebih awal (sebelumnya dihitung di bawah, setelah Product block) —
+  // dibutuhkan di sini supaya fallback placement produk-saja (di bawah) bisa
+  // konsisten dengan info "ada tangan di frame atau tidak", tidak kontradiksi.
+  let effAngle = FS.angleDesc || FS.angle;
+  // FIX: kalau mode produk-saja TAPI angle yang dipilih adalah "dipegang tangan"
+  // (ada tangan di frame), jangan bilang "no person or human visible" — itu
+  // kontradiksi langsung sama instruksi tangannya sendiri, bikin AI bingung
+  // dan akhirnya render tanpa tangan sama sekali.
+  // FIX #2: HANYA berlaku kalau shot ini TIDAK punya placementOverride sendiri
+  // (jalur generate biasa) — kalau ov sudah bawa placementOverride sendiri
+  // (misal multi-shot "Detail Produk tanpa karakter" yang eksplisit MELARANG
+  // tangan), jangan sampai auto-detect ini malah nabrak/kontradiksi instruksi
+  // shot itu sendiri hanya karena angle dasar user kebetulan "Dipegang Tangan".
+  let angleHasHand = isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle);
+  let produkSajaIntroText = angleHasHand
+    ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
+    : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
+
   // Product block
   let produkBlock = null;
   let hasProdukRef = FS.refs.some(r=>r.type==='produk');
   if(FS.produkMode !== 'tidak' && hasProdukRef){
-    let placement = '';
-    if(ov.placementOverride){
-      placement = ov.placementOverride;
-    } else if(ov.forceProdukSaja){
-      placement = 'displayed clearly and prominently as the sole focus of the frame, no hands or person present, centered composition showing full product detail';
-    } else if(FS.holdKey === 'dipakai'){
-      placement = 'worn directly on the character as an accessory or garment — naturally integrated into the outfit';
-    } else if(FS.holdKey === 'hanger'){
-      placement = 'displayed on a hanger presented by the character to the camera — ' + FS.hold;
-    } else if(FS.holdKey === 'tangan'){
-      placement = 'held in both hands directed straight toward the camera lens — product faces lens squarely, clearly visible and sharp';
-    } else if(FS.produkMode === 'dipakai'){
-      placement = 'worn as part of the outfit by the character';
-    } else if(FS.hold){
-      placement = 'held or displayed by the character — ' + FS.hold;
-    } else if(FS.produkMode === 'pegang'){
-      placement = 'held or presented by the character toward the camera';
+    let placement = _fComputePlacement(ov);
+    // FIX BUG: kalau subjek = "Produk Saja" dipakai lewat jalur generate utama
+    // (bukan lewat checkbox multi-shot "Detail Produk"), holdKey/hold memang
+    // sengaja tidak pernah diisi (step "Cara Tampil Produk" di-skip untuk mode
+    // ini) — akibatnya _fComputePlacement() di atas selalu balik string kosong,
+    // dan field "placement" di JSON produk jadi kosong walau field lain
+    // (camera_framing, dst) sudah terisi. Sekarang: kalau masih kosong DAN
+    // memang mode produk-saja, isi teks default yang konsisten dengan
+    // angleHasHand di atas — supaya tidak kontradiksi ("no hands" vs angle
+    // yang justru minta tangan masuk frame).
+    if(!placement && isProdukSaja){
+      placement = angleHasHand
+        ? 'held by a hand entering the frame — only the hand is visible, product sharp, fully visible and prominently framed toward camera'
+        : 'displayed clearly and prominently as the sole focus of the frame, no hands or person present, centered composition showing full product detail';
     }
     produkBlock = {
       name: FS.produkNama || '[product from reference photo]',
@@ -4942,7 +5060,6 @@ function _fBuildPromptJSON(ov){
   let effKamera = ov.kameraNote || FS.kamera;
   let effLokasi = FS.lokasiDesc || FS.lokasi;
   let effCahaya = FS.cahayaDesc || FS.cahaya;
-  let effAngle = FS.angleDesc || FS.angle;
 
   // Tambahkan keterangan outfit random ke intro jika ada
   let outfitRandomIntro = '';
@@ -4950,20 +5067,6 @@ function _fBuildPromptJSON(ov){
     let descs = randomRefs.map(r => r.focus).filter(Boolean);
     outfitRandomIntro = 'Outfit (AI-generated, no reference photo): ' + descs.join(' | ') + '. ';
   }
-
-  // FIX: kalau mode produk-saja TAPI angle yang dipilih adalah "dipegang tangan"
-  // (ada tangan di frame), jangan bilang "no person or human visible" — itu
-  // kontradiksi langsung sama instruksi tangannya sendiri, bikin AI bingung
-  // dan akhirnya render tanpa tangan sama sekali.
-  // FIX #2: HANYA berlaku kalau shot ini TIDAK punya placementOverride sendiri
-  // (jalur generate biasa) — kalau ov sudah bawa placementOverride sendiri
-  // (misal multi-shot "Detail Produk tanpa karakter" yang eksplisit MELARANG
-  // tangan), jangan sampai auto-detect ini malah nabrak/kontradiksi instruksi
-  // shot itu sendiri hanya karena angle dasar user kebetulan "Dipegang Tangan".
-  let angleHasHand = isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle);
-  let produkSajaIntroText = angleHasHand
-    ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
-    : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
 
   let intro = (isProdukSaja
     ? produkSajaIntroText
@@ -5160,7 +5263,7 @@ function fBuildUploadNotice(realRefs, randomRefs){
   // "reference_photos" JSON yang diimpor). Field .type di situ sudah berupa
   // label siap pakai (mis. "Wajah Karakter"), bukan key FTYPE — pakai apa adanya.
   if(FS.importActive && FS.importRefPhotos && FS.importRefPhotos.length > 0){
-    _fUploadNoticeList = FS.importRefPhotos.map((r, i) => (i+1) + '. foto ' + String((r && r.type) || 'referensi').toLowerCase()).join('  ·  ');
+    _fUploadNoticeList = FS.importRefPhotos.map((r, i) => (i+1) + '. foto ' + esc(String((r && r.type) || 'referensi').toLowerCase())).join('  ·  ');
     return;
   }
   _fUploadNoticeList = '';
@@ -5183,7 +5286,7 @@ function fShowUploadNotice(){
 
   el.innerHTML = '<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px;">'
     + '<span style="width:26px;height:26px;flex-shrink:0;border-radius:var(--radius-md);background:var(--accent-dim-bg);display:flex;align-items:center;justify-content:center;">'
-    + '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:var(--accent-2);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M12 3l10 18H2L12 3z"/><path d="M12 10v4"/><circle cx="12" cy="17" r="0.6" fill="var(--accent-2)" stroke="none"/></svg>'
+    + '<svg class="icon" style="font-size:14px;color:var(--accent-2);"><use href="#ic-warning"></use></svg>'
     + '</span>'
     + '<span style="font-size:12.5px;font-weight:700;letter-spacing:0.2px;color:var(--text);">Urutan Foto Tidak Boleh Terbalik</span>'
     + '</div>'
@@ -5283,7 +5386,7 @@ function fReset(){
 // ============================================================
 // VAI — UNCHANGED
 // ============================================================
-var VAI={apiKey:'',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],currentAbort:null,_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
+var VAI={apiKey:'',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 // ============================================================
 // SECURITY FIX v3: Perkuat seed enkripsi dengan per-user entropy
@@ -5393,8 +5496,15 @@ async function vaiSaveKey(){
     keyInputEl.placeholder=key.substring(0,8)+'••••••••••••••••••••••••••••••• (tersimpan)';
   }
   // BUG X FIX: Reset toggle visibility icon jika sudah diubah ke 'show'
-  let visBtn=document.querySelector('#vai-key .btn[onclick*="vaiToggleKeyVisibility"]');
-  if(visBtn)visBtn.textContent='';
+  // FIX TAMBAHAN: selector sebelumnya cari '.btn[onclick*=...]' padahal tombol
+  // ini TIDAK punya class 'btn' sama sekali (cuma inline style) — jadi query
+  // ini selalu balik null dan baris di bawahnya tidak pernah benar-benar
+  // jalan. Diperbaiki jadi cari langsung dari attribute onclick-nya saja.
+  // Ikonnya sendiri sekarang SVG <use> (lihat vaiToggleKeyVisibility), jadi
+  // resetnya ganti href ke '#ic-eye', bukan textContent='' (yang tadinya
+  // malah akan menghapus SVG-nya kalau selector ini kebetulan match).
+  let visBtn=document.querySelector('[onclick*="vaiToggleKeyVisibility"]');
+  if(visBtn){let use=visBtn.querySelector('use');if(use)use.setAttribute('href','#ic-eye');}
   // BUG Y FIX: Re-enable saveBtn — tanpa ini saat vaiBack ke vai-key tombol tetap disabled
   if(saveBtn){saveBtn.disabled=false;saveBtn.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> Simpan & Mulai';}
   vaiDoneCard('vai-key','vai-key-ans','Terhubung ke Google AI');
@@ -5402,7 +5512,7 @@ async function vaiSaveKey(){
   showToast('Berhasil tersambung ke AI!','success');
   setTimeout(()=>closeApiKeyModal(),700);
 }
-async function vaiShowSavedKey(){
+async function vaiShowSavedKey(silent){
   try{
     let _enc=localStorage.getItem('pb_vai_k');
     let _plain=localStorage.getItem('pb_gemini_api_key')||localStorage.getItem('gemini_api_key');
@@ -5412,12 +5522,12 @@ async function vaiShowSavedKey(){
       var _ki=document.getElementById('gemini-api-key');
       if(_ki){_ki.value='';_ki.placeholder=saved.substring(0,8)+'••••••••••••••••••••••••••••••• (tersimpan)';}
       dlRenderBar(); // Update bar sesuai key yang dimuat
-      showToast('API Key sebelumnya dimuat — klik Simpan & Mulai untuk lanjut.','success');}
-    else{showToast('Belum ada API Key tersimpan.','error');}
-  }catch(e){showToast('Tidak bisa baca key tersimpan di mode ini.','error');}
+      if(!silent)showToast('API Key sebelumnya dimuat — klik Simpan & Mulai untuk lanjut.','success');}
+    else{if(!silent)showToast('Belum ada API Key tersimpan.','error');}
+  }catch(e){if(!silent)showToast('Tidak bisa baca key tersimpan di mode ini.','error');}
 }
 function vaiUpdateProgress(){ /* wizard foto->video dihapus; call site sengaja dibiarkan no-op agar tidak error */ }
-function vaiToggleKeyVisibility(btn){var input=document.getElementById('gemini-api-key');if(!input)return;if(input.type==='password'){input.type='text';btn.textContent='';}else{input.type='password';btn.textContent='';}}
+function vaiToggleKeyVisibility(btn){var input=document.getElementById('gemini-api-key');if(!input)return;var use=btn.querySelector('use');if(input.type==='password'){input.type='text';if(use)use.setAttribute('href','#ic-eye-off');}else{input.type='password';if(use)use.setAttribute('href','#ic-eye');}}
 
 // INIT
 // FIX A2: Progress bar init — set ke "Subjek Foto" (step 0/f0) dengan pct=0
@@ -6694,7 +6804,7 @@ function fRenderSummary() {
   // FIX #4: untuk produk saja, warning foto hanya jika benar-benar 0 foto total
   if (refCount === 0 && !hasOutfitRandom && !isProdukSaja && !FS.importActive) warnings.push('Belum ada foto referensi — upload minimal 1 foto.');
   if (isProdukSaja && totalRefCount === 0 && !FS.importActive) warnings.push('Upload minimal 1 foto produk.');
-  items.push({ key: 'Foto Ref', val: refLabel, editCard: 1 });
+  items.push({ key: 'Foto Ref', val: refLabel, editCard: 1, isHtml: true });
 
   // Produk
   if (!isProdukSaja) {
@@ -6740,9 +6850,10 @@ function fRenderSummary() {
   rows.innerHTML = items.map(item => {
     let editBtn = item.editCard ? `<button class="summary-edit" onclick="fSummaryEdit(${item.editCard})"><svg class="icon"><use href="#ic-edit"></use></svg> Edit</button>` : '';
     let valClass = (item.val === '—') ? 'summary-row-val empty' : 'summary-row-val';
+    let safeVal = item.isHtml ? item.val : esc(item.val);
     return `<div class="summary-row">
       <div class="summary-row-key">${item.key}</div>
-      <div class="${valClass}">${item.val}</div>
+      <div class="${valClass}">${safeVal}</div>
       ${editBtn}
     </div>`;
   }).join('');
@@ -7111,7 +7222,7 @@ function fQuickEditProduk(){
 // Fix: load otomatis saat DOMContentLoaded agar fitur generate JSON
 // prompt via AI bisa langsung pakai key.
 document.addEventListener('DOMContentLoaded', function(){
-  if(typeof vaiShowSavedKey === 'function') vaiShowSavedKey();
+  if(typeof vaiShowSavedKey === 'function') vaiShowSavedKey(true);
 });
 
 window.addEventListener('beforeunload', function(e){
