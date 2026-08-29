@@ -1903,30 +1903,35 @@ body{
           <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
             <input type="checkbox" class="f-shot-check" value="bicara" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Bicara ke Kamera
           </label>
+          <div class="f-shot-detail-toggle" id="f-shotdetail-bicara" style="display:none;font-size:10.5px;color:var(--accent-2);margin:2px 0 0 25px;cursor:pointer;" onclick="fToggleShotDetailPanel('bicara')">Detail (opsional) ▾</div>
           <div class="f-shot-panel" id="f-shotpanel-bicara" style="display:none;"></div>
         </div>
         <div class="f-shot-item" data-shot="detailtangan">
           <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
             <input type="checkbox" class="f-shot-check" value="detailtangan" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Detail Produk + Tangan Karakter
           </label>
+          <div class="f-shot-detail-toggle" id="f-shotdetail-detailtangan" style="display:none;font-size:10.5px;color:var(--accent-2);margin:2px 0 0 25px;cursor:pointer;" onclick="fToggleShotDetailPanel('detailtangan')">Detail (opsional) ▾</div>
           <div class="f-shot-panel" id="f-shotpanel-detailtangan" style="display:none;"></div>
         </div>
         <div class="f-shot-item" data-shot="dipakai">
           <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
             <input type="checkbox" class="f-shot-check" value="dipakai" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Produk Dipakai / Digunakan
           </label>
+          <div class="f-shot-detail-toggle" id="f-shotdetail-dipakai" style="display:none;font-size:10.5px;color:var(--accent-2);margin:2px 0 0 25px;cursor:pointer;" onclick="fToggleShotDetailPanel('dipakai')">Detail (opsional) ▾</div>
           <div class="f-shot-panel" id="f-shotpanel-dipakai" style="display:none;"></div>
         </div>
         <div class="f-shot-item" data-shot="detail">
           <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
             <input type="checkbox" class="f-shot-check" value="detail" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Detail Produk (tanpa karakter)
           </label>
+          <div class="f-shot-detail-toggle" id="f-shotdetail-detail" style="display:none;font-size:10.5px;color:var(--accent-2);margin:2px 0 0 25px;cursor:pointer;" onclick="fToggleShotDetailPanel('detail')">Detail (opsional) ▾</div>
           <div class="f-shot-panel" id="f-shotpanel-detail" style="display:none;"></div>
         </div>
         <div class="f-shot-item" data-shot="lifestyle">
           <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
             <input type="checkbox" class="f-shot-check" value="lifestyle" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Lifestyle / Suasana
           </label>
+          <div class="f-shot-detail-toggle" id="f-shotdetail-lifestyle" style="display:none;font-size:10.5px;color:var(--accent-2);margin:2px 0 0 25px;cursor:pointer;" onclick="fToggleShotDetailPanel('lifestyle')">Detail (opsional) ▾</div>
           <div class="f-shot-panel" id="f-shotpanel-lifestyle" style="display:none;"></div>
         </div>
       </div>
@@ -4330,8 +4335,45 @@ function fSyncMultiShotVisibility(){
   if(!card)return;
   let hasKarakter = FS.subjek!=='produk';
   let hasProduk = FS.produkMode!=='tidak' && FS.refs.some(r=>r.type==='produk');
-  if(hasKarakter && hasProduk){
+  // FIX BUG SECTION VARIASI HILANG TOTAL TANPA FOTO PRODUK: sebelumnya
+  // seluruh card "Generate Beberapa Variasi Sekaligus" cuma tampil kalau
+  // hasKarakter DAN hasProduk sekaligus — jadi kalau user cuma upload Wajah
+  // + Outfit (tanpa foto Produk), card ini disembunyikan TOTAL, termasuk
+  // shot "Bicara ke Kamera" yang sebenarnya sama sekali tidak butuh foto
+  // produk (pose-nya cuma soal karakter bicara ke kamera, tidak menyebut
+  // produk apapun — lihat F_SHOT_TYPES.bicara). Sekarang card ditampilkan
+  // begitu ada karakter, dan tiap shot type yang memang secara inheren
+  // tentang produk (ditandai requiresProduk:true — pose/kamera-nya eksplisit
+  // menyebut "the product" sehingga tanpa foto produk hasilnya jadi merujuk
+  // ke produk yang tidak ada/tidak dikenal) dinonaktifkan satu-satu dengan
+  // keterangan "butuh foto produk", bukan menyembunyikan semuanya.
+  if(hasKarakter){
     card.style.display='block';
+    document.querySelectorAll('.f-shot-item[data-shot]').forEach(function(item){
+      let shotKey = item.dataset.shot;
+      let type = F_SHOT_TYPES[shotKey];
+      let cb = item.querySelector('.f-shot-check');
+      if(!type || !cb) return;
+      let blocked = !!type.requiresProduk && !hasProduk;
+      let note = item.querySelector('.f-shot-note');
+      if(blocked){
+        if(cb.checked){ cb.checked=false; fToggleShotPanel(cb); }
+        cb.disabled = true;
+        item.style.opacity = '0.5';
+        if(!note){
+          note = document.createElement('div');
+          note.className = 'f-shot-note';
+          note.style.cssText = 'font-size:10.5px;color:var(--muted);margin:2px 0 0 25px;';
+          note.textContent = '— butuh foto produk, upload dulu di Step 1';
+          item.appendChild(note);
+        }
+        note.style.display = 'block';
+      } else {
+        cb.disabled = false;
+        item.style.opacity = '';
+        if(note) note.style.display = 'none';
+      }
+    });
   } else {
     card.style.display='none';
     document.querySelectorAll('.f-shot-check').forEach(cb=>cb.checked=false);
@@ -4814,7 +4856,23 @@ function _fBuildImportedPromptJSON(ov){
   if(FS.importStyleReference) fullJson.style_reference = FS.importStyleReference;
 
   let subjekLabel = ov.label || 'Prompt Diimpor';
-  return {fullJson, realRefs: [], randomRefs: [], subjekLabel};
+  // FIX BUG NOTICE URUTAN FOTO TIDAK SINKRON PASCA-EDIT IMPOR: sebelumnya
+  // realRefs/randomRefs di sini SELALU dikembalikan kosong (hardcode []),
+  // padahal reference_photos di fullJson di atas sudah benar dibangun ulang
+  // dari FS.refs yang LIVE (bisa beda dari saat pertama impor, kalau user
+  // tambah/hapus/edit foto di Step 1 setelah impor). Akibatnya fBuildUploadNotice()
+  // selalu jatuh ke fallback-nya yang pakai FS.importRefPhotos — snapshot BEKU
+  // dari JSON yang pertama kali ditempel — jadi notifikasi urutan upload bisa
+  // menampilkan daftar lama yang sudah tidak sesuai dengan reference_photos
+  // yang sebenarnya dikirim di JSON hasil generate. Sekarang dihitung dari
+  // FS.refs yang sama seperti dipakai untuk membangun reference_photos di atas,
+  // supaya notice selalu match dengan JSON aktual. Ini juga otomatis
+  // memperbaiki notice multi-shot untuk prompt hasil impor: FS.refs sudah
+  // difilter sesuai excludeRefTypes shot yang bersangkutan oleh pemanggil
+  // (_fDoGenerateMultiShot) sebelum fungsi ini dipanggil.
+  let realRefsImp = FS.refs ? FS.refs.filter(function(r){return r.type!=='outfit_random';}) : [];
+  let randomRefsImp = FS.refs ? FS.refs.filter(function(r){return r.type==='outfit_random';}) : [];
+  return {fullJson, realRefs: realRefsImp, randomRefs: randomRefsImp, subjekLabel};
 }
 
 function fToggleImportArea(){
@@ -5362,17 +5420,37 @@ const F_SHOT_OPTS = {
 
 // Render/toggle panel konfigurasi di bawah checkbox multi-shot begitu dicentang
 function fToggleShotPanel(cb){
+  // FIX UX: sebelumnya centang shot langsung membuka penuh panel opsi
+  // (chip lokasi/cahaya/angle/mood) — bikin daftar shot kelihatan penuh dan
+  // ramai walau override itu sifatnya opsional. Sekarang centang cuma
+  // menampilkan link kecil "Detail (opsional)" — panel beneran baru dibuka
+  // kalau link itu ditap (lihat fToggleShotDetailPanel).
   let panel = document.getElementById('f-shotpanel-'+cb.value);
+  let toggleEl = document.getElementById('f-shotdetail-'+cb.value);
   if(!panel)return;
   if(!cb.checked){
     panel.style.display='none';
+    if(toggleEl) toggleEl.style.display='none';
     return;
   }
+  if(toggleEl){
+    toggleEl.style.display='block';
+    toggleEl.textContent='Detail (opsional) ▾';
+  }
+  panel.style.display='none';
+}
+
+function fToggleShotDetailPanel(shotKey){
+  let panel = document.getElementById('f-shotpanel-'+shotKey);
+  let toggleEl = document.getElementById('f-shotdetail-'+shotKey);
+  if(!panel)return;
   if(!panel.dataset.built){
-    fBuildShotPanel(cb.value, panel);
+    fBuildShotPanel(shotKey, panel);
     panel.dataset.built='1';
   }
-  panel.style.display='block';
+  let opening = panel.style.display==='none' || !panel.style.display;
+  panel.style.display = opening ? 'block' : 'none';
+  if(toggleEl) toggleEl.textContent = opening ? 'Sembunyikan detail ▴' : 'Detail (opsional) ▾';
 }
 
 function fBuildShotPanel(shotKey, panel){
@@ -5392,8 +5470,26 @@ function fBuildShotPanel(shotKey, panel){
       html += '<div class="chip" style="font-size:10.5px;padding:5px 9px;" data-cat="'+cat.key+'" data-idx="'+i+'" onclick="fPickShotOpt(\''+shotKey+'\',\''+cat.key+'\','+i+',this)">'+opt.l+'</div>';
     });
     html += '</div>';
+    // FIX: user sebelumnya cuma bisa pilih dari chip preset — tidak ada cara
+    // menulis override sendiri untuk kategori multi-shot ini (beda dengan
+    // step wizard utama yang selalu ada "Atau tulis sendiri"). Sekarang
+    // ditambahkan input teks bebas + tombol "Pakai" per kategori.
+    html += '<div style="display:flex;gap:6px;margin-top:6px;">'
+      + '<input type="text" class="inp" style="font-size:10.5px;padding:6px 8px;flex:1;" id="f-shotcustom-'+shotKey+'-'+cat.key+'" placeholder="Atau tulis sendiri...">'
+      + '<button class="btn sm" style="padding:6px 10px;font-size:10.5px;white-space:nowrap;" onclick="fShotOptCustomConfirm(\''+shotKey+'\',\''+cat.key+'\')">Pakai</button>'
+      + '</div>';
   });
+  // Tombol "Selesai" — nutup panel detail balik ke link kecil "Detail
+  // (opsional)", supaya user gak perlu tap toggle-nya lagi setelah kelar isi.
+  html += '<button class="btn sm" style="margin-top:10px;width:100%;" onclick="fFinishShotDetail(\''+shotKey+'\')">Selesai</button>';
   panel.innerHTML = html;
+}
+
+function fFinishShotDetail(shotKey){
+  let panel = document.getElementById('f-shotpanel-'+shotKey);
+  let toggleEl = document.getElementById('f-shotdetail-'+shotKey);
+  if(panel) panel.style.display='none';
+  if(toggleEl) toggleEl.textContent='Detail (opsional) ▾';
 }
 
 function fPickShotOpt(shotKey, catKey, idx, el){
@@ -5414,7 +5510,27 @@ function fPickShotOpt(shotKey, catKey, idx, el){
   } else {
     el.classList.add('sel');
     so[catKey+'Desc']=opt.v; so[catKey+'Label']=opt.l;
+    // Pilih chip preset membatalkan teks custom yang sempat diisi, supaya
+    // tidak ada dua sumber override yang saling tumpang tindih diam-diam.
+    let customInp = document.getElementById('f-shotcustom-'+shotKey+'-'+catKey);
+    if(customInp) customInp.value='';
   }
+}
+
+function fShotOptCustomConfirm(shotKey, catKey){
+  let inp = document.getElementById('f-shotcustom-'+shotKey+'-'+catKey);
+  if(!inp) return;
+  let val = inp.value.trim();
+  if(!val){ showToast('Tulis dulu teksnya ya','error'); return; }
+  if(!FS.shotOverrides[shotKey]) FS.shotOverrides[shotKey]={};
+  let so = FS.shotOverrides[shotKey];
+  so[catKey+'Desc'] = val;
+  so[catKey+'Label'] = 'Custom: '+_fTrunc(val,30);
+  // Batalkan pilihan chip preset untuk kategori ini, supaya teks custom yang
+  // baru dikonfirmasi jadi satu-satunya sumber override (tidak tumpang tindih).
+  let panel = document.getElementById('f-shotpanel-'+shotKey);
+  if(panel) panel.querySelectorAll('.chip[data-cat="'+catKey+'"]').forEach(c=>c.classList.remove('sel'));
+  showToast('Detail tersimpan untuk variasi ini','success');
 }
 
 const F_SHOT_TYPES = {
@@ -5432,6 +5548,7 @@ const F_SHOT_TYPES = {
   detailtangan: {
     label: 'Detail Produk + Tangan Karakter',
     excludeRefTypes: ['wajah'], // wajah gak kepakai — di shot ini muka sengaja gak masuk frame
+    requiresProduk: true, // pose-nya seutuhnya tentang berinteraksi dengan "the product" — tanpa foto produk, instruksi ini jadi merujuk ke produk yang sama sekali tidak dikenal
     build: function(){
       let so = FS.shotOverrides.detailtangan || {};
       return {
@@ -5449,6 +5566,7 @@ const F_SHOT_TYPES = {
   },
   dipakai: {
     label: 'Produk Dipakai/Digunakan',
+    requiresProduk: true, // pose-nya eksplisit "clearly demonstrates the product in real use" — tanpa foto produk, kalimat ini merujuk ke sesuatu yang tidak ada
     build: function(){
       let so = FS.shotOverrides.dipakai || {};
       return {
@@ -5462,6 +5580,7 @@ const F_SHOT_TYPES = {
   detail: {
     label: 'Detail Produk (tanpa karakter)',
     excludeRefTypes: ['wajah','outfit','atasan','bawahan','aksesori'], // gak ada karakter sama sekali — cuma produk yang relevan
+    requiresProduk: true, // shot ini SELURUHNYA tentang produk (forceProdukSaja, tanpa karakter sama sekali) — tidak ada artinya tanpa foto produk
     build: function(){
       let so = FS.shotOverrides.detail || {};
       return {
@@ -5509,12 +5628,20 @@ function _fDoGenerateMultiShot(checkedEls){
   });
   if(results.length===0)return;
 
-  // Notifikasi urutan foto — pakai SEMUA foto asli (bukan hasil filter salah
-  // satu shot), karena notice ini nunjukkin urutan upload buat keseluruhan
-  // batch variasi, bukan cuma satu shot tertentu.
-  let allRealRefs = originalRefs.filter(r => r.type !== 'outfit_random');
-  let allRandomRefs = originalRefs.filter(r => r.type === 'outfit_random');
-  fBuildUploadNotice(allRealRefs, allRandomRefs);
+  // FIX BUG NOTICE MULTI-SHOT TIDAK SESUAI SHOT YANG DICENTANG: sebelumnya
+  // notice urutan foto di sini dipaksa pakai SEMUA foto asli (originalRefs,
+  // tanpa filter excludeRefTypes) satu kali untuk seluruh batch — padahal
+  // tiap shot yang dicentang bisa punya excludeRefTypes BERBEDA (mis. "Detail
+  // Produk" excludeRefTypes-nya beda dari "Detail Produk + Tangan Karakter"),
+  // jadi urutan/isi foto yang relevan juga beda per shot. Satu notice global
+  // untuk semua shot itu keliru: kalau user cuma centang "Detail Produk"
+  // (yang JSON-nya cuma minta 1 foto produk, sudah direnumber dari
+  // built.realRefs), notice tetap menampilkan daftar lengkap semua foto asli
+  // termasuk yang sama sekali tidak dipakai/tidak masuk hitungan di JSON shot
+  // itu. Sekarang notice DIBANGUN PER KARTU, dari built.realRefs/randomRefs
+  // milik shot yang bersangkutan (results[i], sudah benar difilter sesuai
+  // excludeRefTypes saat build di atas) — ditampilkan saat tombol Salin
+  // kartu itu yang ditekan, bukan satu daftar global di awal.
 
   // Sembunyikan output single, tampilkan output multi
   let singleWrap = document.getElementById('f-output-wrap');
@@ -5541,16 +5668,19 @@ function _fDoGenerateMultiShot(checkedEls){
       doneLabel.className='hidden';
       doneLabel.style.cssText='font-size:10px;color:var(--green);font-weight:600;margin-left:6px;';
       doneLabel.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> sudah';
-      copyBtn.onclick = (function(txt,btn,dl){return function(){
+      copyBtn.onclick = (function(txt,btn,dl,rRealRefs,rRandomRefs){return function(){
         _copyTextRobust(txt,function(){
           btn.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> Tersalin';btn.classList.add('copied');
           setTimeout(function(){btn.textContent='Salin';btn.classList.remove('copied');},1500);
           dl.classList.remove('hidden');
+          // Notice khusus shot ini (lihat catatan FIX BUG NOTICE MULTI-SHOT
+          // di atas) — bukan daftar global semua foto.
+          fBuildUploadNotice(rRealRefs, rRandomRefs);
           fShowUploadNotice();
         },function(){
           showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');
         });
-      };})(jsonText, copyBtn, doneLabel);
+      };})(jsonText, copyBtn, doneLabel, r.realRefs, r.randomRefs);
       let copyWrap = document.createElement('div');
       copyWrap.style.cssText='display:flex;align-items:center;';
       copyWrap.appendChild(copyBtn);
