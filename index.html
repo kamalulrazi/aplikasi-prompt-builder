@@ -152,7 +152,7 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
 /* ICON — ukuran ikon SVG selalu ikut ukuran font teks di sebelahnya (1em),
    supaya proporsinya otomatis pas di badge kecil maupun tombol besar. */
 .icon{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;flex-shrink:0;}
-html{zoom:100% !important;transform:scale(1) !important;transform-origin:0 0;background:var(--bg);}
+html{zoom:100% !important;background:var(--bg);}
 body{
   font-family:'Geist',system-ui,sans-serif;color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden;zoom:100% !important;width:100% !important;height:100% !important;font-size:16px !important;-webkit-text-size-adjust:100% !important;
   background:
@@ -209,8 +209,14 @@ body{
   -webkit-backdrop-filter:blur(22px) saturate(160%);
   border-top:1px solid var(--border);
   position:fixed;left:0;right:0;bottom:0;z-index:100;
-  padding:var(--space-3) var(--space-4) calc(var(--space-3) + var(--safe-b));
+  /* FIX: sebelumnya cuma andalin env(safe-area-inset-bottom) — di banyak HP
+     Android dengan tombol navigasi 3-tombol (bukan gesture), nilai itu suka
+     kebaca 0px walau tombol nav app tetap mepet ke UI sistem/browser di
+     bawahnya (bisa kepencet gak sengaja). Ditambah buffer tetap 14px biar
+     selalu ada jarak aman di semua device, bukan cuma yang gesture-nav. */
+  padding:var(--space-3) var(--space-4) calc(var(--space-3) + var(--safe-b) + 14px);
   box-shadow:0 -4px 20px rgba(0,0,0,0.35);
+  transform:translateZ(0);will-change:transform; /* paksa GPU compositing layer sendiri — bantu WebView render fixed-position dengan benar */
 }
 .ntab{
   flex:1;padding:var(--space-4) var(--space-3);
@@ -639,7 +645,7 @@ body{
 .footer-sep{color:var(--muted2);font-size:10px;}
 .footer p{font-size:11px;color:var(--muted);margin:0;}
 .footer .gold{color:var(--muted);font-weight:500;}
-.app-shell{padding-bottom:calc(var(--space-7) + var(--safe-b));}
+.app-shell{padding-bottom:calc(var(--space-7) + var(--safe-b) + 14px);} /* +14px selaras dengan buffer baru di .nav */
 .hidden{display:none!important;}
 .mt8{margin-top:var(--space-3);}.mt12{margin-top:var(--space-5);}.mt16{margin-top:var(--space-7);}
 .inp-wrap{position:relative;}
@@ -1160,14 +1166,6 @@ body{
     <div class="h-pill" style="cursor:pointer;" onclick="openApiKeyModal()" title="Pengaturan koneksi AI">AI</div>
   </div>
 </div>
-
-<!-- NAV -->
-<nav class="nav">
-  <button class="ntab active" onclick="switchPage('foto',this)">Foto</button>
-  <button class="ntab" onclick="switchPage('video',this)">Video</button>
-  <button class="ntab" onclick="switchPage('riwayat',this)">Riwayat</button>
-  <button class="ntab" onclick="switchPage('panduan',this)">Panduan</button>
-</nav>
 
 <!-- MODAL: SAMBUNGKAN AI (API KEY) — dipakai fitur AI opsional di Builder Foto -->
 <div id="apikey-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9997;display:none;align-items:center;justify-content:center;padding:16px;">
@@ -1900,22 +1898,37 @@ body{
     <div id="f-multishot-card" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px;">
       <div style="font-size:12px;font-weight:700;margin-bottom:3px;">Generate Beberapa Variasi Sekaligus</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;">Opsional — centang tipe foto tambahan yang mau dibuat. Karakter, lokasi, cahaya & mood tetap sama di semua variasi, cuma pose/fokusnya beda. Kosongkan semua untuk generate 1 prompt seperti biasa.</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
-          <input type="checkbox" class="f-shot-check" value="bicara" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Bicara ke Kamera
-        </label>
-        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
-          <input type="checkbox" class="f-shot-check" value="detailtangan" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Detail Produk + Tangan Karakter
-        </label>
-        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
-          <input type="checkbox" class="f-shot-check" value="dipakai" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Produk Dipakai / Digunakan
-        </label>
-        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
-          <input type="checkbox" class="f-shot-check" value="detail" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Detail Produk (tanpa karakter)
-        </label>
-        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
-          <input type="checkbox" class="f-shot-check" value="lifestyle" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Lifestyle / Suasana
-        </label>
+      <div style="display:flex;flex-direction:column;gap:8px;" id="f-shot-list">
+        <div class="f-shot-item" data-shot="bicara">
+          <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
+            <input type="checkbox" class="f-shot-check" value="bicara" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Bicara ke Kamera
+          </label>
+          <div class="f-shot-panel" id="f-shotpanel-bicara" style="display:none;"></div>
+        </div>
+        <div class="f-shot-item" data-shot="detailtangan">
+          <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
+            <input type="checkbox" class="f-shot-check" value="detailtangan" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Detail Produk + Tangan Karakter
+          </label>
+          <div class="f-shot-panel" id="f-shotpanel-detailtangan" style="display:none;"></div>
+        </div>
+        <div class="f-shot-item" data-shot="dipakai">
+          <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
+            <input type="checkbox" class="f-shot-check" value="dipakai" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Produk Dipakai / Digunakan
+          </label>
+          <div class="f-shot-panel" id="f-shotpanel-dipakai" style="display:none;"></div>
+        </div>
+        <div class="f-shot-item" data-shot="detail">
+          <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
+            <input type="checkbox" class="f-shot-check" value="detail" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Detail Produk (tanpa karakter)
+          </label>
+          <div class="f-shot-panel" id="f-shotpanel-detail" style="display:none;"></div>
+        </div>
+        <div class="f-shot-item" data-shot="lifestyle">
+          <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;">
+            <input type="checkbox" class="f-shot-check" value="lifestyle" onchange="fToggleShotPanel(this)" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"> Lifestyle / Suasana
+          </label>
+          <div class="f-shot-panel" id="f-shotpanel-lifestyle" style="display:none;"></div>
+        </div>
       </div>
     </div>
 
@@ -2742,7 +2755,8 @@ let FS={
   kamera:'', cahaya:'', cahayaLabel:'',
   angle:'', angleLabel:'',
   mood:'', moodLabel:'',
-  conflictLevel:0
+  conflictLevel:0,
+  shotOverrides:{}
 };
 
 // TYPE DEFINITIONS
@@ -3281,7 +3295,7 @@ function fBackTo(curr,prev){
     }
   }
   // Sync FS state sesuai card yang di-back
-  let cardNum=parseInt(curr);
+  let cardNum=parseInt(curr,10);
   if(!isNaN(cardNum)) fResetFrom(cardNum);
   // Buka previous card (undone agar bisa diedit lagi)
   let c=document.getElementById('f'+prev);
@@ -4321,6 +4335,7 @@ function fSyncMultiShotVisibility(){
   } else {
     card.style.display='none';
     document.querySelectorAll('.f-shot-check').forEach(cb=>cb.checked=false);
+    document.querySelectorAll('.f-shot-panel').forEach(p=>{p.style.display='none';});
   }
 }
 
@@ -4590,12 +4605,34 @@ function _fComputePlacement(ov){
 }
 
 function _fBuildImportedPromptJSON(ov){
+  // FIX BUG MULTI-SHOT DIABAIKAN: sebelumnya fungsi ini cuma baca
+  // ov.poseOverride dan ov.kameraNote, TIDAK PERNAH baca ov.lokasiOverride /
+  // ov.cahayaOverride / ov.angleOverride / ov.moodOverride — padahal fitur
+  // "override khusus variasi ini" di panel multi-shot (Lokasi/Cahaya/Angle/
+  // Mood per shot) sudah dikirim lewat field-field itu (lihat F_SHOT_TYPES
+  // di bawah). Akibatnya kalau prompt hasil IMPOR dipakai multi-shot dan user
+  // setel override lokasi/cahaya/angle/mood khusus untuk salah satu variasi,
+  // override itu senyap diabaikan dan semua variasi tetap pakai lokasi/
+  // cahaya/angle/mood utama yang sama. Sekarang disamakan dengan jalur
+  // normal (_fBuildPromptJSON) yang sudah benar baca override ini.
   let effPose = ov.poseOverride || FS.poseDesc || FS.pose;
   let effKamera = ov.kameraNote || FS.kamera;
-  let effLokasi = FS.lokasiDesc || FS.lokasi;
-  let effCahaya = FS.cahayaDesc || FS.cahaya;
-  let effAngle = FS.angleDesc || FS.angle;
-  let isProdukSaja = !!FS.importIsProdukSaja;
+  let effLokasi = ov.lokasiOverride || FS.lokasiDesc || FS.lokasi;
+  let effCahaya = ov.cahayaOverride || FS.cahayaDesc || FS.cahaya;
+  let effAngle = ov.angleOverride || FS.angleDesc || FS.angle;
+  let effMood = ov.moodOverride || FS.mood;
+  // FIX BUG KONTRADIKSI DETAIL PRODUK: sebelumnya isProdukSaja di jalur
+  // import HANYA baca FS.importIsProdukSaja (produk-saja-nya prompt ASLI
+  // yang diimpor), tidak pernah baca ov.forceProdukSaja (dipaksa true oleh
+  // shot multi-shot "Detail Produk / Detail Produk tanpa karakter"). Kalau
+  // prompt yang diimpor PUNYA orang (bukan produk-saja) lalu user centang
+  // variasi multi-shot "Detail Produk", placement sudah benar bilang "no
+  // person" (lewat placementOv di bawah), TAPI intro/subject/"Character
+  // pose" di sini tetap nulis subjek manusia — jadi satu JSON hasil generate
+  // isinya kontradiksi sendiri (bilang ada orang & bilang tidak ada orang
+  // sekaligus). Disamakan dengan pola jalur normal (_fBuildPromptJSON, baris
+  // "ov.forceProdukSaja || FS.subjek==='produk'") supaya konsisten.
+  let isProdukSaja = !!ov.forceProdukSaja || !!FS.importIsProdukSaja;
 
   // FIX BUG: sebelumnya placement produk di mode import selalu pakai teks
   // beku dari JSON yang diimpor (FS.importProductBlock.placement), jadi
@@ -4604,9 +4641,27 @@ function _fBuildImportedPromptJSON(ov){
   // dari FS.hold/FS.holdKey terkini via _fComputePlacement (fungsi yang sama
   // dipakai mode normal), sementara name & instruction asli dari produk yang
   // diimpor tetap dipertahankan apa adanya.
+  // FIX BUG PRODUK-SAJA: generate satu-shot biasa manggil _fBuildPromptJSON()
+  // TANPA argumen (ov={}), jadi ov.forceProdukSaja tidak pernah ke-set dari
+  // pemanggilnya. Kalau tidak dipaksa di sini, _fComputePlacement() gak akan
+  // tahu ini prompt produk-saja dan malah jatuh ke pengecekan FS.holdKey/
+  // FS.hold biasa (yang bisa saja masih berisi nilai basi). Paksa
+  // forceProdukSaja:true di sini kalau memang produk-saja, tanpa menimpa ov
+  // asli (supaya alur multi-shot yang sudah eksplisit set placementOverride
+  // sendiri tetap jalan seperti biasa — placementOverride selalu dicek lebih
+  // dulu di _fComputePlacement).
+  let placementOv = isProdukSaja ? Object.assign({}, ov, {forceProdukSaja:true}) : ov;
+  // FIX BUG NAMA PRODUK TIDAK KE-UPDATE: sebelumnya "name" di sini selalu
+  // pakai FS.importProductBlock.name (beku dari JSON awal), padahal user BISA
+  // mengedit nama produk lewat tombol "ubah" di Ringkasan (lihat
+  // fKonfirmProdukManual, yang nulis ke FS.produkNama — dipakai juga di
+  // aturan konflik/placement lain). Kalau user ganti nama produk setelah
+  // impor, nama lama tetap yang muncul di JSON hasil generate. Sekarang
+  // pakai FS.produkNama (live) dengan fallback ke nama beku kalau belum
+  // pernah diedit sama sekali.
   let effProductBlock = FS.importProductBlock ? {
-    name: FS.importProductBlock.name,
-    placement: _fComputePlacement(ov),
+    name: FS.produkNama || FS.importProductBlock.name,
+    placement: _fComputePlacement(placementOv),
     instruction: FS.importProductBlock.instruction
   } : null;
 
@@ -4619,15 +4674,53 @@ function _fBuildImportedPromptJSON(ov){
     + (isProdukSaja ? '' : (effPose ? 'Character pose: ' + effPose + '. ' : ''))
     + (effKamera ? 'Camera framing: ' + effKamera + '. ' : '')
     + 'Camera angle: ' + effAngle + '. '
-    + 'Mood & tone: ' + FS.mood + '.';
+    + 'Mood & tone: ' + effMood + '.';
 
   let fullJson = {
     prompt: intro,
     subject: FS.importSubject || (isProdukSaja ? 'product only, no person' : 'a person'),
-    mood_and_tone: FS.mood,
+    mood_and_tone: effMood,
     ...(FS.importCriticalRule ? {critical_rule: FS.importCriticalRule} : {}),
     ...(FS.importConflictRule ? {conflict_priority: FS.importConflictRule} : {}),
-    ...(FS.importRefPhotos && FS.importRefPhotos.length ? {reference_photos: FS.importRefPhotos} : {}),
+    // FIX BUG KRITIS — REFERENCE_PHOTOS TIDAK PERNAH KE-UPDATE: sebelumnya
+    // baris ini ({reference_photos: FS.importRefPhotos}) selalu pakai array
+    // MENTAH hasil parse JSON saat pertama kali ditempel — TIDAK PERNAH
+    // disinkronkan ulang ke FS.refs yang sudah diedit user (fokus/extract/
+    // ignore/ukuran produk di Step 1). Akibatnya: SEMUA edit yang dilakukan
+    // user di Step 1 pada foto referensi (wajah/outfit/produk/dll) setelah
+    // impor SAMA SEKALI TIDAK NGEFEK ke hasil generate — user kira sudah
+    // keedit, padahal yang dipakai tetap teks lama dari JSON impor.
+    // Sekarang dibangun ulang dari FS.refs terkini, persis pola yang sama
+    // dipakai jalur normal (_fBuildPromptJSON) dan yang sudah dipakai untuk
+    // generated_outfit di bawah — photo_number di-renumber ulang.
+    ...(function(){
+      let realRefsImp = FS.refs ? FS.refs.filter(function(r){return r.type!=='outfit_random';}) : [];
+      let photoCounterImp = 0;
+      let refPhotosImp = realRefsImp.map(function(r){
+        let def = FTYPE[r.type];
+        if(!def) return null;
+        photoCounterImp++;
+        let extractText = (r.extractCustom !== undefined ? r.extractCustom : def.extract).trim();
+        let ignoreText = (r.ignoreCustom !== undefined ? r.ignoreCustom : def.ignore).trim();
+        let obj = { photo_number: photoCounterImp, type: def.label };
+        if(extractText) obj.extract_only = extractText + (r.ukuran && r.type==='produk' ? '. Product physical size: '+r.ukuran+' — render the product accurately to this size ratio relative to the scene.' : '');
+        if(ignoreText) obj.ignore_completely = ignoreText;
+        if(r.focus) obj.detail = r.focus;
+        return obj;
+      }).filter(Boolean);
+      // Jaga-jaga: kalau JSON yang diimpor punya entri reference_photos dengan
+      // "type" yang TIDAK dikenali aplikasi (jadi tidak pernah disinkronkan ke
+      // FS.refs sejak awal impor), tetap sertakan apa adanya di sini supaya
+      // datanya tidak hilang begitu saja dari hasil generate.
+      let unknownOriginal = (FS.importRefPhotos || []).filter(function(p){
+        return p && !_fREF_LABEL_TO_KEY[p.type];
+      });
+      unknownOriginal.forEach(function(p){
+        photoCounterImp++;
+        refPhotosImp.push(Object.assign({}, p, {photo_number: photoCounterImp}));
+      });
+      return refPhotosImp.length ? {reference_photos: refPhotosImp} : {};
+    })(),
     // FIX IMPORT OUTFIT AI: bangun ulang generated_outfit dari FS.refs yang
     // sekarang (sumber kebenaran setelah user edit), bukan array statis hasil
     // parse awal — supaya perubahan teks di Step 1 ikut kepakai saat generate ulang.
@@ -4650,7 +4743,7 @@ function _fBuildImportedPromptJSON(ov){
       ...(effKamera ? {camera_framing: effKamera} : {}),
       camera_angle: effAngle,
       lighting: effCahaya,
-      mood_and_tone: FS.mood
+      mood_and_tone: effMood
     },
     output_quality: FS.importOutputQuality || {
       camera: 'Shot using a smartphone camera (not DSLR), with natural handheld feel. The image includes subtle digital noise and grain typical of a phone camera, especially in shadows and low-light areas. Slight imperfections such as minor motion blur, soft focus inconsistencies, and natural exposure shifts are present. The dynamic range is realistic (not overly HDR), with slightly clipped highlights and soft shadow details. The framing is slightly imperfect, not perfectly centered, with a subtle wide lens feel and natural perspective distortion. Overall look resembles an authentic phone photo, not a polished or studio-quality image.',
@@ -4777,6 +4870,26 @@ function fImportPrompt(){
   }
   scene = scene || {};
 
+  // FIX BUG HANGER/RIWAYAT NYANGKUT: sebelum ini, field FS (lokasi, cahaya,
+  // angle, pose, kamera, mood, hold, holdKey, produkMode, dst) cuma diisi
+  // KALAU field yang bersangkutan ADA di JSON yang ditempel (pola
+  // "if(scene.X){FS.X=...}"), TANPA ada else yang membersihkan nilai lama.
+  // Akibatnya kalau JSON yang diimpor tidak membawa suatu field (mis. tidak
+  // ada "product", atau scene tidak ada "camera_angle"), FS.X tetap berisi
+  // nilai dari sesi SEBELUMNYA (manual atau impor lain) — itu sebabnya foto
+  // bisa muncul pakai hanger padahal tidak disetel di prompt yang baru
+  // ditempel. Reset dulu semua field wizard ke kosong di sini, supaya
+  // hasil impor selalu murni dari JSON yang baru, tidak ada riwayat nyangkut.
+  FS.subjek=''; FS.produkMode=''; FS.produkNama='';
+  FS.holdKey=''; FS.hold='';
+  FS.pose=''; FS.poseLabel=''; FS.poseDesc='';
+  FS.lokasi=''; FS.lokasiLabel=''; FS.lokasiDesc='';
+  FS.kamera='';
+  FS.cahaya=''; FS.cahayaLabel=''; FS.cahayaDesc='';
+  FS.angle=''; FS.angleLabel=''; FS.angleDesc='';
+  FS.mood=''; FS.moodLabel='';
+  FS.conflictLevel=0; FS.shotOverrides={};
+
   // isProdukSaja: prompt lama tanpa pose di scene = mode produk-saja
   FS.importIsProdukSaja = !scene.pose;
   FS.importActive = true;
@@ -4855,7 +4968,7 @@ function fImportPrompt(){
     filled.push('Pose');
   }
   if(scene.camera_framing) FS.kamera = scene.camera_framing;
-  FS.mood = scene.mood_and_tone || parsed.mood_and_tone || FS.mood || '';
+  FS.mood = scene.mood_and_tone || parsed.mood_and_tone || '';
   if(FS.mood){
     let m = _fReverseLookupChip(FS.mood,'fPickMood');
     FS.moodLabel = m || 'Custom';
@@ -5003,7 +5116,7 @@ function _fBuildPromptJSON(ov){
   // Dipindah lebih awal (sebelumnya dihitung di bawah, setelah Product block) —
   // dibutuhkan di sini supaya fallback placement produk-saja (di bawah) bisa
   // konsisten dengan info "ada tangan di frame atau tidak", tidak kontradiksi.
-  let effAngle = FS.angleDesc || FS.angle;
+  let effAngle = ov.angleOverride || FS.angleDesc || FS.angle;
   // FIX: kalau mode produk-saja TAPI angle yang dipilih adalah "dipegang tangan"
   // (ada tangan di frame), jangan bilang "no person or human visible" — itu
   // kontradiksi langsung sama instruksi tangannya sendiri, bikin AI bingung
@@ -5058,8 +5171,9 @@ function _fBuildPromptJSON(ov){
   // teks lengkapnya, dengan fallback ke field lama untuk jaga-jaga.
   let effPose = ov.poseOverride || FS.poseDesc || FS.pose;
   let effKamera = ov.kameraNote || FS.kamera;
-  let effLokasi = FS.lokasiDesc || FS.lokasi;
-  let effCahaya = FS.cahayaDesc || FS.cahaya;
+  let effLokasi = ov.lokasiOverride || FS.lokasiDesc || FS.lokasi;
+  let effCahaya = ov.cahayaOverride || FS.cahayaDesc || FS.cahaya;
+  let effMood = ov.moodOverride || FS.mood;
 
   // Tambahkan keterangan outfit random ke intro jika ada
   let outfitRandomIntro = '';
@@ -5080,13 +5194,13 @@ function _fBuildPromptJSON(ov){
     + (isProdukSaja ? '' : 'Character pose: ' + effPose + '. ')
     + (effKamera ? 'Camera framing: ' + effKamera + '. ' : '')
     + 'Camera angle: ' + effAngle + '. '
-    + 'Mood & tone: ' + FS.mood + '.';
+    + 'Mood & tone: ' + effMood + '.';
 
   // ── FULL JSON ───────────────────────────────────────────────────
   let fullJson = {
     prompt: intro,
     subject: subjekDesc,
-    mood_and_tone: FS.mood,
+    mood_and_tone: effMood,
     ...(refPhotos.length > 0 && realRefs.length > 0 ? {
       critical_rule: 'Read each reference photo SELECTIVELY. Extract ONLY the specified elements from each photo and ignore everything else. Every extract_only and ignore_completely directive is ABSOLUTE — do NOT blend elements across photos unless explicitly stated.'
     } : {}),
@@ -5100,7 +5214,7 @@ function _fBuildPromptJSON(ov){
       ...(effKamera ? {camera_framing: effKamera} : {}),
       camera_angle: effAngle,
       lighting: effCahaya,
-      mood_and_tone: FS.mood
+      mood_and_tone: effMood
     },
     output_quality: quality
   };
@@ -5117,21 +5231,137 @@ let _fUploadNoticeList = '';
 // 1 konfigurasi wizard yang sama (karakter/lokasi/lighting/mood
 // tetap konsisten, hanya pose & framing produk yang beda per shot)
 // ============================================================
+// ── PER-VARIASI OVERRIDE — pilihan singkat Lokasi/Cahaya/Angle/Mood ──
+// Dipakai di panel yang muncul begitu user centang salah satu checkbox
+// multi-shot. Kalau user gak sentuh apa-apa di panel ini, variasi itu
+// tetap ikut pilihan global wizard (F5/F7/F8/F9) seperti sebelumnya.
+const F_SHOT_OPTS = {
+  lokasi_karakter:[
+    {v:'aesthetic bedroom large window natural light streaming in',l:'Kamar Aesthetic'},
+    {v:'modern living room neutral tones large sofa indoor plants',l:'Ruang Tamu'},
+    {v:'aesthetic cafe indoor plants rattan chairs warm ambient lighting',l:'Cafe Aesthetic'},
+    {v:'aesthetic kitchen pastel cabinets small plants marble countertop',l:'Dapur Aesthetic'},
+    {v:'minimalist white photo studio clean backdrop soft diffused light',l:'Studio Putih'},
+    {v:'cozy home library floor-to-ceiling bookshelves warm golden light',l:'Perpustakaan'}
+  ],
+  lokasi_produk:[
+    {v:'clean white seamless backdrop, product on pure white surface, studio product shot',l:'Backdrop Putih'},
+    {v:'light gray seamless backdrop, neutral product photography surface',l:'Backdrop Abu'},
+    {v:'black matte backdrop, dark dramatic product photography, luxury feel',l:'Backdrop Hitam'},
+    {v:'white marble surface, clean and luxurious product placement',l:'Permukaan Marmer'},
+    {v:'light wood grain surface, clean Scandinavian product shot feel',l:'Kayu Terang'},
+    {v:'minimalist studio product shot, clean gradient background soft light',l:'Studio Gradient'}
+  ],
+  cahaya_karakter:[
+    {v:'golden hour natural sunlight — warm soft light from low sun, long gentle shadows, rich warm amber tones, no filter',l:'Golden Hour'},
+    {v:'bright natural midday daylight — crisp clean light, vivid natural colors, no filter',l:'Siang Cerah'},
+    {v:'soft natural window light from the side — gentle indoor daylight, airy and bright, no filter',l:'Window Light'},
+    {v:'warm natural indoor ambient light — afternoon sun through curtains, cozy warm indoor feel, no filter',l:'Indoor Hangat'}
+  ],
+  cahaya_produk:[
+    {v:'soft diffused natural window light from the side — even and clean illumination on product surface, no harsh shadows, no filter',l:'Window Light Lembut'},
+    {v:'soft box studio lighting — perfectly diffused front light, product sharp and clean, white background, no filter',l:'Softbox Studio'},
+    {v:'rim lighting — light source behind and slightly above product, glowing outline, dark background, premium luxurious feel',l:'Rim Light Premium'},
+    {v:'dark moody low key lighting — dramatic deep shadows, product emerges from darkness, luxury mysterious atmosphere',l:'Dark Moody'}
+  ],
+  angle_karakter:[
+    {v:'low angle shot — camera positioned below eye level looking upward, subject appears powerful, tall, and dominant, dramatic perspective',l:'Low Angle'},
+    {v:'high angle shot — camera positioned above eye level looking downward, subject appears smaller and more approachable, soft editorial feel',l:'High Angle'},
+    {v:'eye level shot — camera positioned exactly at subject eye level, natural and neutral perspective, direct connection with viewer',l:'Eye Level'}
+  ],
+  angle_produk:[
+    {v:'overhead flat lay — camera directly above product looking straight down, product fills frame symmetrically, clean and organized composition',l:'Overhead Flat Lay'},
+    {v:'45 degree angle shot — camera positioned at 45 degrees above product, shows both top and front face of product, natural and dimensional feel',l:'45° Angle'},
+    {v:'front facing product shot — camera at exact product level facing directly forward, product face fully visible, clean frontal view',l:'Front Facing'},
+    {v:'three quarter view — camera at slight angle showing front and one side of product, dimensional and detailed, editorial product photography',l:'3/4 View'}
+  ],
+  mood:[
+    {v:'clean, bright, airy — soft natural light, white tones, fresh and minimal, no dark shadows, high-key mood',l:'Clean Minimal'},
+    {v:'soft pastel aesthetic — gentle pastel color palette, dreamy and delicate, soft diffused light, romantic feel',l:'Soft Pastel'},
+    {v:'natural candid lifestyle — unposed and authentic, real-life moment, organic and relaxed, no studio feel',l:'Natural Candid'},
+    {v:'warm cozy lifestyle — warm golden tones, intimate and comfortable, homey and inviting atmosphere',l:'Warm Cozy'},
+    {v:'dark moody cinematic — deep shadows, rich dark tones, dramatic and mysterious, cinematic quality, low-key lighting',l:'Dark Moody'},
+    {v:'luxury premium editorial — polished and refined, sophisticated elegance, premium quality feel, clean and elevated',l:'Luxury Premium'}
+  ]
+};
+
+// Render/toggle panel konfigurasi di bawah checkbox multi-shot begitu dicentang
+function fToggleShotPanel(cb){
+  let panel = document.getElementById('f-shotpanel-'+cb.value);
+  if(!panel)return;
+  if(!cb.checked){
+    panel.style.display='none';
+    return;
+  }
+  if(!panel.dataset.built){
+    fBuildShotPanel(cb.value, panel);
+    panel.dataset.built='1';
+  }
+  panel.style.display='block';
+}
+
+function fBuildShotPanel(shotKey, panel){
+  let isProduk = (shotKey==='detail');
+  let cats = [
+    {key:'lokasi', label:'Lokasi', opts: isProduk?F_SHOT_OPTS.lokasi_produk:F_SHOT_OPTS.lokasi_karakter},
+    {key:'cahaya', label:'Cahaya', opts: isProduk?F_SHOT_OPTS.cahaya_produk:F_SHOT_OPTS.cahaya_karakter},
+    {key:'angle', label:'Angle Kamera', opts: isProduk?F_SHOT_OPTS.angle_produk:F_SHOT_OPTS.angle_karakter},
+    {key:'mood', label:'Mood', opts: F_SHOT_OPTS.mood}
+  ];
+  panel.style.cssText='margin:8px 0 4px 25px;padding:10px 12px;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-sm);';
+  let html = '<div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Opsional — override khusus variasi ini. Kosongkan untuk ikut pilihan utama di step wizard.</div>';
+  cats.forEach(function(cat){
+    html += '<div style="font-size:10.5px;font-weight:700;margin:8px 0 5px;">'+cat.label+'</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    cat.opts.forEach(function(opt,i){
+      html += '<div class="chip" style="font-size:10.5px;padding:5px 9px;" data-cat="'+cat.key+'" data-idx="'+i+'" onclick="fPickShotOpt(\''+shotKey+'\',\''+cat.key+'\','+i+',this)">'+opt.l+'</div>';
+    });
+    html += '</div>';
+  });
+  panel.innerHTML = html;
+}
+
+function fPickShotOpt(shotKey, catKey, idx, el){
+  let optsMap = {
+    lokasi: (shotKey==='detail'?F_SHOT_OPTS.lokasi_produk:F_SHOT_OPTS.lokasi_karakter),
+    cahaya: (shotKey==='detail'?F_SHOT_OPTS.cahaya_produk:F_SHOT_OPTS.cahaya_karakter),
+    angle: (shotKey==='detail'?F_SHOT_OPTS.angle_produk:F_SHOT_OPTS.angle_karakter),
+    mood: F_SHOT_OPTS.mood
+  };
+  let opt = optsMap[catKey][idx];
+  if(!FS.shotOverrides[shotKey]) FS.shotOverrides[shotKey]={};
+  let so = FS.shotOverrides[shotKey];
+  let wasSelected = el.classList.contains('sel');
+  // toggle: tap lagi chip yang sama = batalkan override, balik ke default global
+  el.parentElement.querySelectorAll('.chip[data-cat="'+catKey+'"]').forEach(c=>c.classList.remove('sel'));
+  if(wasSelected){
+    delete so[catKey+'Desc']; delete so[catKey+'Label'];
+  } else {
+    el.classList.add('sel');
+    so[catKey+'Desc']=opt.v; so[catKey+'Label']=opt.l;
+  }
+}
+
 const F_SHOT_TYPES = {
   bicara: {
     label: 'Bicara ke Kamera',
     build: function(){
+      let so = FS.shotOverrides.bicara || {};
       return {
         label: 'Bicara ke Kamera',
-        poseOverride: 'Standing naturally facing directly toward the camera, direct eye contact, mouth slightly open as if mid-sentence talking, animated natural expression, engaging energetic body language, hand gesturing naturally as if explaining something'
+        poseOverride: 'Standing naturally facing directly toward the camera, direct eye contact, mouth slightly open as if mid-sentence talking, animated natural expression, engaging energetic body language, hand gesturing naturally as if explaining something',
+        lokasiOverride: so.lokasiDesc, cahayaOverride: so.cahayaDesc, angleOverride: so.angleDesc, moodOverride: so.moodDesc
       };
     }
   },
   detailtangan: {
     label: 'Detail Produk + Tangan Karakter',
+    excludeRefTypes: ['wajah'], // wajah gak kepakai — di shot ini muka sengaja gak masuk frame
     build: function(){
+      let so = FS.shotOverrides.detailtangan || {};
       return {
         label: 'Detail Produk + Tangan Karakter',
+        lokasiOverride: so.lokasiDesc, cahayaOverride: so.cahayaDesc, angleOverride: so.angleDesc, moodOverride: so.moodDesc,
         poseOverride: 'Candid natural moment with the character genuinely interacting with the product — NOT a posed studio product shot. First, infer the physical nature of the product from the reference photo, then choose the interaction that would realistically happen in real life: '
           + 'If the product is soft or wearable (clothing, fabric, textile, bag strap, etc.) — the character is calmly sitting or positioned naturally with the item placed nearby on a believable everyday surface (for example: laid on a bed, resting on a marble countertop, placed on a sofa or cushion — pick whichever fits the scene, this is just an example, not mandatory), fingers gently touching, grazing, or resting on the fabric with light natural contact — NOT gripping, squeezing, or pinching it, the material keeps its natural relaxed shape and drape, no distortion or wrinkling from grip pressure. '
           + 'If the product is small and rigid enough to hold (bottle, box, gadget, accessory, footwear, etc.) — the hand naturally and comfortably holds it with realistic weight support and natural finger placement. '
@@ -5145,31 +5375,38 @@ const F_SHOT_TYPES = {
   dipakai: {
     label: 'Produk Dipakai/Digunakan',
     build: function(){
+      let so = FS.shotOverrides.dipakai || {};
       return {
         label: 'Produk Dipakai atau Digunakan',
         poseOverride: 'Character naturally wearing or actively using the product within the scene, candid natural action pose that clearly demonstrates the product in real use',
-        placementOverride: 'worn or actively used naturally as part of the outfit or activity, fully integrated and clearly visible on the character'
+        placementOverride: 'worn or actively used naturally as part of the outfit or activity, fully integrated and clearly visible on the character',
+        lokasiOverride: so.lokasiDesc, cahayaOverride: so.cahayaDesc, angleOverride: so.angleDesc, moodOverride: so.moodDesc
       };
     }
   },
   detail: {
     label: 'Detail Produk (tanpa karakter)',
+    excludeRefTypes: ['wajah','outfit','atasan','bawahan','aksesori'], // gak ada karakter sama sekali — cuma produk yang relevan
     build: function(){
+      let so = FS.shotOverrides.detail || {};
       return {
         label: 'Detail Produk',
         forceProdukSaja: true,
         placementOverride: 'staged in a natural, everyday, contextually appropriate real-world setting that matches exactly what kind of product this is — infer the most realistic and relatable placement based on the product shown in the reference photo (for example: clothing items such as shirts, jackets, or pants neatly folded or laid flat on a bed or fabric surface; shoes displayed on a shoe rack, shelf, or clean floor; bags or accessories placed on a table, dresser, or chair; other product types placed wherever is most natural and common for that category in real life). Do NOT default to a plain empty void or a flat scan-like reproduction of the reference photo — the setting must feel like a genuine, relatable everyday moment, styled neatly as a clean flat-lay or styled product shot, well-lit with the product\'s full shape, texture, and detail clearly visible',
-        kameraNote: 'overhead flat-lay or clean 3/4 styled product angle appropriate to the staged setting, showing the product\'s full form and detail clearly, no hands or person present'
+        kameraNote: 'overhead flat-lay or clean 3/4 styled product angle appropriate to the staged setting, showing the product\'s full form and detail clearly, no hands or person present',
+        lokasiOverride: so.lokasiDesc, cahayaOverride: so.cahayaDesc, angleOverride: so.angleDesc, moodOverride: so.moodDesc
       };
     }
   },
   lifestyle: {
     label: 'Lifestyle / Suasana',
     build: function(){
+      let so = FS.shotOverrides.lifestyle || {};
       return {
         label: 'Lifestyle / Suasana',
         poseOverride: 'Candid natural lifestyle moment, character engaged in a relaxed everyday activity within the scene, authentic unposed body language, not looking directly at camera',
-        placementOverride: 'naturally present within the lifestyle moment, visible but not the sole forced focus of the shot'
+        placementOverride: 'naturally present within the lifestyle moment, visible but not the sole forced focus of the shot',
+        lokasiOverride: so.lokasiDesc, cahayaOverride: so.cahayaDesc, angleOverride: so.angleDesc, moodOverride: so.moodDesc
       };
     }
   }
@@ -5177,17 +5414,32 @@ const F_SHOT_TYPES = {
 
 function _fDoGenerateMultiShot(checkedEls){
   let results = [];
+  let originalRefs = FS.refs;
   checkedEls.forEach(function(cb){
     let type = F_SHOT_TYPES[cb.value];
     if(!type)return;
     let ov = type.build();
+    // Kalau shot ini gak butuh tipe foto tertentu (mis. wajah gak kepakai
+    // di shot produk-saja), sementara buang dari FS.refs cuma buat build
+    // prompt shot ini — supaya reference_photos & notice upload gak
+    // nyertain foto yang gak relevan buat variasi tersebut.
+    if(type.excludeRefTypes && type.excludeRefTypes.length){
+      FS.refs = originalRefs.filter(r => type.excludeRefTypes.indexOf(r.type) === -1);
+    } else {
+      FS.refs = originalRefs;
+    }
     let built = _fBuildPromptJSON(ov);
+    FS.refs = originalRefs;
     results.push({label: ov.label, json: built.fullJson, realRefs: built.realRefs, randomRefs: built.randomRefs});
   });
   if(results.length===0)return;
 
-  // Notifikasi urutan foto — pakai dari shot pertama (referensi foto sama untuk semua shot)
-  fBuildUploadNotice(results[0].realRefs, results[0].randomRefs);
+  // Notifikasi urutan foto — pakai SEMUA foto asli (bukan hasil filter salah
+  // satu shot), karena notice ini nunjukkin urutan upload buat keseluruhan
+  // batch variasi, bukan cuma satu shot tertentu.
+  let allRealRefs = originalRefs.filter(r => r.type !== 'outfit_random');
+  let allRandomRefs = originalRefs.filter(r => r.type === 'outfit_random');
+  fBuildUploadNotice(allRealRefs, allRandomRefs);
 
   // Sembunyikan output single, tampilkan output multi
   let singleWrap = document.getElementById('f-output-wrap');
@@ -5359,6 +5611,8 @@ function fReset(){
   showConfirm(confirmMsg,function(){
     fResetFrom(0);
     document.querySelectorAll('.f-shot-check').forEach(cb=>cb.checked=false);
+    document.querySelectorAll('.f-shot-panel').forEach(p=>{p.style.display='none';p.innerHTML='';p.removeAttribute('data-built');});
+    FS.shotOverrides={};
     let mo=document.getElementById('f-multi-output');if(mo){mo.style.display='none';mo.innerHTML='';}
     let ph=document.getElementById('f-preview-placeholder');if(ph)ph.style.display='';
     let fcd=document.getElementById('f-copy-done');if(fcd)fcd.classList.add('hidden');
@@ -5386,6 +5640,12 @@ function fReset(){
 // ============================================================
 // VAI — UNCHANGED
 // ============================================================
+// BUG FIX: konstanta ini dipakai di vbGenerate3AI() & _vbCallBulkBatch() tapi
+// sebelumnya tidak pernah dideklarasikan di mana pun → setiap generate AI di
+// Video Builder langsung error "GEMINI_ENDPOINT is not defined" dan gagal total.
+// GANTI GEMINI_MODEL di bawah kalau kamu memang mau pakai versi model lain.
+const GEMINI_ENDPOINT='https://generativelanguage.googleapis.com/v1beta/models/';
+const GEMINI_MODEL='gemini-3.6-flash';
 var VAI={apiKey:'',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 // ============================================================
@@ -5931,8 +6191,11 @@ async function _vbCallBulkBatch(batch,targetAudience){
 
   const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
   async function _callGemini(withThinkingOff){
-    let cfg={maxOutputTokens:4096,temperature:0.9};
-    if(withThinkingOff)cfg.thinkingConfig={thinkingBudget:0};
+    // FIX: Gemini 3.x menghapus parameter `temperature` & mengganti
+    // `thinkingBudget` (angka) jadi `thinkingLevel` (minimal/low/medium/high).
+    // Gemini 3 Flash juga TIDAK bisa mematikan thinking total (beda dari 2.5).
+    let cfg={maxOutputTokens:4096};
+    if(withThinkingOff)cfg.thinkingConfig={thinkingLevel:'minimal'};
     return fetch(url,{
       method:'POST',
       headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
@@ -5940,7 +6203,9 @@ async function _vbCallBulkBatch(batch,targetAudience){
     });
   }
   let{resp,rawText}=await _vbFetchWithRetry(()=>_callGemini(true));
-  if(!resp.ok&&/thinkingConfig|thinking_config|Unknown name/i.test(rawText)){
+  // FIX: pesan error Google tidak selalu sebut nama parameter (bisa cuma
+  // "invalid argument" generik) — perlebar deteksi biar retry tetap kepicu.
+  if(!resp.ok&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)){
     let retried=await _vbFetchWithRetry(()=>_callGemini(false));
     resp=retried.resp;rawText=retried.rawText;
   }
@@ -6242,8 +6507,11 @@ async function vbGenerate3AI(){
     // → thinking dimatikan (thinkingBudget:0). Kalau parameter ini ternyata
     // tidak didukung model (API reject), otomatis coba ulang tanpa parameter itu.
     async function _vbCallGemini(withThinkingOff){
-      let cfg={maxOutputTokens:4096,temperature:0.9};
-      if(withThinkingOff)cfg.thinkingConfig={thinkingBudget:0};
+      // FIX: Gemini 3.x menghapus parameter `temperature` & mengganti
+      // `thinkingBudget` (angka) jadi `thinkingLevel` (minimal/low/medium/high).
+      // Gemini 3 Flash juga TIDAK bisa mematikan thinking total (beda dari 2.5).
+      let cfg={maxOutputTokens:4096};
+      if(withThinkingOff)cfg.thinkingConfig={thinkingLevel:'minimal'};
       return fetch(url,{
         method:'POST',
         headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
@@ -6251,7 +6519,9 @@ async function vbGenerate3AI(){
       });
     }
     let{resp,rawText}=await _vbFetchWithRetry(()=>_vbCallGemini(true));
-    if(!resp.ok&&/thinkingConfig|thinking_config|Unknown name/i.test(rawText)){
+    // FIX: pesan error Google tidak selalu sebut nama parameter (bisa cuma
+    // "invalid argument" generik) — perlebar deteksi biar retry tetap kepicu.
+    if(!resp.ok&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)){
       console.log('[vbGenerate3AI] thinkingConfig ditolak API, coba ulang tanpa parameter itu');
       let retried=await _vbFetchWithRetry(()=>_vbCallGemini(false));
       resp=retried.resp;rawText=retried.rawText;
@@ -6811,7 +7081,12 @@ function fRenderSummary() {
     const PRODUK_LABEL = {tidak:'Tidak ada', dipakai:'Dipakai di badan', pegang:'Dipegang ke kamera', foto:'Dari foto produk'};
     let produkVal = PRODUK_LABEL[FS.produkMode] || '—';
     if (FS.produkNama) produkVal += ' · ' + FS.produkNama;
-    items.push({ key: 'Produk', val: produkVal, editCard: 2 });
+    // FIX: mode 'foto' (nama produk auto-detect dari foto produk yang
+    // di-upload) TIDAK punya UI di Card 2 — input namanya ada di Card 1
+    // (kartu foto referensi). Sebelumnya selalu diarahkan ke Card 2 tanpa
+    // syarat, jadi tombol Edit malah nampilin layar "belum pilih foto
+    // produk" yang salah & bikin bingung padahal fotonya sudah dipilih.
+    items.push({ key: 'Produk', val: produkVal, editCard: (FS.produkMode === 'foto' ? 1 : 2) });
 
     // Cara hold — hanya jika dipegang
     if (FS.produkMode === 'pegang') {
@@ -7243,5 +7518,20 @@ window.addEventListener('beforeunload', function(e){
   <p class="gold">Google Flow · Veo 3</p>
 </div>
 </div><!-- /app-shell -->
+
+<!-- NAV — DIPINDAH KE LUAR .app-shell. FIX: position:fixed di dalam
+     container yang overflow-scroll pakai -webkit-overflow-scrolling:touch
+     kena bug rendering klasik di banyak WebView Android (nav jadi gak
+     kelihatan/salah posisi). Ditaruh di sini (sibling dari app-shell,
+     langsung di bawah <body>) supaya "bottom:0"-nya selalu relatif ke
+     viewport asli, bukan ke scroll container. switchPage() & CSS lain
+     gak perlu berubah karena masih dicari lewat class .ntab / .nav global. -->
+<nav class="nav">
+  <button class="ntab active" onclick="switchPage('foto',this)">Foto</button>
+  <button class="ntab" onclick="switchPage('video',this)">Video</button>
+  <button class="ntab" onclick="switchPage('riwayat',this)">Riwayat</button>
+  <button class="ntab" onclick="switchPage('panduan',this)">Panduan</button>
+</nav>
+
 </body>
 </html>
