@@ -1316,7 +1316,7 @@ body{
 
       <!-- PANEL PRODUK SAJA -->
       <div id="f1-produk-saja-panel" style="display:none;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div id="f1-produk-saja-stepper" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
           <span style="font-size:12px;color:var(--muted);">Jumlah foto produk:</span>
           <div style="display:flex;align-items:center;gap:6px;">
             <button onclick="fProdukSajaKurang()" style="width:36px;height:36px;border-radius:var(--radius-xs);background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">−</button>
@@ -2934,6 +2934,22 @@ function fAddRef(typeKey){
   fUpdateCounters();
   fRenderList();
   fRenderPreview();
+  // FIX BUG KRITIS IMPORT — TAMBAH FOTO MENGHAPUS SELURUH PROMPT DIIMPOR:
+  // Card 1 SELALU berstatus 'done' setelah impor (lihat fImportPrompt), jadi
+  // tanpa pengecualian ini, nambah 1 foto saja memicu confirm "reset Step
+  // 2-8" di bawah — dan kalau diiyakan, fResetFrom(2) mengosongkan TOTAL
+  // Produk/Cara Tampil/Pose/Lokasi/Cahaya/Angle/Mood hasil impor (teks
+  // lengkap dari JSON yang ditempel, bukan sekadar pilihan chip) — tidak ada
+  // jalan balik selain paste ulang JSON dari nol. Logic reset itu memang
+  // perlu untuk alur wizard manual (foto baru bisa bikin pose/lokasi lama
+  // gak cocok lagi), tapi tidak relevan sama sekali untuk data hasil impor.
+  // Untuk mode impor: cukup tambahkan foto & refresh Ringkasan, tanpa reset apa pun.
+  if(FS.importActive){
+    if(typeof fRenderSummary==='function') fRenderSummary();
+    if(typeof fSyncMultiShotVisibility==='function') fSyncMultiShotVisibility();
+    setTimeout(()=>{let el=document.getElementById('pc-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
+    return;
+  }
   // FIX: kalau step 1 sudah done, tampilkan konfirmasi dulu sebelum reset progress
   let f1=document.getElementById('f1');
   if(f1&&f1.classList.contains('done')){
@@ -2955,6 +2971,19 @@ function fAddRef(typeKey){
 }
 
 function fRemoveRef(id){
+  // FIX BUG KRITIS IMPORT (sama seperti fAddRef di atas): hapus foto pun
+  // memicu reset total Step 2-8 kalau Card 1 sudah 'done' — yang untuk
+  // prompt hasil impor berarti menghapus seluruh teks Produk/Cara Tampil/
+  // Pose/Lokasi/Cahaya/Angle/Mood yang diimpor. Untuk mode impor: hapus
+  // foto-nya saja, tanpa reset apa pun.
+  if(FS.importActive){
+    FS.refs=FS.refs.filter(r=>r.id!==id);
+    FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
+    fUpdateCounters();fRenderList();fRenderPreview();
+    if(typeof fRenderSummary==='function') fRenderSummary();
+    if(typeof fSyncMultiShotVisibility==='function') fSyncMultiShotVisibility();
+    return;
+  }
   // FIX: kalau step 1 sudah done, tampilkan konfirmasi dulu sebelum hapus dan reset
   let f1=document.getElementById('f1');
   if(f1&&f1.classList.contains('done')){
@@ -5817,6 +5846,14 @@ function fReset(){
     fResetFrom(0);
     document.querySelectorAll('.f-shot-check').forEach(cb=>cb.checked=false);
     document.querySelectorAll('.f-shot-panel').forEach(p=>{p.style.display='none';p.innerHTML='';p.removeAttribute('data-built');});
+    // FIX: unchecking checkbox di atas dengan .checked=false langsung TIDAK
+    // memicu onchange handler-nya (fToggleShotPanel) — jadi link kecil
+    // "Detail (opsional)"/"Sembunyikan detail" yang lagi kelihatan sebelum
+    // reset bisa nyangkut, tidak ikut hilang/kembali ke teks default.
+    document.querySelectorAll('.f-shot-detail-toggle').forEach(function(t){
+      t.style.display='none';
+      t.textContent='Detail (opsional) ▾';
+    });
     FS.shotOverrides={};
     let mo=document.getElementById('f-multi-output');if(mo){mo.style.display='none';mo.innerHTML='';}
     let ph=document.getElementById('f-preview-placeholder');if(ph)ph.style.display='';
@@ -7265,7 +7302,20 @@ function fRenderSummary() {
   // (teks hasil parse JSON), BUKAN di FS.refs (yang khusus foto asli hasil upload).
   let refCount, hasOutfitRandom, totalRefCount;
   if (FS.importActive) {
-    totalRefCount = FS.importRefPhotos ? FS.importRefPhotos.length : 0;
+    // FIX RINGKASAN FOTO REF BASI PASCA-EDIT IMPOR: sebelumnya angka di sini
+    // SELALU diambil dari FS.importRefPhotos.length — snapshot BEKU dari JSON
+    // yang pertama kali ditempel — padahal tombol "Edit" di baris ini membuka
+    // Card 1 yang isinya FS.refs yang LIVE (bisa berubah kalau user tambah/
+    // hapus foto di sana setelah impor). Akibatnya kalau user edit foto
+    // referensi pasca-impor, baris "Foto Ref" di Ringkasan tidak ikut update,
+    // padahal reference_photos di JSON hasil generate (lihat _fBuildImportedPromptJSON)
+    // sudah benar pakai FS.refs live. Sekarang dihitung dengan cara yang
+    // SAMA seperti JSON aktual: FS.refs live (tipe dikenal, bisa diedit) +
+    // entri "tipe tidak dikenal" yang masih nyangkut apa adanya di
+    // FS.importRefPhotos (tidak pernah tersinkron ke FS.refs sejak awal).
+    let liveRealCount = FS.refs ? FS.refs.filter(function(r){return r.type!=='outfit_random';}).length : 0;
+    let unknownCount = (FS.importRefPhotos || []).filter(function(p){return p && !_fREF_LABEL_TO_KEY[p.type];}).length;
+    totalRefCount = liveRealCount + unknownCount;
     refCount = totalRefCount;
     // FIX IMPORT OUTFIT AI: cek FS.refs dulu (sumber kebenaran setelah sinkron/edit),
     // fallback ke array import mentah untuk jaga-jaga.
@@ -7391,8 +7441,22 @@ function fRestoreStepUI(cardNum) {
     // tampilkan list & tombol "Selesai →" yang sudah terisi, skip UI stepper
     // "Jumlah foto", tanpa menyentuh FS.refs sama sekali.
     if (FS.subjek === 'produk' && FS.importActive) {
+      let stepperImp = document.getElementById('f1-produk-saja-stepper');
       let slotsImp = document.getElementById('f1-produk-saja-slots');
       let lanjutImp = document.getElementById('f1-produk-saja-lanjut');
+      // FIX BUG KRITIS: sebelumnya stepper "Jumlah foto produk" (+/− dan
+      // tombol "Konfirmasi →") TIDAK PERNAH benar-benar disembunyikan di sini
+      // walau komentar di atas bilang begitu — jadi tetap kelihatan & bisa
+      // ditap persis di atas list foto asli yang sudah benar terisi. Kalau
+      // "Konfirmasi →" itu ditap (mis. user kira itu tombol untuk lanjut),
+      // fProdukSajaKonfirmJumlah() akan fSetState({refs:[],...}) lalu bikin
+      // ulang slot KOSONG — menghapus SEMUA foto produk hasil impor, karena
+      // _fProdukSajaCount (variabel internal yang dipakai fungsi itu) beda
+      // dari teks angka yang ditampilkan di sini, dan nyangkut di nilai 1
+      // sejak fToggleF1Panel() dipanggil waktu impor. Sekarang stepper-nya
+      // beneran disembunyikan untuk prompt hasil impor — tidak dibutuhkan
+      // karena jumlah & isi foto sudah pasti benar dari hasil sinkronisasi.
+      if (stepperImp) stepperImp.style.display = 'none';
       if (slotsImp) slotsImp.style.display = 'block';
       if (lanjutImp) lanjutImp.style.display = 'block';
       let cntImp = document.getElementById('f1-produk-count');
