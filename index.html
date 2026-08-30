@@ -6163,15 +6163,15 @@ function historyRender(){
 // ============================================================
 // VIDEO BUILDER — Reference + Dialogue (voice_character)
 // ============================================================
-let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:''};
+let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:''};
 
 const VB_REF_MODE_TEXT={
   satu:'Gunakan foto tersebut sebagai acuan karakter, outfit, dan lokasi. Pertahankan semua detail secara konsisten sepanjang video.',
-  aset:'Gunakan foto yang dilampirkan sebagai frame awal untuk setiap pergantian scene. Scene yang diperlihatkan wajib 100% sama dengan foto yang dilampirkan. Setiap pergantian scene wajib berurutan sesuai foto yang sudah dilampirkan.'
+  aset:'Gunakan foto yang dilampirkan sebagai frame awal untuk setiap pergantian scene. Scene yang diperlihatkan wajib 100% sama dengan foto yang dilampirkan. Kalo dalam foto tidak menampilkan wajah maka jangan buat menampilkan wajah, pokoknya wajib mengikuti setiap foto yang dilampirkan. Setiap pergantian scene wajib berurutan sesuai foto yang sudah dilampirkan.'
 };
 const VB_REF_MODE_DESC={
   satu:'Foto dipakai sebagai satu acuan karakter, outfit, dan lokasi untuk seluruh video — dari awal sampai akhir.',
-  aset:'Foto yang dilampirkan jadi frame awal SETIAP pergantian scene, scene wajib 100% sama dengan foto, dan urutan scene wajib berurutan sesuai foto yang dilampirkan.',
+  aset:'Foto yang dilampirkan jadi frame awal SETIAP pergantian scene, scene wajib 100% sama dengan foto (kalau di foto tidak ada wajah, jangan dimunculkan wajah), dan urutan scene wajib berurutan sesuai foto yang dilampirkan.',
   kp:'Foto referensi 1 = karakter (wajah & outfit dipertahankan), foto referensi 2 = produk. Kamu pilih sendiri lokasi & lighting video-nya di bawah.'
 };
 function vbPickRefMode(mode){
@@ -6363,6 +6363,7 @@ const VB_3SCRIPT_ROLES=[
 // diedit, dan JSON di bawahnya update REALTIME setiap ketikan.
 // ============================================================
 let VB_BULK_ITEMS=[]; // {produk, role, roleLabel, script} — flat, index = urutan tampil
+let VB_BULK_PRODUCTS=[]; // {nama, keunggulan} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
 
 // Bangun N baris input (Nama Produk *wajib + Keunggulan opsional) sesuai jumlah yang dipilih user
 function vbBulkSetCount(){
@@ -6415,7 +6416,50 @@ async function _vbFetchWithRetry(fetchFn,maxRetries){
   return{resp:lastResp,rawText:lastRawText};
 }
 
-async function _vbCallBulkBatch(batch,targetAudience){
+// ── Auto-perbaikan jumlah kata: AI kadang tidak akurat pas diminta "TEPAT
+// 25 kata" (wajar buat LLM). Kalau hasilnya meleset, panggil AI lagi khusus
+// buat merapikan script itu jadi persis 25 kata, sampai maksimal 2x
+// percobaan. Kalau tetap gagal, script asli/terakhir dikembalikan apa
+// adanya (masih bisa diedit manual + label kata di UI kasih tanda). ──────
+async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
+  let current=(scriptText||'').trim();
+  const MAX_FIX_ATTEMPTS=2;
+  for(let attempt=0;attempt<MAX_FIX_ATTEMPTS;attempt++){
+    let wc=current.split(/\s+/).filter(Boolean).length;
+    if(wc===25||!current)return current;
+    let dlCheck=dlCheckBeforeCall();
+    if(!dlCheck.ok){console.warn('[_vbFixWordCountIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);return current;}
+    let fixPrompt='Perbaiki script berikut supaya TEPAT 25 kata (hitung tiap kata dipisah spasi, bukan karakter). '
+      +'Ini bagian "'+roleLabelPlain+'"'+(produkNama?' untuk produk "'+produkNama+'"':'')+'. '
+      +'Pertahankan makna, topik, dan gaya bahasa casual sehari-harinya — jangan ganti topik atau bikin jadi formal. '
+      +'TIDAK boleh pakai emoji, TIDAK boleh pakai tanda kutip.\n\n'
+      +'Script saat ini ('+wc+' kata): '+current+'\n\n'
+      +'Balas HANYA dengan teks script hasil perbaikan (persis 25 kata), tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
+    try{
+      const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
+      let{resp,rawText}=await _vbFetchWithRetry(()=>fetch(url,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
+        body:JSON.stringify({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}})
+      }),1);
+      if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
+      let data=JSON.parse(rawText);
+      if(data.error){console.warn('[_vbFixWordCountIfNeeded] error API:',data.error.message);return current;}
+      let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+      if(!text)return current;
+      text=text.replace(/^```\s*/,'').replace(/\s*```$/,'').replace(/^["']+|["']+$/g,'').trim();
+      dlIncrement();
+      current=text;
+      if(attempt<MAX_FIX_ATTEMPTS-1)await new Promise(r=>setTimeout(r,400));
+    }catch(e){
+      console.warn('[_vbFixWordCountIfNeeded] exception, dibiarkan apa adanya:',e);
+      return current;
+    }
+  }
+  return current;
+}
+
+async function _vbCallBulkBatch(batch,targetAudience,extraNote){
   let produkListText=batch.map((p,i)=>(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')).join('\n');
   let prompt='Kamu adalah copywriter konten UGC (user generated content) untuk video promosi produk e-commerce Indonesia di TikTok/Instagram/Shopee Live.\n\n'
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
@@ -6423,6 +6467,7 @@ async function _vbCallBulkBatch(batch,targetAudience){
     +'Aksen/logat karakter: '+(VB.accentLabel||VB.accent)+' — WAJIB tulis script dengan kosakata & gaya bahasa KHAS logat ini (bukan cuma catatan buat cara ngomong doang). Kalau logat daerah (Jawa/Sunda/Betawi/dst), selipkan kata/partikel khas logat tersebut secara natural (misal Betawi: "gue", "elu", "dong", "nih"; Jawa halus: nada lebih lembut & sopan; Sunda: partikel "atuh", "mah", "teh"). Kalau Netral/Formal/Santai, tulis Bahasa Indonesia standar sesuai gaya itu tanpa logat daerah.\n'
     +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n\n'
     +'Daftar produk ('+batch.length+' produk) — kalau ada info "keunggulan", manfaatkan di script STORY biar spesifik dan meyakinkan:\n'+produkListText+'\n\n'
+    +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
     +'Untuk SETIAP produk di atas, buatkan TEPAT 3 script/dialog dengan peran berbeda:\n'
     +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung.\n'
     +'2. STORY — bercerita tentang produk, gambarkan bagaimana rasanya/manfaatnya KALAU audiens memakai produk ini.\n'
@@ -6474,6 +6519,12 @@ async function _vbCallBulkBatch(batch,targetAudience){
     }
   }
   if(!Array.isArray(arr)||arr.length===0)throw new Error('Hasil AI kosong, coba lagi.');
+  for(let pi=0;pi<arr.length;pi++){
+    let prod=arr[pi];
+    prod.hook=await _vbFixWordCountIfNeeded(prod.hook||'','Hook',prod.produk||'');
+    prod.story=await _vbFixWordCountIfNeeded(prod.story||'','Cerita Produk (Story)',prod.produk||'');
+    prod.cta=await _vbFixWordCountIfNeeded(prod.cta||'','CTA Keranjang',prod.produk||'');
+  }
   return arr;
 }
 
@@ -6503,6 +6554,8 @@ async function vbGenerateBulkAI(){
   }
   let targetAudience=document.getElementById('vb-bulk-target').value.trim();
   if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-bulk-target').focus();return;}
+  VB.bulkTargetAudience=targetAudience;
+  VB_BULK_PRODUCTS=produkList.map(function(p){return{nama:p.nama,keunggulan:p.keunggulan};});
 
   if(!VAI||!VAI.apiKey){
     try{
@@ -6555,7 +6608,7 @@ async function vbGenerateBulkAI(){
 
     if(allResults.length===0)throw new Error('Hasil AI kosong, coba lagi.');
 
-    _vbRenderBulkOutput(allResults);
+    _vbRenderBulkOutput(allResults,produkList);
     doneCard('v5','va5',(allResults.length*3)+' script bulk AI');
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
@@ -6567,7 +6620,7 @@ async function vbGenerateBulkAI(){
   }catch(err){
     console.error('vbGenerateBulkAI error:',err);
     if(allResults.length>0){
-      _vbRenderBulkOutput(allResults);
+      _vbRenderBulkOutput(allResults,produkList);
       setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
     }
     errBox.textContent=''+err.message;
@@ -6582,11 +6635,24 @@ async function vbGenerateBulkAI(){
 
 // ── Render kartu kompak untuk hasil bulk — tiap script bisa diedit,
 // JSON di bawahnya update REALTIME tiap ketikan (bukan cuma pas generate) ──
-function _vbRenderBulkOutput(products){
+function _vbRenderBulkOutput(products,produkListMeta){
   VB_BULK_ITEMS=[];
+  VB_BULK_PRODUCTS=(produkListMeta||products.map(function(p){return{nama:p.produk||'',keunggulan:''};})).map(function(x){return{nama:x.nama||'',keunggulan:x.keunggulan||''};});
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
   multiWrap.style.display='flex';
+
+  // ── Tombol buka panel "Ubah Suara & Target Audience" — berlaku utk SEMUA produk ──
+  let settingsBtn=document.createElement('button');
+  settingsBtn.className='btn sm';
+  settingsBtn.style.cssText='width:100%;';
+  settingsBtn.innerHTML='<svg class="icon"><use href="#ic-refresh"></use></svg> Ubah Suara Karakter / Target Audience';
+  settingsBtn.onclick=vbToggleGlobalSettingsPanel;
+  multiWrap.appendChild(settingsBtn);
+  let settingsPanel=document.createElement('div');
+  settingsPanel.id='vb-global-settings-panel';
+  settingsPanel.className='hidden';
+  multiWrap.appendChild(settingsPanel);
 
   let i=0;
   products.forEach(function(p,prodIdx){
@@ -6597,8 +6663,30 @@ function _vbRenderBulkOutput(products){
     let groupHead=document.createElement('div');
     groupHead.style.cssText='background:var(--surface3);padding:9px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border-hi);';
     groupHead.innerHTML='<span style="background:var(--text);color:var(--bg);width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:\'Geist Mono\',monospace;">'+(prodIdx+1)+'</span>'
-      +'<span style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.produk||'Produk '+(prodIdx+1))+'</span>';
+      +'<span id="vb-prodname-'+prodIdx+'" style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+esc(p.produk||'Produk '+(prodIdx+1))+'</span>';
+    let revisiBtn=document.createElement('button');
+    revisiBtn.id='vb-revisi-btn-'+prodIdx;
+    revisiBtn.className='copy-btn';
+    revisiBtn.style.cssText='font-size:9px;padding:3px 8px;flex-shrink:0;';
+    revisiBtn.textContent='Revisi';
+    revisiBtn.onclick=(function(idx){return function(){vbToggleRevisiPanel(idx);};})(prodIdx);
+    groupHead.appendChild(revisiBtn);
     group.appendChild(groupHead);
+
+    // ── Panel revisi per-produk (tersembunyi default) ──
+    let revisiPanel=document.createElement('div');
+    revisiPanel.id='vb-revisi-panel-'+prodIdx;
+    revisiPanel.className='hidden';
+    revisiPanel.style.cssText='padding:9px;background:var(--surface2);border-bottom:1px solid var(--border-hi);display:flex;flex-direction:column;gap:6px;';
+    revisiPanel.innerHTML='<div style="font-size:9px;color:var(--muted);">Betulkan nama/keunggulan produk dan/atau kasih tau AI apa yang mau diubah, lalu generate ulang khusus produk ini.</div>'
+      +'<input class="inp" id="vb-revisi-nama-'+prodIdx+'" maxlength="80" placeholder="Nama produk" style="font-size:11px;padding:6px 8px;" value="'+esc((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].nama)||p.produk||'')+'" />'
+      +'<input class="inp" id="vb-revisi-keunggulan-'+prodIdx+'" maxlength="150" placeholder="Keunggulan (opsional)" style="font-size:11px;padding:6px 8px;" value="'+esc((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].keunggulan)||'')+'" />'
+      +'<textarea class="inp" id="vb-revisi-note-'+prodIdx+'" rows="2" placeholder="Opsional: instruksi revisi, misal \'buat CTA lebih santai\' atau \'ganti sudut cerita\'" style="font-size:11px;padding:6px 8px;resize:vertical;"></textarea>'
+      +'<div style="display:flex;gap:6px;">'
+      +'<button class="btn sm" style="flex:1;" onclick="vbRevisiProdukAI('+prodIdx+')">Generate Ulang Produk Ini</button>'
+      +'<button class="reset-btn" style="flex:0;padding:8px 12px;" onclick="vbToggleRevisiPanel('+prodIdx+',true)">Batal</button>'
+      +'</div>';
+    group.appendChild(revisiPanel);
 
     let groupBody=document.createElement('div');
     groupBody.style.cssText='padding:8px;display:flex;flex-direction:column;gap:6px;';
@@ -6619,6 +6707,218 @@ function _vbRenderBulkOutput(products){
   resetBtn.innerHTML='<svg class="icon"><use href="#ic-refresh"></use></svg> Buat Prompt Video Baru';
   resetBtn.onclick=vbReset;
   multiWrap.appendChild(resetBtn);
+}
+
+// Buka/tutup panel revisi 1 produk tertentu (forceClose=true buat selalu menutup)
+function vbToggleRevisiPanel(prodIdx,forceClose){
+  let panel=document.getElementById('vb-revisi-panel-'+prodIdx);
+  if(!panel)return;
+  if(forceClose){panel.classList.add('hidden');return;}
+  panel.classList.toggle('hidden');
+}
+
+// Update 3 kartu (hook/story/cta) satu produk setelah revisi AI berhasil
+function _vbUpdateProductCards(prodIdx,p){
+  let base=prodIdx*3;
+  ['hook','story','cta'].forEach(function(roleKey,offset){
+    let idx=base+offset;
+    let ta=document.getElementById('vb-bulk-script-'+idx);
+    let jsonBox=document.getElementById('vb-bulk-json-'+idx);
+    let wcLabel=document.getElementById('vb-bulk-wc-'+idx);
+    let scriptText=_vbTruncate25Words(p[roleKey]||'');
+    if(ta)ta.value=scriptText;
+    if(VB_BULK_ITEMS[idx]){VB_BULK_ITEMS[idx].script=scriptText;VB_BULK_ITEMS[idx].produk=p.produk||VB_BULK_ITEMS[idx].produk;}
+    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''));
+    if(wcLabel){let wc=scriptText.trim().split(/\s+/).filter(Boolean).length;wcLabel.textContent=wc+'/25 kata';wcLabel.style.color=wc===25?'var(--green)':'var(--muted2)';}
+  });
+  let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
+  if(nameLabel)nameLabel.textContent=p.produk||('Produk '+(prodIdx+1));
+}
+
+// Revisi 1 produk lewat AI (dipanggil dari panel revisi per-produk)
+async function vbRevisiProdukAI(prodIdx){
+  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  let namaEl=document.getElementById('vb-revisi-nama-'+prodIdx);
+  let keunggulanEl=document.getElementById('vb-revisi-keunggulan-'+prodIdx);
+  let noteEl=document.getElementById('vb-revisi-note-'+prodIdx);
+  let nama=namaEl?namaEl.value.trim():'';
+  if(!nama){showToast('Nama produk wajib diisi','error');if(namaEl)namaEl.focus();return;}
+  let keunggulan=keunggulanEl?keunggulanEl.value.trim():'';
+  let note=noteEl?noteEl.value.trim():'';
+  if(!VB.bulkTargetAudience){showToast('Target Audience tidak ditemukan — generate bulk dari awal dulu ya.','error');return;}
+  let dlCheck=dlCheckBeforeCall();
+  if(!dlCheck.ok){showToast(dlCheck.message,'error');return;}
+
+  let btn=document.getElementById('vb-revisi-btn-'+prodIdx);
+  let submitBtn=document.querySelector('#vb-revisi-panel-'+prodIdx+' .btn.sm');
+  let originalText=submitBtn?submitBtn.textContent:'';
+  VAI._isGenerating=true;
+  if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> Memproses...';}
+  try{
+    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan}],VB.bulkTargetAudience,note);
+    dlIncrement();
+    if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
+    let p=arr[0];
+    if(!p.produk)p.produk=nama;
+    VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan};
+    _vbUpdateProductCards(prodIdx,p);
+    vbToggleRevisiPanel(prodIdx,true);
+    showToast('Produk berhasil direvisi!','success');
+  }catch(err){
+    console.error('vbRevisiProdukAI error:',err);
+    showToast('Gagal revisi: '+err.message,'error');
+  }finally{
+    VAI._isGenerating=false;
+    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=originalText;}
+  }
+}
+
+// ============================================================
+// PANEL "UBAH SUARA KARAKTER & TARGET AUDIENCE" — berlaku utk
+// semua produk di hasil bulk. User pilih setting baru, lalu ada
+// 2 pilihan: generate ulang semua teks lewat AI, atau cukup
+// update metadata JSON tanpa mengubah teks yang sudah ada.
+// ============================================================
+let VB_PANEL={};
+function vbToggleGlobalSettingsPanel(){
+  let panel=document.getElementById('vb-global-settings-panel');
+  if(!panel)return;
+  if(!panel.classList.contains('hidden')){panel.classList.add('hidden');panel.innerHTML='';return;}
+  panel.classList.remove('hidden');
+  _vbBuildGlobalSettingsPanel(panel);
+}
+function _vbChipHtml(field,val,label,current){
+  let safeVal=String(val).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  let safeLabel=String(label).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return '<div class="chip'+(current===val?' sel':'')+'" onclick="vbPanelPickField(\''+field+'\',\''+safeVal+'\',\''+safeLabel+'\',this)">'+esc(label)+'</div>';
+}
+function vbPanelPickField(field,val,label,el){
+  VB_PANEL[field]=val;
+  VB_PANEL[field+'Label']=label;
+  let group=el.parentElement;
+  group.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
+  el.classList.add('sel');
+}
+function _vbBuildGlobalSettingsPanel(panel){
+  VB_PANEL={gender:VB.gender,genderLabel:VB.genderLabel,age:VB.age,ageLabel:VB.ageLabel,pitch:VB.pitch,pitchLabel:VB.pitchLabel,accent:VB.accent,accentLabel:VB.accentLabel};
+  let genderOpts=[['male','Laki-laki'],['female','Perempuan']];
+  let ageOpts=[['child, approximately 5-10 years old','Anak-anak'],['teenager, approximately 15-20 years old','Remaja'],['young adult, approximately 20-30 years old','Dewasa Muda'],['adult, approximately 30-45 years old','Dewasa'],['middle-aged adult, approximately 45-60 years old','Paruh Baya']];
+  let pitchOpts=[['ceria','Ceria'],['tenang','Tenang'],['serius','Serius'],['lembut','Lembut'],['bersemangat','Bersemangat'],['misterius','Misterius']];
+  let accentOpts=[['standard neutral Indonesian accent, no regional dialect','Netral'],['formal and polite tone','Formal'],['casual relaxed everyday tone','Santai'],['with a subtle soft Javanese accent','Logat Jawa'],['with a subtle Sundanese accent','Logat Sunda'],['with a subtle Betawi accent','Logat Betawi']];
+  function chipRow(field,opts,current){
+    return '<div class="chips" style="margin-bottom:10px;">'+opts.map(function(o){return _vbChipHtml(field,o[0],o[1],current);}).join('')+'</div>';
+  }
+  panel.innerHTML=''
+    +'<div style="background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px;">'
+    +'<div style="font-size:12px;font-weight:700;margin-bottom:8px;">Ubah Suara Karakter & Target Audience</div>'
+    +'<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Jenis Kelamin</div>'+chipRow('gender',genderOpts,VB_PANEL.gender)
+    +'<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Usia</div>'+chipRow('age',ageOpts,VB_PANEL.age)
+    +'<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Nada Bicara</div>'+chipRow('pitch',pitchOpts,VB_PANEL.pitch)
+    +'<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Aksen/Logat</div>'+chipRow('accent',accentOpts,VB_PANEL.accent)
+    +'<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Target Audience</div>'
+    +'<input class="inp" id="vb-panel-target" maxlength="120" style="width:100%;box-sizing:border-box;margin-bottom:10px;" value="'+esc(VB.bulkTargetAudience||'')+'" />'
+    +'<div style="display:flex;gap:8px;">'
+    +'<button class="btn sm" style="flex:1;" onclick="vbApplyGlobalSettings()">Terapkan</button>'
+    +'<button class="reset-btn" style="flex:1;" onclick="vbToggleGlobalSettingsPanel()">Batal</button>'
+    +'</div>'
+    +'</div>';
+}
+function vbApplyGlobalSettings(){
+  let targetInput=document.getElementById('vb-panel-target');
+  let newTarget=targetInput?targetInput.value.trim():(VB.bulkTargetAudience||'');
+  if(!newTarget){showToast('Target Audience tidak boleh kosong','error');return;}
+  let contentChanged=VB_PANEL.gender!==VB.gender||VB_PANEL.pitch!==VB.pitch||VB_PANEL.accent!==VB.accent||newTarget!==VB.bulkTargetAudience;
+  let ageChanged=VB_PANEL.age!==VB.age;
+  let newSettings={gender:VB_PANEL.gender,genderLabel:VB_PANEL.genderLabel,age:VB_PANEL.age,ageLabel:VB_PANEL.ageLabel,pitch:VB_PANEL.pitch,pitchLabel:VB_PANEL.pitchLabel,accent:VB_PANEL.accent,accentLabel:VB_PANEL.accentLabel,targetAudience:newTarget};
+
+  if(!contentChanged&&!ageChanged){showToast('Tidak ada perubahan.','error');return;}
+  if(!contentChanged&&ageChanged){
+    // Cuma usia yang berubah — tidak pengaruh ke isi teks script, jadi langsung update metadata tanpa nanya
+    vbApplyMetadataOnly(newSettings);
+    vbToggleGlobalSettingsPanel();
+    return;
+  }
+  _vbShowRegenChoice(
+    'Pengaturan yang diubah ikut memengaruhi gaya/isi script. Teks yang sudah ada masih pakai pengaturan LAMA.\n\nMau digenerate ulang semua lewat AI (teks ikut berubah sesuai pengaturan baru), atau cukup update datanya saja (teks lama dibiarkan seperti semula, bisa kamu edit manual)?',
+    function(){vbToggleGlobalSettingsPanel();vbRegenerateAllBulk(newSettings);},
+    function(){vbApplyMetadataOnly(newSettings);vbToggleGlobalSettingsPanel();},
+    function(){}
+  );
+}
+function vbApplyMetadataOnly(s){
+  VB.gender=s.gender;VB.genderLabel=s.genderLabel;
+  VB.age=s.age;VB.ageLabel=s.ageLabel;
+  VB.pitch=s.pitch;VB.pitchLabel=s.pitchLabel;
+  VB.accent=s.accent;VB.accentLabel=s.accentLabel;
+  VB.bulkTargetAudience=s.targetAudience;
+  for(let idx=0;idx<VB_BULK_ITEMS.length;idx++){
+    let ta=document.getElementById('vb-bulk-script-'+idx);
+    let jsonBox=document.getElementById('vb-bulk-json-'+idx);
+    if(!ta||!jsonBox)continue;
+    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk);
+  }
+  showToast('Data diperbarui — teks script lama tetap seperti semula.','success');
+}
+async function vbRegenerateAllBulk(newSettings){
+  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  if(!VB_BULK_PRODUCTS||VB_BULK_PRODUCTS.length===0){showToast('Data produk tidak ditemukan — generate bulk dari awal ya.','error');return;}
+  let dlCheck=dlCheckBeforeCall();
+  if(!dlCheck.ok){showToast(dlCheck.message,'error');return;}
+
+  VB.gender=newSettings.gender;VB.genderLabel=newSettings.genderLabel;
+  VB.age=newSettings.age;VB.ageLabel=newSettings.ageLabel;
+  VB.pitch=newSettings.pitch;VB.pitchLabel=newSettings.pitchLabel;
+  VB.accent=newSettings.accent;VB.accentLabel=newSettings.accentLabel;
+  VB.bulkTargetAudience=newSettings.targetAudience;
+
+  VAI._isGenerating=true;
+  showToast('Generate ulang semua produk, tunggu sebentar...','success');
+  const BATCH_SIZE=3;
+  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan};});
+  let batches=[];
+  for(let bi=0;bi<produkList.length;bi+=BATCH_SIZE)batches.push(produkList.slice(bi,bi+BATCH_SIZE));
+  let allResults=[];
+  try{
+    for(let b=0;b<batches.length;b++){
+      let dc=dlCheckBeforeCall();
+      if(!dc.ok)throw new Error(dc.message+(allResults.length?' ('+allResults.length+' produk pertama sudah berhasil dibuat ulang.)':''));
+      let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience);
+      dlIncrement();
+      allResults=allResults.concat(batchArr);
+      if(b<batches.length-1)await new Promise(function(r){setTimeout(r,1500);});
+    }
+    if(allResults.length===0)throw new Error('Hasil AI kosong, coba lagi.');
+    _vbRenderBulkOutput(allResults,produkList);
+    doneCard('v5','va5',(allResults.length*3)+' script bulk AI (revisi)');
+    setTimeout(function(){document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'});},100);
+    showToast('Semua produk berhasil digenerate ulang!','success');
+  }catch(err){
+    console.error('vbRegenerateAllBulk error:',err);
+    showToast('Gagal generate ulang: '+err.message,'error');
+  }finally{
+    VAI._isGenerating=false;
+  }
+}
+// Modal pilihan 3-arah: generate ulang AI / update data aja / batal
+function _vbShowRegenChoice(msg,onAI,onMetaOnly,onCancel){
+  let overlay=document.createElement('div');overlay.className='confirm-overlay';
+  let box=document.createElement('div');box.className='confirm-box';
+  let h4=document.createElement('h4');h4.textContent='Pengaturan Diubah';
+  let p=document.createElement('p');p.textContent=msg;p.style.whiteSpace='pre-line';
+  let btns=document.createElement('div');btns.className='confirm-btns';btns.style.cssText='flex-direction:column;gap:6px;';
+  let aiBtn=document.createElement('button');aiBtn.className='confirm-ok';aiBtn.textContent='Ya, Generate Ulang Semua dengan AI';
+  let metaBtn=document.createElement('button');metaBtn.className='confirm-cancel';metaBtn.textContent='Update Data Aja (teks lama tetap)';
+  let cancelBtn=document.createElement('button');cancelBtn.className='confirm-cancel';cancelBtn.textContent='Batal';
+  btns.appendChild(aiBtn);btns.appendChild(metaBtn);btns.appendChild(cancelBtn);
+  box.appendChild(h4);box.appendChild(p);box.appendChild(btns);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  function close(){overlay.remove();document.removeEventListener('keydown',_escH);}
+  aiBtn.onclick=function(){close();if(onAI)onAI();};
+  metaBtn.onclick=function(){close();if(onMetaOnly)onMetaOnly();};
+  cancelBtn.onclick=function(){close();if(onCancel)onCancel();};
+  function _escH(e){if(e.key==='Escape'){close();if(onCancel)onCancel();}}
+  document.addEventListener('keydown',_escH);
 }
 
 // Potong teks jadi maksimal 25 kata (dipisah spasi) — dipakai buat "menahan"
@@ -6806,6 +7106,11 @@ async function vbGenerate3AI(){
       return item.script||item.text||'';
     });
 
+    let _roleLabelsPlain=['Hook','Cerita Produk (Story)','CTA Keranjang'];
+    for(let si=0;si<scripts.length;si++){
+      scripts[si]=await _vbFixWordCountIfNeeded(scripts[si],_roleLabelsPlain[si]||('Script '+(si+1)),produkNama);
+    }
+
     _vbRenderMultiOutput(scripts,produkNama);
     doneCard('v5','va5','3 script AI');
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
@@ -6932,7 +7237,8 @@ function _vbBuildFlowText(scriptText,produkOverride){
 
 function vbReset(){
   showConfirm('Semua data video akan dihapus dan kamu mulai dari awal.',function(){
-    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:''};
+    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:''};
+    VB_BULK_PRODUCTS=[];
     ['v1','v2','v3','v4','v5'].forEach(function(id,i){
       let c=document.getElementById(id);
       if(c){c.classList.remove('done');if(i>0)c.classList.add('pending');else c.classList.remove('pending');}
