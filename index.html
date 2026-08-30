@@ -16,6 +16,23 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Prompt Builder">
 <script>
+  // ── AUTO-SCROLL DIMATIKAN ATAS PERMINTAAN USER ─────────────────────
+  // Sebelumnya tiap kali user mengisi satu field (lokasi, kamar, mood, dst),
+  // halaman otomatis scroll ke section berikutnya lewat scrollIntoView().
+  // Ini bikin pusing kalau dipakai terus-menerus. Daripada hapus satu-satu
+  // ~44 titik pemanggilan scrollIntoView() yang tersebar di seluruh wizard
+  // (berisiko ada yang kelewat / rusak), method bawaannya di-override di
+  // sini secara global: dipanggil tetap "berhasil" tanpa error, tapi TIDAK
+  // pernah benar-benar menggeser layar. Sebagai gantinya, elemen yang tadinya
+  // jadi tujuan scroll diberi kilau/pulse halus sebentar (lihat class
+  // .just-revealed di <style>) — jadi user tetap dapat sinyal "di sini fokus
+  // berikutnya" tanpa layar ikut bergerak sendiri.
+  Element.prototype.scrollIntoView = function () {
+    this.classList.add('just-revealed');
+    let el = this;
+    setTimeout(function () { el.classList.remove('just-revealed'); }, 900);
+  };
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function () {
@@ -149,6 +166,17 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
 }
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+/* HIGHLIGHT PENGGANTI AUTO-SCROLL — dipasang bareng override scrollIntoView()
+   di <script> paling atas. Dipicu tiap kali kode lama "mau" scroll ke suatu
+   elemen; sekarang layar diam, tapi elemen itu berkilau sesaat biar tetap
+   kelihatan jadi fokus berikutnya. Warnanya pakai token --accent-glow yang
+   sudah ada supaya konsisten dengan aksen emas di seluruh app. */
+@keyframes revealPulse{
+  0%{box-shadow:0 0 0 0 rgba(217,184,118,0);}
+  25%{box-shadow:0 0 0 3px var(--accent-glow);}
+  100%{box-shadow:0 0 0 0 rgba(217,184,118,0);}
+}
+.just-revealed{animation:revealPulse 0.9s ease-out;border-radius:var(--radius);}
 /* ICON — ukuran ikon SVG selalu ikut ukuran font teks di sebelahnya (1em),
    supaya proporsinya otomatis pas di badge kecil maupun tombol besar. */
 .icon{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;flex-shrink:0;}
@@ -625,6 +653,61 @@ body{
 .progress-steps{display:flex;justify-content:space-between;align-items:center;}
 .progress-label{font-size:10px;color:var(--muted2);font-family:'Geist Mono',monospace;}
 .progress-label span{color:var(--text);font-weight:600;}
+/* PULSE PROGRESS — dipicu tiap kali step wizard benar-benar berganti (lihat
+   fUpdateProgress & vbUpdateProgress di JS). Progress bar sudah sticky di
+   atas layar, jadi ini sinyal tambahan yang menarik mata ke atas persis
+   saat progres berubah — berguna terutama sekarang layar tidak lagi
+   auto-scroll, jadi user perlu cara lain untuk "notice" progresnya maju. */
+@keyframes progressPulse{
+  0%{background-color:var(--glass-hi);}
+  35%{background-color:var(--accent-dim-bg);}
+  100%{background-color:var(--glass-hi);}
+}
+.progress-wrap.step-changed{animation:progressPulse 0.8s ease-out;}
+
+/* PROGRESS BAR JADI BISA DIKLIK — pengganti fungsi nomor hijau yang dihapus
+   dari tiap card. Tap di sini buka daftar step yang sudah diisi (lihat
+   #step-jump-overlay + fOpenStepJump di JS), tap salah satu step di
+   daftarnya langsung meloncat & buka mode edit ke card itu. */
+.progress-wrap{cursor:pointer;}
+.progress-wrap:active{background:var(--surface2);}
+.progress-jump-hint{display:flex;align-items:center;gap:4px;}
+.progress-jump-hint svg{width:10px;height:10px;color:var(--muted2);transition:transform 0.15s;}
+
+/* BOTTOM SHEET — daftar step yang sudah diisi, dipicu tap di progress bar */
+#step-jump-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.55);
+  z-index:400;display:none;align-items:flex-end;justify-content:center;
+}
+#step-jump-overlay.open{display:flex;}
+.step-jump-sheet{
+  width:100%;max-width:520px;max-height:70vh;overflow-y:auto;
+  background:var(--surface2);border:1px solid var(--border-hi);border-bottom:none;
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  padding:var(--space-6);padding-bottom:calc(var(--space-6) + var(--safe-b));
+  box-shadow:var(--shadow-lg);
+  animation:stepJumpSlideUp 0.22s cubic-bezier(0.4,0,0.2,1) both;
+}
+@keyframes stepJumpSlideUp{from{transform:translateY(24px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.step-jump-handle{width:36px;height:4px;background:var(--border-hi);border-radius:99px;margin:0 auto var(--space-5);}
+.step-jump-title{font-size:11px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:var(--space-4);}
+.step-jump-item{
+  display:flex;align-items:center;gap:var(--space-4);
+  padding:var(--space-4) var(--space-3);border-radius:var(--radius-sm);
+  cursor:pointer;transition:background 0.15s;
+}
+.step-jump-item:hover,.step-jump-item:active{background:var(--surface3);}
+.step-jump-num{
+  width:22px;height:22px;border-radius:var(--radius-md);
+  background:var(--accent-dim-bg);color:var(--accent);
+  font-size:10px;font-weight:600;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Geist Mono',monospace;
+}
+.step-jump-info{flex:1;min-width:0;}
+.step-jump-info .sjtitle{font-size:12.5px;color:var(--text);font-weight:500;}
+.step-jump-info .sjval{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.step-jump-empty{font-size:12px;color:var(--muted2);padding:var(--space-5) var(--space-3);text-align:center;}
 /* CONFIRM DIALOG */
 .confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:var(--space-8);}
 .confirm-box{background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius-lg);padding:var(--space-8);max-width:300px;width:100%;text-align:center;}
@@ -797,6 +880,16 @@ body{
   color:var(--green);
   font-size:9px;
 }
+/* HAPUS BULATAN NOMOR HIJAU DI CARD YANG SUDAH TERISI — fungsinya (jadi
+   penanda "step ini sudah diisi, klik untuk ubah") dipindah ke garis
+   progress emas di atas (lihat #f-progress-wrap / #vb-progress-wrap dan
+   fOpenStepJump()). Whead-nya sendiri tetap bisa diklik seperti biasa
+   (lewat tombol "ubah" atau tap di baris), cuma bulatan angkanya yang
+   dibuang biar tidak ganda dengan navigasi baru itu. !important dipasang
+   karena ada beberapa definisi .wcard.done .wnum lain di atas (peninggalan
+   iterasi sebelumnya) yang urutannya tidak mau diandalkan.
+   */
+.wcard.done .wnum{display:none!important;}
 
 .wcard.done .wtitle{
   font-size:11px;
@@ -850,49 +943,6 @@ body{
   color:var(--text);
   background:var(--surface2);
 }
-
-/* ── STEP CHIPS ROW: step yang sudah "done" dipindah ke sini jadi kotak
-   kecil sejajar ke samping (bukan kebawah), isinya emoji ikon saja tanpa
-   teks, biar sehemat mungkin tempatnya. Tap ikon untuk buka & edit lagi. ── */
-.wchips-row{
-  display:flex;flex-wrap:wrap;gap:var(--space-2);
-  margin-bottom:var(--space-4);
-}
-.wchips-row:empty{display:none;margin-bottom:0;}
-.wcard.chip-mode{
-  flex:0 0 auto;width:auto;
-  margin-bottom:0;
-  border-radius:var(--radius-sm);
-}
-.wcard.chip-mode .wbody,.wcard.chip-mode .wback{display:none!important;}
-.wcard.chip-mode .whead{
-  padding:0;
-  gap:0;
-  width:34px;height:34px;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;
-}
-.wcard.chip-mode .whead:hover{background:var(--surface2);}
-.wcard.chip-mode .wnum{
-  width:100%;height:100%;min-width:0;
-  border:none;border-radius:var(--radius-sm);
-  font-size:0;line-height:1;
-  background:var(--green-dim);
-  color:var(--green);
-  display:flex;align-items:center;justify-content:center;
-}
-/* Emoji dipasang lewat ::before dari atribut data-chip-icon (bukan
-   textContent) karena beberapa step (Pose/Lokasi/Cahaya/dst) punya
-   fungsi lain di aplikasi yang suka nulis ulang angka step ke elemen
-   .wnum ini — kalau emoji ditaruh sebagai textContent, bisa ketimpa
-   balik jadi angka. ::before aman dari itu. */
-.wcard.chip-mode .wnum::before{
-  content:attr(data-chip-icon);
-  font-size:15px;
-}
-.wcard.chip-mode .wtitle,
-.wcard.chip-mode .wedit-pill,
-.wcard.chip-mode .wanswer{display:none!important;}
 
 /* ── F1 TYPE CHIPS ── */
 .f1chip{
@@ -1070,6 +1120,7 @@ body{
 <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
   <defs>
     <symbol id="ic-check" viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-chevron-down" viewBox="0 0 16 16"><path d="M4 6L8 10L12 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="ic-close" viewBox="0 0 16 16"><path d="M4 4L12 12M12 4L4 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
     <symbol id="ic-sparkle" viewBox="0 0 16 16"><path d="M8 1.3L9.3 6.2L14.2 7.5L9.3 8.8L8 13.7L6.7 8.8L1.8 7.5L6.7 6.2Z" fill="currentColor"/></symbol>
     <symbol id="ic-edit" viewBox="0 0 16 16"><path d="M10.6 2.3L13.7 5.4L5.4 13.7H2.3V10.6L10.6 2.3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
@@ -1223,11 +1274,11 @@ body{
 <div id="foto" class="page active">
 
   <!-- PROGRESS -->
-  <div class="progress-wrap" style="margin:0;padding:10px 16px;">
+  <div class="progress-wrap" id="f-progress-wrap" style="margin:0;padding:10px 16px;" onclick="fOpenStepJump('foto')">
     <div class="progress-bar-track"><div class="progress-bar-fill" id="f-progress-fill" style="width:0%"></div></div>
     <div class="progress-steps">
       <div class="progress-label" id="f-progress-label">Step <span>1</span> dari <span>7</span></div>
-      <div class="progress-label" id="f-progress-title" style="color:var(--text);">Subjek Foto</div>
+      <div class="progress-jump-hint"><div class="progress-label" id="f-progress-title" style="color:var(--text);">Subjek Foto</div><svg class="icon"><use href="#ic-chevron-down"></use></svg></div>
     </div>
   </div>
 
@@ -1262,9 +1313,6 @@ body{
       <div id="f-import-status" class="hidden" style="margin-top:8px;background:rgba(76,175,125,0.1);border:1px solid rgba(76,175,125,0.3);border-radius:var(--radius-md);padding:10px;font-size:11px;color:var(--green);line-height:1.6;"></div>
     </div>
   </div>
-
-  <!-- STEP CHIPS ROW — tempat step yang sudah "done" dipindah jadi kotak kecil -->
-  <div class="wchips-row" id="f-chips-row"></div>
 
   <!-- F0: PILIH SUBJEK -->
   <div class="wcard" id="f0">
@@ -1896,7 +1944,22 @@ body{
 
     <!-- MULTI-SHOT — checklist variasi tambahan (opsional, hanya jika ada produk) -->
     <div id="f-multishot-card" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;margin-bottom:3px;">Generate Beberapa Variasi Sekaligus</div>
+      <!-- FIX UX: section ini dulu langsung terbuka penuh (deskripsi + 5 checklist
+           kelihatan semua) begitu step Mood selesai, padahal isinya opsional dan
+           bikin layar Ringkasan/Generate kelihatan penuh & ramai walau user cuma
+           mau langsung generate 1 prompt biasa. Sekarang jadi collapsible:
+           yang tampil default cuma judul + panah, isi (deskripsi+checklist) baru
+           muncul kalau header ini ditap. Badge kecil di header menunjukkan jumlah
+           variasi yang sudah dicentang walau sedang tertutup, supaya pilihan
+           yang sudah dibuat tidak "hilang dari pandangan" tanpa disadari. -->
+      <div id="f-multishot-header" onclick="fToggleMultishotBody()" style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:12px;font-weight:700;">Generate Beberapa Variasi Sekaligus</span>
+          <span id="f-multishot-badge" style="display:none;font-size:10px;font-weight:700;color:var(--bg);background:var(--accent);border-radius:var(--radius-pill);padding:1px 7px;">0</span>
+        </div>
+        <span id="f-multishot-chevron" style="font-size:11px;color:var(--muted);">▾</span>
+      </div>
+      <div id="f-multishot-body" style="display:none;margin-top:10px;">
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;">Opsional — centang tipe foto tambahan yang mau dibuat. Karakter, lokasi, cahaya & mood tetap sama di semua variasi, cuma pose/fokusnya beda. Kosongkan semua untuk generate 1 prompt seperti biasa.</div>
       <div style="display:flex;flex-direction:column;gap:8px;" id="f-shot-list">
         <div class="f-shot-item" data-shot="bicara">
@@ -1935,6 +1998,7 @@ body{
           <div class="f-shot-panel" id="f-shotpanel-lifestyle" style="display:none;"></div>
         </div>
       </div>
+      </div>
     </div>
 
     <button id="f-gen-btn" class="btn" style="font-size:15px;padding:15px;" onclick="fGenerate()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Generate Prompt Foto</button>
@@ -1954,23 +2018,6 @@ body{
 
   <!-- OUTPUT -->
   <div class="output-wrap" id="f-output-wrap">
-
-    <!-- QUICK REPEAT — buat variasi tanpa reset total -->
-    <div id="f-variasi-panel" style="display:none;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
-        <div style="font-size:12px;font-weight:700;">Buat Variasi</div>
-        <div style="font-size:9px;font-weight:600;font-family:'Geist Mono',monospace;color:var(--green);background:var(--green-dim);border:1px solid rgba(52,211,153,0.25);padding:2px 7px;border-radius:var(--radius-2xs);letter-spacing:0.3px;">TANPA RESET</div>
-      </div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;">Tap salah satu untuk ganti detail tanpa mulai dari awal — prompt baru langsung ter-generate ulang.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button onclick="fQuickEditStep(5)" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;text-align:left;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--border-hi)'" onmouseout="this.style.borderColor='var(--border)'">Ganti Lokasi</button>
-        <button onclick="fQuickEditStep(9)" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;text-align:left;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--border-hi)'" onmouseout="this.style.borderColor='var(--border)'">Ganti Mood</button>
-        <button onclick="fQuickEditStep(8)" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;text-align:left;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--border-hi)'" onmouseout="this.style.borderColor='var(--border)'">Ganti Angle</button>
-        <button onclick="fQuickEditStep(4)" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;text-align:left;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--border-hi)'" onmouseout="this.style.borderColor='var(--border)'">Ganti Pose</button>
-        <button onclick="fQuickEditStep(7)" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;text-align:left;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--border-hi)'" onmouseout="this.style.borderColor='var(--border)'">Ganti Cahaya</button>
-        <button onclick="fQuickEditProduk()" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:var(--radius-md);font-size:11px;font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;text-align:left;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--border-hi)'" onmouseout="this.style.borderColor='var(--border)'">Ganti Produk</button>
-      </div>
-    </div>
 
     <div id="f-json-output" style="display:none;">
       <div class="out-card">
@@ -2010,20 +2057,17 @@ body{
 <div id="video" class="page">
 
   <!-- PROGRESS -->
-  <div class="progress-wrap" style="margin:0;padding:10px 16px;">
+  <div class="progress-wrap" id="vb-progress-wrap" style="margin:0;padding:10px 16px;" onclick="fOpenStepJump('video')">
     <div class="progress-bar-track"><div class="progress-bar-fill" id="vb-progress-fill" style="width:0%"></div></div>
     <div class="progress-steps">
       <div class="progress-label" id="vb-progress-label">Step <span>1</span> dari <span>4</span></div>
-      <div class="progress-label" id="vb-progress-title" style="color:var(--text);">Referensi Foto</div>
+      <div class="progress-jump-hint"><div class="progress-label" id="vb-progress-title" style="color:var(--text);">Referensi Foto</div><svg class="icon"><use href="#ic-chevron-down"></use></svg></div>
     </div>
   </div>
 
 <div class="wrap">
   <div class="sec-title" style="margin-top:20px;">Builder Prompt Video</div>
   <div class="sec-desc">Isi karakter suara & dialog — prompt JSON video terbentuk otomatis.</div>
-
-  <!-- STEP CHIPS ROW — tempat step yang sudah "done" dipindah jadi kotak kecil -->
-  <div class="wchips-row" id="v-chips-row"></div>
 
   <!-- V1: REFERENSI FOTO -->
   <div class="wcard" id="v1">
@@ -2061,7 +2105,7 @@ body{
               <input class="inp" id="vb-mode3-lokasi-custom" maxlength="120" placeholder="Contoh: balkon apartemen sore hari" />
             </div>
             <button class="btn sm" onclick="vbPickMode3LokasiCustom()" style="width:auto;flex-shrink:0;padding:0 14px;">Pakai</button>
-            <button onclick="csSave('vm3lok')" title="Simpan supaya bisa dipakai berulang" style="background:var(--surface3);border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 12px;border-radius:var(--radius-md);cursor:pointer;flex-shrink:0;"></button>
+            <button onclick="csSave('vm3lok')" title="Simpan supaya bisa dipakai berulang" style="background:var(--surface3);border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 12px;border-radius:var(--radius-md);cursor:pointer;flex-shrink:0;">Simpan</button>
           </div>
           <div id="cs-list-vm3lok" style="display:none;flex-wrap:wrap;gap:5px;margin-top:8px;"></div>
         </div>
@@ -2084,7 +2128,7 @@ body{
               <input class="inp" id="vb-mode3-lighting-custom" maxlength="120" placeholder="Contoh: cahaya studio lembut dari samping" />
             </div>
             <button class="btn sm" onclick="vbPickMode3LightingCustom()" style="width:auto;flex-shrink:0;padding:0 14px;">Pakai</button>
-            <button onclick="csSave('vm3light')" title="Simpan supaya bisa dipakai berulang" style="background:var(--surface3);border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 12px;border-radius:var(--radius-md);cursor:pointer;flex-shrink:0;"></button>
+            <button onclick="csSave('vm3light')" title="Simpan supaya bisa dipakai berulang" style="background:var(--surface3);border:1px solid var(--border);color:var(--muted);font-size:13px;padding:0 12px;border-radius:var(--radius-md);cursor:pointer;flex-shrink:0;">Simpan</button>
           </div>
           <div id="cs-list-vm3light" style="display:none;flex-wrap:wrap;gap:5px;margin-top:8px;"></div>
         </div>
@@ -2117,7 +2161,8 @@ body{
       <div class="mt12">
         <label class="inplabel">Atau tulis usia sendiri</label>
         <div class="inp-wrap">
-          <input class="inp" id="v2-custom" maxlength="120" placeholder="Contoh: elderly woman, around 65 years old" />
+          <input class="inp" id="v2-custom" maxlength="120" placeholder="Contoh: elderly woman, around 65 years old" oninput="vbCountInpV2(this,'v2-counter')" />
+          <div class="inp-counter" id="v2-counter">0 / 120</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAgeCustom()">Konfirmasi →</button>
           <div style="display:flex;align-items:center;margin-top:6px;"><button onclick="csSave('v2')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:4px 10px;border-radius:var(--radius-xs);cursor:pointer;">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
@@ -2141,7 +2186,8 @@ body{
       <div class="mt12">
         <label class="inplabel">Atau tulis sendiri</label>
         <div class="inp-wrap">
-          <input class="inp" id="v3-custom" maxlength="80" placeholder="Contoh: lelah tapi tetap ramah" />
+          <input class="inp" id="v3-custom" maxlength="80" placeholder="Contoh: lelah tapi tetap ramah" oninput="fCountInp(this,'v3-counter')" />
+          <div class="inp-counter" id="v3-counter">0 / 80</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickPitchCustom()">Konfirmasi →</button>
           <div style="display:flex;align-items:center;margin-top:6px;"><button onclick="csSave('v3')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:4px 10px;border-radius:var(--radius-xs);cursor:pointer;">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
@@ -2165,7 +2211,8 @@ body{
       <div class="mt12">
         <label class="inplabel">Atau tulis sendiri</label>
         <div class="inp-wrap">
-          <input class="inp" id="v4-custom" maxlength="120" placeholder="Contoh: dengan logat Medan yang kental" />
+          <input class="inp" id="v4-custom" maxlength="120" placeholder="Contoh: dengan logat Medan yang kental" oninput="fCountInp(this,'v4-counter')" />
+          <div class="inp-counter" id="v4-counter">0 / 120</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAccentCustom()">Konfirmasi →</button>
           <div style="display:flex;align-items:center;margin-top:6px;"><button onclick="csSave('v4')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:4px 10px;border-radius:var(--radius-xs);cursor:pointer;">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
@@ -2371,14 +2418,42 @@ document.addEventListener('keydown', function(e){
   // terdekat, supaya user bisa isi step lalu langsung tekan Enter tanpa raih mouse.
   if(e.key==='Enter'&&!e.ctrlKey&&!e.metaKey&&isTyping){
     if(tag==='INPUT'&&ae.type!=='checkbox'&&ae.type!=='radio'){
-      // FIX: kotak nama produk/keunggulan di mode bulk ada di dalam container
-      // yang juga punya tombol "Tentukan Jumlah" LEBIH DULU di urutan DOM —
-      // climb generik di bawah jadi salah pencet tombol itu, bukan Generate.
-      // Kasus khusus ini diarahkan langsung ke tombol Generate yang benar.
-      if(ae.id&&(ae.id.indexOf('vb-bulk-nama-')===0||ae.id.indexOf('vb-bulk-keunggulan-')===0||ae.id==='vb-bulk-target')){
+      // FIX BUG (ditemukan saat audit mendalam khusus builder video): sebelumnya
+      // Enter di field MANAPUN pada step "Script/Dialog" yang formnya PUNYA
+      // BEBERAPA field wajib (Mode AI: Nama Produk + Target Audience; Mode
+      // Bulk: Nama Produk 1..N + Keunggulan + Target Audience) langsung
+      // memicu klik tombol Generate — walau field-field lain di form yang
+      // sama belum tentu selesai diisi/dicek user. Reproducible paling parah
+      // di Mode Bulk: user mengoreksi salah SATU baris produk di tengah
+      // (misal baris ke-3 dari 5), baris lain kebetulan sudah terisi dari
+      // cache (lihat FIX BUG#15), lalu refleks pencet Enter setelah selesai
+      // ngetik satu field → memicu panggilan API Gemini SUNGGUHAN sebelum
+      // user sempat review semua baris. Sekarang Enter di field yang BUKAN
+      // field terakhir cuma memindahkan fokus ke field berikutnya (seperti
+      // tombol "next" di keyboard HP) — Generate cuma ke-trigger dari Enter
+      // di field paling akhir (Target Audience), sama seperti niat awal
+      // shortcut ini (submit setelah SEMUA field selesai).
+      if(ae.id&&ae.id.indexOf('vb-bulk-nama-')===0){
+        let rowIdx=parseInt(ae.id.slice('vb-bulk-nama-'.length),10);
+        let next=document.getElementById('vb-bulk-keunggulan-'+rowIdx);
+        if(next){e.preventDefault();next.focus();next.select&&next.select();}
+        return;
+      }
+      if(ae.id&&ae.id.indexOf('vb-bulk-keunggulan-')===0){
+        let rowIdx=parseInt(ae.id.slice('vb-bulk-keunggulan-'.length),10);
+        let nextRow=document.getElementById('vb-bulk-nama-'+(rowIdx+1));
+        let next=nextRow||document.getElementById('vb-bulk-target');
+        if(next){e.preventDefault();next.focus();next.select&&next.select();}
+        return;
+      }
+      if(ae.id==='vb-bulk-target'){
         let bulkBtn=document.getElementById('vb-bulk-btn');
         if(bulkBtn){e.preventDefault();bulkBtn.click();}
         return;
+      }
+      if(ae.id==='vb-produk-nama'){
+        let next=document.getElementById('vb-target-audience');
+        if(next){e.preventDefault();next.focus();next.select&&next.select();return;}
       }
       let el=ae.parentElement,hops=0,btn=null;
       while(el&&hops<6&&!btn){
@@ -2524,6 +2599,34 @@ function fCountInp(el,counterId){
   }
 }
 
+// FIX BUG #6 (V2): sama seperti fCountInp, dipakai khusus untuk kolom
+// "isi usia sendiri" di V2. Bedanya: V2 punya DUA grup chip sekaligus
+// dalam satu card (#vb-gender-chips untuk Jenis Kelamin + #vb-age-chips
+// untuk Usia). fCountInp generik akan menghapus class 'sel' dari SEMUA
+// chip di dalam card — kalau dipakai di sini, chip Gender yang sudah
+// dipilih user (Laki-laki/Perempuan) ikut kebatalkan padahal user cuma
+// lagi ngetik usia sendiri. Fungsi ini membatasi penghapusan 'sel' HANYA
+// ke chip di dalam #vb-age-chips, chip Gender tidak disentuh.
+function vbCountInpV2(el,counterId){
+  let max=parseInt(el.getAttribute('maxlength')||'120',10);
+  let len=el.value.length;
+  let counter=document.getElementById(counterId);
+  if(counter){
+    counter.textContent=len+' / '+max;
+    counter.className='inp-counter'+(len>=max?' over':len>=max*0.8?' warn':'');
+  }
+  let card=el.closest('.wcard');
+  if(card){
+    let bar=card.querySelector('[id$="-confirmbar"]');
+    if(bar)bar.remove();
+    fRestoreCustomBlock(card);
+    if(len>0){
+      let ageChips=card.querySelector('#vb-age-chips');
+      if(ageChips)ageChips.querySelectorAll('.chip.sel').forEach(c=>c.classList.remove('sel'));
+    }
+  }
+}
+
 function showToast(msg,type){
   let t=document.getElementById('toast');
   t.style.borderColor=type==='success'?'var(--green)':'var(--red)';
@@ -2541,6 +2644,16 @@ function showToast(msg,type){
 function showCard(id){
   let el=document.getElementById(id);
   if(!el){console.warn('showCard: elemen tidak ditemukan —',id);return;}
+  // FIX BUG "STEP YANG DI-SKIP TIDAK BISA DIBUKA LAGI": showCard() dulu cuma
+  // menghapus class hidden/pending, TIDAK PERNAH menghapus 'done'. Kalau card
+  // ini sebelumnya ditandai done supaya di-skip (mis. F3 waktu foto produk
+  // belum diupload), CSS ".wcard.done .wbody{display:none}" bikin isi card
+  // tetap tersembunyi walau showCard(id) dipanggil buat menampilkan card ini
+  // sebagai step aktif — layar jadi kelihatan kosong. Semua pemanggilan
+  // showCard(id) di file ini bermaksud membuka card tersebut sebagai step
+  // yang sedang aktif — kontradiktif dengan status 'done' — jadi aman & benar
+  // untuk selalu melepas 'done' di sini juga.
+  el.classList.remove('done');
   // Remove both hidden and pending states
   el.classList.remove('hidden','pending');
   // FIX KEDIPAN: card f1-f8 mulai dengan class "pending" (bukan "hidden"),
@@ -2590,43 +2703,76 @@ function doneCard(id,ansId,text){
     let whead=c.querySelector('.whead');
     if(whead&&!whead._editWired){
       whead._editWired=true;
+      function _doOpenEdit(){
+        c.classList.remove('done');
+        c.classList.remove('hidden','pending');
+        // Buang sisa tombol konfirmasi kalau ada dari sesi sebelumnya
+        let _oldCb=document.getElementById(id+'-confirmbar');
+        if(_oldCb)_oldCb.remove();
+        // Kembalikan kolom "isi sendiri" (beserta tombol "Konfirmasi →"
+        // miliknya) kalau sempat disembunyikan supaya cuma 1 tombol
+        // konfirmasi yang tampil
+        fRestoreCustomBlock(c);
+        // Restore step number
+        if(wnum&&wnum._origText)wnum.textContent=wnum._origText;
+        // Reset answer text
+        let a2=document.getElementById(ansId);
+        if(a2)a2.textContent='';
+        // Isi ulang chip/kotak "tulis sendiri" dengan value yang sudah ada
+        // (manual maupun hasil import) — supaya value lama TIDAK hilang
+        // hanya karena card dibuka lagi untuk diubah.
+        let cardNumFromId=parseInt(String(id).replace('f',''),10);
+        if(!isNaN(cardNumFromId)&&typeof fRestoreStepUI==='function'){
+          setTimeout(()=>fRestoreStepUI(cardNumFromId),50);
+        }
+        setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'nearest'}),80);
+      }
       whead.addEventListener('click',function(){
         if(c.classList.contains('done')){
-          c.classList.remove('done');
-          c.classList.remove('hidden','pending');
-          // Buang sisa tombol konfirmasi kalau ada dari sesi sebelumnya
-          let _oldCb=document.getElementById(id+'-confirmbar');
-          if(_oldCb)_oldCb.remove();
-          // Kembalikan kolom "isi sendiri" (beserta tombol "Konfirmasi →"
-          // miliknya) kalau sempat disembunyikan supaya cuma 1 tombol
-          // konfirmasi yang tampil
-          fRestoreCustomBlock(c);
-          // Restore step number
-          if(wnum&&wnum._origText)wnum.textContent=wnum._origText;
-          // Reset answer text
-          let a2=document.getElementById(ansId);
-          if(a2)a2.textContent='';
-          // Isi ulang chip/kotak "tulis sendiri" dengan value yang sudah ada
-          // (manual maupun hasil import) — supaya value lama TIDAK hilang
-          // hanya karena card dibuka lagi untuk diubah.
-          let cardNumFromId=parseInt(String(id).replace('f',''),10);
-          if(!isNaN(cardNumFromId)&&typeof fRestoreStepUI==='function'){
-            setTimeout(()=>fRestoreStepUI(cardNumFromId),50);
+          // FIX BUG#4: kalau ini step Video V1-V5 dan output (vb-multi-output)
+          // sudah ter-generate, edit ulang step ini akan bikin JSON yang
+          // tampil di layar jadi basi (data lama) tanpa peringatan. Tanya
+          // dulu, dan kalau user lanjut, bersihkan output lama supaya tidak
+          // ke-copy salah.
+          // FIX BUG#14 (ditemukan saat audit mendalam): regex sebelumnya cuma
+          // /^v[1-4]$/ — melewatkan v5, padahal v5 (pilih mode Script: AI/
+          // Manual/Bulk) justru step yang PALING langsung menghasilkan
+          // vb-multi-output. Reproducible: generate 3 script/bulk sampai
+          // selesai → klik header step v5 buat ganti mode (mis. dari Bulk ke
+          // Manual) → kartu JSON lama TETAP nampil di layar tanpa peringatan
+          // ATAU dibersihkan, jadi ada 2 sumber "hasil" yang tidak sinkron
+          // sampai user generate ulang. Sekarang v5 ikut diperiksa sama
+          // seperti v1-v4.
+          let _isVideoStep=/^v[1-5]$/.test(id);
+          let _mo=_isVideoStep?document.getElementById('vb-multi-output'):null;
+          let _moHasContent=_mo&&_mo.style.display!=='none'&&_mo.innerHTML.trim()!=='';
+          if(_moHasContent){
+            showConfirm('Mengubah step ini akan menghapus script/JSON yang sudah dibuat, karena datanya sudah tidak sesuai lagi. Lanjutkan?',function(){
+              _mo.style.display='none';
+              _mo.innerHTML='';
+              VB_BULK_ITEMS=[];
+              _doOpenEdit();
+            },null,'Ya, Ubah & Hapus Hasil');
+          }else{
+            _doOpenEdit();
           }
-          setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'nearest'}),80);
         }
       });
     }
   }
   let a=document.getElementById(ansId);if(a)a.textContent=text;
 
-  // FIX IMPORT — SEMBUNYIKAN STEP CARDS: dalam mode import prompt, jangan
-  // tampilkan baris "done" yang collapse di atas Ringkasan (step 1-8) —
-  // sisain cuma Ringkasan yang kelihatan. Card ini tetap bisa dibuka lagi
-  // via tombol "Edit" di Ringkasan (fSummaryEdit), yang sengaja meng-un-hide
-  // sementara pas user mau ubah; begitu selesai diedit (doneCard dipanggil
-  // lagi dari situ), otomatis ke-hide lagi di sini.
-  if(FS.importActive && c){
+  // SEMBUNYIKAN STEP YANG SUDAH SELESAI — sebelumnya baris ini cuma jalan
+  // waktu mode import (FS.importActive), sekarang berlaku SELALU atas
+  // permintaan user: begitu satu step selesai diisi, barisnya langsung
+  // hilang total dari layar (bukan cuma collapse jadi baris ringkas kayak
+  // sebelumnya) — cuma card yang lagi aktif yang kelihatan. Satu-satunya
+  // jalan buat lihat/ubah step yang sudah lewat adalah lewat bottom sheet
+  // "Lompat ke step" (tap progress bar di atas, lihat fOpenStepJump()),
+  // yang manggil fSummaryEdit() untuk meng-un-hide sementara — begitu
+  // selesai diedit (doneCard dipanggil lagi dari situ), otomatis
+  // ke-hide lagi di sini seperti semula.
+  if(c){
     c.classList.add('hidden');
   }
 }
@@ -2772,88 +2918,6 @@ function fRestoreCustomBlock(card){
   // yang aktif selama user masih mengetik di kolom "isi sendiri".
   fSyncCardEditDoneBtn(card.id);
 }
-
-// ============================================================
-// STEP CHIPS ROW — begitu sebuah .wcard step (f0,f1,...,v1,v2,...) jadi
-// "done", pindahkan node-nya (bukan clone, jadi semua listener & id tetap
-// hidup) ke baris chip di atas (#f-chips-row / #v-chips-row) supaya tampil
-// sebagai kotak kecil sejajar ke samping, bukan bar penuh yang menumpuk ke
-// bawah. Saat step dibuka lagi untuk diedit (class 'done' dilepas oleh
-// whead._editWired click handler di doneCard()), node dikembalikan persis
-// ke posisi asalnya di alur wizard lewat anchor placeholder.
-// Generik lewat MutationObserver → tidak perlu ubah tiap tempat yang
-// memanggil classList.add('done')/remove('done') satu-satu.
-// ============================================================
-(function(){
-  var CHIP_CONTAINER_BY_PAGE={foto:'f-chips-row',video:'v-chips-row'};
-  var EXCLUDE_IDS=['vai-key'];
-  // Emoji ikon per step — ditampilkan sebagai satu-satunya isi kotak chip,
-  // tanpa teks sama sekali, supaya sehemat mungkin tempatnya.
-  var CHIP_ICON={
-    f0:'',f1:'',f2:'',f3:'',f4:'',f5:'',f7:'',f8:'',f9:'',
-    v1:'',v2:'',v3:'',v4:'',v5:''
-  };
-  function chipsContainerFor(card){
-    var page=card.closest?card.closest('.page'):null;
-    if(!page)return null;
-    var cid=CHIP_CONTAINER_BY_PAGE[page.id];
-    return cid?document.getElementById(cid):null;
-  }
-  function moveToChip(card){
-    if(card.dataset.chipMoved==='1')return;
-    var container=chipsContainerFor(card);
-    if(!container)return;
-    var anchor=document.createElement('span');
-    anchor.style.display='none';
-    anchor.id='wchip-anchor-'+card.id;
-    card.parentNode.insertBefore(anchor,card);
-    container.appendChild(card);
-    card.classList.add('chip-mode');
-    card.dataset.chipMoved='1';
-    // Ganti isi wnum jadi emoji ikon step ini lewat atribut data-chip-icon
-    // (bukan textContent langsung) — supaya tidak ketimpa balik oleh
-    // fSyncStepNums() yang suka nulis ulang angka ke elemen .wnum step
-    // Pose/Lokasi/Cahaya/Angle/Mood tiap kali user pindah step.
-    var wnum=card.querySelector('.wnum');
-    if(wnum){
-      var titleEl=card.querySelector('.wtitle');
-      if(titleEl&&!card.title)card.title=titleEl.textContent.trim();
-      wnum.setAttribute('data-chip-icon',CHIP_ICON[card.id]||'•');
-    }
-  }
-  function restoreFromChip(card){
-    if(card.dataset.chipMoved!=='1')return;
-    var anchor=document.getElementById('wchip-anchor-'+card.id);
-    card.classList.remove('chip-mode');
-    delete card.dataset.chipMoved;
-    card.removeAttribute('title');
-    // Balikin isi wnum ke angka/teks aslinya (bukan cuma andalkan doneCard's
-    // click handler, karena restore juga bisa lewat fResetFrom/fBack dll).
-    var wnum=card.querySelector('.wnum');
-    if(wnum){
-      if(wnum._origText)wnum.textContent=wnum._origText;
-      wnum.removeAttribute('data-chip-icon');
-    }
-    if(anchor&&anchor.parentNode){
-      anchor.parentNode.insertBefore(card,anchor);
-      anchor.remove();
-    }
-  }
-  function handleCard(card){
-    if(!card||!card.classList||!card.classList.contains('wcard'))return;
-    if(EXCLUDE_IDS.indexOf(card.id)!==-1)return;
-    if(card.classList.contains('done'))moveToChip(card);
-    else restoreFromChip(card);
-  }
-  var mo=new MutationObserver(function(mutations){
-    mutations.forEach(function(m){handleCard(m.target);});
-  });
-  mo.observe(document.body,{attributes:true,attributeFilter:['class'],subtree:true});
-  document.addEventListener('DOMContentLoaded',function(){
-    document.querySelectorAll('.wcard.done').forEach(handleCard);
-  });
-})();
-// ── END STEP CHIPS ROW ──────────────────────────────────────
 
 function showConfirm(msg,onOk,onCancel,okLabel){
   let overlay=document.createElement('div');
@@ -3053,7 +3117,7 @@ function fConfirmOutfitRandom(){
   let f1=document.getElementById('f1');
   if(f1&&f1.classList.contains('done')){
     showConfirm('Menambah foto akan mereset semua pilihan Step 2–8. Lanjutkan?', function(){
-      f1.classList.remove('done');
+      f1.classList.remove('done','hidden');
       let fa1=document.getElementById('fa1');if(fa1)fa1.textContent='';
       fResetFrom(2);
       showToast('Outfit random ditambah — ulangi dari Step 2 ya','error');
@@ -3114,7 +3178,7 @@ function fAddRef(typeKey){
   let f1=document.getElementById('f1');
   if(f1&&f1.classList.contains('done')){
     showConfirm('Menambah foto akan mereset semua pilihan Step 2–8. Lanjutkan?', function(){
-      f1.classList.remove('done');
+      f1.classList.remove('done','hidden');
       let fa1=document.getElementById('fa1');if(fa1)fa1.textContent='';
       fResetFrom(2);
       showToast('Foto ditambah — ulangi dari Step 2 ya','error');
@@ -3151,7 +3215,7 @@ function fRemoveRef(id){
       FS.refs=FS.refs.filter(r=>r.id!==id);
       FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
       fUpdateCounters();fRenderList();fRenderPreview();
-      f1.classList.remove('done');
+      f1.classList.remove('done','hidden');
       let fa1=document.getElementById('fa1');if(fa1)fa1.textContent='';
       fResetFrom(2);
       showToast('Foto dihapus — ulangi dari Step 2 ya','error');
@@ -3370,10 +3434,22 @@ function fSetState(patch){
 // ─────────────────────────────────────────────────────────────────
 function fResetFrom(fromCard){
   // --- Hide & undone semua card dari fromCard ke f9 ---
-  // f0 tidak pernah di-hide (selalu visible sebagai starting point)
+  // FIX BUG "SUBJEK FOTO HILANG SELAMANYA SETELAH RESET": komentar lama di
+  // sini bilang "f0 tidak pernah di-hide (selalu visible sebagai starting
+  // point)" — itu BENAR untuk kondisi awal render halaman, TAPI begitu user
+  // pilih & konfirmasi subjek, doneCard('f0',...) dipanggil, dan doneCard()
+  // SELALU menambahkan class 'hidden' di akhir (lihat "SEMBUNYIKAN STEP YANG
+  // SUDAH SELESAI" di doneCard) — jadi f0 pun ikut kena 'hidden' begitu
+  // selesai diisi, sama seperti f1-f9. Sebelumnya baris di bawah cuma
+  // melepas 'hidden' saat i>0 (supaya f0 tidak ikut ditandai 'pending' —
+  // itu bagian yang tetap benar), tapi jadi ikut skip pelepasan 'hidden'-nya
+  // juga — akibatnya f0 tetap ketutup display:none SELAMANYA setelah reset
+  // (tombol "Buat Prompt Foto Baru"/"Buat Prompt Video Baru"), walau semua
+  // step lain berhasil kembali ke awal. Sekarang 'hidden' selalu dilepas
+  // untuk semua i (termasuk 0), 'pending' saja yang tetap khusus i>0.
   for(let i=fromCard;i<=9;i++){
     let el=document.getElementById('f'+i);
-    if(el){el.classList.remove('done');if(i>0){el.classList.remove('hidden');el.classList.add('pending');}}
+    if(el){el.classList.remove('done','hidden');if(i>0){el.classList.add('pending');}}
     let an=document.getElementById('fa'+i);
     if(an)an.textContent='';
     // Buang sisa tombol "Konfirmasi & Lanjut" kalau ada — step ini sedang direset
@@ -3482,7 +3558,7 @@ function fResetFrom(fromCard){
 
   // Sembunyikan area generate & output (selalu, karena state di bawah sudah tidak valid)
   let ga=document.getElementById('f-gen-area');if(ga)ga.classList.add('hidden');
-  let ow=document.getElementById('f-json-output');if(ow)ow.style.display='none';let vp=document.getElementById('f-variasi-panel');if(vp)vp.style.display='none';
+  let ow=document.getElementById('f-json-output');if(ow)ow.style.display='none';
 }
 
 function fBackTo(curr,prev){
@@ -3672,7 +3748,7 @@ function fKonfirmRef(){
     let produkRefs=FS.refs.filter(r=>r.type==='produk');
     if(produkRefs.length===0){
       showToast('Tambahkan minimal 1 foto produk!','error');
-      let c1=document.getElementById('f1');if(c1)c1.classList.remove('done');
+      let c1=document.getElementById('f1');if(c1)c1.classList.remove('done','hidden');
       let a1=document.getElementById('fa1');if(a1)a1.textContent='';
       return;
     }
@@ -3701,7 +3777,7 @@ function fKonfirmRef(){
       });
       if(firstScrollTarget){setTimeout(()=>firstScrollTarget.scrollIntoView({behavior:'smooth',block:'center'}),100);firstScrollTarget.focus();}
       showToast('Isi nama produk di semua foto produk dulu!','error');
-      let c1=document.getElementById('f1');if(c1)c1.classList.remove('done');
+      let c1=document.getElementById('f1');if(c1)c1.classList.remove('done','hidden');
       let a1=document.getElementById('fa1');if(a1)a1.textContent='';
       return;
     }
@@ -3712,8 +3788,16 @@ function fKonfirmRef(){
     // Skip f2, f3, f4 — mark semua done otomatis
     doneCard('f2','fa2','Produk saja · '+FS.produkNama);
     // f3 dan f4 tidak ada step-nya di mode ini
-    let c3=document.getElementById('f3');if(c3){c3.classList.add('done');c3.classList.remove('pending','hidden');}
-    let c4=document.getElementById('f4');if(c4){c4.classList.add('done');c4.classList.remove('pending','hidden');}
+    // FIX NOMOR STEP GANDA: F3 & F4 sama sekali tidak relevan di mode
+    // "Produk Saja" (bukan cuma di-skip nilainya, tapi step-nya sendiri
+    // tidak ada di alur ini — lihat fCardToStep/fTotalSteps untuk subjek
+    // 'produk'). Sebelumnya cuma ditandai 'done' tapi tetap ditampilkan
+    // sebagai bar kosong dengan badge angka statis (mis. "3") yang bentrok
+    // sama badge step lain yang dihitung ulang otomatis (mis. Lokasi jadi
+    // "3" juga). Sembunyikan total (bukan cuma bersihkan teksnya) supaya
+    // tidak pernah muncul di daftar sama sekali & tidak ada nomor bentrok.
+    let c3=document.getElementById('f3');if(c3){c3.classList.add('done','hidden');c3.classList.remove('pending');}
+    let c4=document.getElementById('f4');if(c4){c4.classList.add('done','hidden');c4.classList.remove('pending');}
     fSyncStepNums();
     fUpdateProgress(3,'Lokasi');
     // Framing khusus produk saja — overhead/flat lay atau close-up produk
@@ -3754,7 +3838,7 @@ function fKonfirmRef(){
       });
       if(firstScrollTarget){setTimeout(()=>firstScrollTarget.scrollIntoView({behavior:'smooth',block:'center'}),100);firstScrollTarget.focus();}
       showToast('Isi nama produk di semua foto produk dulu!','error');
-      let c1=document.getElementById('f1');if(c1)c1.classList.remove('done');
+      let c1=document.getElementById('f1');if(c1)c1.classList.remove('done','hidden');
       let a1=document.getElementById('fa1');if(a1)a1.textContent='';
       return;
     }
@@ -3767,7 +3851,16 @@ function fKonfirmRef(){
     // Tidak ada foto produk — skip f2 & f3, set produkMode='tidak', langsung pose
     FS.produkMode='tidak';FS.produkNama='';FS.holdKey='';FS.hold='';
     doneCard('f2','fa2','Tidak ada produk');
-    let c3=document.getElementById('f3');if(c3){c3.classList.add('done');c3.classList.remove('pending','hidden');}
+    // FIX NOMOR STEP GANDA ("3" muncul dobel di F3 & Pose): F3 tidak
+    // relevan sama sekali saat "tidak ada produk" — Pose otomatis jadi
+    // step ke-3 (lihat fCardToStep). Sebelumnya F3 cuma ditandai 'done'
+    // tapi tetap DITAMPILKAN sebagai bar dengan badge angka statis "3"
+    // (dan kadang jawaban lama yang nyangkut/stale dari pilihan
+    // sebelumnya), bentrok dengan badge Pose yang juga jadi "3". Sembunyikan
+    // total (bukan cuma bersihkan teksnya) supaya F3 tidak pernah muncul
+    // saat memang tidak relevan, dan nomor tidak pernah bentrok lagi.
+    let fa3clr=document.getElementById('fa3');if(fa3clr)fa3clr.innerHTML='';
+    let c3=document.getElementById('f3');if(c3){c3.classList.add('done','hidden');c3.classList.remove('pending');}
     fSyncStepNums();
     fUpdateProgress(2,'Pose');
     fBuildPoseChips();
@@ -3797,7 +3890,12 @@ function fPickProduk(val,el){
       let b=document.getElementById('f3-conflict-banner');
       if(b){b.className='hidden';b.style.cssText='';b.innerHTML='';}
       FS.refs.forEach(function(r){if(r.type==='outfit')r.ignoreCustom=FTYPE.outfit.ignore;});
-      let c3t=document.getElementById('f3');if(c3t){c3t.classList.add('done');c3t.classList.remove('pending','hidden');}
+      // FIX NOMOR STEP GANDA: sama seperti di fKonfirmRef() — F3 tidak
+      // relevan saat "tidak ada produk", jadi sembunyikan total (bukan
+      // cuma bersihkan teksnya) supaya badge angkanya (statis "3") tidak
+      // pernah bentrok dengan badge Pose yang dihitung ulang otomatis.
+      let fa3clrt=document.getElementById('fa3');if(fa3clrt)fa3clrt.innerHTML='';
+      let c3t=document.getElementById('f3');if(c3t){c3t.classList.add('done','hidden');c3t.classList.remove('pending');}
       // Reset hanya step 4 (pose) karena step 3 di-skip — step 5,6,7 tetap
       FS.pose='';FS.poseLabel='';FS.poseDesc='';
       document.querySelectorAll('#f4-chips .pose-card, #f4-chips .chip').forEach(c=>c.classList.remove('sel'));
@@ -3832,6 +3930,31 @@ function fPickProduk(val,el){
     // "Konfirmasi →"-nya sendiri) yang jadi satu-satunya tombol aktif.
     let oldBar=document.getElementById('f2-confirmbar');
     if(oldBar)oldBar.remove();
+    // FIX BUG TERSEMBUNYI (ditemukan saat audit menyeluruh): kalau user
+    // SEBELUMNYA pernah pilih "pegang" dan sudah menyelesaikan F3 (Cara
+    // Tampil Produk — done, ada isinya), lalu balik ke sini dan ganti pilih
+    // "dipakai" — val di sini jadi 'dipakai', yang TIDAK butuh F3 sama
+    // sekali. Tanpa fix ini, FS.holdKey/FS.hold dan class 'done' di F3
+    // tetap nyangkut dari pilihan 'pegang' sebelumnya. Akibatnya:
+    // 1) F3 tetap kelihatan (visible+stale) padahal sudah tidak relevan.
+    // 2) fKonfirmProdukManual() salah kira F3 "sudah pernah beres" (karena
+    //    _f3Done && FS.holdKey masih true dari sesi 'pegang' lama) dan
+    //    langsung lompat ke Ringkasan tanpa validasi ulang, TANPA pernah
+    //    memperbaiki nomor step/visibility F3 yang sudah salah itu.
+    // Reset semua sisa state 'pegang' begitu user pilih opsi selain 'pegang'
+    // di sini, supaya F3 langsung disembunyikan & bersih sebelum konfirmasi.
+    if(val!=='pegang'){
+      let f3ei=document.getElementById('f3');
+      if(f3ei&&f3ei.classList.contains('done')){
+        f3ei.classList.remove('done');
+        f3ei.classList.add('hidden');
+        let fa3ei=document.getElementById('fa3');if(fa3ei)fa3ei.innerHTML='';
+        document.querySelectorAll('#f3 .chip').forEach(c=>c.classList.remove('sel'));
+      }
+      FS.holdKey='';FS.hold='';FS.conflictLevel=0;
+      let bnrei=document.getElementById('f3-conflict-banner');
+      if(bnrei){bnrei.className='hidden';bnrei.style.cssText='';bnrei.innerHTML='';}
+    }
     fSyncCardEditDoneBtn('f2', true);
   }
 }
@@ -3865,6 +3988,13 @@ function fKonfirmProdukManual(){
       fUpdateProgress(3,'Cara Pegang');
       showCard('f3');
     } else {
+      // FIX NOMOR STEP GANDA (kasus serupa): kalau user sebelumnya sempat
+      // pilih "pegang" (F3 terisi & jadi 'done'), lalu balik ke F2 dan
+      // ganti ke "dipakai di badan" — F3 sudah tidak relevan untuk mode
+      // ini juga. Sembunyikan supaya tidak nyangkut kelihatan dengan
+      // jawaban/badge lama.
+      let c3d=document.getElementById('f3');
+      if(c3d&&c3d.classList.contains('done')){c3d.classList.add('hidden');let fa3d=document.getElementById('fa3');if(fa3d)fa3d.innerHTML='';}
       FS.pose='';FS.poseLabel='';
       document.querySelectorAll('#f4-chips .pose-card, #f4-chips .chip').forEach(c=>c.classList.remove('sel'));
       fUpdateProgress(4,'Pose');
@@ -4608,6 +4738,7 @@ function fSyncMultiShotVisibility(){
     document.querySelectorAll('.f-shot-check').forEach(cb=>cb.checked=false);
     document.querySelectorAll('.f-shot-panel').forEach(p=>{p.style.display='none';});
   }
+  if(typeof fUpdateMultishotBadge==='function') fUpdateMultishotBadge();
 }
 
 // STEP 9: MOOD / TONE
@@ -4699,6 +4830,77 @@ function fSyncStepNums(){
   if(f9num)f9num.textContent=fCardToStep(9);
 }
 
+// ── STEP JUMP — pengganti fungsi bulatan nomor hijau yang dihapus dari
+// tiap card summary. Tap progress bar di atas → buka daftar step yang
+// sudah diisi di tab aktif → tap salah satu → card itu dibuka mode edit
+// & layar meloncat ke situ. ──────────────────────────────────────────
+function fOpenStepJump(pageId){
+  let page=document.getElementById(pageId)||document.querySelector('.page.active');
+  if(!page)return;
+  let cards=page.querySelectorAll('.wcard.done');
+  let list=document.getElementById('step-jump-list');
+  if(!list)return;
+  list.innerHTML='';
+  if(cards.length===0){
+    list.innerHTML='<div class="step-jump-empty">Belum ada step yang diisi.</div>';
+  }else{
+    cards.forEach(function(c,idx){
+      let titleEl=c.querySelector('.wtitle');
+      let ansEl=c.querySelector('.wanswer');
+      let title=titleEl?titleEl.textContent.trim():'Step';
+      let val=ansEl?ansEl.textContent.trim():'';
+      let item=document.createElement('div');
+      item.className='step-jump-item';
+      item.innerHTML='<div class="step-jump-num">'+(idx+1)+'</div>'+
+        '<div class="step-jump-info"><div class="sjtitle"></div><div class="sjval"></div></div>';
+      item.querySelector('.sjtitle').textContent=title;
+      item.querySelector('.sjval').textContent=val;
+      item.addEventListener('click',function(){
+        fCloseStepJump();
+        // Tab Foto (id card 'f0'..'f9') sudah punya mekanisme edit yang
+        // matang & teruji: fSummaryEdit() — itu yang dipakai tombol "Edit"
+        // di Ringkasan (f-gen-area). Dia menangani hal-hal detil yang
+        // whead.click() generik TIDAK tangani (mis. tombol "Selesai Edit —
+        // Kembali ke Generate" biar user balik ke Ringkasan alih-alih
+        // "kebawa" lanjut ke step-step berikutnya lagi, dan penyesuaian
+        // khusus card Produk). Jadi diprioritaskan di sini kalau tersedia.
+        // Tab Video belum punya fungsi setara, jadi fallback ke
+        // whead.click() generik (jalan, cuma tanpa tombol "Selesai Edit").
+        let m=/^f(\d+)$/.exec(c.id);
+        if(pageId==='foto' && m && typeof fSummaryEdit==='function'){
+          fSummaryEdit(parseInt(m[1],10));
+        }else{
+          let whead=c.querySelector('.whead');
+          if(whead)whead.click();
+        }
+        setTimeout(function(){fScrollToCard(c);},80);
+      });
+      list.appendChild(item);
+    });
+  }
+  document.getElementById('step-jump-overlay').classList.add('open');
+}
+function fCloseStepJump(){
+  let ov=document.getElementById('step-jump-overlay');
+  if(ov)ov.classList.remove('open');
+}
+// Scroll manual langsung ke .app-shell (container scroll asli app ini).
+// SENGAJA tidak pakai el.scrollIntoView() di sini — method itu sudah
+// di-override secara global jadi no-op (lihat <script> paling atas) demi
+// mematikan auto-scroll otomatis. Tapi khusus aksi INI, user sendiri yang
+// tap step di daftar, jadi scroll manual di sini justru yang diinginkan —
+// makanya dihitung & dieksekusi manual pakai appShell.scrollTo(), bukan
+// scrollIntoView(), supaya tidak ikut kena override itu.
+function fScrollToCard(el){
+  if(!el)return;
+  let appShell=document.querySelector('.app-shell');
+  if(!appShell)return;
+  let rect=el.getBoundingClientRect();
+  let shellRect=appShell.getBoundingClientRect();
+  let offset=rect.top-shellRect.top+appShell.scrollTop-96;
+  appShell.scrollTo({top:Math.max(0,offset),behavior:'smooth'});
+}
+
 function fUpdateProgress(cardNum,stepName){
   // FIX #6: Sync nomor badge DULU sebelum hitung progress,
   // sehingga fTotalSteps() & fCardToStep() sudah sesuai state terkini
@@ -4709,6 +4911,16 @@ function fUpdateProgress(cardNum,stepName){
   let fill=document.getElementById('f-progress-fill');
   let label=document.getElementById('f-progress-label');
   let title=document.getElementById('f-progress-title');
+  // PULSE PROGRESS: nyalakan kilau hanya kalau step-nya beneran ganti,
+  // bukan tiap kali fUpdateProgress dipanggil ulang dengan angka yang sama.
+  let wrap=fill&&fill.closest('.progress-wrap');
+  if(wrap&&wrap.dataset.step!==String(stepNum)){
+    wrap.dataset.step=String(stepNum);
+    wrap.classList.remove('step-changed');
+    void wrap.offsetWidth; // restart animasi kalau dipicu beruntun cepat
+    wrap.classList.add('step-changed');
+    setTimeout(()=>wrap.classList.remove('step-changed'),800);
+  }
   if(fill)fill.style.width=pct+'%';
   if(label)label.innerHTML='Step <span>'+stepNum+'</span> dari <span>'+total+'</span>';
   if(title)title.innerHTML=stepName||'';
@@ -4818,7 +5030,7 @@ function _fDoGenerate(){
   fBuildUploadNotice(built.realRefs, built.randomRefs);
 
   let wrap = document.getElementById('f-output-wrap');
-  wrap.style.display = 'block'; let _vp=document.getElementById('f-variasi-panel');if(_vp)_vp.style.display='block'; let _jo=document.getElementById('f-json-output');if(_jo)_jo.style.display='block';
+  wrap.style.display = 'block'; let _jo=document.getElementById('f-json-output');if(_jo)_jo.style.display='block';
   let _mo=document.getElementById('f-multi-output'); if(_mo){_mo.style.display='none';_mo.innerHTML='';}
   let _ph=document.getElementById('f-preview-placeholder'); if(_ph)_ph.style.display='none';
   setTimeout(() => wrap.scrollIntoView({behavior:'smooth', block:'nearest'}), 100);
@@ -5555,7 +5767,13 @@ function _fBuildPromptJSON(ov){
     + (produkBlock ? 'Hero product: ' + produkBlock.name + (produkBlock.placement ? ', ' + produkBlock.placement + '. ' : '. ') + produkBlock.instruction + ' ' : '')
     + 'Scene: ' + effLokasi + '. '
     + 'Lighting: ' + effCahaya + '. '
-    + (isProdukSaja ? '' : 'Character pose: ' + effPose + '. ')
+    // FIX BUG KONSISTENSI JALUR NORMAL vs IMPORT: sebelumnya baris ini tidak
+    // cek apakah effPose kosong (beda dengan _fBuildImportedPromptJSON yang
+    // sudah pakai guard "effPose ?" di kondisi yang sama). Kalau effPose
+    // kosong tapi isProdukSaja false, hasilnya kalimat rusak
+    // "...Character pose: . Camera angle: ..." nyangkut di tengah prompt.
+    // Disamakan dengan jalur import supaya tidak pernah menulis pose kosong.
+    + (isProdukSaja || !effPose ? '' : 'Character pose: ' + effPose + '. ')
     + (effKamera ? 'Camera framing: ' + effKamera + '. ' : '')
     + 'Camera angle: ' + effAngle + '. '
     + 'Mood & tone: ' + effMood + '.';
@@ -5574,7 +5792,12 @@ function _fBuildPromptJSON(ov){
     ...(produkBlock ? {product: produkBlock} : {}),
     scene: {
       location: effLokasi,
-      ...(isProdukSaja ? {} : {pose: effPose}),
+      // FIX BUG KONSISTENSI JALUR NORMAL vs IMPORT: sama seperti fix intro
+      // di atas — tanpa "!effPose" di sini, field "pose":"" bisa ikut
+      // terkirim kosong ke JSON kalau effPose kosong padahal bukan mode
+      // produk-saja. Disamakan dengan _fBuildImportedPromptJSON yang sudah
+      // benar (baris scene.pose di sana pakai "isProdukSaja || !effPose").
+      ...(isProdukSaja || !effPose ? {} : {pose: effPose}),
       ...(effKamera ? {camera_framing: effKamera} : {}),
       camera_angle: effAngle,
       lighting: effCahaya,
@@ -5650,6 +5873,34 @@ const F_SHOT_OPTS = {
 };
 
 // Render/toggle panel konfigurasi di bawah checkbox multi-shot begitu dicentang
+// FIX UX: section "Generate Beberapa Variasi Sekaligus" dulu langsung
+// tampil terbuka penuh (deskripsi + 5 checklist) begitu card-nya muncul —
+// sekarang default TERTUTUP, isi baru muncul kalau headernya ditap.
+// Badge di header tetap menunjukkan jumlah variasi yang sudah dicentang
+// walau body sedang tertutup, supaya user tidak lupa ada pilihan aktif
+// yang sedang "disembunyikan".
+function fToggleMultishotBody(){
+  let body=document.getElementById('f-multishot-body');
+  let chevron=document.getElementById('f-multishot-chevron');
+  if(!body)return;
+  let willOpen = body.style.display==='none' || !body.style.display;
+  body.style.display = willOpen ? 'block' : 'none';
+  if(chevron) chevron.textContent = willOpen ? '▴' : '▾';
+}
+
+// Hitung ulang jumlah checkbox shot yang sedang dicentang dan tampilkan
+// sebagai badge kecil di header — dipanggil tiap kali sebuah checkbox
+// berubah (fToggleShotPanel) dan tiap kali fSyncMultiShotVisibility jalan
+// (mis. shot yang tadinya dicentang otomatis di-uncheck karena jadi
+// diblokir kekurangan foto produk).
+function fUpdateMultishotBadge(){
+  let badge=document.getElementById('f-multishot-badge');
+  if(!badge)return;
+  let n=document.querySelectorAll('.f-shot-check:checked').length;
+  badge.textContent=n;
+  badge.style.display = n>0 ? '' : 'none';
+}
+
 function fToggleShotPanel(cb){
   // FIX UX: sebelumnya centang shot langsung membuka penuh panel opsi
   // (chip lokasi/cahaya/angle/mood) — bikin daftar shot kelihatan penuh dan
@@ -5658,6 +5909,7 @@ function fToggleShotPanel(cb){
   // kalau link itu ditap (lihat fToggleShotDetailPanel).
   let panel = document.getElementById('f-shotpanel-'+cb.value);
   let toggleEl = document.getElementById('f-shotdetail-'+cb.value);
+  fUpdateMultishotBadge();
   if(!panel)return;
   if(!cb.checked){
     panel.style.display='none';
@@ -5705,9 +5957,20 @@ function fBuildShotPanel(shotKey, panel){
     // menulis override sendiri untuk kategori multi-shot ini (beda dengan
     // step wizard utama yang selalu ada "Atau tulis sendiri"). Sekarang
     // ditambahkan input teks bebas + tombol "Pakai" per kategori.
+    // FIX BUG TOMBOL "PAKAI" MENELAN SELURUH LEBAR BARIS: class ".btn" punya
+    // "width:100%" bawaan, dan ".btn.sm" TIDAK meng-override width itu —
+    // cuma font-size/padding/min-height. Tombol ini sebelumnya cuma dikasih
+    // inline style padding/font-size/white-space (tanpa "width"), jadi
+    // "width:100%" dari class tetap kepakai. Di dalam flex row bareng input
+    // "Atau tulis sendiri" (flex:1), itu bikin tombol maksa ambil hampir
+    // seluruh lebar baris dan kotak inputnya kegencet jadi sliver tipis —
+    // nyaris tidak kelihatan dan susah disentuh, padahal fiturnya sebenarnya
+    // sudah ada. Pola yang benar sudah dipakai di tombol "Pakai" lain (lihat
+    // vbPickMode3LokasiCustom): "width:auto;flex-shrink:0" eksplisit di
+    // inline style. Disamakan di sini.
     html += '<div style="display:flex;gap:6px;margin-top:6px;">'
       + '<input type="text" class="inp" style="font-size:10.5px;padding:6px 8px;flex:1;" id="f-shotcustom-'+shotKey+'-'+cat.key+'" placeholder="Atau tulis sendiri...">'
-      + '<button class="btn sm" style="padding:6px 10px;font-size:10.5px;white-space:nowrap;" onclick="fShotOptCustomConfirm(\''+shotKey+'\',\''+cat.key+'\')">Pakai</button>'
+      + '<button class="btn sm" style="width:auto;flex-shrink:0;padding:6px 10px;font-size:10.5px;white-space:nowrap;" onclick="fShotOptCustomConfirm(\''+shotKey+'\',\''+cat.key+'\')">Pakai</button>'
       + '</div>';
   });
   // Tombol "Selesai" — nutup panel detail balik ke link kecil "Detail
@@ -5876,7 +6139,6 @@ function _fDoGenerateMultiShot(checkedEls){
 
   // Sembunyikan output single, tampilkan output multi
   let singleWrap = document.getElementById('f-output-wrap');
-  let _vp=document.getElementById('f-variasi-panel');if(_vp)_vp.style.display='none';
   let _jo=document.getElementById('f-json-output');if(_jo)_jo.style.display='none';
   if(singleWrap) singleWrap.style.display='none';
   let _ph=document.getElementById('f-preview-placeholder'); if(_ph)_ph.style.display='none';
@@ -6077,7 +6339,19 @@ function fReset(){
     let title=document.getElementById('f-progress-title');if(title)title.textContent='Subjek Foto';
     fSyncStepNums();
 
-    document.getElementById('f0').scrollIntoView({behavior:'smooth',block:'start'});
+    // FIX BUG "TAMPILAN KOSONG" SETELAH RESET: baris ini sebelumnya pakai
+    // f0.scrollIntoView(...) — method itu SUDAH DIOVERRIDE GLOBAL jadi no-op
+    // (cuma kasih kilau .just-revealed, TIDAK BENERAN SCROLL — lihat <script>
+    // paling atas). Kalau user reset saat posisi scroll masih di bawah
+    // (lihat hasil JSON generate), layar tidak pernah ikut digeser balik ke
+    // atas walau semua card & FS sudah berhasil direset — user cuma
+    // ngeliat area output yang baru saja dikosongkan, kelihatan seperti
+    // "tampilan kosong" padahal wizard-nya sudah kembali ke Step 1 di atas.
+    // Pola yang benar sudah dipakai di switchPage()/fScrollToCard(): scroll
+    // MANUAL ke .app-shell (container scroll asli app ini), bukan
+    // scrollIntoView(), supaya tidak ikut kena override itu.
+    let _appShellReset=document.querySelector('.app-shell');
+    if(_appShellReset) _appShellReset.scrollTo({top:0,behavior:'smooth'});
   });
 }
 
@@ -6307,6 +6581,12 @@ if(typeof csRenderAll==='function')csRenderAll();
   let fill=document.getElementById('f-progress-fill');
   if(fill)fill.style.width='0%';
 })();
+// FIX BUG#1 (Video): sama seperti FIX A6 di atas — vbUpdateProgress(1,...)
+// akan hitung pct=1/5=20% padahal user belum isi apa-apa. Override ke 0%.
+(function(){
+  let vfill=document.getElementById('vb-progress-fill');
+  if(vfill)vfill.style.width='0%';
+})();
 // Kosongkan container chip kamera yang ada chip statis di HTML
 // f6-kamera-chips sudah dihapus bersama card f6
 
@@ -6437,6 +6717,16 @@ const VB_REF_MODE_DESC={
   kp:'Foto referensi 1 = karakter (wajah & outfit dipertahankan), foto referensi 2 = produk. Kamu pilih sendiri lokasi & lighting video-nya di bawah.'
 };
 function vbPickRefMode(mode){
+  // FIX BUG #7 (ditemukan saat audit mendalam): sebelumnya baris terakhir
+  // fungsi ini SELALU memanggil vbMode3ResetSteps() setiap kali mode 'kp'
+  // diklik — termasuk kalau mode 'kp' itu MEMANG SUDAH terpilih sebelumnya.
+  // Reproducible: pilih Mode 3 → isi Lokasi → isi Lighting (summary 2 baris
+  // muncul) → user klik chip "Mode 3" lagi (misklik, atau reflex saat buka
+  // ulang step 1 untuk edit) → Lokasi & Lighting yang sudah diisi HILANG
+  // TOTAL tanpa peringatan apapun, balik ke step 1 kosong. Sekarang reset
+  // cuma jalan kalau mode BENERAN baru berubah ke 'kp' dari mode lain —
+  // klik ulang pada mode yang sudah aktif tidak menyentuh data yang sudah ada.
+  let justSwitchedToKp=(mode==='kp'&&VB.refMode!=='kp');
   VB.refMode=mode;
   document.getElementById('vb-mode-satu').classList.toggle('sel',mode==='satu');
   document.getElementById('vb-mode-aset').classList.toggle('sel',mode==='aset');
@@ -6445,7 +6735,7 @@ function vbPickRefMode(mode){
   if(desc)desc.textContent=VB_REF_MODE_DESC[mode];
   let area=document.getElementById('vb-mode3-area');
   if(area)area.classList.toggle('hidden',mode!=='kp');
-  if(mode==='kp')vbMode3ResetSteps();
+  if(justSwitchedToKp)vbMode3ResetSteps();
 }
 // Reset ke step 1 (Nama Produk) tiap kali Mode 3 dipilih ulang
 function vbMode3ResetSteps(){
@@ -6453,6 +6743,16 @@ function vbMode3ResetSteps(){
   document.getElementById('vb-mode3-step-lighting').classList.add('hidden');
   let sum=document.getElementById('vb-mode3-summary');
   if(sum)sum.innerHTML='';
+  // FIX BUG#2: sebelumnya cuma reset TAMPILAN (kotak & ringkasan), tapi
+  // VB.mode3Lokasi/mode3Lighting di JS masih menyimpan nilai lama dari
+  // pilihan sebelumnya. Akibatnya kalau user ganti mode lalu balik lagi ke
+  // Mode 3 dan langsung klik "Lanjut →" tanpa pilih ulang, validasi di
+  // vbConfirmRef() lolos pakai data basi. Reset datanya juga di sini.
+  VB.mode3Lokasi='';VB.mode3LokasiLabel='';
+  VB.mode3Lighting='';VB.mode3LightingLabel='';
+  document.querySelectorAll('#vb-mode3-lokasi-chips .chip,#vb-mode3-lighting-chips .chip').forEach(c=>c.classList.remove('sel'));
+  let m3lc=document.getElementById('vb-mode3-lokasi-custom'); if(m3lc)m3lc.value='';
+  let m3ligc=document.getElementById('vb-mode3-lighting-custom'); if(m3ligc)m3ligc.value='';
 }
 function _vbMode3AddSummary(label,val){
   let sum=document.getElementById('vb-mode3-summary');
@@ -6509,6 +6809,16 @@ function vbUpdateProgress(stepNum,stepName){
   let fill=document.getElementById('vb-progress-fill');
   let label=document.getElementById('vb-progress-label');
   let title=document.getElementById('vb-progress-title');
+  // PULSE PROGRESS: sama seperti fUpdateProgress di tab Foto — kilau cuma
+  // nyala kalau step-nya beneran ganti.
+  let wrap=fill&&fill.closest('.progress-wrap');
+  if(wrap&&wrap.dataset.step!==String(stepNum)){
+    wrap.dataset.step=String(stepNum);
+    wrap.classList.remove('step-changed');
+    void wrap.offsetWidth;
+    wrap.classList.add('step-changed');
+    setTimeout(()=>wrap.classList.remove('step-changed'),800);
+  }
   if(fill)fill.style.width=pct+'%';
   if(label)label.innerHTML='Step <span>'+stepNum+'</span> dari <span>'+total+'</span>';
   if(title)title.innerHTML=stepName||'';
@@ -6550,11 +6860,20 @@ function vbPickAge(val,el,label){
   vbCheckV2Done();
 }
 function vbPickAgeCustom(){
-  if(!VB.gender){showToast('Pilih Jenis Kelamin dulu ya','error');return;}
+  // FIX BUG#17 (ditemukan saat audit mendalam khusus builder video):
+  // sebelumnya kalau Jenis Kelamin belum dipilih, fungsi ini langsung
+  // `return` SEBELUM membaca/menyimpan isi kotak usia custom — beda dengan
+  // vbPickAge() (klik chip) yang menyimpan VB.age dulu baru mengecek gender.
+  // Akibatnya: user yang ketik usia custom duluan sebelum pilih Jenis
+  // Kelamin, teksnya TIDAK tersimpan ke state sama sekali walau sudah tap
+  // "Konfirmasi →" — harus diulang lagi setelah pilih gender. Sekarang nilai
+  // usia custom disimpan dulu (state selalu update), baru cek gender untuk
+  // memutuskan apakah sudah boleh lanjut ke step berikutnya atau belum.
   let val=document.getElementById('v2-custom').value.trim();
   if(!val){showToast('Isi dulu ya','error');return;}
   VB.age=val;VB.ageLabel=val.length>24?val.substring(0,24)+'...':val;
   document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
+  if(!VB.gender){showToast('Usia tersimpan — pilih Jenis Kelamin juga ya','error');return;}
   vbCheckV2Done();
 }
 
@@ -6604,6 +6923,15 @@ function vbSelectScriptMode(mode){
   document.getElementById('vb-mode-ai-area').classList.toggle('hidden',mode!=='ai');
   document.getElementById('vb-manual-script-area').classList.toggle('hidden',mode!=='manual');
   document.getElementById('vb-bulk-area').classList.toggle('hidden',mode!=='bulk');
+  // FIX BUG#18 (ditemukan saat audit mendalam khusus builder video):
+  // vbGenerate3Manual() fallback membaca isi kotak "Nama Produk" milik mode
+  // AI (id="vb-produk-nama") untuk label Riwayat kalau refMode bukan Mode 3.
+  // Kotak itu tidak pernah dikosongkan saat user pindah mode script (cuma
+  // disembunyikan), jadi kalau sebelumnya sempat isi nama produk di mode AI
+  // lalu pindah ke Manual tanpa reset, nama lama itu "menempel" secara tidak
+  // sengaja ke entri Riwayat mode Manual. Kosongkan kotaknya begitu user
+  // pindah keluar dari mode AI supaya tidak ada data nyasar lintas mode.
+  if(mode!=='ai'){let aiNama=document.getElementById('vb-produk-nama');if(aiNama)aiNama.value='';}
   // Mode 3 (karakter+produk) butuh nama produk buat teks referensi — AI &
   // bulk sudah nanya sendiri, manual belum punya kotaknya jadi ditambahin di sini
   let m3produkWrap=document.getElementById('vb-manual-mode3-produk-wrap');
@@ -6638,6 +6966,10 @@ const VB_3SCRIPT_ROLES=[
 let VB_BULK_ITEMS=[]; // {produk, role, roleLabel, script} — flat, index = urutan tampil
 let VB_BULK_PRODUCTS=[]; // {nama, keunggulan} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
 
+// Cache PERSISTEN nama/keunggulan tiap baris bulk, bertahan sepanjang sesi
+// (lihat FIX BUG#15 di bawah) — direset di vbReset().
+let VB_BULK_ROW_CACHE=[];
+
 // Bangun N baris input (Nama Produk *wajib + Keunggulan opsional) sesuai jumlah yang dipilih user
 function vbBulkSetCount(){
   let countInput=document.getElementById('vb-bulk-count');
@@ -6647,23 +6979,32 @@ function vbBulkSetCount(){
   countInput.value=count;
 
   let rows=document.getElementById('vb-bulk-rows');
-  // Simpan nilai yang sudah diisi sebelumnya (kalau user ubah jumlah, tidak hilang)
-  let prevNama=[],prevKeunggulan=[];
+  // FIX BUG#15 (ditemukan saat audit mendalam): sebelumnya nilai lama dibaca
+  // ke array LOKAL yang dibuat ulang tiap kali fungsi ini jalan, cuma
+  // menampung sebanyak baris yang KEBETULAN sedang tampil saat itu juga.
+  // Reproducible: isi 5 baris produk → kurangi jumlah jadi 2 (baris 3-5
+  // dihancurkan oleh rows.innerHTML='' di bawah) → naikkan lagi jumlahnya
+  // jadi 5 → baris 3-5 muncul KOSONG, padahal user sudah sempat mengetik
+  // nama produknya di sana. Data itu tidak pernah tersimpan di mana pun
+  // begitu baris-nya dihancurkan. Sekarang dipakai VB_BULK_ROW_CACHE — cache
+  // di luar fungsi yang terus disinkronkan (bukan dibuat ulang) tiap kali
+  // fungsi ini dipanggil, jadi naik-turunkan jumlah produk berkali-kali
+  // tidak lagi menghilangkan apa yang sudah diketik di baris manapun.
   for(let i=0;i<rows.children.length;i++){
     let n=document.getElementById('vb-bulk-nama-'+i);
     let k=document.getElementById('vb-bulk-keunggulan-'+i);
-    prevNama.push(n?n.value:'');
-    prevKeunggulan.push(k?k.value:'');
+    if(n)VB_BULK_ROW_CACHE[i]={nama:n.value,keunggulan:k?k.value:''};
   }
 
   rows.innerHTML='';
   for(let i=0;i<count;i++){
+    let cached=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:''};
     let row=document.createElement('div');
     row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:7px 9px;margin-bottom:6px;';
     row.innerHTML='<div style="font-size:9px;font-weight:700;color:var(--muted2);margin-bottom:4px;">PRODUK '+(i+1)+'</div>'
       +'<div style="display:flex;gap:6px;">'
-      +'<input class="inp" id="vb-bulk-nama-'+i+'" maxlength="80" placeholder="Nama produk *wajib" style="flex:1.3;font-size:11px;padding:6px 8px;" value="'+esc(prevNama[i]||'')+'" />'
-      +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" maxlength="150" placeholder="Keunggulan (opsional)" style="flex:1;font-size:11px;padding:6px 8px;" value="'+esc(prevKeunggulan[i]||'')+'" />'
+      +'<input class="inp" id="vb-bulk-nama-'+i+'" maxlength="80" placeholder="Nama produk *wajib" style="flex:1.3;font-size:11px;padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
+      +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" maxlength="150" placeholder="Keunggulan (opsional)" style="flex:1;font-size:11px;padding:6px 8px;" value="'+esc(cached.keunggulan||'')+'" />'
       +'</div>';
     rows.appendChild(row);
   }
@@ -6792,6 +7133,33 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote){
     }
   }
   if(!Array.isArray(arr)||arr.length===0)throw new Error('Hasil AI kosong, coba lagi.');
+
+  // FIX BUG (ditemukan saat audit mendalam khusus builder video — akar
+  // masalah BUG#16/BUG#8 yang lama): backfill nama produk yang hilang dari
+  // hasil AI SEBELUMNYA dilakukan di pemanggil (vbGenerateBulkAI /
+  // vbRegenerateAllBulk), SETELAH fungsi ini selesai — artinya (1) prompt
+  // perbaikan jumlah kata di bawah ini kehilangan konteks nama produk kalau
+  // field "produk" kosong (dikirim string kosong '', jadi instruksi "untuk
+  // produk X" tidak pernah disertakan), dan (2) backfill itu murni
+  // berdasarkan POSISI index tanpa pengaman: kalau AI men-drop SATU produk
+  // di TENGAH batch (bukan di akhir — sudah diantisipasi oleh komentar
+  // BUG#8 lama tapi belum pernah benar-benar ditambal), hasil yang selamat
+  // bisa ketiban nama produk LAIN yang salah karena index-nya ikut geser.
+  // Sekarang backfill dipindah ke SINI (sebelum perbaikan kata) dan HANYA
+  // dijalankan kalau jumlah hasil PERSIS SAMA dengan jumlah yang diminta di
+  // batch ini — kondisi itu satu-satunya keadaan di mana asumsi "index hasil
+  // = index diminta" benar-benar aman. Kalau jumlahnya beda (ada yang
+  // di-drop), field "produk" yang kosong dibiarkan kosong (pemanggil sudah
+  // punya fallback aman "Produk N") daripada diam-diam menempelkan nama
+  // yang salah ke produk yang salah.
+  if(arr.length===batch.length){
+    for(let bi=0;bi<arr.length;bi++){
+      if(!arr[bi].produk && batch[bi])arr[bi].produk=batch[bi].nama;
+    }
+  }else{
+    console.warn('[_vbCallBulkBatch] jumlah hasil ('+arr.length+') beda dari jumlah diminta ('+batch.length+') — backfill nama produk by-index dilewati demi mencegah nama salah tempel ke produk lain.');
+  }
+
   for(let pi=0;pi<arr.length;pi++){
     let prod=arr[pi];
     prod.hook=await _vbFixWordCountIfNeeded(prod.hook||'','Hook',prod.produk||'');
@@ -6873,6 +7241,10 @@ async function vbGenerateBulkAI(){
       if(batchArr.length<batches[b].length){
         console.warn('[vbGenerateBulkAI] batch '+b+' cuma balikin '+batchArr.length+' dari '+batches[b].length+' produk diminta');
       }
+      // FIX BUG#16 (backfill nama produk) dipindah ke DALAM _vbCallBulkBatch
+      // (lihat komentar lengkap di sana) — sekarang sudah aman dari
+      // masalah salah-tempel nama saat ada produk yang di-drop di tengah
+      // batch, dan sudah jalan SEBELUM perbaikan jumlah kata dijalankan.
       allResults=allResults.concat(batchArr);
       // Jeda kecil antar batch biar tidak nabrak RPM Gemini
       if(b<batches.length-1)await new Promise(r=>setTimeout(r,1500));
@@ -6904,11 +7276,37 @@ async function vbGenerateBulkAI(){
   }
 }
 
+// FIX BUG #8 (ditemukan saat audit mendalam): sebelumnya VB_BULK_PRODUCTS
+// diisi 1:1 berdasarkan POSISI dari produkListMeta (daftar yang DIMINTA
+// user). Tapi kalau satu batch AI cuma balikin sebagian dari yang diminta
+// (sudah diantisipasi kode lain lewat console.warn "batch cuma balikin X
+// dari Y produk diminta"), `products` (hasil yang BENERAN tampil di layar)
+// jadi lebih PENDEK dari produkListMeta — index-nya geser mulai dari titik
+// produk yang hilang. Akibatnya VB_BULK_PRODUCTS[prodIdx] bisa berisi
+// nama/keunggulan produk LAIN, bukan produk yang sedang ditampilkan di
+// kartu itu. Begitu user buka panel "Revisi" untuk kartu itu, form kepre-isi
+// data produk yang salah — dan kalau di-generate ulang tanpa sadar, kartu
+// yang tampil diam-diam ketiban isi produk lain. Sekarang dicocokkan per
+// NAMA produk (bukan posisi), jadi tetap benar walau ada produk yang drop.
+function _vbBuildProductMetaLookup(produkListMeta){
+  let map={};
+  (produkListMeta||[]).forEach(function(x){
+    let key=(x.nama||'').trim().toLowerCase();
+    if(key)map[key]={nama:x.nama||'',keunggulan:x.keunggulan||''};
+  });
+  return map;
+}
+
 // ── Render kartu kompak untuk hasil bulk — tiap script bisa diedit,
 // JSON di bawahnya update REALTIME tiap ketikan (bukan cuma pas generate) ──
 function _vbRenderBulkOutput(products,produkListMeta){
   VB_BULK_ITEMS=[];
-  VB_BULK_PRODUCTS=(produkListMeta||products.map(function(p){return{nama:p.produk||'',keunggulan:''};})).map(function(x){return{nama:x.nama||'',keunggulan:x.keunggulan||''};});
+  let metaLookup=_vbBuildProductMetaLookup(produkListMeta);
+  VB_BULK_PRODUCTS=products.map(function(p){
+    let key=(p.produk||'').trim().toLowerCase();
+    let meta=key?metaLookup[key]:null;
+    return meta?{nama:meta.nama,keunggulan:meta.keunggulan}:{nama:p.produk||'',keunggulan:''};
+  });
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
   multiWrap.style.display='flex';
@@ -6979,6 +7377,14 @@ function _vbRenderBulkOutput(products,produkListMeta){
   resetBtn.innerHTML='<svg class="icon"><use href="#ic-refresh"></use></svg> Buat Prompt Video Baru';
   resetBtn.onclick=vbReset;
   multiWrap.appendChild(resetBtn);
+
+  // FIX BUG#10 (akhirnya tuntas — lihat catatan lengkap di _vbBuildEditableCard
+  // & _vbBuildCombinedHistoryEntry): SATU entri Riwayat gabungan untuk SELURUH
+  // sesi bulk ini (dipakai baik untuk generate awal maupun "Generate Ulang
+  // Semua" dari panel setting, karena keduanya sama-sama lewat fungsi ini),
+  // bukan 1 entri per kartu seperti sebelumnya yang bikin Riwayat lama
+  // ketiban habis.
+  _vbBuildCombinedHistoryEntry('Bulk '+products.length+' produk ('+(products.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
 }
 
 // Buka/tutup panel revisi 1 produk tertentu (forceClose=true buat selalu menutup)
@@ -7035,6 +7441,16 @@ async function vbRevisiProdukAI(prodIdx){
     VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan};
     _vbUpdateProductCards(prodIdx,p);
     vbToggleRevisiPanel(prodIdx,true);
+    // FIX BUG#20 (ditemukan saat audit lanjutan): _vbBuildCombinedHistoryEntry()
+    // sebelumnya HANYA dipanggil dari _vbRenderBulkOutput (generate awal/
+    // regenerate semua), vbGenerate3Manual, dan vbGenerate3AI — TIDAK PERNAH
+    // dipanggil di sini setelah revisi 1 produk berhasil. Akibatnya: entri
+    // Riwayat tetap berisi versi LAMA (sebelum revisi) walau kartu di layar
+    // sudah update ke hasil revisi terbaru — begitu tab ditutup/refresh, hasil
+    // revisi yang sudah dibuat hilang percuma karena tidak pernah tersimpan.
+    // Sekarang catat ulang entri Riwayat gabungan begitu 1 produk selesai
+    // direvisi, supaya Riwayat selalu mencerminkan kondisi terbaru di layar.
+    _vbBuildCombinedHistoryEntry('Bulk '+VB_BULK_PRODUCTS.length+' produk (revisi: '+nama+')'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     showToast('Produk berhasil direvisi!','success');
   }catch(err){
     console.error('vbRevisiProdukAI error:',err);
@@ -7129,6 +7545,12 @@ function vbApplyMetadataOnly(s){
     if(!ta||!jsonBox)continue;
     jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk);
   }
+  // FIX BUG#20b (sama akar masalahnya dengan BUG#20 di vbRevisiProdukAI):
+  // update metadata (suara/target audience) di sini mengubah JSON yang
+  // TAMPIL di layar tapi tidak pernah disinkronkan ke Riwayat — kalau tab
+  // ditutup, Riwayat balik ke metadata LAMA (misal aksen sebelum diubah).
+  // Catat ulang entri Riwayat gabungan setelah metadata baru diterapkan.
+  _vbBuildCombinedHistoryEntry('Bulk '+VB_BULK_PRODUCTS.length+' produk (update metadata)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
   showToast('Data diperbarui — teks script lama tetap seperti semula.','success');
 }
 async function vbRegenerateAllBulk(newSettings){
@@ -7162,6 +7584,9 @@ async function vbRegenerateAllBulk(newSettings){
       updateGenLogoLabel(genLogoState,'Batch '+(b+1)+'/'+batches.length+'...');
       let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience);
       dlIncrement();
+      // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
+      // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
+      // masalah salah-tempel nama saat ada produk yang di-drop di tengah batch.
       allResults=allResults.concat(batchArr);
       if(b<batches.length-1)await new Promise(function(r){setTimeout(r,1500);});
     }
@@ -7265,6 +7690,7 @@ function vbGenerate3Manual(){
     return;
   }
   _vbRenderMultiOutput([hook,story,cta],produkNama);
+  _vbBuildCombinedHistoryEntry('3 script manual'+(produkNama?' — '+produkNama:''));
   doneCard('v5','va5','3 script manual');
   vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
   setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
@@ -7387,10 +7813,31 @@ async function vbGenerate3AI(){
     dlIncrement();
 
     // Normalisasi: dukung baik [{role,script}] maupun ["script1","script2","script3"]
-    let scripts=arr.map(function(item,i){
-      if(typeof item==='string')return item;
-      return item.script||item.text||'';
-    });
+    // FIX BUG #9 (ditemukan saat audit mendalam): sebelumnya urutan hasil API
+    // diasumsikan SELALU hook→story→cta berdasarkan POSISI array, padahal
+    // prompt cuma minta API sertakan field "role" tanpa ada jaminan urutannya
+    // selalu persis seperti diminta (LLM kadang menukar urutan array).
+    // Kalau ketuker, label yang tampil ke user salah (skrip CTA dikasih judul
+    // "Hook" dkk) DAN instruksi ke _vbFixWordCountIfNeeded jadi salah konteks
+    // juga (bilang "ini bagian Hook" padahal isinya CTA). Sekarang dicocokkan
+    // berdasarkan field "role" tiap item kalau ada; fallback ke urutan asli
+    // array kalau role tidak lengkap/tidak dikenal supaya tidak ada script
+    // yang hilang.
+    let expectedRoles=['hook','story','cta'];
+    let hasFullRoleFields=arr.every(function(item){return item&&typeof item==='object'&&typeof item.role==='string'&&item.role.trim();});
+    let scripts;
+    if(hasFullRoleFields){
+      scripts=expectedRoles.map(function(role){
+        let found=arr.find(function(item){return item.role.trim().toLowerCase()===role;});
+        return found?(found.script||found.text||''):'';
+      });
+      if(scripts.some(function(s){return !s;})){
+        // Role tidak dikenal/tidak lengkap — fallback ke urutan asli array
+        scripts=arr.map(function(item){return typeof item==='string'?item:(item.script||item.text||'');});
+      }
+    }else{
+      scripts=arr.map(function(item){return typeof item==='string'?item:(item.script||item.text||'');});
+    }
 
     let _roleLabelsPlain=['Hook','Cerita Produk (Story)','CTA Keranjang'];
     for(let si=0;si<scripts.length;si++){
@@ -7398,6 +7845,7 @@ async function vbGenerate3AI(){
     }
 
     _vbRenderMultiOutput(scripts,produkNama);
+    _vbBuildCombinedHistoryEntry('3 script AI'+(produkNama?' — '+produkNama:''));
     doneCard('v5','va5','3 script AI');
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
@@ -7418,6 +7866,20 @@ async function vbGenerate3AI(){
 // manual, maupun bulk. Textarea script + counter kata + preview JSON
 // yang update REALTIME setiap ketikan, tanpa perlu generate ulang. ──
 function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
+  // FIX BUG#19 (ditemukan saat audit lanjutan): kalau _vbFixWordCountIfNeeded
+  // gagal menepatkan jumlah kata jadi PERSIS 25 setelah 2x percobaan (AI tetap
+  // ngasih 27/30 kata dkk), teks itu dikembalikan APA ADANYA — lalu baris di
+  // bawah ini (_vbTruncate25Words) diam-diam MEMOTONG di kata ke-25 tanpa
+  // tanda apa pun. Masalahnya label penghitung kata di bawah cuma mengecek
+  // hasil AKHIR (yang sudah pasti 25 setelah dipotong) dan mewarnainya HIJAU
+  // — sama persis seperti skrip yang memang natural pas 25 kata dari AI.
+  // Akibatnya user tidak sadar skrip yang dia lihat itu KALIMAT TERPOTONG
+  // (bisa kehilangan kata penutup CTA dkk) karena tampilannya identik dengan
+  // skrip yang valid. Sekarang dideteksi dulu apakah teks ASLI (sebelum
+  // dipotong) lebih dari 25 kata — kalau iya, beri tanda visual berbeda
+  // (oranye + catatan) supaya user tahu perlu dicek/diedit manual.
+  let _origWc=(initialScript||'').trim().split(/\s+/).filter(Boolean).length;
+  let _wasAutoTruncated=_origWc>25;
   initialScript=_vbTruncate25Words(initialScript);
   VB_BULK_ITEMS[idx]={produk:produkNamaForHistory||'',roleLabel:label,script:initialScript};
 
@@ -7429,7 +7891,18 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
   head.style.cssText='background:var(--surface3);padding:5px 9px;display:flex;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid var(--border);';
   head.innerHTML='<div style="font-size:9.5px;font-weight:700;color:var(--muted);">'+label+'</div>';
   let copyBtn=document.createElement('button');
-  copyBtn.className='copy-btn';copyBtn.style.cssText='font-size:9px;padding:3px 8px;flex-shrink:0;';copyBtn.textContent='';
+  copyBtn.className='copy-btn';copyBtn.style.cssText='font-size:9px;padding:3px 8px;flex-shrink:0;';
+  // FIX BUG (ditemukan saat audit mendalam khusus builder video): sebelumnya
+  // textContent tombol ini di-set string KOSONG ('') dan tidak pernah diisi
+  // label/icon apapun di kondisi default — tombol Copy tiap kartu Hook/
+  // Story/CTA jadi pil kosong tanpa tulisan sama sekali (cuma sekilas
+  // muncul ikon centang 1.2 detik SETELAH diklik, lalu balik kosong lagi).
+  // User tidak akan tahu ada tombol salin di situ kecuali coba-coba klik.
+  // Sekarang diberi label teks "Salin" sebagai kondisi default yang selalu
+  // kelihatan, dan dikembalikan ke label yang SAMA (bukan string kosong)
+  // setelah animasi centang selesai.
+  const VB_COPY_BTN_LABEL='Salin';
+  copyBtn.textContent=VB_COPY_BTN_LABEL;
   let doneLabel=document.createElement('span');
   doneLabel.className='hidden';
   doneLabel.style.cssText='font-size:9px;color:var(--green);font-weight:600;margin-left:5px;';
@@ -7438,7 +7911,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
     let txt=document.getElementById('vb-bulk-json-'+ii).textContent;
     _copyTextRobust(txt,function(){
       b.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg>';
-      setTimeout(function(){b.textContent='';},1200);
+      setTimeout(function(){b.textContent=VB_COPY_BTN_LABEL;},1200);
       dl.classList.remove('hidden');
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
   };})(idx,copyBtn,doneLabel);
@@ -7462,8 +7935,8 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
   let wcLabel=document.createElement('div');
   wcLabel.id='vb-bulk-wc-'+idx;
   let wc0=initialScript.trim().split(/\s+/).filter(Boolean).length;
-  wcLabel.textContent=wc0+'/25 kata';
-  wcLabel.style.cssText='font-size:9px;color:'+(wc0===25?'var(--green)':'var(--muted2)')+';margin-bottom:4px;';
+  wcLabel.textContent=wc0+'/25 kata'+(_wasAutoTruncated?' — dipotong otomatis dari '+_origWc+' kata, cek/edit lagi manual':'');
+  wcLabel.style.cssText='font-size:9px;color:'+(_wasAutoTruncated?'#e0a05c':(wc0===25?'var(--green)':'var(--muted2)'))+';margin-bottom:4px;';
 
   let jsonBox=document.createElement('pre');
   jsonBox.id='vb-bulk-json-'+idx;
@@ -7476,8 +7949,40 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
   card.appendChild(head);
   card.appendChild(body);
 
-  historyAdd('video',label+(produkNamaForHistory?' — '+produkNamaForHistory:''),jsonText);
+  // FIX BUG#13 (ditemukan saat audit mendalam — ini AKAR MASALAH Bug#10 yang
+  // belum sempat tuntas di sesi audit sebelumnya karena kehabisan limit):
+  // historyAdd() SEBELUMNYA dipanggil DI SINI, di dalam _vbBuildEditableCard,
+  // yang berarti setiap SATU KARTU script memicu SATU entri Riwayat sendiri.
+  // Fungsi ini dipakai bareng oleh 3 jalur: manual (3 kartu), AI single
+  // (3 kartu), DAN bulk (sampai 10 produk x 3 kartu = 30 kartu sekaligus).
+  // Karena HISTORY_MAX cuma 5 (lihat historyAdd), SATU sesi generate bulk
+  // dengan lebih dari 1-2 produk saja sudah cukup untuk menimpa/menghapus
+  // SEMUA entri Riwayat lama (termasuk Riwayat Foto) tanpa peringatan apapun
+  // — reproducible: generate bulk 3 produk (9 kartu) → buka tab Riwayat →
+  // riwayat foto/video sebelumnya sudah lenyap, cuma sisa 5 entri TERAKHIR
+  // dari bulk barusan (dan itu pun cuma 5 dari 9 makanya subset sepotong).
+  // FIX: _vbBuildEditableCard TIDAK LAGI menyentuh Riwayat sama sekali —
+  // cuma bertugas membangun 1 kartu UI. Pencatatan Riwayat dipindah ke titik
+  // "generate selesai" di tiap pemanggil (vbGenerate3Manual, vbGenerate3AI,
+  // _vbRenderBulkOutput) via _vbBuildCombinedHistoryEntry(), SATU entri
+  // gabungan per sesi generate (bukan per kartu) — sesuai niat awal fix
+  // Bug#10 yang sempat kepotong limit.
   return card;
+}
+
+// Satu entri Riwayat GABUNGAN untuk 1 sesi generate (dipanggil sekali per
+// generate/regenerate-all, bukan per kartu) — mengambil isi dari
+// VB_BULK_ITEMS yang sudah diisi _vbBuildEditableCard untuk semua kartu yang
+// baru saja dibangun. Prompt dipisah "---" antar satu sama lain, mengikuti
+// aturan baku Haha kalau ada beberapa prompt sekaligus dalam satu balasan.
+function _vbBuildCombinedHistoryEntry(sessionLabel){
+  if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
+  let blocks=VB_BULK_ITEMS.map(function(item){
+    let plainLabel=String(item.roleLabel||'').replace(/<[^>]*>/g,'').trim();
+    let jsonText=_vbBuildFlowText(item.script,item.produk);
+    return '// '+plainLabel+(item.produk?' — '+item.produk:'')+'\n'+jsonText;
+  });
+  historyAdd('video',sessionLabel,blocks.join('\n\n---\n\n'));
 }
 
 function _vbRenderMultiOutput(scripts,produkNamaForHistory){
@@ -7500,8 +8005,29 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory){
   multiWrap.appendChild(resetBtn);
 }
 
+// FIX BUG#12 (ditemukan saat audit mendalam khusus builder video): _vbEsc()
+// sebelumnya CUMA meng-escape backslash & tanda kutip ganda, padahal semua
+// field script di sini berasal dari <textarea> (vb-script-hook/story/cta di
+// mode manual, dan textarea per-kartu di mode bulk vb-bulk-script-N) yang
+// SECARA NATIF mengizinkan newline (Enter atau paste multi-baris). Begitu
+// user menekan Enter di dalam kotak script lalu ngetik lagi, karakter
+// newline mentah itu ikut disisipkan apa adanya ke dalam nilai JSON tanpa
+// di-escape — hasilnya JSON.parse GAGAL TOTAL ("Bad control character in
+// string literal") karena JSON tidak mengizinkan karakter kontrol mentah
+// (newline/tab/dll) di dalam string literal, wajib ditulis \n / \t / \uXXXX.
+// Reproducible: buka script manapun (manual/bulk), tekan Enter di tengah
+// kalimat, lalu salin JSON di bawahnya ke validator JSON manapun → error.
+// Sekarang semua karakter kontrol (termasuk newline, tab, carriage return)
+// di-escape sesuai spesifikasi JSON supaya keluaran SELALU JSON yang valid,
+// apa pun isi teks yang diketik/ditempel user.
 function _vbEsc(s){
-  return String(s||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+  return String(s||'')
+    .replace(/\\/g,'\\\\')
+    .replace(/"/g,'\\"')
+    .replace(/\n/g,'\\n')
+    .replace(/\r/g,'\\r')
+    .replace(/\t/g,'\\t')
+    .replace(/[\u0000-\u001F]/g,function(ch){return '\\u'+ch.charCodeAt(0).toString(16).padStart(4,'0');});
 }
 function _vbBuildFlowText(scriptText,produkOverride){
   let accentFull='Natural Indonesian intonation, '+VB.accent;
@@ -7517,20 +8043,49 @@ function _vbBuildFlowText(scriptText,produkOverride){
   }
   let genderPrefix=VB.gender==='male'?'Male, ':VB.gender==='female'?'Female, ':'';
   let ageFull=genderPrefix+VB.age;
-  return instructionText+'"dialogue":{"voice_character":{"age":"'+_vbEsc(ageFull)+'","pitch":"'+_vbEsc(VB.pitch)+'","accent":"'+_vbEsc(accentFull)+'","script":"'+_vbEsc(scriptText)+'"}}}';
+  // FIX BUG#5 (ditemukan saat audit mendalam): sebelumnya instructionText
+  // (prose, belum jadi JSON) langsung disambung mentah dengan fragment
+  // '"dialogue":{"voice_character":{...}}}' TANPA kurung buka '{' di depan
+  // dan TANPA instructionText dibungkus jadi value JSON yang valid. Hasilnya:
+  // teks yang tampil di kotak JSON SELALU rusak (bukan JSON valid sama
+  // sekali) — ada 3 tanda '}' penutup tapi cuma 2 yang kebuka, dan prose-nya
+  // nyempil begitu saja tanpa quote. Ini terjadi di SETIAP prompt video yang
+  // pernah dibuat (AI single, manual, maupun bulk), sejak _vbBuildFlowText
+  // dipakai di semua jalur. Sekarang instructionText ikut di-escape & di-quote
+  // sebagai field "instruction", dibungkus 1 objek JSON yang valid dan bisa
+  // di-JSON.parse tanpa error — termasuk kalau Lokasi/Lighting/nama produk
+  // custom (mode 3) kebetulan mengandung tanda kutip.
+  return '{"instruction":"'+_vbEsc(instructionText)+'","dialogue":{"voice_character":{"age":"'+_vbEsc(ageFull)+'","pitch":"'+_vbEsc(VB.pitch)+'","accent":"'+_vbEsc(accentFull)+'","script":"'+_vbEsc(scriptText)+'"}}}';
 }
 
 function vbReset(){
   showConfirm('Semua data video akan dihapus dan kamu mulai dari awal.',function(){
     VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:''};
     VB_BULK_PRODUCTS=[];
+    // FIX BUG "SEMUA STEP VIDEO HILANG SELAMANYA SETELAH RESET": sama persis
+    // dengan bug fResetFrom() di tab Foto — doneCard() SELALU menambahkan
+    // class 'hidden' begitu satu step (v1-v5) selesai diisi (lihat komentar
+    // "SEMBUNYIKAN STEP YANG SUDAH SELESAI" di doneCard). Baris di bawah ini
+    // sebelumnya tidak pernah melepas 'hidden' sama sekali — cuma urus
+    // 'done'/'pending' — jadi begitu user klik "Buat Prompt Video Baru"
+    // setelah minimal 1 step selesai, step itu (dan semua step v1-v5 yang
+    // juga pernah selesai) tetap ketutup display:none SELAMANYA, walau
+    // wizard sudah "direset" ke Step 1. Sekarang 'hidden' selalu dilepas.
     ['v1','v2','v3','v4','v5'].forEach(function(id,i){
       let c=document.getElementById(id);
-      if(c){c.classList.remove('done');if(i>0)c.classList.add('pending');else c.classList.remove('pending');}
+      if(c){c.classList.remove('done','hidden');if(i>0)c.classList.add('pending');else c.classList.remove('pending');}
       let ans=document.getElementById('va'+(i+1)); if(ans)ans.textContent='';
       let cb=document.getElementById(id+'-confirmbar'); if(cb)cb.remove();
     });
     document.querySelectorAll('#vb-gender-chips .chip').forEach(c=>c.classList.remove('sel'));
+    // FIX BUG#11: vbReset() sebelumnya cuma bersihin class 'sel' di chip Gender,
+    // padahal VB.age/pitch/accent juga ikut dikosongkan di atas. Chip Usia
+    // (#vb-age-chips), Nada Bicara (di dalam #v3), dan Aksen (di dalam #v4)
+    // tidak pernah disentuh, jadi chip lama tetap kelihatan ke-highlight
+    // walau datanya sudah kosong. Tambahkan pembersihan untuk ketiganya.
+    document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
+    document.querySelectorAll('#v3 .chips .chip').forEach(c=>c.classList.remove('sel'));
+    document.querySelectorAll('#v4 .chips .chip').forEach(c=>c.classList.remove('sel'));
     vbPickRefMode('satu');
     let m3lc=document.getElementById('vb-mode3-lokasi-custom'); if(m3lc)m3lc.value='';
     let m3ligc=document.getElementById('vb-mode3-lighting-custom'); if(m3ligc)m3ligc.value='';
@@ -7540,6 +8095,9 @@ function vbReset(){
     document.getElementById('v2-custom').value='';
     document.getElementById('v3-custom').value='';
     document.getElementById('v4-custom').value='';
+    let v2cnt=document.getElementById('v2-counter'); if(v2cnt){v2cnt.textContent='0 / 120';v2cnt.className='inp-counter';}
+    let v3cnt=document.getElementById('v3-counter'); if(v3cnt){v3cnt.textContent='0 / 80';v3cnt.className='inp-counter';}
+    let v4cnt=document.getElementById('v4-counter'); if(v4cnt){v4cnt.textContent='0 / 120';v4cnt.className='inp-counter';}
     document.getElementById('vb-produk-nama').value='';
     document.getElementById('vb-target-audience').value='';
     document.getElementById('vb-script-hook').value='';
@@ -7552,13 +8110,27 @@ function vbReset(){
     let aiArea=document.getElementById('vb-mode-ai-area'); if(aiArea)aiArea.classList.add('hidden');
     document.querySelectorAll('#vb-mode-ai,#vb-mode-manual,#vb-mode-bulk').forEach(c=>c.classList.remove('sel'));
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
+    VB_BULK_ROW_CACHE=[]; // FIX BUG#15: cache baris bulk juga wajib ikut bersih saat reset, biar tidak bocor ke sesi generate berikutnya
     let bulkCount=document.getElementById('vb-bulk-count'); if(bulkCount)bulkCount.value='3';
     let bulkTarget=document.getElementById('vb-bulk-target'); if(bulkTarget)bulkTarget.value='';
     let bulkArea=document.getElementById('vb-bulk-area'); if(bulkArea)bulkArea.classList.add('hidden');
     let bulkErr=document.getElementById('vb-bulk-error'); if(bulkErr){bulkErr.classList.add('hidden');bulkErr.textContent='';}
     VB_BULK_ITEMS=[];
     vbUpdateProgress(1,'Mode Referensi Foto');
-    document.getElementById('v1').scrollIntoView({behavior:'smooth',block:'nearest'});
+    // FIX BUG#1: sama seperti saat init — vbUpdateProgress(1,...) hitung 20%,
+    // override balik ke 0% karena user baru saja reset (belum isi apa-apa).
+    (function(){
+      let vfill=document.getElementById('vb-progress-fill');
+      if(vfill)vfill.style.width='0%';
+    })();
+    // FIX BUG "TAMPILAN KOSONG" SETELAH RESET (sama seperti fReset() di tab
+    // Foto): v1.scrollIntoView(...) tidak pernah ngefek karena method itu
+    // sudah dioverride global jadi no-op. Ganti scroll manual ke .app-shell
+    // supaya user beneran kelempar balik ke Step 1 setelah reset video,
+    // bukan tetap diam di posisi scroll bawah (area output yang baru saja
+    // dikosongkan).
+    let _appShellVReset=document.querySelector('.app-shell');
+    if(_appShellVReset) _appShellVReset.scrollTo({top:0,behavior:'smooth'});
   });
 }
 
@@ -8296,117 +8868,6 @@ function fSummaryEdit(cardNum) {
 }
 // ── END SUMMARY CARD JS ────────────────────────────────────────────
 
-// ── QUICK REPEAT — edit 1 step dari output tanpa reset total ────────────
-function fQuickEditStep(cardNum){
-  let target=document.getElementById('f'+cardNum);
-  if(!target){showToast('Step tidak ditemukan','error');return;}
-
-  // Sembunyikan output dan gen-area
-  let ow=document.getElementById('f-json-output');if(ow)ow.style.display='none';
-  let ga=document.getElementById('f-gen-area');if(ga)ga.classList.add('hidden');
-
-  // Reset hanya state step yang di-edit, step lain tetap
-  if(cardNum===4){FS.pose='';FS.poseLabel='';document.querySelectorAll('#f4-chips .pose-card, #f4-chips .chip').forEach(c=>c.classList.remove('sel'));let i=document.getElementById('f4-custom');if(i)i.value='';}
-  if(cardNum===5){FS.lokasi='';FS.lokasiLabel='';FS.kamera='';document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));let i=document.getElementById('f5-custom');if(i)i.value='';let ic=document.getElementById('f5-custom-karakter');if(ic)ic.value='';}
-  if(cardNum===7){FS.cahaya='';FS.cahayaLabel='';_fCahaya=null;document.querySelectorAll('#f7-cahaya-chips .chip,#f7-cahaya-chips-karakter .chip').forEach(c=>c.classList.remove('sel'));let i=document.getElementById('f7-custom');if(i)i.value='';}
-  if(cardNum===8){FS.angle='';FS.angleLabel='';_fAngle=null;document.querySelectorAll('#f8 .chip').forEach(c=>c.classList.remove('sel'));let i=document.getElementById('f8-custom');if(i)i.value='';}
-  if(cardNum===9){FS.mood='';FS.moodLabel='';document.querySelectorAll('#f9 .chip').forEach(c=>c.classList.remove('sel'));let i=document.getElementById('f9-custom');if(i)i.value='';}
-
-  // Undone card target, semua card lain tetap done
-  target.classList.remove('done','pending','hidden');
-  let ans=document.getElementById('fa'+cardNum);if(ans)ans.textContent='';
-  let _cbq=document.getElementById('f'+cardNum+'-confirmbar');if(_cbq)_cbq.remove();
-
-  // Khusus step 7 — trigger context hint cahaya setelah card terbuka
-  if(cardNum===7) setTimeout(fApplyCahayaContext, 200);
-  // Setelah ganti lokasi, cek apakah f7 sudah done — kalau ya, update context hint cahaya
-  if(cardNum===5){
-    let f7=document.getElementById('f7');
-    if(f7&&f7.classList.contains('done')){
-      setTimeout(()=>{
-        let f7el=document.getElementById('f7');
-        if(f7el&&f7el.classList.contains('done'))fApplyCahayaContext();
-      },300);
-    }
-  }
-
-  // Scroll ke card
-  setTimeout(()=>target.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
-  showToast('Edit step ini, lalu lanjut ke step berikutnya','success');
-}
-
-// ── GANTI PRODUK — reset state produk & foto referensi, buka f1 ──────────────
-function fQuickEditProduk(){
-  // 1. Sembunyikan output & gen-area
-  let ow=document.getElementById('f-json-output');if(ow)ow.style.display='none';
-  let ga=document.getElementById('f-gen-area');if(ga)ga.classList.add('hidden');
-
-  // 2. Reset HANYA state produk — refs/foto yang sudah diupload TETAP
-  FS.produkMode='';
-  FS.produkNama='';
-  FS.holdKey='';
-  FS.hold='';
-  FS.conflictLevel=0;
-  // Reset pose karena perubahan produk bisa membuat pose tidak relevan
-  FS.pose=''; FS.poseLabel='';
-  document.querySelectorAll('#f4-chips .pose-card, #f4-chips .chip').forEach(c=>c.classList.remove('sel'));
-  let f4qa=document.getElementById('f4');
-  if(f4qa){f4qa.classList.remove('done');f4qa.classList.add('pending');}
-  let fa4qa=document.getElementById('fa4');if(fa4qa)fa4qa.textContent='';
-  // JANGAN reset: FS.refs, FS.refCounter, FS.hasProdukFoto
-
-  // 3. Reset DOM step 2 (produk) — tidak ditampilkan ke user tapi state-nya dibersihkan
-  document.querySelectorAll('.produk-choice').forEach(c=>c.classList.remove('sel'));
-  let pb=document.getElementById('f2-produk-box');if(pb)pb.classList.add('hidden');
-  let pi=document.getElementById('f2-produk-input');if(pi)pi.value='';
-  if(typeof fClearProdukError==='function')fClearProdukError();
-  let fa2=document.getElementById('fa2');if(fa2)fa2.textContent='';
-
-  // 4. Reset DOM step 3 (cara tampil produk)
-  let banner=document.getElementById('f3-conflict-banner');
-  if(banner){banner.className='hidden';banner.style.cssText='';banner.innerHTML='';}
-  FS.refs.forEach(function(r){if(r.type==='outfit')r.ignoreCustom=FTYPE.outfit.ignore;});
-  document.querySelectorAll('#f3 .chip').forEach(c=>c.classList.remove('sel'));
-  let f3c=document.getElementById('f3-custom');if(f3c)f3c.value='';
-  let fa3=document.getElementById('fa3');if(fa3)fa3.textContent='';
-
-  // 5. Undone f1 saja — f2 & f3 pending, card lain (pose/lokasi/cahaya/angle/mood) TETAP DONE
-  ['f1','f2','f3','f4'].forEach(function(cid){let cb=document.getElementById(cid+'-confirmbar');if(cb)cb.remove();});
-  let f1=document.getElementById('f1');
-  if(f1){f1.classList.remove('done','pending','hidden');}
-  // Restore summary di fa1 agar user tahu foto sebelumnya masih ada
-  if(FS.refs&&FS.refs.length>0){
-    let types=[...new Set(FS.refs.map(r=>FTYPE[r.type]?FTYPE[r.type].label:r.type))];
-    let fa1=document.getElementById('fa1');
-    if(fa1)fa1.textContent='';// dikosongkan dulu karena f1 dibuka ulang
-  }
-  let f2=document.getElementById('f2');
-  if(f2){f2.classList.remove('done','hidden');f2.classList.add('pending');}
-  let f3=document.getElementById('f3');
-  if(f3){f3.classList.remove('done','hidden');f3.classList.add('pending');}
-
-  // 6. Re-render list foto yang sudah ada agar tampil di f1
-  if(typeof fRenderList==='function')fRenderList();
-  if(typeof fRenderPreview==='function')fRenderPreview();
-  if(typeof fUpdateCounters==='function')fUpdateCounters();
-
-  // 7. Tampilkan tombol konfirmasi f1 jika sudah ada refs
-  if(FS.refs&&FS.refs.length>0){
-    let f1Confirm=document.getElementById('f1-confirm');
-    if(f1Confirm)f1Confirm.classList.remove('hidden');
-    let f1Empty=document.getElementById('f1-empty');
-    if(f1Empty)f1Empty.style.display='none';
-  }
-
-  // 8. Sync nomor step
-  fSyncStepNums();
-
-  // 9. Scroll ke f1
-  setTimeout(()=>{let e=document.getElementById('f1');if(e)e.scrollIntoView({behavior:'smooth',block:'nearest'});},100);
-  showToast('Ganti atau tambah foto produk — pose & lokasi tetap terjaga','success');
-}
-// ── END QUICK REPEAT ─────────────────────────────────────────────────
-
 // ── AUTO-LOAD API KEY saat page pertama dibuka ─────────────────
 // Sebelumnya key hanya di-load saat user klik tombol di Tab Video.
 // Fix: load otomatis saat DOMContentLoaded agar fitur generate JSON
@@ -8447,6 +8908,20 @@ window.addEventListener('beforeunload', function(e){
   <button class="ntab" onclick="switchPage('riwayat',this)">Riwayat</button>
   <button class="ntab" onclick="switchPage('panduan',this)">Panduan</button>
 </nav>
+
+<!-- STEP JUMP BOTTOM SHEET — dipicu tap di progress bar (gantiin fungsi
+     bulatan nomor hijau yang dulu ada di tiap card summary). Isinya daftar
+     step yang sudah diisi di tab yang lagi aktif; tap salah satu langsung
+     meloncat & buka mode edit ke card itu. Ditaruh sebagai sibling dari
+     .app-shell (sama seperti nav) supaya position:fixed-nya tidak kena bug
+     WebView Android yang sama seperti nav. -->
+<div id="step-jump-overlay" onclick="if(event.target===this)fCloseStepJump()">
+  <div class="step-jump-sheet">
+    <div class="step-jump-handle"></div>
+    <div class="step-jump-title">Lompat ke step</div>
+    <div id="step-jump-list"></div>
+  </div>
+</div>
 
 </body>
 </html>
