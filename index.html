@@ -3374,6 +3374,15 @@ function fAddRef(typeKey){
   // gak cocok lagi), tapi tidak relevan sama sekali untuk data hasil impor.
   // Untuk mode impor: cukup tambahkan foto & refresh Ringkasan, tanpa reset apa pun.
   if(FS.importActive){
+    // FIX SINKRONISASI PRODUK PASCA-IMPOR: lihat komentar di
+    // _fSyncImportProdukState() — kalau foto yang baru ditambah tipe
+    // 'produk' dan sebelumnya belum ada mode produk aktif, foto ini
+    // sekarang benar-benar dijadikan "hero product" (bukan cuma nampang
+    // tanpa instruksi apa-apa di hasil generate).
+    _fSyncImportProdukState();
+    // FIX SINKRONISASI SUBJEK PASCA-IMPOR: jaga-jaga simetris — lihat
+    // komentar di _fSyncImportSubjekState().
+    _fSyncImportSubjekState();
     if(typeof fRenderSummary==='function') fRenderSummary();
     if(typeof fSyncMultiShotVisibility==='function') fSyncMultiShotVisibility();
     setTimeout(()=>{let el=document.getElementById('pc-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
@@ -3399,6 +3408,139 @@ function fAddRef(typeKey){
   setTimeout(()=>{let el=document.getElementById('pc-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
 }
 
+// FIX SINKRONISASI PRODUK PASCA-IMPOR: dipanggil setiap kali daftar foto
+// referensi (FS.refs) berubah — tambah ATAU hapus — selagi mode import
+// aktif. Sebelum fix ini, FS.produkMode/FS.produkNama/FS.hold/FS.holdKey/
+// FS.importProductBlock cuma diisi SEKALI saat fImportPrompt() jalan dan
+// TIDAK PERNAH disentuh lagi oleh fAddRef()/fRemoveRef() (yang di mode
+// import sengaja cuma update FS.refs & FS.hasProdukFoto, tanpa reset step
+// lain — lihat komentar "BUG KRITIS IMPORT" di fAddRef). Akibatnya:
+//   - Hapus SATU-SATUNYA foto produk lewat Step 1 → FS.produkNama/hold/
+//     importProductBlock tetap nyangkut dari JSON lama → hasil generate
+//     tetap punya blok "product" + kalimat "Hero product: ..." padahal
+//     reference_photos sudah tidak ada foto produknya sama sekali
+//     (kontradiksi — AI disuruh tampilkan produk tanpa dikasih rupanya).
+//   - Tambah foto produk baru (yang sebelumnya tidak ada/di-set "Tidak ada
+//     produk") → FS.produkMode tidak pernah ikut ke-set, jadi foto produk
+//     nyangkut sebagai reference_photos biasa tanpa pernah dijadikan "hero
+//     product" di intro/placement — fotonya keupload tapi instruksinya
+//     tidak pernah menyuruh AI menonjolkannya.
+// Fungsi ini menyamakan sinkronisasi itu dengan cara yang SAMA seperti jalur
+// manual (fPickProduk('tidak') utk kasus dihapus, fF2Next() utk kasus foto
+// baru) — supaya state produk selalu cocok dengan foto yang benar-benar ada
+// di FS.refs saat ini, bukan snapshot beku dari JSON pertama kali ditempel.
+function _fSyncImportProdukState(){
+  if(!FS.importActive) return;
+  let produkRefsNow = FS.refs.filter(function(r){return r.type==='produk';});
+  if(produkRefsNow.length===0){
+    // Tidak ada foto produk lagi — hanya bersihkan kalau memang masih ada
+    // sisa info produk lama (hindari toast/beban kerja percuma kalau
+    // memang dari awal sudah tidak ada produk).
+    if(FS.produkMode || FS.produkNama || FS.importProductBlock || FS.hold || FS.holdKey){
+      FS.produkMode='tidak'; FS.produkNama=''; FS.holdKey=''; FS.hold=''; FS.conflictLevel=0;
+      FS.importProductBlock=null;
+      let b=document.getElementById('f3-conflict-banner');
+      if(b){b.className='hidden';b.style.cssText='';b.innerHTML='';}
+      // Sama seperti fPickProduk('tidak'): kembalikan ignore_completely foto
+      // outfit ke default — instruksi "abaikan [nama produk lama]" yang
+      // sempat disuntikkan ke foto outfit (lihat _fRunAIConflictCheck) jadi
+      // tidak relevan lagi begitu produknya sendiri sudah dihapus.
+      FS.refs.forEach(function(r){if(r.type==='outfit')r.ignoreCustom=FTYPE.outfit.ignore;});
+      let c3=document.getElementById('f3');
+      if(c3){c3.classList.add('done','hidden');c3.classList.remove('pending');}
+      let fa3=document.getElementById('fa3'); if(fa3) fa3.innerHTML='';
+      showToast('Foto produk dihapus — info "Cara Tampil Produk" ikut dikosongkan biar tidak nyangkut','error');
+    }
+  } else {
+    // Ada foto produk — kalau sebelumnya belum ada mode produk yang valid
+    // (baru diset 'tidak', atau memang belum pernah diisi), aktifkan mode
+    // 'foto' supaya foto ini beneran dijadikan "hero product", bukan cuma
+    // nampang di reference_photos tanpa instruksi apa-apa.
+    if(!FS.produkMode || FS.produkMode==='tidak'){
+      FS.produkMode='foto';
+    }
+    // Nama produk selalu disinkron dari kartu foto produk yang ada sekarang
+    // (field "focus" di kartu, sama seperti alur manual fF2Next) — supaya
+    // kalau user tambah/ganti foto produk, namanya ikut kepakai di hasil
+    // generate tanpa harus muter ke Step 2 dulu.
+    let freshNames=produkRefsNow.map(function(r){return r.focus?r.focus.trim():'';}).filter(Boolean);
+    if(freshNames.length) FS.produkNama=freshNames.join(', ');
+  }
+}
+
+// FIX SINKRONISASI SUBJEK PASCA-IMPOR (kasus serupa #2 — sebelumnya cuma
+// dikasih warning, sekarang di-auto-switch beneran): FS.importIsProdukSaja &
+// FS.subjek sebelumnya CUMA ditentukan sekali saat fImportPrompt() jalan
+// (dari ada/tidaknya "pose" di JSON lama), lalu dianggap tetap sepanjang
+// sesi — padahal user bisa menghapus SEMUA foto karakter (wajah/outfit/
+// atasan/bawahan/aksesori/outfit_random) dari Step 1 lewat fRemoveRef.
+// Tanpa sync ini, _fBuildImportedPromptJSON tetap menulis "Character pose:
+// ..." dan subjek manusia di JSON hasil generate walau tidak ada lagi satu
+// pun foto karakter — kontradiksi sejenis dengan bug produk yang sudah
+// diperbaiki di _fSyncImportProdukState(). Dipanggil dari fAddRef()/
+// fRemoveRef() (mode import) setiap kali FS.refs berubah.
+function _fSyncImportSubjekState(){
+  if(!FS.importActive) return;
+  let hasCharacterRef = FS.refs.some(function(r){
+    return r.type==='wajah'||r.type==='outfit'||r.type==='atasan'||r.type==='bawahan'||r.type==='aksesori'||r.type==='outfit_random';
+  });
+  let wasProdukSaja = !!FS.importIsProdukSaja;
+
+  if(!wasProdukSaja && !hasCharacterRef){
+    // Semua foto karakter sudah dihapus — alihkan ke mode Produk Saja,
+    // sama seperti kalau user dari awal memilih subjek "Produk Saja" manual.
+    // Sengaja TIDAK pakai doneCard() di sini (yang otomatis menghapus class
+    // 'hidden') — kartu f0/f4 memang harus tetap tersembunyi seperti kartu
+    // lain pasca-import, cuma teks & class 'done'-nya yang perlu diperbarui.
+    FS.importIsProdukSaja = true;
+    FS.subjek = 'produk';
+    let c0=document.getElementById('f0');
+    if(c0){c0.classList.add('done');c0.classList.remove('pending');}
+    let fa0=document.getElementById('fa0'); if(fa0) fa0.textContent='Produk Saja (otomatis — semua foto karakter dihapus)';
+    fToggleF1Panel(true);
+    // Pose tidak relevan lagi di mode produk-saja — kosongkan & tandai f4
+    // done+hidden (pola yang sama dipakai fImportPrompt() untuk import
+    // produk-saja dari awal), supaya validasi f4-done di fGenerate() tidak
+    // memblokir generate.
+    FS.pose=''; FS.poseLabel=''; FS.poseDesc='';
+    let c4=document.getElementById('f4');
+    if(c4){c4.classList.add('done','hidden');c4.classList.remove('pending');}
+    let fa4=document.getElementById('fa4'); if(fa4) fa4.textContent='';
+    // Framing khusus produk-saja — cuma dipasang kalau FS.kamera memang
+    // masih kosong, supaya tidak menimpa camera_framing yang sengaja dibawa
+    // apa adanya dari JSON lama.
+    if(!FS.kamera){
+      FS.kamera='product placed on a clean surface or held up close to camera, filling majority of frame, no person visible, product sharp and detailed';
+    }
+    showToast('Semua foto karakter dihapus — prompt ini otomatis dialihkan ke mode PRODUK SAJA.','error');
+  } else if(wasProdukSaja && hasCharacterRef){
+    // Jaring pengaman simetris: saat ini TIDAK ada tombol di panel "Produk
+    // Saja" untuk menambah foto wajah/outfit (panelnya cuma stepper jumlah
+    // foto produk), jadi cabang ini seharusnya belum ke-trigger lewat UI
+    // yang ada sekarang. Tetap disiapkan supaya kalau panelnya berubah nanti,
+    // sinkronisasi ini otomatis ikut — bukan baru ketahuan pas ada laporan bug.
+    FS.importIsProdukSaja = false;
+    let subjMatch = _fSUBJECT_TEXT_MAP[String(FS.importSubject||'').trim().toLowerCase()];
+    let newSubjek = (subjMatch && subjMatch.subjek!=='produk') ? subjMatch.subjek : 'hijab';
+    let newLabel = (subjMatch && subjMatch.subjek!=='produk') ? subjMatch.label : 'Karakter (otomatis dari foto yang ditambah)';
+    FS.subjek = newSubjek;
+    let c0b=document.getElementById('f0');
+    if(c0b){c0b.classList.add('done');c0b.classList.remove('pending');}
+    let fa0b=document.getElementById('fa0'); if(fa0b) fa0b.textContent=newLabel;
+    fToggleF1Panel(false);
+    // Beda dari cabang di atas: pose SEKARANG WAJIB dipilih ulang (tidak
+    // bisa ditebak otomatis dari foto yang baru ditambah), jadi f4 dibuka
+    // (bukan hidden) & ditandai 'pending' supaya fGenerate() memblokir
+    // sampai user benar-benar memilih pose lewat Ringkasan → Edit Pose.
+    FS.pose=''; FS.poseLabel=''; FS.poseDesc='';
+    let c4b=document.getElementById('f4');
+    if(c4b){c4b.classList.remove('done');c4b.classList.add('pending');}
+    let fa4b=document.getElementById('fa4'); if(fa4b) fa4b.textContent='';
+    fBuildPoseChips();
+    showToast('Foto karakter terdeteksi — prompt ini otomatis dialihkan ke mode ADA KARAKTER. Buka step Pose lewat Ringkasan buat pilih pose sebelum generate.','error');
+  }
+}
+
 function fRemoveRef(id){
   // FIX BUG KRITIS IMPORT (sama seperti fAddRef di atas): hapus foto pun
   // memicu reset total Step 2-8 kalau Card 1 sudah 'done' — yang untuk
@@ -3408,6 +3550,15 @@ function fRemoveRef(id){
   if(FS.importActive){
     FS.refs=FS.refs.filter(r=>r.id!==id);
     FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
+    // FIX SINKRONISASI PRODUK PASCA-IMPOR: lihat komentar di
+    // _fSyncImportProdukState() — tanpa ini, hapus foto produk lewat sini
+    // tidak pernah membersihkan FS.produkNama/hold/importProductBlock.
+    _fSyncImportProdukState();
+    // FIX SINKRONISASI SUBJEK PASCA-IMPOR: lihat komentar di
+    // _fSyncImportSubjekState() — tanpa ini, hapus foto karakter terakhir
+    // tidak pernah mengubah prompt jadi mode Produk Saja walau sudah tidak
+    // ada satu pun foto karakter yang tersisa.
+    _fSyncImportSubjekState();
     fUpdateCounters();fRenderList();fRenderPreview();
     if(typeof fRenderSummary==='function') fRenderSummary();
     if(typeof fSyncMultiShotVisibility==='function') fSyncMultiShotVisibility();
@@ -8741,6 +8892,17 @@ function fRenderSummary() {
   // FIX #4: untuk produk saja, warning foto hanya jika benar-benar 0 foto total
   if (refCount === 0 && !hasOutfitRandom && !isProdukSaja && !FS.importActive) warnings.push('Belum ada foto referensi — upload minimal 1 foto.');
   if (isProdukSaja && totalRefCount === 0 && !FS.importActive) warnings.push('Upload minimal 1 foto produk.');
+  // JARING PENGAMAN — KASUS SERUPA #2: sekarang seharusnya SUDAH auto-switch
+  // lewat _fSyncImportSubjekState() (dipanggil dari fAddRef/fRemoveRef) tiap
+  // kali FS.refs berubah, jadi FS.importIsProdukSaja mestinya sudah ikut
+  // ke-flip ke false begitu ada foto karakter. Baris di bawah ini cuma
+  // fallback kalau untuk suatu alasan sync itu tidak sempat jalan (mis. ada
+  // jalur lain di masa depan yang mengubah FS.refs tanpa lewat fAddRef/
+  // fRemoveRef) — supaya user tetap dikasih tahu, bukan diam-diam dapat JSON
+  // yang kontradiksi.
+  if (FS.importActive && FS.importIsProdukSaja && FS.refs && FS.refs.some(function(r){return r.type==='wajah'||r.type==='outfit'||r.type==='atasan'||r.type==='bawahan'||r.type==='aksesori'||r.type==='outfit_random';})) {
+    warnings.push('Ada foto karakter tapi prompt ini masih tercatat "Produk Saja" — buka lagi Step 1 (hapus lalu tambah ulang salah satu foto) supaya mode-nya ikut disinkronkan.');
+  }
   items.push({ key: 'Foto Ref', val: refLabel, editCard: 1, isHtml: true });
 
   // Produk
@@ -8754,6 +8916,13 @@ function fRenderSummary() {
     // syarat, jadi tombol Edit malah nampilin layar "belum pilih foto
     // produk" yang salah & bikin bingung padahal fotonya sudah dipilih.
     items.push({ key: 'Produk', val: produkVal, editCard: (FS.produkMode === 'foto' ? 1 : 2) });
+    // JARING PENGAMAN TAMBAHAN pasca-impor: kalau ada foto bertipe 'produk'
+    // di Step 1 tapi namanya belum diisi (mis. baru saja ditambah), kasih
+    // tahu di sini juga — bukan cuma nunggu diblok pas tombol Generate
+    // ditekan — supaya user langsung tahu ke mana harus melengkapi.
+    if (FS.importActive && FS.hasProdukFoto && FS.produkMode === 'foto' && !FS.produkNama) {
+      warnings.push('Ada foto produk yang namanya belum diisi — buka kartu fotonya di Step 1.');
+    }
 
     // Cara hold — hanya jika dipegang
     if (FS.produkMode === 'pegang') {
