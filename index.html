@@ -7413,11 +7413,51 @@ function vbBulkSetCount(){
 // supaya SEMUA pemanggilan fetch ke Gemini (single script, bulk, revisi,
 // perbaikan jumlah kata) otomatis terlindungi tanpa perlu diulang manual
 // di tiap tempat.
+// ── FIX RATE LIMIT (429) — throttle GLOBAL antar-semua-panggilan Gemini ──
+// Sebelumnya jeda cuma dipasang ANTAR BATCH (1.5 detik di vbGenerateBulkAI)
+// dan ANTAR PERBAIKAN KATA (400ms di _vbFixWordCountBatchIfNeeded), tapi
+// TIDAK ada jeda global yang menghitung SEMUA panggilan ke Gemini sebagai
+// satu jendela waktu. Akibatnya 1 batch bulk bisa menembak 1 request utama
+// + sampai 3 request perbaikan-kata (1 per produk) dalam hitungan detik,
+// dan kalau ditambah retry internal, gampang nabrak limit RPM (request per
+// menit) akun free-tier Gemini yang biasanya cuma ~10-15 RPM. Gate di
+// bawah ini memaksa jeda minimum SEBELUM setiap request keluar, dihitung
+// dari waktu request TERAKHIR (apa pun jenisnya: batch utama, retry,
+// ataupun perbaikan kata) — jadi total laju request ke Gemini selalu di
+// bawah limit, bukan cuma "kelihatan" dijeda per-batch doang.
+let _vbLastGeminiCallTs=0;
+const _VB_MIN_GEMINI_GAP_MS=4500; // ~13 request/menit maksimum — aman untuk free tier. Naikkan kalau masih kena limit (mis. 6500 untuk ~9 RPM).
+async function _vbThrottleGeminiGate(){
+  let now=Date.now();
+  let wait=_vbLastGeminiCallTs+_VB_MIN_GEMINI_GAP_MS-now;
+  if(wait>0)await new Promise(r=>setTimeout(r,wait));
+  _vbLastGeminiCallTs=Date.now();
+}
+
+// ── Baca "retryDelay" yang dikirim Google di body error 429 (kalau ada)
+// — ini google.rpc.RetryInfo, saran resmi dari Google berapa lama HARUS
+// nunggu sebelum retry. Lebih akurat daripada nebak jeda sendiri. ──────
+function _vbParseRetryDelayMs(rawText){
+  try{
+    let j=JSON.parse(rawText);
+    let details=j&&j.error&&j.error.details||[];
+    for(let d of details){
+      if(d&&typeof d['@type']==='string'&&d['@type'].indexOf('RetryInfo')!==-1&&d.retryDelay){
+        let m=/([\d.]+)s/.exec(d.retryDelay);
+        if(m)return Math.ceil(parseFloat(m[1])*1000)+500;
+      }
+    }
+  }catch(e){}
+  return 0;
+}
+
 function _vbFetchWithTimeout(url,options,timeoutMs){
   let controller=new AbortController();
   let timedOut=false;
   let timer=setTimeout(function(){timedOut=true;controller.abort();},timeoutMs);
-  return fetch(url,Object.assign({},options,{signal:controller.signal}))
+  return _vbThrottleGeminiGate().then(function(){
+    return fetch(url,Object.assign({},options,{signal:controller.signal}))
+  })
     .catch(function(err){
       if(timedOut||err.name==='AbortError'){
         throw new Error('Koneksi ke server AI tidak merespons dalam '+(timeoutMs/1000)+' detik (timeout). Cek koneksi internet, lalu coba lagi.');
@@ -7429,7 +7469,9 @@ function _vbFetchWithTimeout(url,options,timeoutMs){
 
 // ── Retry otomatis kalau server Gemini lagi sibuk (503) atau kena rate
 // limit (429) — error ini biasanya sementara, coba ulang beberapa kali
-// dengan jeda sebelum benar-benar dianggap gagal. ──────────────────────
+// dengan jeda sebelum benar-benar dianggap gagal. Jeda untuk 429 dibuat
+// JAUH lebih panjang daripada 503, karena 429 = limit per-MENIT (butuh
+// waktu buat "reset"), bukan sekadar server lagi sibuk sesaat. ─────────
 async function _vbFetchWithRetry(fetchFn,maxRetries){
   maxRetries=maxRetries||2;
   let lastResp,lastRawText;
@@ -7440,7 +7482,13 @@ async function _vbFetchWithRetry(fetchFn,maxRetries){
     if(resp.ok)return{resp,rawText};
     let isTransient=resp.status===503||resp.status===429;
     if(!isTransient||attempt===maxRetries)return{resp,rawText};
-    let waitMs=1500*(attempt+1);
+    let waitMs;
+    if(resp.status===429){
+      let suggested=_vbParseRetryDelayMs(rawText);
+      waitMs=suggested||(9000*(attempt+1));
+    }else{
+      waitMs=1500*(attempt+1);
+    }
     console.log('[_vbFetchWithRetry] status '+resp.status+', coba lagi dalam '+waitMs+'ms (percobaan '+(attempt+2)+'/'+(maxRetries+1)+')');
     await new Promise(r=>setTimeout(r,waitMs));
   }
@@ -7731,8 +7779,12 @@ async function vbGenerateBulkAI(){
       // masalah salah-tempel nama saat ada produk yang di-drop di tengah
       // batch, dan sudah jalan SEBELUM perbaikan jumlah kata dijalankan.
       allResults=allResults.concat(batchArr);
-      // Jeda kecil antar batch biar tidak nabrak RPM Gemini
-      if(b<batches.length-1)await new Promise(r=>setTimeout(r,1500));
+      // Jeda antar batch — di atas gate global (_VB_MIN_GEMINI_GAP_MS) yang
+      // sudah otomatis menjaga jarak tiap request Gemini, ini jeda EKSTRA
+      // supaya tiap batch (yang isinya beberapa request: 1 utama + sampai
+      // 3 perbaikan-kata) tidak numpuk jadi satu ledakan request di ujung
+      // batch sebelumnya.
+      if(b<batches.length-1)await new Promise(r=>setTimeout(r,3000));
     }
 
     if(allResults.length===0)throw new Error('Hasil AI kosong, coba lagi.');
