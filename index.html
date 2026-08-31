@@ -7468,31 +7468,54 @@ function _vbFetchWithTimeout(url,options,timeoutMs){
 }
 
 // ── Retry otomatis kalau server Gemini lagi sibuk (503) atau kena rate
-// limit (429) — error ini biasanya sementara, coba ulang beberapa kali
-// dengan jeda sebelum benar-benar dianggap gagal. Jeda untuk 429 dibuat
-// JAUH lebih panjang daripada 503, karena 429 = limit per-MENIT (butuh
-// waktu buat "reset"), bukan sekadar server lagi sibuk sesaat. ─────────
-async function _vbFetchWithRetry(fetchFn,maxRetries){
-  maxRetries=maxRetries||2;
+// limit (429) — error ini biasanya sementara. ──────────────────────────
+// FIX RETRY TANPA BATAS (permintaan user, Agustus 2026): sebelumnya cuma
+// dicoba 3x lalu NYERAH dan lempar error ke user ("sudah dicoba 3x") —
+// padahal limit RPM free-tier Gemini itu SEMENTARA (reset tiap ~1 menit),
+// jadi user sering lihat pesan gagal padahal kalau ditunggu dikit lagi
+// pasti berhasil. Sekarang untuk pemanggilan UTAMA (maxRetries tidak
+// diisi / undefined), fungsi ini TIDAK PERNAH nyerah selama errornya
+// transient (503/429) — terus dicoba ulang dengan jeda, dan callback
+// onWait(waitMs,attempt,status) dipanggil tiap kali mau nunggu supaya
+// pemanggil bisa tampilkan status "⏳ nunggu..." di UI (bukan pesan error).
+// Tempat non-kritis (mis. perbaikan jumlah kata) masih bisa kasih angka
+// maxRetries eksplisit seperti sebelumnya kalau memang boleh nyerah cepat.
+//
+// Catatan jujur (bukan jaminan 100%): retry tanpa batas cuma masuk akal
+// untuk limit PER-MENIT (RPM), yang memang reset sendiri. Kalau ternyata
+// yang kena adalah limit HARIAN (RPD) — itu BENAR-BENAR tidak akan reset
+// cuma dengan nunggu beberapa menit — jadi dikasih jaring pengaman
+// MAX_TOTAL_WAIT_MS: kalau sudah nunggu total ~10 menit dan masih tetap
+// ditolak, baru dianggap gagal & dikasih pesan yang jujur ke user
+// (kemungkinan limit harian, bukan cuma limit per-menit).
+async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
+  let unlimited=(maxRetries===undefined||maxRetries===null);
+  let cap=unlimited?Infinity:maxRetries;
+  const MAX_TOTAL_WAIT_MS=unlimited?10*60*1000:Infinity; // jaring pengaman ~10 menit, cuma berlaku saat unlimited
+  let totalWaited=0;
   let lastResp,lastRawText;
-  for(let attempt=0;attempt<=maxRetries;attempt++){
+  for(let attempt=0;;attempt++){
     let resp=await fetchFn();
     let rawText=await resp.text();
     lastResp=resp;lastRawText=rawText;
     if(resp.ok)return{resp,rawText};
     let isTransient=resp.status===503||resp.status===429;
-    if(!isTransient||attempt===maxRetries)return{resp,rawText};
+    if(!isTransient||attempt>=cap||totalWaited>=MAX_TOTAL_WAIT_MS)return{resp,rawText};
     let waitMs;
     if(resp.status===429){
       let suggested=_vbParseRetryDelayMs(rawText);
-      waitMs=suggested||(9000*(attempt+1));
+      // Dicap di 45 detik per percobaan (dulu naik terus tanpa batas atas)
+      // supaya kalaupun butuh puluhan kali coba, tiap jeda tidak jadi
+      // kelewat panjang sendiri-sendiri.
+      waitMs=suggested||Math.min(9000*(attempt+1),45000);
     }else{
-      waitMs=1500*(attempt+1);
+      waitMs=Math.min(1500*(attempt+1),15000);
     }
-    console.log('[_vbFetchWithRetry] status '+resp.status+', coba lagi dalam '+waitMs+'ms (percobaan '+(attempt+2)+'/'+(maxRetries+1)+')');
+    if(typeof onWait==='function'){try{onWait(waitMs,attempt,resp.status);}catch(e){}}
+    console.log('[_vbFetchWithRetry] status '+resp.status+', coba lagi dalam '+waitMs+'ms (percobaan ke-'+(attempt+2)+', total nunggu ~'+Math.round(totalWaited/1000)+'d)');
     await new Promise(r=>setTimeout(r,waitMs));
+    totalWaited+=waitMs;
   }
-  return{resp:lastResp,rawText:lastRawText};
 }
 
 // ── Auto-perbaikan jumlah kata: AI kadang tidak akurat pas diminta "TEPAT
@@ -7605,7 +7628,7 @@ async function _vbFixWordCountBatchIfNeeded(prod){
   return current;
 }
 
-async function _vbCallBulkBatch(batch,targetAudience,extraNote){
+async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
   let produkListText=batch.map((p,i)=>(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')).join('\n');
   let prompt='Kamu adalah copywriter konten UGC (user generated content) untuk video promosi produk e-commerce Indonesia di TikTok/Instagram/Shopee Live.\n\n'
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
@@ -7635,18 +7658,23 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote){
       body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:cfg})
     },withThinkingOff?30000:45000);
   }
-  let{resp,rawText}=await _vbFetchWithRetry(()=>_callGemini(true));
+  let{resp,rawText}=await _vbFetchWithRetry(()=>_callGemini(true),undefined,onWait);
   // FIX: pesan error Google tidak selalu sebut nama parameter (bisa cuma
   // "invalid argument" generik) — perlebar deteksi biar retry tetap kepicu.
   if(!resp.ok&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)){
-    let retried=await _vbFetchWithRetry(()=>_callGemini(false));
+    let retried=await _vbFetchWithRetry(()=>_callGemini(false),undefined,onWait);
     resp=retried.resp;rawText=retried.rawText;
   }
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
-    if(resp.status===503)throw new Error('Server AI Google lagi sibuk/kebanjiran request (sudah dicoba 3x). Coba lagi beberapa saat ya — ini bukan masalah dari tools, murni server Google lagi padat.');
-    if(resp.status===429)throw new Error('Kena rate limit dari Google (sudah dicoba 3x). Tunggu sebentar lalu coba lagi.');
+    // FIX RETRY TANPA BATAS: pesan di bawah ini sekarang cuma muncul kalau
+    // sudah dicoba ulang TERUS-MENERUS selama ~10 menit (jaring pengaman
+    // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal — bukan lagi
+    // setelah 3x percobaan singkat seperti dulu, jadi pesannya diubah biar
+    // jujur soal kemungkinan penyebabnya.
+    if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~10 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
+    if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~10 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
   }
   let data=JSON.parse(rawText);
@@ -7768,8 +7796,19 @@ async function vbGenerateBulkAI(){
       if(!dlCheck.ok){
         throw new Error(dlCheck.message+(allResults.length?' ('+allResults.length+' produk pertama sudah berhasil dibuat.)':''));
       }
-      updateGenLogoLabel(genLogoState,'Batch '+(b+1)+'/'+batches.length+' ('+(b*BATCH_SIZE)+'/'+produkList.length+')...');
-      let batchArr=await _vbCallBulkBatch(batches[b],targetAudience);
+      let batchLabelBase='Batch '+(b+1)+'/'+batches.length+' ('+(b*BATCH_SIZE)+'/'+produkList.length+')...';
+      updateGenLogoLabel(genLogoState,batchLabelBase);
+      // FIX: sebelumnya kalau kena limit Google (429/503), user cuma diam
+      // lihat tombol "Membuat Prompt..." tanpa tahu apa yang terjadi sampai
+      // akhirnya (dulu) muncul pesan gagal. Sekarang label tombol diganti
+      // sementara jadi status "⏳ nunggu" yang jujur selama proses retry
+      // otomatis berlangsung, lalu balik lagi ke label batch begitu request
+      // berikutnya dikirim.
+      let batchArr=await _vbCallBulkBatch(batches[b],targetAudience,undefined,function(waitMs,attempt,status){
+        let detik=Math.ceil(waitMs/1000);
+        let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+        updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
+      });
       dlIncrement();
       if(batchArr.length<batches[b].length){
         console.warn('[vbGenerateBulkAI] batch '+b+' cuma balikin '+batchArr.length+' dari '+batches[b].length+' produk diminta');
@@ -8309,19 +8348,33 @@ async function vbGenerate3AI(){
         body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:cfg})
       },withThinkingOff?30000:45000);
     }
-    let{resp,rawText}=await _vbFetchWithRetry(()=>_vbCallGemini(true));
+    // FIX: sebelumnya kalau kena limit Google (429/503), user cuma diam
+    // lihat tombol "Membuat 3 Script..." tanpa tahu apa yang terjadi sampai
+    // akhirnya (dulu) muncul pesan gagal setelah 3x percobaan. Sekarang
+    // retry-nya tanpa batas jumlah percobaan (lihat _vbFetchWithRetry) dan
+    // label tombol diganti sementara jadi status "⏳ nunggu" yang jujur
+    // selama proses retry otomatis berlangsung.
+    let _vbOnWait=function(waitMs,attempt,status){
+      let detik=Math.ceil(waitMs/1000);
+      let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+      updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... Membuat 3 Script');
+    };
+    let{resp,rawText}=await _vbFetchWithRetry(()=>_vbCallGemini(true),undefined,_vbOnWait);
     // FIX: pesan error Google tidak selalu sebut nama parameter (bisa cuma
     // "invalid argument" generik) — perlebar deteksi biar retry tetap kepicu.
     if(!resp.ok&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)){
       console.log('[vbGenerate3AI] thinkingConfig ditolak API, coba ulang tanpa parameter itu');
-      let retried=await _vbFetchWithRetry(()=>_vbCallGemini(false));
+      let retried=await _vbFetchWithRetry(()=>_vbCallGemini(false),undefined,_vbOnWait);
       resp=retried.resp;rawText=retried.rawText;
     }
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
     if(!resp.ok){
       let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
-      if(resp.status===503)throw new Error('Server AI Google lagi sibuk/kebanjiran request (sudah dicoba 3x). Coba lagi beberapa saat ya — ini bukan masalah dari tools, murni server Google lagi padat.');
-      if(resp.status===429)throw new Error('Kena rate limit dari Google (sudah dicoba 3x). Tunggu sebentar lalu coba lagi.');
+      // FIX RETRY TANPA BATAS: pesan di bawah ini sekarang cuma muncul kalau
+      // sudah dicoba ulang TERUS-MENERUS selama ~10 menit (jaring pengaman
+      // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal.
+      if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~10 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
+      if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~10 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
       throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
     }
     let data=JSON.parse(rawText);
