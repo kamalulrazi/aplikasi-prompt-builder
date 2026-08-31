@@ -197,6 +197,28 @@ body{
   background-attachment:fixed;
 }
 
+/* CEGAH SALIN TEKS VIA PENDAM (LONG-PRESS) — biar berasa app native,
+   bukan halaman web biasa. Default-nya SEMUA teks di app dikunci: tidak
+   bisa di-select/copy walau dipendam lama, dan di iOS tidak muncul menu
+   callout (Copy/Look Up/Share). Pengecualian sengaja dibuka lagi di bawah
+   untuk: (1) area hasil Prompt JSON (.out-body, dipakai di tab Foto &
+   Video) — ini memang HARUS bisa disalin, itu tujuan utama app-nya; dan
+   (2) input/textarea/[contenteditable] — field yang memang diketik/edit
+   user (nama produk, deskripsi, API key, dst) butuh select/copy/paste
+   normal, beda kebutuhan dari teks statis di UI. */
+body, body *{
+  -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+  -webkit-touch-callout:none;
+}
+body input, body textarea, body [contenteditable="true"]{
+  -webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text;
+  -webkit-touch-callout:default;
+}
+.out-body, .out-body *{
+  -webkit-user-select:text !important;-moz-user-select:text !important;-ms-user-select:text !important;user-select:text !important;
+  -webkit-touch-callout:default !important;
+}
+
 /* HEADER — app toolbar, glass surface with safe-area */
 .header{
   padding:calc(var(--space-7) + var(--safe-t)) var(--space-8) var(--space-7);
@@ -7468,6 +7490,73 @@ async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
   return current;
 }
 
+// ── Auto-perbaikan jumlah kata KHUSUS BULK (GABUNGAN 3 script jadi 1
+// panggilan): sebelumnya tiap script (Hook/Story/CTA) pada tiap produk
+// diperbaiki lewat panggilan AI TERPISAH (_vbFixWordCountIfNeeded, sampai
+// 2x percobaan PER SCRIPT) — jadi 1 batch isi 3 produk bisa menembak sampai
+// 1 (panggilan batch) + 3 produk × 3 script × 2 percobaan = 19 request
+// beruntun cuma dikasih jeda 400ms, gampang nabrak rate limit RPM Gemini
+// meski app baru dibuka. Sekarang SEMUA script pada satu produk yang jumlah
+// katanya belum pas 25 digabung jadi SATU panggilan AI sekaligus (maksimal
+// 2x percobaan TOTAL per produk, bukan per script) — mengurangi jumlah
+// request sampai ~6x lipat tanpa mengorbankan akurasi tiap script. ──────
+async function _vbFixWordCountBatchIfNeeded(prod){
+  const MAX_FIX_ATTEMPTS=2;
+  const ROLE_LABEL={hook:'Hook',story:'Cerita Produk (Story)',cta:'CTA Keranjang'};
+  let current={hook:(prod.hook||'').trim(),story:(prod.story||'').trim(),cta:(prod.cta||'').trim()};
+  for(let attempt=0;attempt<MAX_FIX_ATTEMPTS;attempt++){
+    let needFix=['hook','story','cta'].filter(function(key){
+      if(!current[key])return false;
+      let wc=current[key].split(/\s+/).filter(Boolean).length;
+      return wc!==25;
+    });
+    if(needFix.length===0)return current;
+    let dlCheck=dlCheckBeforeCall();
+    if(!dlCheck.ok){console.warn('[_vbFixWordCountBatchIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);return current;}
+    let listText=needFix.map(function(key){
+      let wc=current[key].split(/\s+/).filter(Boolean).length;
+      return '- "'+key+'" ('+ROLE_LABEL[key]+', saat ini '+wc+' kata): '+current[key];
+    }).join('\n');
+    let fixPrompt='Perbaiki script-script berikut supaya masing-masing TEPAT 25 kata (hitung tiap kata dipisah spasi, bukan karakter). '
+      +(prod.produk?'Ini untuk produk "'+prod.produk+'". ':'')
+      +'Pertahankan makna, topik, dan gaya bahasa casual sehari-hari masing-masing — jangan ganti topik atau bikin jadi formal. '
+      +'TIDAK boleh pakai emoji, TIDAK boleh pakai tanda kutip.\n\n'
+      +'Script yang perlu diperbaiki:\n'+listText+'\n\n'
+      +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (persis 25 kata tiap-tiap), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
+    try{
+      const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
+      let{resp,rawText}=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(url,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
+        body:JSON.stringify({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'}}})
+      },30000),1);
+      if(!resp.ok){console.warn('[_vbFixWordCountBatchIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
+      let data=JSON.parse(rawText);
+      if(data.error){console.warn('[_vbFixWordCountBatchIfNeeded] error API:',data.error.message);return current;}
+      let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+      if(!text)return current;
+      text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+      let fixed;
+      try{fixed=JSON.parse(text);}catch(e1){
+        let s=text.indexOf('{'),en=text.lastIndexOf('}');
+        if(s!==-1&&en!==-1&&en>s){try{fixed=JSON.parse(text.substring(s,en+1));}catch(e2){fixed=null;}}
+      }
+      if(!fixed||typeof fixed!=='object'){console.warn('[_vbFixWordCountBatchIfNeeded] gagal baca JSON hasil, dibiarkan apa adanya');return current;}
+      for(let key of needFix){
+        if(typeof fixed[key]==='string'&&fixed[key].trim()){
+          current[key]=fixed[key].trim().replace(/^```\s*/,'').replace(/\s*```$/,'').replace(/^["']+|["']+$/g,'').trim();
+        }
+      }
+      dlIncrement();
+      if(attempt<MAX_FIX_ATTEMPTS-1)await new Promise(r=>setTimeout(r,400));
+    }catch(e){
+      console.warn('[_vbFixWordCountBatchIfNeeded] exception, dibiarkan apa adanya:',e);
+      return current;
+    }
+  }
+  return current;
+}
+
 async function _vbCallBulkBatch(batch,targetAudience,extraNote){
   let produkListText=batch.map((p,i)=>(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')).join('\n');
   let prompt='Kamu adalah copywriter konten UGC (user generated content) untuk video promosi produk e-commerce Indonesia di TikTok/Instagram/Shopee Live.\n\n'
@@ -7557,9 +7646,10 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote){
 
   for(let pi=0;pi<arr.length;pi++){
     let prod=arr[pi];
-    prod.hook=await _vbFixWordCountIfNeeded(prod.hook||'','Hook',prod.produk||'');
-    prod.story=await _vbFixWordCountIfNeeded(prod.story||'','Cerita Produk (Story)',prod.produk||'');
-    prod.cta=await _vbFixWordCountIfNeeded(prod.cta||'','CTA Keranjang',prod.produk||'');
+    let fixed=await _vbFixWordCountBatchIfNeeded(prod);
+    prod.hook=fixed.hook;
+    prod.story=fixed.story;
+    prod.cta=fixed.cta;
   }
   return arr;
 }
