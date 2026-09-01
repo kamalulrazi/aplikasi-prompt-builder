@@ -617,6 +617,13 @@ body input, body textarea, body [contenteditable="true"]{
 .p-layer-front{transform:translate(-135px,168px) rotate(-9deg);opacity:1;}
 .gen-logo-wrap.merged .p-layer-back{transform:translate(0,0) rotate(0deg);opacity:1;}
 .gen-logo-wrap.merged .p-layer-front{transform:translate(0,0) rotate(0deg);}
+/* FITUR BARU: state "pecah arah kebalikan" — dipakai loading skrip video biar
+   animasinya nggak cuma pecah->nyatu SEKALI lalu diam, tapi pecah->nyatu->
+   pecah(arah sebaliknya)->nyatu->ulang terus selama AI masih bikin skrip.
+   Arah translate & rotate sengaja dibalik (negatif) dari .p-layer-back/-front
+   di atas supaya kelihatan jelas beda arah pecahnya tiap putaran. */
+.gen-logo-wrap.split-b .p-layer-back{transform:translate(-165px,185px) rotate(-10deg);opacity:0.4;}
+.gen-logo-wrap.split-b .p-layer-front{transform:translate(135px,-168px) rotate(9deg);opacity:1;}
 
 /* ── SPLASH SCREEN — tampilan awal sebelum masuk app: logo P (sama seperti
    loading generate) menyatu, lalu muncul tulisan "Prompt Builder" ── */
@@ -6847,6 +6854,12 @@ function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.cla
 // bukan cuma spinner ikon generik. id gradient dibuat unik per pemanggilan
 // (_genLogoSeq) supaya aman kalau ada lebih dari satu tombol loading sekaligus. ──
 var _genLogoSeq=0;
+// CATATAN: label TIDAK lagi dirender (dulu ada <span class="gen-logo-label">
+// di sini) — sekarang loading skrip video cukup logonya aja yang kelihatan,
+// dan karena cuma ada satu anak (gen-logo-box) di dalam flex+justify-center,
+// logo otomatis jadi di-tengah. Parameter "label" tetap diterima/diteruskan
+// (dipakai updateGenLogoLabel kalau2 nanti mau dipakai lagi) tapi aman kalau
+// dibiarkan tidak tampil — updateGenLogoLabel no-op kalau elemen label tidak ada.
 function _buildGenLogoHTML(label){
   _genLogoSeq++;
   var wid='gen-logo-wrap-'+_genLogoSeq;
@@ -6864,12 +6877,16 @@ function _buildGenLogoHTML(label){
         +'<path class="p-layer p-layer-front" fill="url(#'+gid+')" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>'
       +'</svg>'
     +'</div>'
-    +'<span class="gen-logo-label">'+esc(label)+'</span>'
   +'</div>';
   return{id:wid,html:html};
 }
-// Ganti isi tombol jadi animasi logo loading. Return "state" (HTML asli
-// tombol + id wrap) yang dipakai lagi untuk update label / restore tombol.
+// Ganti isi tombol jadi animasi logo loading — LOOP TERUS-MENERUS:
+// pecah(A) -> nyatu -> pecah(B, arah kebalikan) -> nyatu -> pecah(A) -> ...
+// jalan terus sampai stopGenLogoBtn() dipanggil (skrip selesai/gagal).
+// Sebelumnya cuma pecah->nyatu SEKALI lalu diam statis nyatu selama sisa
+// loading — kesannya macet kalau proses AI-nya lama (kena retry/backoff dkk).
+// stepMs disamakan dengan durasi transition .p-layer (1.1s) supaya tiap fase
+// selesai penuh dulu sebelum ganti arah (nggak keliatan "kepotong").
 function startGenLogoBtn(btn,label){
   if(!btn)return null;
   var orig=btn.innerHTML;
@@ -6877,24 +6894,47 @@ function startGenLogoBtn(btn,label){
   btn.disabled=true;
   btn.classList.add('btn-loading');
   btn.innerHTML=built.html;
-  // Paksa reflow dulu supaya state "terpisah" ke-render sebelum class
-  // "merged" ditambahkan (sama seperti pola di fGenerate).
+  // Paksa reflow dulu supaya state "pecah" awal ke-render sebelum class
+  // di-toggle pertama kali.
   void btn.offsetWidth;
-  setTimeout(function(){
+  var stepMs=1100;
+  // FIX BUG: sebelumnya phase dibaca SEBELUM di-increment, jadi tick pertama
+  // (di t=1.1s) cuma "menegaskan ulang" state pecah-A yang memang sudah
+  // tampil (tidak ada perubahan visual) — logo baru benar2 pertama kali
+  // menyatu di t=2.2s, bukan t=1.1s. Sekarang phase di-increment DULU baru
+  // aksinya diterapkan, supaya tiap fase (pecah-nyatu-pecah-nyatu) konsisten
+  // berganti persis tiap 1.1 detik dari awal sampai loop dihentikan.
+  var phase=0; // state yg SUDAH tampil di layar saat ini (0=pecah-A)
+  var timer=setInterval(function(){
     var w=document.getElementById(built.id);
-    if(w)w.classList.add('merged');
-  },650);
-  return{origHTML:orig,wrapId:built.id};
+    if(!w){clearInterval(timer);return;} // tombol sudah direset/elemen hilang
+    phase=(phase+1)%4;
+    if(phase%2===1){
+      w.classList.add('merged');
+    }else if(phase===0){
+      w.classList.remove('merged');
+      w.classList.remove('split-b');
+    }else{
+      w.classList.remove('merged');
+      w.classList.add('split-b');
+    }
+  },stepMs);
+  return{origHTML:orig,wrapId:built.id,timer:timer};
 }
-// Update teks label saat proses masih berjalan (mis. progress "Batch 2/4...")
-// tanpa merusak animasi logo yang sedang jalan.
+// Update teks label saat proses masih berjalan (mis. progress "Batch 2/4...").
+// Karena _buildGenLogoHTML sekarang tidak merender span label sama sekali,
+// fungsi ini aman jadi no-op (elemen label tidak ditemukan) — dibiarkan ada
+// supaya pemanggil lama tidak perlu diubah.
 function updateGenLogoLabel(state,label){
   if(!state)return;
   var el=document.getElementById(state.wrapId);
   if(el){var lb=el.querySelector('.gen-logo-label');if(lb)lb.textContent=label;}
 }
-// Kembalikan tombol ke tampilan asli setelah proses selesai/gagal.
+// Kembalikan tombol ke tampilan asli setelah proses selesai/gagal — termasuk
+// hentikan loop animasi (clearInterval) biar timer-nya nggak nyala terus di
+// background setelah tombolnya sendiri sudah diganti balik.
 function stopGenLogoBtn(btn,state){
+  if(state&&state.timer)clearInterval(state.timer);
   if(!btn)return;
   btn.disabled=false;
   btn.classList.remove('btn-loading');
@@ -8537,7 +8577,18 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
 
     let groupHead=document.createElement('div');
     groupHead.style.cssText='background:var(--surface3);padding:9px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border-hi);';
+    // FITUR BARU: kalau produk ini punya foto referensi yang diupload user
+    // (VB_BULK_PRODUCTS[prodIdx] sudah diisi lengkap dgn fotoBase64/fotoMime
+    // di .map() atas), tampilkan thumbnail KECIL di header grup skrip supaya
+    // foto tetap kelihatan sebagai konteks tanpa makan tempat — tidak tampil
+    // sama sekali kalau produk itu memang tidak ada foto (mis. refMode tanpa
+    // foto produk atau mode 3 tanpa upload).
+    let _groupFotoMeta=VB_BULK_PRODUCTS[prodIdx];
+    let _groupFotoHtml=(_groupFotoMeta&&_groupFotoMeta.fotoBase64)
+      ?'<img src="data:'+(_groupFotoMeta.fotoMime||'image/jpeg')+';base64,'+_groupFotoMeta.fotoBase64+'" alt="Foto referensi produk" title="Foto referensi produk" style="width:24px;height:24px;border-radius:var(--radius-2xs);object-fit:cover;border:1px solid var(--border-hi);flex-shrink:0;" />'
+      :'';
     groupHead.innerHTML='<span style="background:var(--text);color:var(--bg);width:20px;height:20px;border-radius:50%;font-size:var(--fs-xs);font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:\'Geist Mono\',monospace;">'+(prodIdx+1)+'</span>'
+      +_groupFotoHtml
       +'<span id="vb-prodname-'+prodIdx+'" style="font-size:var(--fs-sm);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+esc(p.produk||'Produk '+(prodIdx+1))+'</span>';
     let revisiBtn=document.createElement('button');
     revisiBtn.id='vb-revisi-btn-'+prodIdx;
@@ -9551,6 +9602,19 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate){
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
   multiWrap.style.display='flex';
+
+  // FITUR BARU: mode 1-produk (manual/AI, bukan bulk) menyimpan foto produk
+  // di VB.produkFotoBase64 (lihat vbHandleProdukFotoUpload). Kalau foto ini
+  // ada, tampilkan sekali di atas ketiga kartu Hook/Story/CTA sebagai
+  // thumbnail kecil — biar user masih lihat foto yang jadi acuan script,
+  // tanpa menghabiskan tempat di layar kecil.
+  if(VB.produkFotoBase64){
+    let fotoRow=document.createElement('div');
+    fotoRow.style.cssText='display:flex;align-items:center;gap:7px;padding:2px 2px 2px 4px;';
+    fotoRow.innerHTML='<img src="data:'+(VB.produkFotoMime||'image/jpeg')+';base64,'+VB.produkFotoBase64+'" alt="Foto referensi produk" title="Foto referensi produk" style="width:28px;height:28px;border-radius:var(--radius-2xs);object-fit:cover;border:1px solid var(--border-hi);flex-shrink:0;" />'
+      +'<span style="font-size:var(--fs-2xs);color:var(--muted);">Foto referensi produk</span>';
+    multiWrap.appendChild(fotoRow);
+  }
 
   let typeItems=[];
   scripts.forEach(function(scriptText,i){
