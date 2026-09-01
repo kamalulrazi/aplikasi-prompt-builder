@@ -342,11 +342,36 @@ body input, body textarea, body [contenteditable="true"]{
 .wbody{
   padding:0 var(--space-6) var(--space-6);
   overflow:hidden;
-  max-height:1400px;opacity:1;
+  /* FIX TOMBOL GENERATE HILANG DI "BANYAK PRODUK SEKALIGUS" (10 produk):
+     max-height di sini dulunya angka mati 1400px, dipakai buat animasi
+     expand/collapse card (lihat .wcard.done .wbody di bawah, yang butuh
+     titik awal max-height berupa angka supaya transition-nya jalan, bukan
+     "auto"). Dengan cuma 3 produk, tinggi konten card ini masih di bawah
+     1400px jadi kelihatan normal. Begitu user isi 10 produk, tiap baris
+     produk (nama+keunggulan+upload foto) nambah kira-kira 80-90px —
+     total tinggi konten gampang tembus 1900-2000px, padahal wadahnya
+     (.wbody) overflow:hidden dan dipentok 1400px. Akibatnya bagian bawah
+     card (termasuk tombol "Generate Semua Produk Sekaligus") kepotong
+     beneran oleh overflow:hidden — bukan cuma "di bawah layar" yang bisa
+     dicapai dengan scroll, makanya scroll ikut mentok duluan sebelum
+     tombolnya kelihatan. Sekarang max-height dibaca dari custom property
+     --wbody-max-h (default tetap 1400px supaya semua card lain yang tidak
+     pernah tumbuh besar tidak berubah sama sekali), dan card yang isinya
+     bisa membengkak dinamis (khususnya "Banyak Produk Sekaligus") akan
+     menaikkan property ini lewat JS (lihat fFitWbody()) supaya selalu pas
+     dengan tinggi konten sebenarnya, berapa pun jumlah produknya. */
+  max-height:var(--wbody-max-h,1400px);opacity:1;
   transition:max-height 0.32s cubic-bezier(0.4,0,0.2,1),opacity 0.22s ease,padding 0.28s ease;
 }
 .wcard.done .wbody{
-  max-height:0;opacity:0;padding-top:0;padding-bottom:0;pointer-events:none;
+  /* !important di sini WAJIB: fFitWbody() menaikkan --wbody-max-h lewat
+     inline style supaya card yang isinya banyak (bulk produk) tidak
+     kepotong (lihat komentar di .wbody di atas). Kalau card ini kemudian
+     ditandai 'done' (disembunyikan/collapse), aturan collapse HARUS tetap
+     menang walau --wbody-max-h masih bernilai besar dari sebelumnya —
+     kalau tidak, card yang baru saja dipakai buat isi 10 produk tidak
+     akan pernah bisa collapse rapi ke tinggi 0 lagi. */
+  max-height:0!important;opacity:0;padding-top:0;padding-bottom:0;pointer-events:none;
   transition:max-height 0.26s cubic-bezier(0.4,0,0.2,1),opacity 0.16s ease,padding 0.22s ease;
 }
 .wcard.done .wback{display:none;}
@@ -2292,6 +2317,7 @@ body input, body textarea, body [contenteditable="true"]{
   <div class="wcard pending" id="v3">
     <div class="whead"><div class="wnum">3</div><div class="wtitle">Nada Bicara</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va3"></div></div>
     <div class="wbody">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Emosi/energi karakter saat ngomong — apakah terdengar semangat, kalem, atau misterius.</p>
       <div class="chips">
         <div class="chip" onclick="vbPickPitch('ceria',this,'Ceria')">Ceria</div>
         <div class="chip" onclick="vbPickPitch('tenang',this,'Tenang')">Tenang</div>
@@ -2319,6 +2345,7 @@ body input, body textarea, body [contenteditable="true"]{
   <div class="wcard pending" id="v4">
     <div class="whead"><div class="wnum">4</div><div class="wtitle">Aksen</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va4"></div></div>
     <div class="wbody">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Seberapa baku atau santai bahasanya — bukan logat daerah (logat Jawa/Sunda/dll tidak tersedia).</p>
       <div class="chips">
         <div class="chip" onclick="vbPickAccent('standard neutral Indonesian accent, no regional dialect',this,'Netral')">Netral</div>
         <div class="chip" onclick="vbPickAccent('formal and polite tone',this,'Formal')">Formal</div>
@@ -7442,6 +7469,11 @@ function vbSelectScriptMode(mode){
   let m3produkWrap=document.getElementById('vb-manual-mode3-produk-wrap');
   if(m3produkWrap)m3produkWrap.classList.toggle('hidden',!(mode==='manual'&&VB.refMode==='kp'));
   if(mode==='bulk'&&!document.getElementById('vb-bulk-rows').children.length)vbBulkSetCount();
+  // FIX TOMBOL GENERATE KETUTUP: kalau baris produk bulk SUDAH ada dari
+  // sebelumnya (user sempat pindah ke mode lain lalu balik lagi ke "Banyak
+  // Produk Sekaligus"), vbBulkSetCount() di atas tidak dipanggil ulang —
+  // jadi perlu jaga-jaga sesuaikan lagi tinggi card di sini juga.
+  if(mode==='bulk')fFitWbody(document.getElementById('vb-bulk-rows'));
   setTimeout(()=>document.getElementById(mode==='ai'?'vb-mode-ai-area':mode==='manual'?'vb-manual-script-area':'vb-bulk-area').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 function vbCountWords(el,counterId){
@@ -7483,6 +7515,25 @@ let VB_REVISI_FOTO_OVERRIDE={};
 // Cache PERSISTEN nama/keunggulan/foto tiap baris bulk, bertahan sepanjang sesi
 // (lihat FIX BUG#15 di bawah) — direset di vbReset().
 let VB_BULK_ROW_CACHE=[];
+
+// FIX TOMBOL GENERATE HILANG/KETUTUP DI "BANYAK PRODUK SEKALIGUS": lihat
+// komentar panjang di CSS .wbody. Fungsi ini mengukur tinggi konten
+// SEBENARNYA dari card (.wbody) yang membungkus elemen `fromEl`, lalu
+// menaikkan custom property --wbody-max-h supaya batas overflow:hidden
+// selalu pas dengan isinya — baik saat cuma 3 produk maupun 10 produk.
+// Dipanggil tiap kali baris produk bulk ditambah/dikurangi atau foto
+// produk di-upload/dihapus (dua-duanya bisa mengubah tinggi card).
+function fFitWbody(fromEl){
+  let body=fromEl&&fromEl.closest?fromEl.closest('.wbody'):null;
+  if(!body)return;
+  // Ditunda 1 frame: pastikan perubahan DOM (baris ditambah/dihapus,
+  // preview foto muncul/hilang) sudah kepakai di layout sebelum diukur,
+  // supaya scrollHeight yang didapat akurat.
+  requestAnimationFrame(function(){
+    let h=body.scrollHeight;
+    if(h>0)body.style.setProperty('--wbody-max-h',(h+60)+'px');
+  });
+}
 
 // Bangun N baris input (Nama Produk *wajib + Keunggulan opsional + Foto opsional) sesuai jumlah yang dipilih user
 function vbBulkSetCount(){
@@ -7540,6 +7591,9 @@ function vbBulkSetCount(){
       +'</div>';
     rows.appendChild(row);
   }
+  // Pastikan card cukup tinggi menampung semua baris + tombol Generate di
+  // bawahnya, berapa pun jumlah produk yang baru saja diset (lihat fFitWbody).
+  fFitWbody(rows);
 }
 
 // Upload foto produk — mode BULK (per baris, index i), disimpan di VB_BULK_ROW_CACHE[i]
@@ -7557,6 +7611,10 @@ async function vbHandleBulkFotoUpload(input,i){
     let preview=document.getElementById('vb-bulk-foto-preview-'+i);
     if(empty)empty.style.display='none';
     if(preview)preview.style.display='inline-block';
+    // Preview foto nambah tinggi baris ini — sesuaikan lagi batas tinggi card
+    // (lihat fFitWbody), penting kalau ini terjadi di beberapa baris sekaligus
+    // pada mode "Banyak Produk Sekaligus".
+    fFitWbody(preview||input);
   }catch(e){
     console.warn('[vbHandleBulkFotoUpload]',e);
     showToast('Gagal memproses foto: '+e.message,'error');
@@ -7569,6 +7627,7 @@ function vbRemoveBulkFoto(i){
   let img=document.getElementById('vb-bulk-foto-img-'+i); if(img)img.src='';
   let empty=document.getElementById('vb-bulk-foto-empty-'+i); if(empty)empty.style.display='';
   let preview=document.getElementById('vb-bulk-foto-preview-'+i); if(preview)preview.style.display='none';
+  fFitWbody(empty||img);
 }
 
 
@@ -7622,6 +7681,145 @@ function _vbParseRetryDelayMs(rawText){
     }
   }catch(e){}
   return 0;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STREAMING REAL-TIME — script Hook/Story/CTA muncul kata-per-kata saat
+// AI masih "mengetik", bukan nunggu jawaban penuh baru muncul semua.
+// Dipakai baik oleh mode single (vbGenerate3AI) maupun bulk
+// (_vbCallBulkBatch / vbGenerateBulkAI).
+//
+// CARA KERJA: Gemini punya endpoint streamGenerateContent yang balikin
+// potongan (chunk) teks bertahap lewat format SSE ("data: {...}\n\n").
+// Karena app ini minta AI balas JSON array (bukan teks bebas), tiap
+// potongan yang baru masuk sering berupa JSON YANG BELUM LENGKAP (mis.
+// kutip penutup belum nongol). _vbTryParsePartialJsonArray() "menambal"
+// JSON yang masih setengah jalan itu (nutup kutip/kurung yang masih
+// terbuka) supaya tetap bisa di-parse jadi array — hasilnya HANYA
+// dipakai buat preview LIVE di textarea. Hasil FINAL tetap divalidasi &
+// dibersihkan lewat jalur sanitizer + fix-jumlah-kata yang SUDAH ADA
+// sebelumnya (tidak diubah), setelah stream-nya selesai — jadi kalau
+// tambalan JSON-nya sempat "kelihatan aneh" sepersekian detik pas
+// mengetik, tidak berpengaruh ke hasil akhir yang tersimpan.
+//
+// FALLBACK: kalau koneksi/stream gagal dari awal (network/HTTP error),
+// fungsi ini otomatis retry persis seperti _vbFetchWithRetry lama
+// (termasuk jaring pengaman ~3 menit & percobaan ulang tanpa
+// thinkingConfig) — jadi generate tetap bisa berhasil walau efek
+// real-time-nya kebetulan tidak muncul di kondisi jaringan tertentu.
+// ══════════════════════════════════════════════════════════════════
+function _vbTryParsePartialJsonArray(buf){
+  if(!buf)return null;
+  try{let r=JSON.parse(buf);return Array.isArray(r)?r:null;}catch(e){}
+  let s=buf;
+  if(s.endsWith('\\'))s=s.slice(0,-1); // backslash nyangkut di tengah escape
+  let inStr=false,esc=false,stack=[];
+  for(let ch of s){
+    if(inStr){
+      if(esc)esc=false;
+      else if(ch==='\\')esc=true;
+      else if(ch==='"')inStr=false;
+    }else{
+      if(ch==='"')inStr=true;
+      else if(ch==='{'||ch==='[')stack.push(ch);
+      else if(ch==='}'){if(stack[stack.length-1]==='{')stack.pop();}
+      else if(ch===']'){if(stack[stack.length-1]==='[')stack.pop();}
+    }
+  }
+  if(inStr)s+='"'; // tutup string yang masih terbuka
+  s=s.replace(/,\s*$/,''); // buang koma nyangkut sebelum ditutup
+  while(stack.length){s+=(stack.pop()==='{')?'}':']';}
+  try{let r=JSON.parse(s);return Array.isArray(r)?r:null;}catch(e){return null;}
+}
+
+// Panggil Gemini lewat streamGenerateContent (SSE), lapor progres tiap
+// chunk ke onPartial(arraySoFar), dan balikin {resp,rawText} dalam
+// BENTUK YANG SAMA seperti generateContent biasa (candidates[0].content
+// .parts[0].text, finishReason, dst) — supaya kode pemanggil (parse
+// JSON, sanitizer, fix kata) tidak perlu berubah sama sekali.
+// Retry & fallback thinkingConfig meniru persis _vbFetchWithRetry lama.
+async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
+  const MAX_TOTAL_WAIT_MS=3*60*1000;
+  let totalWaited=0;
+  for(let attempt=0;;attempt++){
+    let withThinkingOff=(attempt===0);
+    let cfg={maxOutputTokens:4096,responseMimeType:'application/json'};
+    if(withThinkingOff)cfg.thinkingConfig={thinkingLevel:'minimal'};
+    const url=GEMINI_ENDPOINT+GEMINI_MODEL+':streamGenerateContent?alt=sse';
+    let controller=new AbortController();
+    let timedOut=false;
+    let timer=setTimeout(function(){timedOut=true;controller.abort();},withThinkingOff?30000:45000);
+    let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
+    try{
+      await _vbThrottleGeminiGate();
+      resp=await fetch(url,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
+        body:JSON.stringify({contents:[{parts:promptParts}],generationConfig:cfg}),
+        signal:controller.signal
+      });
+      if(resp.ok&&resp.body&&typeof resp.body.getReader==='function'){
+        streamOk=true;
+        let reader=resp.body.getReader();
+        let decoder=new TextDecoder();
+        let sseBuf='';
+        while(true){
+          let{done,value}=await reader.read();
+          if(done)break;
+          sseBuf+=decoder.decode(value,{stream:true});
+          let lines=sseBuf.split('\n');
+          sseBuf=lines.pop();
+          for(let line of lines){
+            line=line.trim();
+            if(!line.startsWith('data:'))continue;
+            let js=line.slice(5).trim();
+            if(!js||js==='[DONE]')continue;
+            try{
+              let evt=JSON.parse(js);
+              let delta=evt.candidates&&evt.candidates[0]&&evt.candidates[0].content&&evt.candidates[0].content.parts&&evt.candidates[0].content.parts[0]&&evt.candidates[0].content.parts[0].text||'';
+              if(evt.candidates&&evt.candidates[0]&&evt.candidates[0].finishReason)finishReason=evt.candidates[0].finishReason;
+              if(delta){
+                textBuf+=delta;
+                if(typeof onPartial==='function'){
+                  let arr=_vbTryParsePartialJsonArray(textBuf);
+                  if(arr)try{onPartial(arr);}catch(e){}
+                }
+              }
+            }catch(e){/* baris SSE tidak lengkap/aneh, lewati aman */}
+          }
+        }
+      }else{
+        try{rawText=await resp.text();}catch(e){rawText='';}
+      }
+    }catch(e){
+      rawText='';
+    }finally{
+      clearTimeout(timer);
+    }
+    if(streamOk){
+      return{resp:{ok:true,status:200},rawText:JSON.stringify({candidates:[{content:{parts:[{text:textBuf}]},finishReason:finishReason}]})};
+    }
+    // Stream gagal start (error jaringan/HTTP) — jatuh ke logika retry
+    // yang sama persis seperti jalur non-streaming lama.
+    let status=resp?resp.status:0;
+    if(status&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)&&withThinkingOff){
+      continue; // langsung ulang di attempt berikutnya TANPA thinkingConfig
+    }
+    let isTransient=status===503||status===429;
+    if(!isTransient||totalWaited>=MAX_TOTAL_WAIT_MS){
+      return{resp:resp||{ok:false,status:0},rawText};
+    }
+    let waitMs;
+    if(status===429){
+      let suggested=_vbParseRetryDelayMs(rawText);
+      waitMs=suggested?Math.min(suggested,45000):Math.min(9000*(attempt+1),45000);
+    }else{
+      waitMs=Math.min(1500*(attempt+1),15000);
+    }
+    if(typeof onWait==='function'){try{onWait(waitMs,attempt,status);}catch(e){}}
+    await new Promise(r=>setTimeout(r,waitMs));
+    totalWaited+=waitMs;
+  }
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -7875,7 +8073,7 @@ async function _vbFixWordCountBatchIfNeeded(prod){
       let{resp,rawText}=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(url,{
         method:'POST',
         headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-        body:JSON.stringify({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'}}})
+        body:JSON.stringify({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}})
       },30000),1);
       if(!resp.ok){console.warn('[_vbFixWordCountBatchIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
       let data=JSON.parse(rawText);
@@ -7904,7 +8102,7 @@ async function _vbFixWordCountBatchIfNeeded(prod){
   return current;
 }
 
-async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
+async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial){
   // Tandai produk yang punya foto referensi dengan nomor urut gambar
   // (Gambar 1, Gambar 2, dst — cuma dihitung dari produk yang benar-benar
   // punya foto, urut sesuai posisinya di batch ini) supaya AI tahu foto
@@ -7920,7 +8118,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
   }).join('\n');
   let prompt='Kamu adalah copywriter konten UGC (user generated content) untuk video promosi produk e-commerce Indonesia di TikTok/Instagram/Shopee Live.\n\n'
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
-    +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — tulis script dengan energi/nada yang sesuai.\n'
+    +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — ini HANYA soal GAYA PENYAMPAIAN suara (intonasi, energi, ritme bicara saat ngomong di depan kamera). JANGAN mengubah TOPIK/TEMA cerita jadi soal nada tersebut. Contoh: kalau nadanya "Misterius", karakter ngomong dengan nada pelan/misterius/penuh rasa penasaran, TAPI isi cerita (terutama STORY) tetap 100% soal produk & manfaatnya, BUKAN cerita horor/misteri/teka-teki.\n'
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan nada/gaya bahasa script dengan aksen ini (Netral/Formal/Santai), tetap Bahasa Indonesia standar tanpa logat daerah.\n'
     +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n\n'
     +'Daftar produk ('+batch.length+' produk) — kalau ada info "keunggulan", manfaatkan di script STORY biar spesifik dan meyakinkan:\n'+produkListText+'\n\n'
@@ -7941,26 +8139,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
     if(p.fotoBase64)_promptParts.push({inline_data:{mime_type:p.fotoMime||'image/jpeg',data:p.fotoBase64}});
   });
 
-  const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
-  async function _callGemini(withThinkingOff){
-    // FIX: Gemini 3.x menghapus parameter `temperature` & mengganti
-    // `thinkingBudget` (angka) jadi `thinkingLevel` (minimal/low/medium/high).
-    // Gemini 3 Flash juga TIDAK bisa mematikan thinking total (beda dari 2.5).
-    let cfg={maxOutputTokens:4096};
-    if(withThinkingOff)cfg.thinkingConfig={thinkingLevel:'minimal'};
-    return _vbFetchWithTimeout(url,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-      body:JSON.stringify({contents:[{parts:_promptParts}],generationConfig:cfg})
-    },withThinkingOff?30000:45000);
-  }
-  let{resp,rawText}=await _vbFetchWithRetry(()=>_callGemini(true),undefined,onWait);
-  // FIX: pesan error Google tidak selalu sebut nama parameter (bisa cuma
-  // "invalid argument" generik) — perlebar deteksi biar retry tetap kepicu.
-  if(!resp.ok&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)){
-    let retried=await _vbFetchWithRetry(()=>_callGemini(false),undefined,onWait);
-    resp=retried.resp;rawText=retried.rawText;
-  }
+  // REAL-TIME: pakai streamGenerateContent supaya hook/story/cta tiap
+  // produk di batch ini bisa muncul kata-per-kata ke UI lewat onPartial
+  // (kalau disediakan pemanggil) — sama seperti mode single, hasil
+  // streaming ini cuma PREVIEW. Retry/fallback thinkingConfig tetap sama
+  // persis seperti sebelumnya, dibungkus di _vbStreamGeminiJSONWithRetry.
+  let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_promptParts,onPartial,onWait);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -8092,6 +8276,16 @@ async function vbGenerateBulkAI(){
   let btn=document.getElementById('vb-bulk-btn');
   let genLogoState=startGenLogoBtn(btn,'Membuat Prompt...');
 
+  // ── REAL-TIME: tampilkan SEMUA grup produk + kartu Hook/Story/CTA
+  // kosong DULU (skipHistory=true — belum ada apa-apa buat dicatat ke
+  // Riwayat), baru diisi kata-per-kata per batch begitu potongan jawaban
+  // AI datang lewat streaming. Di akhir (setelah SEMUA batch selesai),
+  // _vbRenderBulkOutput dipanggil lagi seperti biasa (lihat bawah, tidak
+  // berubah) untuk merender versi FINAL yang sudah bersih — otomatis
+  // menimpa kartu live ini.
+  _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
+  _vbRenderBulkOutput(produkList.map(function(p){return{produk:p.nama,hook:'',story:'',cta:''};}),produkList,true);
+
   let allResults=[];
   try{
     for(let b=0;b<batches.length;b++){
@@ -8101,6 +8295,19 @@ async function vbGenerateBulkAI(){
       }
       let batchLabelBase='Batch '+(b+1)+'/'+batches.length+' ('+(b*BATCH_SIZE)+'/'+produkList.length+')...';
       updateGenLogoLabel(genLogoState,batchLabelBase);
+      // Batch ke berapa lagi jalan sekarang — dipakai buat map balik dari
+      // index LOKAL di dalam batch (0,1,2) ke index produk GLOBAL (prodIdx)
+      // supaya update live nempel ke grup kartu produk yang benar.
+      let batchStartIdx=b*BATCH_SIZE;
+      // CATATAN: dulu di sini ada onPartialThisBatch yang mengisi kartu
+      // kata-per-kata mengikuti potongan mentah streaming (real-time
+      // per-chunk) — tapi karena tiap potongan bisa menyentuh Hook/Story/CTA
+      // BARENGAN & lintas produk sekaligus, urutannya tidak bisa dijamin
+      // Hook→Story→CTA per produk seperti yang diinginkan. Sekarang kartu
+      // dibiarkan kosong selama batch masih diproses, dan animasi ketiknya
+      // baru jalan SETELAH semua batch selesai & hasilnya sudah disaring
+      // (lihat _vbRenderBulkOutput(...,true) di akhir try block).
+      let onPartialThisBatch=undefined;
       // FIX: sebelumnya kalau kena limit Google (429/503), user cuma diam
       // lihat tombol "Membuat Prompt..." tanpa tahu apa yang terjadi sampai
       // akhirnya (dulu) muncul pesan gagal. Sekarang label tombol diganti
@@ -8111,7 +8318,7 @@ async function vbGenerateBulkAI(){
         let detik=Math.ceil(waitMs/1000);
         let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
-      });
+      },onPartialThisBatch);
       dlIncrement();
       if(batchArr.length<batches[b].length){
         console.warn('[vbGenerateBulkAI] batch '+b+' cuma balikin '+batchArr.length+' dari '+batches[b].length+' produk diminta');
@@ -8121,6 +8328,42 @@ async function vbGenerateBulkAI(){
       // masalah salah-tempel nama saat ada produk yang di-drop di tengah
       // batch, dan sudah jalan SEBELUM perbaikan jumlah kata dijalankan.
       allResults=allResults.concat(batchArr);
+      // FIX SCRIPT YANG SUDAH JADI TAPI KOLOMNYA MASIH KOSONG: sebelumnya di
+      // sini TIDAK ADA update UI sama sekali begitu satu batch selesai —
+      // kartu Hook/Story/CTA punya produk di batch ini DIBIARKAN kosong
+      // sampai SEMUA batch (bisa 4x panggilan buat 10 produk) kelar, baru
+      // ditampilkan bareng-bareng lewat _vbRenderBulkOutput(...,true) di
+      // akhir try block. Kalau prosesnya masih di Batch 2/4, produk dari
+      // Batch 1 yang sebenarnya SUDAH selesai dari Gemini tetap kelihatan
+      // kosong (0/25 kata) di layar — persis laporan user. Sekarang begitu
+      // batch ini beres, langsung isi kartu produk-produk di batch ini juga
+      // (tidak perlu nunggu batch berikutnya) lewat _vbUpdateProductCardsLive,
+      // yang pakai typewriter versi PARALEL (_vbTypewriterSetTarget) — beda
+      // dari versi sequential yang dipakai mode single, versi ini AMAN
+      // dipanggil berkali-kali tanpa saling membatalkan animasi ketik batch
+      // lain yang mungkin masih jalan (tidak ada reset sesi global). Render
+      // ulang PENUH di akhir (lihat bawah) tetap dipertahankan supaya badge
+      // "dipotong otomatis" & state akhir tetap konsisten, tapi animate-nya
+      // dimatikan (langsung tampil, tanpa ngetik ulang) karena isinya sudah
+      // kepakai duluan di sini.
+      //
+      // PENGAMAN WAJIB: update live ini pakai INDEX POSISI (batchStartIdx+j)
+      // buat tahu kartu produk mana yang harus diisi — itu CUMA aman kalau
+      // jumlah hasil PERSIS SAMA dengan jumlah yang diminta di batch ini.
+      // Kalau Gemini men-drop SATU produk di TENGAH batch (bukan di ujung),
+      // posisi hasil yang tersisa ikut geser — produk sesudah yang di-drop
+      // bakal ketiban script produk LAIN yang salah kalau tetap dipetakan
+      // by-index (persis masalah yang sudah pernah ditemukan & ditambal
+      // untuk backfill nama produk di _vbCallBulkBatch, lihat komentar di
+      // sana). Jadi kalau batch ini kena drop, live update-nya DILEWATI dulu
+      // (kartu-kartu di batch ini tetap kosong sampai render final di akhir,
+      // sama seperti perilaku SEBELUM fix ini) — render final tetap aman
+      // karena dia mencocokkan produk lewat NAMA (metaLookup), bukan posisi.
+      if(batchArr.length===batches[b].length){
+        for(let j=0;j<batchArr.length;j++){
+          _vbUpdateProductCardsLive(batchStartIdx+j,batchArr[j]);
+        }
+      }
       // Jeda antar batch — di atas gate global (_VB_MIN_GEMINI_GAP_MS) yang
       // sudah otomatis menjaga jarak tiap request Gemini, ini jeda EKSTRA
       // supaya tiap batch (yang isinya beberapa request: 1 utama + sampai
@@ -8131,10 +8374,25 @@ async function vbGenerateBulkAI(){
 
     if(allResults.length===0)throw new Error('Hasil AI kosong, coba lagi.');
 
-    _vbRenderBulkOutput(allResults,produkList);
+    // FITUR BARU: sama seperti mode single AI — script yang baru dikasih AI
+    // diketik pelan-pelan berurutan (Hook→Story→CTA, produk demi produk),
+    // bukan langsung muncul sekaligus. di-await dulu supaya toast/riwayat/
+    // progress muncul PAS animasi ketik semua produk benar-benar kelar.
+    setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+    // FIX SCRIPT SUDAH JADI TAPI KOLOM MASIH KOSONG (lanjutan dari fix di
+    // loop batch atas): render final ini TETAP dijalankan supaya badge
+    // "dipotong otomatis dari N kata" & state akhir (nama produk, urutan,
+    // dst) konsisten — tapi animate DIMATIKAN (parameter terakhir jadi
+    // false, sebelumnya true) karena isi tiap kartu SUDAH tampil duluan
+    // lewat _vbUpdateProductCardsLive per-batch. Kalau animate tetap true
+    // di sini, teks yang sudah kepakai bakal DIKOSONGKAN dulu lalu diketik
+    // ulang pelan-pelan dari awal untuk SEMUA produk (bukan cuma yang baru)
+    // — user akan lihat semua script yang sudah selesai dari tadi tiba-tiba
+    // hilang lalu muncul lagi satu-satu.
+    await _vbRenderBulkOutput(allResults,produkList,true,false);
+    _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     doneCard('v5','va5',(allResults.length*3)+' script bulk AI');
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
-    setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
     if(allResults.length<produkList.length){
       showToast('Hanya '+allResults.length+' dari '+produkList.length+' produk berhasil dibuat — sisanya bisa dicoba generate ulang.','error');
     }else{
@@ -8188,8 +8446,16 @@ function _vbBuildProductMetaLookup(produkListMeta){
 
 // ── Render kartu kompak untuk hasil bulk — tiap script bisa diedit,
 // JSON di bawahnya update REALTIME tiap ketikan (bukan cuma pas generate) ──
-function _vbRenderBulkOutput(products,produkListMeta){
+// animate=true: semua kartu (lintas produk) dibangun KOSONG dulu, lalu
+// diketik berurutan Hook→Story→CTA per produk, produk demi produk dari atas
+// ke bawah — mengikuti pola yang sama seperti _vbRenderMultiOutput di mode
+// single AI. Kalau animate true, entri Riwayat SENGAJA tidak dibuat di sini
+// (skipHistory diabaikan) — pemanggil yang meng-await Promise return-nya lalu
+// mencatat Riwayat sendiri SETELAH animasi kelar, supaya urutannya konsisten
+// dengan mode single (lihat vbGenerateBulkAI/vbRegenerateAllBulk).
+function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   VB_BULK_ITEMS=[];
+  _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   // Panel revisi dibangun ULANG dari nol di bawah (prodIdx bisa menunjuk ke
   // produk yang berbeda dari sebelumnya kalau ada yang di-drop AI) — buang
   // override foto lama biar tidak nyangkut ke prodIdx yang salah.
@@ -8224,6 +8490,7 @@ function _vbRenderBulkOutput(products,produkListMeta){
   multiWrap.appendChild(settingsPanel);
 
   let i=0;
+  let _vbBulkTypeItems=[];
   products.forEach(function(p,prodIdx){
     // ── Grup per produk: nomor + nama jelas, dipisah dari produk lain ──
     let group=document.createElement('div');
@@ -8274,8 +8541,12 @@ function _vbRenderBulkOutput(products,produkListMeta){
 
     ['hook','story','cta'].forEach(function(roleKey){
       let roleInfo=VB_3SCRIPT_ROLES.find(r=>r.key===roleKey);
-      let card=_vbBuildEditableCard(i,roleInfo?roleInfo.label:roleKey,p[roleKey]||'',p.produk);
+      let card=_vbBuildEditableCard(i,roleInfo?roleInfo.label:roleKey,p[roleKey]||'',p.produk,!!animate);
       groupBody.appendChild(card);
+      if(animate){
+        let finalScript=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].script:(p[roleKey]||'');
+        _vbBulkTypeItems.push({taId:'vb-bulk-script-'+i,text:finalScript,onTick:(function(ii){return function(){vbBulkUpdateJson(ii);};})(i)});
+      }
       i++;
     });
 
@@ -8295,7 +8566,12 @@ function _vbRenderBulkOutput(products,produkListMeta){
   // Semua" dari panel setting, karena keduanya sama-sama lewat fungsi ini),
   // bukan 1 entri per kartu seperti sebelumnya yang bikin Riwayat lama
   // ketiban habis.
-  _vbBuildCombinedHistoryEntry('Bulk '+products.length+' produk ('+(products.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
+  if(!skipHistory&&!animate){
+    _vbBuildCombinedHistoryEntry('Bulk '+products.length+' produk ('+(products.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
+  }
+
+  if(animate&&_vbBulkTypeItems.length>0)return _vbTypewriterSequentialRun(_vbBulkTypeItems);
+  return Promise.resolve();
 }
 
 // Buka/tutup panel revisi 1 produk tertentu (forceClose=true buat selalu menutup)
@@ -8304,6 +8580,104 @@ function vbToggleRevisiPanel(prodIdx,forceClose){
   if(!panel)return;
   if(forceClose){panel.classList.add('hidden');return;}
   panel.classList.toggle('hidden');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TYPEWRITER ENGINE — masalah yang ditemukan user: Gemini kadang balas
+// dalam 1-2 potongan BESAR (bukan kata demi kata dari servernya), jadi
+// kalau textarea langsung di-set ke isi potongan itu, kelihatannya
+// "loncat muncul sekaligus" alih-alih ngetik pelan. Fix-nya: PISAHKAN
+// kecepatan JARINGAN (kapan data sampai — tidak bisa dikontrol) dari
+// kecepatan TAMPILAN (berapa cepat huruf muncul di layar — INI yang
+// dikontrol di sini). Tiap kali ada teks baru masuk, cuma "target"-nya
+// yang di-update; satu interval loop terpisah yang pelan-pelan
+// menggeser teks yang TAMPIL menuju target itu dengan kecepatan tetap
+// (jadi tetap terasa "real-time", bukan nunggu sampai benar-benar
+// selesai baru muncul, tapi juga tidak loncat sekaligus).
+// ──────────────────────────────────────────────────────────────────
+const _vbTypewriter={targets:{},timer:null};
+function _vbTypewriterReset(){
+  _vbTypewriter.targets={};
+  if(_vbTypewriter.timer){clearInterval(_vbTypewriter.timer);_vbTypewriter.timer=null;}
+}
+function _vbTypewriterSetTarget(taId,fullText,onTick){
+  _vbTypewriter.targets[taId]={text:fullText||'',onTick:onTick||null};
+  if(!_vbTypewriter.timer){
+    _vbTypewriter.timer=setInterval(function(){
+      let anyPending=false;
+      for(let taId2 in _vbTypewriter.targets){
+        let t=_vbTypewriter.targets[taId2];
+        let ta=document.getElementById(taId2);
+        if(!ta)continue; // kartu sudah diganti/dihapus (mis. generate baru), lewati aman
+        let shown=ta.value||'';
+        let target=t.text||'';
+        if(shown.length<target.length){
+          anyPending=true;
+          // Kecepatan dasar ~2 karakter/tik (terasa seperti ngetik natural).
+          // Kalau jaraknya jauh (chunk besar baru masuk / lagi susul-menyusul
+          // antar produk di mode bulk), dipercepat proporsional supaya tidak
+          // ketinggalan lama, tapi tetap kelihatan "mengalir" bukan loncat.
+          let gap=target.length-shown.length;
+          let step=gap>60?Math.ceil(gap/8):(gap>20?3:2);
+          ta.value=target.slice(0,shown.length+step);
+          if(typeof t.onTick==='function')t.onTick();
+        }else if(shown.length>target.length){
+          // Kasus jarang: target (hasil terbaru) lebih pendek dari yang
+          // sudah tampil — samakan langsung, tidak perlu animasi mundur.
+          ta.value=target;
+          if(typeof t.onTick==='function')t.onTick();
+        }
+      }
+      if(!anyPending){clearInterval(_vbTypewriter.timer);_vbTypewriter.timer=null;}
+    },28);
+  }
+}
+
+// ── TYPEWRITER SEQUENTIAL — khusus mode AI single (Hook/Story/CTA) ──
+// Beda dengan _vbTypewriterSetTarget di atas (yang mengetik SEMUA target
+// bareng-bareng/paralel, cocok buat mode bulk yang banyak kartu sekaligus),
+// yang ini SENGAJA satu-per-satu berurutan: Hook diketik penuh dulu sampai
+// selesai, baru Story mulai, baru CTA — sesuai permintaan user supaya tidak
+// kelihatan "muncul sekaligus" dan urutannya jelas dari atas ke bawah.
+// Kata demi kata (bukan huruf demi huruf) supaya terasa seperti orang
+// ngetik natural, bukan animasi teks generik.
+const _vbSeqTyper={timer:null,gen:0};
+function _vbTypewriterSequentialReset(){
+  _vbSeqTyper.gen++; // sesi lama otomatis batal (dicek tiap tick lewat myGen)
+  if(_vbSeqTyper.timer){clearInterval(_vbSeqTyper.timer);_vbSeqTyper.timer=null;}
+}
+// items: [{taId, text, onTick}] — mengetik items[0] full dulu, baru items[1], dst.
+// Return Promise yang resolve setelah item TERAKHIR selesai diketik (atau
+// langsung resolve kalau dibatalkan oleh sesi baru).
+function _vbTypewriterSequentialRun(items){
+  _vbTypewriterSequentialReset();
+  let myGen=_vbSeqTyper.gen;
+  return new Promise(function(resolve){
+    let idx=0;
+    function nextItem(){
+      if(myGen!==_vbSeqTyper.gen){resolve();return;} // dibatalkan sesi baru
+      if(idx>=items.length){resolve();return;}
+      let item=items[idx];
+      let ta=document.getElementById(item.taId);
+      let words=(item.text||'').match(/\S+\s*/g)||[]; // per-kata (termasuk spasi setelahnya)
+      if(!ta||words.length===0){idx++;nextItem();return;}
+      ta.value='';
+      if(typeof item.onTick==='function')item.onTick();
+      let wi=0;
+      _vbSeqTyper.timer=setInterval(function(){
+        if(myGen!==_vbSeqTyper.gen){clearInterval(_vbSeqTyper.timer);_vbSeqTyper.timer=null;resolve();return;}
+        ta.value+=words[wi];
+        wi++;
+        if(typeof item.onTick==='function')item.onTick();
+        if(wi>=words.length){
+          clearInterval(_vbSeqTyper.timer);_vbSeqTyper.timer=null;
+          idx++;
+          nextItem();
+        }
+      },55); // ~55ms/kata — cukup pelan buat kebaca, cukup cepat biar ga lama nunggu 3 script
+    }
+    nextItem();
+  });
 }
 
 // Update 3 kartu (hook/story/cta) satu produk setelah revisi AI berhasil
@@ -8322,6 +8696,44 @@ function _vbUpdateProductCards(prodIdx,p){
   });
   let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
   if(nameLabel)nameLabel.textContent=p.produk||('Produk '+(prodIdx+1));
+}
+
+// Versi ANIMASI dari _vbUpdateProductCards di atas — dipakai khusus setelah
+// revisi 1 produk (vbRevisiProdukAI) supaya hasil revisi juga diketik pelan-
+// pelan berurutan (Hook→Story→CTA), konsisten dengan generate awal, bukan
+// langsung muncul sekaligus. Nama produk di header tetap update instan
+// (bukan bagian dari isi script yang perlu "diketik"). Return Promise yang
+// resolve setelah CTA-nya selesai diketik.
+function _vbAnimateProductCards(prodIdx,p){
+  let base=prodIdx*3;
+  let items=['hook','story','cta'].map(function(roleKey,offset){
+    let idx=base+offset;
+    let scriptText=_vbTruncate25Words(p[roleKey]||'');
+    if(VB_BULK_ITEMS[idx]){VB_BULK_ITEMS[idx].script=scriptText;VB_BULK_ITEMS[idx].produk=p.produk||VB_BULK_ITEMS[idx].produk;}
+    return{taId:'vb-bulk-script-'+idx,text:scriptText,onTick:function(){vbBulkUpdateJson(idx);}};
+  });
+  let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
+  if(nameLabel)nameLabel.textContent=p.produk||('Produk '+(prodIdx+1));
+  return _vbTypewriterSequentialRun(items);
+}
+
+// Versi LIVE dari _vbUpdateProductCards di atas — dipakai KHUSUS pas
+// streaming bulk sedang berjalan. Bedanya: bukan langsung set ta.value
+// (yang bikin efek "loncat"), tapi cuma mendaftarkan TARGET teks ke
+// _vbTypewriterSetTarget() supaya tampil pelan-pelan mengalir. Fungsi
+// _vbUpdateProductCards ASLI (di atas) TIDAK disentuh — tetap dipakai apa
+// adanya buat kasus yang memang harus instan (mis. hasil Revisi 1 produk).
+function _vbUpdateProductCardsLive(prodIdx,p){
+  let base=prodIdx*3;
+  ['hook','story','cta'].forEach(function(roleKey,offset){
+    let idx=base+offset;
+    let scriptText=_vbTruncate25Words(p[roleKey]||'');
+    _vbTypewriterSetTarget('vb-bulk-script-'+idx,scriptText,function(){vbBulkUpdateJson(idx);});
+  });
+  if(p.produk){
+    let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
+    if(nameLabel)nameLabel.textContent=p.produk;
+  }
 }
 
 // Ganti/hapus foto khusus di panel Revisi 1 produk — cuma disimpan sebagai
@@ -8399,7 +8811,10 @@ async function vbRevisiProdukAI(prodIdx){
     // dipermanenkan di sini, supaya revisi/generate-ulang BERIKUTNYA ikut
     // memakai foto terbaru ini juga.
     VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
-    _vbUpdateProductCards(prodIdx,p);
+    // FITUR BARU: hasil revisi juga diketik pelan-pelan berurutan (Hook→
+    // Story→CTA), konsisten dengan generate awal — di-await dulu supaya
+    // panel revisi ditutup & toast muncul PAS animasinya kelar.
+    await _vbAnimateProductCards(prodIdx,p);
     vbToggleRevisiPanel(prodIdx,true);
     // FIX BUG#20 (ditemukan saat audit lanjutan): _vbBuildCombinedHistoryEntry()
     // sebelumnya HANYA dipanggil dari _vbRenderBulkOutput (generate awal/
@@ -8559,12 +8974,35 @@ async function vbRegenerateAllBulk(newSettings){
       // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
       // masalah salah-tempel nama saat ada produk yang di-drop di tengah batch.
       allResults=allResults.concat(batchArr);
+      // FIX SCRIPT SUDAH JADI TAPI KOLOM MASIH KOSONG: sama seperti fix di
+      // vbGenerateBulkAI — begitu batch ini beres, langsung isi kartu
+      // produk-produk di batch ini juga (bukan nunggu semua batch kelar).
+      // Di jalur "Generate Ulang Semua" ini kartu lama masih kelihatan
+      // (bukan blank) selama proses, tapi tetap kepakai supaya produk yang
+      // batch-nya sudah selesai langsung ke-update ke hasil BARU, bukan
+      // nunggu revisi produk lain ikut kelar dulu.
+      // PENGAMAN SAMA seperti di vbGenerateBulkAI: cuma jalan kalau jumlah
+      // hasil PERSIS SAMA dengan jumlah diminta di batch ini (lihat komentar
+      // lengkap soal risiko drop-di-tengah-batch di vbGenerateBulkAI) —
+      // kalau ada drop, live update dilewati, render final di akhir
+      // (name-based matching) tetap menjamin hasilnya nempel ke produk yang
+      // benar.
+      if(batchArr.length===batches[b].length){
+        for(let j=0;j<batchArr.length;j++){
+          _vbUpdateProductCardsLive(b*BATCH_SIZE+j,batchArr[j]);
+        }
+      }
       if(b<batches.length-1)await new Promise(function(r){setTimeout(r,1500);});
     }
     if(allResults.length===0)throw new Error('Hasil AI kosong, coba lagi.');
-    _vbRenderBulkOutput(allResults,produkList);
-    doneCard('v5','va5',(allResults.length*3)+' script bulk AI (revisi)');
     setTimeout(function(){document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'});},100);
+    // animate dimatikan (false, sebelumnya true) — isi tiap kartu sudah
+    // tampil duluan lewat _vbUpdateProductCardsLive per-batch di atas,
+    // render final ini cuma buat konsistensi akhir (badge, dst), bukan
+    // buat mengetik ulang dari nol.
+    await _vbRenderBulkOutput(allResults,produkList,true,false);
+    _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script, revisi)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
+    doneCard('v5','va5',(allResults.length*3)+' script bulk AI (revisi)');
     showToast('Semua produk berhasil digenerate ulang!','success');
   }catch(err){
     console.error('vbRegenerateAllBulk error:',err);
@@ -8650,6 +9088,10 @@ function vbGenerate3Manual(){
     let produkEl=document.getElementById('vb-manual-mode3-produk');
     produkNama=produkEl?produkEl.value.trim():'';
     if(!produkNama){showToast('Nama produk di foto referensi 2 wajib diisi dulu','error');if(produkEl)produkEl.focus();return;}
+    // FIX BUG#21 (lihat catatan lengkap di vbGenerate3AI): isi juga di
+    // jalur manual, biar fallback VB.mode3Produk di _vbBuildFlowText() ikut
+    // berfungsi kalau nanti dipakai dari jalur ini juga.
+    VB.mode3Produk=produkNama;
   }else{
     let fallbackEl=document.getElementById('vb-produk-nama');
     produkNama=fallbackEl?fallbackEl.value.trim():'';
@@ -8681,6 +9123,17 @@ async function vbGenerate3AI(){
   let targetAudience=document.getElementById('vb-target-audience').value.trim();
   if(!produkNama){showToast('Nama Produk wajib diisi dulu','error');document.getElementById('vb-produk-nama').focus();return;}
   if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-target-audience').focus();return;}
+  // FIX BUG#21 (ditemukan saat audit mendalam khusus builder video, lanjutan):
+  // VB.mode3Produk dideklarasikan di state VB tapi TIDAK PERNAH di-assign di
+  // mana pun sebelumnya — cuma dibaca sebagai fallback terakhir di
+  // _vbBuildFlowText() ("produkOverride||VB.mode3Produk||'produk tersebut'").
+  // Karena selalu kosong, fallback itu efektif langsung lompat ke string
+  // generik "produk tersebut" kalau produkOverride yang dikirim pemanggil
+  // kebetulan kosong (mis. hasil AI gagal isi field "produk" di kasus
+  // langka). Sekarang diisi di sini begitu Nama Produk tervalidasi di jalur
+  // AI single, supaya fallback itu benar-benar berfungsi seperti niat
+  // awalnya alih-alih diam-diam selalu generik.
+  if(VB.refMode==='kp')VB.mode3Produk=produkNama;
 
   // Cek API key — coba load dari memory dulu, lalu dari storage terenkripsi
   if(!VAI||!VAI.apiKey){
@@ -8717,7 +9170,7 @@ async function vbGenerate3AI(){
   let prompt='Kamu adalah copywriter konten UGC (user generated content) untuk video promosi produk e-commerce Indonesia di TikTok/Instagram/Shopee Live.\n\n'
     +'Nama produk: '+produkNama+'\n'
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
-    +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — tulis script dengan energi/nada yang sesuai.\n'
+    +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — ini HANYA soal GAYA PENYAMPAIAN suara (intonasi, energi, ritme bicara saat ngomong di depan kamera). JANGAN mengubah TOPIK/TEMA cerita jadi soal nada tersebut. Contoh: kalau nadanya "Misterius", karakter ngomong dengan nada pelan/misterius/penuh rasa penasaran, TAPI isi cerita (terutama STORY) tetap 100% soal produk & manfaatnya, BUKAN cerita horor/misteri/teka-teki.\n'
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan nada/gaya bahasa script dengan aksen ini (Netral/Formal/Santai), tetap Bahasa Indonesia standar tanpa logat daerah.\n'
     +'Target audience: '+targetAudience+'\n'
     +(VB.produkFotoBase64?'\nADA FOTO REFERENSI PRODUK ASLI TERLAMPIR — perhatikan baik-baik bentuk, warna, tekstur, kemasan, dan detail produk di foto tersebut. Manfaatkan itu supaya script (terutama bagian STORY) menyebutkan ciri khas produk secara spesifik dan akurat sesuai tampilan aslinya di foto, bukan tebakan/asumsi generik.\n':'\n')
@@ -8734,43 +9187,36 @@ async function vbGenerate3AI(){
     _vbPromptParts.push({inline_data:{mime_type:VB.produkFotoMime||'image/jpeg',data:VB.produkFotoBase64}});
   }
 
+  // Tampilkan 3 kartu KOSONG (Hook/Story/CTA) SEBELUM request dikirim, biar
+  // user langsung lihat "slot"-nya sudah siap sambil nunggu AI jawab.
+  // CATATAN: dulu di sini kartu diisi kata-per-kata mengikuti potongan
+  // mentah yang datang dari streamGenerateContent (real-time per-chunk) —
+  // tapi karena Gemini mengembalikan JSON array [hook,story,cta] sekaligus,
+  // potongan itu suka mengisi ketiga kartu BARENGAN/acak urutannya, bukan
+  // Hook selesai dulu baru Story baru CTA seperti yang diinginkan. Makanya
+  // sekarang kartu dibiarkan kosong selama menunggu, dan animasi ketiknya
+  // baru dijalankan SETELAH jawaban AI lengkap & sudah disaring (lihat
+  // _vbRenderMultiOutput(...,true) di bawah) — supaya urutannya pasti
+  // Hook → Story → CTA, satu-satu, bukan sekaligus.
+  _vbRenderMultiOutputLive(produkNama);
+
   try{
-    const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
-    // FIX: 1024 kekecilan → dinaikkan. Lalu masih kepotong di 3072 karena
-    // model pakai reasoning/thinking yang makan token sebelum jawaban muncul
-    // → thinking dimatikan (thinkingBudget:0). Kalau parameter ini ternyata
-    // tidak didukung model (API reject), otomatis coba ulang tanpa parameter itu.
-    async function _vbCallGemini(withThinkingOff){
-      // FIX: Gemini 3.x menghapus parameter `temperature` & mengganti
-      // `thinkingBudget` (angka) jadi `thinkingLevel` (minimal/low/medium/high).
-      // Gemini 3 Flash juga TIDAK bisa mematikan thinking total (beda dari 2.5).
-      let cfg={maxOutputTokens:4096};
-      if(withThinkingOff)cfg.thinkingConfig={thinkingLevel:'minimal'};
-      return _vbFetchWithTimeout(url,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-        body:JSON.stringify({contents:[{parts:_vbPromptParts}],generationConfig:cfg})
-      },withThinkingOff?30000:45000);
-    }
     // FIX: sebelumnya kalau kena limit Google (429/503), user cuma diam
     // lihat tombol "Membuat 3 Script..." tanpa tahu apa yang terjadi sampai
     // akhirnya (dulu) muncul pesan gagal setelah 3x percobaan. Sekarang
-    // retry-nya tanpa batas jumlah percobaan (lihat _vbFetchWithRetry) dan
-    // label tombol diganti sementara jadi status "⏳ nunggu" yang jujur
-    // selama proses retry otomatis berlangsung.
+    // retry-nya tanpa batas jumlah percobaan dan label tombol diganti
+    // sementara jadi status "⏳ nunggu" yang jujur selama proses retry
+    // otomatis berlangsung. _vbStreamGeminiJSONWithRetry membungkus jalur
+    // streamGenerateContent (buat efek real-time) SEKALIGUS retry &
+    // fallback thinkingConfig — hasilnya dibungkus dalam bentuk {resp,rawText}
+    // yang PERSIS sama seperti generateContent biasa, jadi semua kode
+    // pem-parse-an JSON/sanitizer/fix-kata di bawah ini TIDAK berubah sama sekali.
     let _vbOnWait=function(waitMs,attempt,status){
       let detik=Math.ceil(waitMs/1000);
       let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
       updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... Membuat 3 Script');
     };
-    let{resp,rawText}=await _vbFetchWithRetry(()=>_vbCallGemini(true),undefined,_vbOnWait);
-    // FIX: pesan error Google tidak selalu sebut nama parameter (bisa cuma
-    // "invalid argument" generik) — perlebar deteksi biar retry tetap kepicu.
-    if(!resp.ok&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)){
-      console.log('[vbGenerate3AI] thinkingConfig ditolak API, coba ulang tanpa parameter itu');
-      let retried=await _vbFetchWithRetry(()=>_vbCallGemini(false),undefined,_vbOnWait);
-      resp=retried.resp;rawText=retried.rawText;
-    }
+    let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait);
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
     if(!resp.ok){
       let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -8833,20 +9279,53 @@ async function vbGenerate3AI(){
       scripts=arr.map(function(item){return typeof item==='string'?item:(item.script||item.text||'');});
     }
 
+    // Sanitizer jalan DULU (jaring pengaman kode, cepat — tidak perlu
+    // panggilan API tambahan), baru script dianggap "siap tampil".
     let _roleLabelsPlain=['Hook','Cerita Produk (Story)','CTA Keranjang'];
-    for(let si=0;si<scripts.length;si++){
-      // Sanitizer jalan DULU (jaring pengaman kode), baru perbaikan jumlah
-      // kata — biar 25 kata dihitung dari teks yang sudah bersih.
-      scripts[si]=_vbSanitizeForbiddenPhrases(scripts[si]);
-      scripts[si]=await _vbFixWordCountIfNeeded(scripts[si],_roleLabelsPlain[si]||('Script '+(si+1)),produkNama);
-    }
+    scripts=scripts.map(function(s){return _vbSanitizeForbiddenPhrases(s);});
 
-    _vbRenderMultiOutput(scripts,produkNama);
+    // FIX (keluhan user): sebelumnya tombol "Membuat 3 Script..." tetap
+    // ber-spinner sampai TIGA proses "rapikan jumlah kata" (masing-masing
+    // bisa 1-2 panggilan API lagi ke Gemini, dijaga jeda ~4,5 detik antar
+    // panggilan) selesai SEMUA — padahal teks yang sudah lolos streaming +
+    // sanitizer di atas SUDAH lengkap & sudah kebaca jelas di kartu. Efeknya
+    // user lihat skrip sudah utuh tapi tombol masih "memuat", kesannya nge-
+    // hang padahal enggak. Sekarang: render & MATIKAN loading DI SINI dulu
+    // (skrip yang tampil sudah valid & bisa langsung dipakai/disalin), baru
+    // proses rapikan-ke-25-kata jalan DIAM-DIAM di background sesudahnya —
+    // kalau ada penyesuaian, kartu terkait di-update senyap tanpa
+    // memunculkan loading lagi.
+    // FITUR BARU: skrip yang baru dikasih AI diketik pelan-pelan kata demi
+    // kata, DIMULAI dari Hook sampai selesai penuh, baru lanjut Story, baru
+    // CTA — bukan langsung muncul sekaligus. _vbRenderMultiOutput dengan
+    // animate=true yang mengurusnya (lihat definisinya di atas); di-await
+    // dulu di sini supaya scroll/toast/"Selesai!" muncul PAS animasi
+    // ketiknya benar-benar kelar, dan supaya proses rapikan-kata di bawah
+    // tidak menimpa textarea yang masih dalam proses diketik.
+    setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+    await _vbRenderMultiOutput(scripts,produkNama,true);
     _vbBuildCombinedHistoryEntry('3 script AI'+(produkNama?' — '+produkNama:''));
     doneCard('v5','va5','3 script AI');
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
-    setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
     showToast('3 script + JSON berhasil dibuat!','success');
+    stopGenLogoBtn(btn,genLogoState);
+
+    // ── Rapikan jumlah kata di BACKGROUND (senyap), SETELAH animasi ketik
+    // selesai (lihat await di atas) — supaya tidak ada perubahan mendadak
+    // di tengah animasi yang sedang berjalan ────────────────────────────
+    // VAI._isGenerating TETAP true sampai bagian ini kelar (dilepas di
+    // finally di bawah) supaya tidak nabrak kalau user buru-buru generate
+    // lagi sebelum proses rapi-rapi ini beres — tapi UI tombol sudah balik
+    // normal dari sisi user, jadi tidak kelihatan seperti macet.
+    for(let si=0;si<scripts.length;si++){
+      let fixed=await _vbFixWordCountIfNeeded(scripts[si],_roleLabelsPlain[si]||('Script '+(si+1)),produkNama);
+      if(fixed!==scripts[si]){
+        scripts[si]=fixed;
+        let ta=document.getElementById('vb-bulk-script-'+si);
+        if(ta){ta.value=fixed;vbBulkUpdateJson(si);}
+        if(VB_BULK_ITEMS[si])VB_BULK_ITEMS[si].script=fixed;
+      }
+    }
   }catch(err){
     console.error('vbGenerate3AI error:',err);
     errBox.textContent=''+err.message;
@@ -8863,7 +9342,12 @@ async function vbGenerate3AI(){
 // ── Kartu kompak & bisa diedit — dipakai bareng oleh jalur AI single,
 // manual, maupun bulk. Textarea script + counter kata + preview JSON
 // yang update REALTIME setiap ketikan, tanpa perlu generate ulang. ──
-function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
+// skipInitialFill: kalau true, textarea/preview JSON/counter kata dibangun
+// dalam kondisi KOSONG dulu (biar bisa diketik pelan-pelan lewat
+// _vbTypewriterSequentialRun sesudahnya) — tapi VB_BULK_ITEMS[idx].script
+// tetap disimpan lengkap sejak awal supaya Riwayat/fitur lain yang baca
+// dari situ tidak ikut kepotong cuma karena animasinya belum selesai.
+function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipInitialFill){
   // FIX BUG#19 (ditemukan saat audit lanjutan): kalau _vbFixWordCountIfNeeded
   // gagal menepatkan jumlah kata jadi PERSIS 25 setelah 2x percobaan (AI tetap
   // ngasih 27/30 kata dkk), teks itu dikembalikan APA ADANYA — lalu baris di
@@ -8881,7 +9365,10 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
   initialScript=_vbTruncate25Words(initialScript);
   VB_BULK_ITEMS[idx]={produk:produkNamaForHistory||'',roleLabel:label,script:initialScript};
 
-  let jsonText=_vbBuildFlowText(initialScript,produkNamaForHistory);
+  // displayScript = apa yang tampil di textarea/JSON/counter SAAT kartu
+  // pertama dibangun. Kosong kalau mau dianimasikan ketik, penuh kalau tidak.
+  let displayScript=skipInitialFill?'':initialScript;
+  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory);
   let card=document.createElement('div');
   card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;';
 
@@ -8924,7 +9411,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
 
   let ta=document.createElement('textarea');
   ta.id='vb-bulk-script-'+idx;
-  ta.value=initialScript;
+  ta.value=displayScript;
   ta.rows=4;
   ta.className='inp';
   ta.style.cssText='width:100%;box-sizing:border-box;font-size:var(--fs-base);line-height:1.7;resize:vertical;margin-bottom:5px;padding:10px 12px;';
@@ -8932,9 +9419,9 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory){
 
   let wcLabel=document.createElement('div');
   wcLabel.id='vb-bulk-wc-'+idx;
-  let wc0=initialScript.trim().split(/\s+/).filter(Boolean).length;
-  wcLabel.textContent=wc0+'/25 kata'+(_wasAutoTruncated?' — dipotong otomatis dari '+_origWc+' kata, cek/edit lagi manual':'');
-  wcLabel.style.cssText='font-size:var(--fs-2xs);color:'+(_wasAutoTruncated?'#e0a05c':(wc0===25?'var(--green)':'var(--muted2)'))+';margin-bottom:4px;';
+  let wc0=displayScript.trim().split(/\s+/).filter(Boolean).length;
+  wcLabel.textContent=wc0+'/25 kata'+(_wasAutoTruncated&&!skipInitialFill?' — dipotong otomatis dari '+_origWc+' kata, cek/edit lagi manual':'');
+  wcLabel.style.cssText='font-size:var(--fs-2xs);color:'+(_wasAutoTruncated&&!skipInitialFill?'#e0a05c':(wc0===25?'var(--green)':'var(--muted2)'))+';margin-bottom:4px;';
 
   let jsonBox=document.createElement('pre');
   jsonBox.id='vb-bulk-json-'+idx;
@@ -8983,17 +9470,59 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
   historyAdd('video',sessionLabel,blocks.join('\n\n---\n\n'));
 }
 
-function _vbRenderMultiOutput(scripts,produkNamaForHistory){
+// Bangun 3 kartu KOSONG (Hook/Story/CTA) di #vb-multi-output SEBELUM AI
+// mulai jawab, khusus buat mode single AI (vbGenerate3AI). Struktur &
+// id-nya sama persis dengan _vbRenderMultiOutput (vb-bulk-script-0/1/2,
+// vb-bulk-json-0/1/2, dst) supaya vbBulkUpdateJson() & fungsi lain yang
+// sudah ada bisa langsung dipakai tanpa perubahan. Nanti setelah AI
+// selesai jawab, _vbRenderMultiOutput() yang sesungguhnya dipanggil lagi
+// untuk merender versi FINAL (sudah disaring sanitizer + fix kata),
+// jadi kartu live ini otomatis "diganti" bersih di akhir.
+function _vbRenderMultiOutputLive(produkNamaForHistory){
   VB_BULK_ITEMS=[];
+  _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
+  let multiWrap=document.getElementById('vb-multi-output');
+  multiWrap.innerHTML='';
+  multiWrap.style.display='flex';
+  VB_3SCRIPT_ROLES.forEach(function(roleInfo,i){
+    let card=_vbBuildEditableCard(i,roleInfo.label,'',produkNamaForHistory);
+    multiWrap.appendChild(card);
+  });
+}
+
+// Daftarkan teks terbaru kartu ke-idx sebagai TARGET typewriter (bukan
+// langsung di-set ke textarea) — lihat _vbTypewriterSetTarget di atas
+// untuk kenapa ini yang bikin efeknya mengalir pelan, bukan loncat
+// sekaligus tiap ada potongan besar dari Gemini.
+function _vbLiveUpdateCard(idx,text){
+  _vbTypewriterSetTarget('vb-bulk-script-'+idx,text,function(){vbBulkUpdateJson(idx);});
+}
+
+// animate=true: kartu dibangun KOSONG dulu, lalu diketik pelan-pelan
+// berurutan (Hook selesai penuh → baru Story → baru CTA) lewat
+// _vbTypewriterSequentialRun. Dipakai khusus jalur "dibantu AI" (vbGenerate3AI)
+// supaya skrip yang baru dikasih AI kelihatan seperti diketik, bukan
+// langsung muncul sekaligus. Return Promise yang resolve setelah animasi
+// (kalau ada) selesai — caller BOLEH await ini sebelum melakukan hal lain
+// yang menyentuh textarea yang sama (mis. proses rapikan jumlah kata),
+// supaya tidak nabrak/mengganggu animasi yang masih berjalan.
+function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate){
+  VB_BULK_ITEMS=[];
+  _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
   multiWrap.style.display='flex';
 
+  let typeItems=[];
   scripts.forEach(function(scriptText,i){
     if(!scriptText)return;
     let roleInfo=VB_3SCRIPT_ROLES[i]||{label:'Script '+(i+1)};
-    let card=_vbBuildEditableCard(i,roleInfo.label,scriptText,produkNamaForHistory);
+    let card=_vbBuildEditableCard(i,roleInfo.label,scriptText,produkNamaForHistory,!!animate);
     multiWrap.appendChild(card);
+    if(animate){
+      let finalScript=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].script:scriptText;
+      typeItems.push({taId:'vb-bulk-script-'+i,text:finalScript,onTick:(function(ii){return function(){vbBulkUpdateJson(ii);};})(i)});
+    }
   });
 
   let resetBtn=document.createElement('button');
@@ -9001,6 +9530,9 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory){
   resetBtn.innerHTML='<svg class="icon"><use href="#ic-refresh"></use></svg> Buat Prompt Video Baru';
   resetBtn.onclick=vbReset;
   multiWrap.appendChild(resetBtn);
+
+  if(animate&&typeItems.length>0)return _vbTypewriterSequentialRun(typeItems);
+  return Promise.resolve();
 }
 
 // FIX BUG#12 (ditemukan saat audit mendalam khusus builder video): _vbEsc()
@@ -9032,8 +9564,12 @@ function _vbBuildFlowText(scriptText,produkOverride){
   let instructionText;
   if(VB.refMode==='kp'){
     // Nama produk buat teks referensi diambil per-konteks (field AI/manual/bulk
-    // yang relevan saat generate), bukan ditanya lagi di step 1 — fallback ke
-    // VB.mode3Produk kalau memang tidak ada override yang dikirim
+    // yang relevan saat generate), bukan ditanya lagi di step 1. produkOverride
+    // (dikirim tiap pemanggil — beda-beda per kartu di jalur bulk) dipakai
+    // duluan; VB.mode3Produk (diisi di vbGenerate3AI/vbGenerate3Manual, lihat
+    // FIX BUG#21) jadi jaring pengaman kalau produkOverride kebetulan kosong
+    // (mis. field "produk" hasil AI gagal terisi); 'produk tersebut' generik
+    // baru dipakai kalau keduanya sama-sama tidak ada.
     let produkForRef=produkOverride||VB.mode3Produk||'produk tersebut';
     instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi 2 adalah produk yaitu '+produkForRef+' (pertahankan detail produk supaya tetap sama). Manfaatkan kedua foto tersebut untuk membuat sebuah video. Lokasi: '+VB.mode3Lokasi+'. Lighting: '+VB.mode3Lighting+'. ';
   }else{
