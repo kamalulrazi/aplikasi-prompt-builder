@@ -1201,6 +1201,7 @@ body input, body textarea, body [contenteditable="true"]{
     <symbol id="ic-shuffle" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="ic-warning" viewBox="0 0 24 24"><path d="M12 3l10 18H2L12 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10v4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></symbol>
     <symbol id="ic-document" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6M9 17h4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
   </defs>
 </svg>
 
@@ -2352,6 +2353,17 @@ body input, body textarea, body [contenteditable="true"]{
         <label class="inplabel">Nama Produk <span style="color:var(--red);">*wajib</span></label>
         <div class="inp-wrap" style="margin-bottom:10px;">
           <input class="inp" id="vb-produk-nama" maxlength="80" placeholder="Contoh: Serum Wajah Glow Aura" />
+        </div>
+        <label class="inplabel">Foto Referensi Produk <span style="font-weight:400;color:var(--muted);">(opsional — bantu AI biar script lebih sesuai produk asli)</span></label>
+        <div style="margin-bottom:12px;">
+          <input type="file" accept="image/*" id="vb-produk-foto-input" style="display:none;" onchange="vbHandleProdukFotoUpload(this)" />
+          <div id="vb-produk-foto-empty" onclick="document.getElementById('vb-produk-foto-input').click()" style="border:1.5px dashed var(--border-hi);border-radius:var(--radius-md);padding:14px;text-align:center;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;">
+            <svg class="icon" style="width:18px;height:18px;margin-bottom:3px;"><use href="#ic-camera"></use></svg><br>Tap untuk pilih foto produk
+          </div>
+          <div id="vb-produk-foto-preview" class="hidden" style="position:relative;display:inline-block;">
+            <img id="vb-produk-foto-img" style="max-width:110px;max-height:110px;border-radius:var(--radius-md);display:block;object-fit:cover;border:1px solid var(--border-hi);" />
+            <button type="button" onclick="vbRemoveProdukFoto()" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:13px;line-height:1;cursor:pointer;">✕</button>
+          </div>
         </div>
         <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span></label>
         <div class="inp-wrap" style="margin-bottom:12px;">
@@ -7103,7 +7115,102 @@ function historyRender(){
 // ============================================================
 // VIDEO BUILDER — Reference + Dialogue (voice_character)
 // ============================================================
-let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:''};
+let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:''};
+
+// ── FOTO REFERENSI PRODUK (untuk bantu AI bikin script sesuai produk asli) ──
+// Foto kamera HP sering beberapa MB — kalau dikirim mentah ke Gemini bisa
+// bikin request lambat/gagal & boros kuota base64 (naik ~33% dari ukuran
+// asli). Fungsi ini resize ke maksimal 1024px di sisi terpanjang + kompres
+// ke JPEG kualitas 0.8 lewat <canvas> sebelum diubah jadi base64 — biasanya
+// turun ke puluhan-ratusan KB saja, cukup buat AI "melihat" bentuk/warna/
+// tekstur/kemasan produk tanpa perlu resolusi penuh.
+// Deteksi longgar file HEIC/HEIF (format default kamera iPhone) — dipakai
+// buat kasih pesan error yang lebih jelas kalau browser gagal decode-nya
+// (banyak browser non-Safari, termasuk Chrome desktop/Android, belum bisa
+// baca HEIC lewat <img>). Cek dari MIME type ATAU ekstensi nama file, karena
+// sebagian browser melaporkan file.type kosong/"application/octet-stream"
+// untuk HEIC alih-alih "image/heic" yang seharusnya.
+function _vbIsLikelyHeic(file){
+  let type=(file&&file.type||'').toLowerCase();
+  let name=(file&&file.name||'').toLowerCase();
+  return type.indexOf('heic')!==-1||type.indexOf('heif')!==-1||/\.(heic|heif)$/.test(name);
+}
+function _vbCompressImageFile(file){
+  return new Promise(function(resolve,reject){
+    if(!file){reject(new Error('File yang dipilih bukan gambar'));return;}
+    let isHeic=_vbIsLikelyHeic(file);
+    // FIX (audit lanjutan — permintaan pesan error HEIC yang lebih jelas):
+    // dulu file HEIC dengan file.type kosong/generik langsung ditolak di
+    // sini dengan pesan "bukan gambar" yang menyesatkan (padahal itu memang
+    // foto, cuma formatnya belum tentu didukung). Sekarang kalau namanya
+    // mengarah ke HEIC/HEIF, tetap dilanjutkan ke percobaan decode (beberapa
+    // browser seperti Safari BISA baca HEIC) — kalau memang gagal decode,    // pesan error di bawah (img.onerror) yang jelasin alasannya.
+    if(!isHeic&&(!file.type||file.type.indexOf('image/')!==0)){reject(new Error('File yang dipilih bukan gambar'));return;}
+    let reader=new FileReader();
+    reader.onerror=function(){reject(new Error('Gagal membaca file'));};
+    reader.onload=function(){
+      let img=new Image();
+      img.onerror=function(){
+        // FIX: pesan generik "coba file lain" tidak jelas kenapa gagal —
+        // padahal penyebab paling umum di lapangan adalah foto HEIC dari
+        // iPhone yang browsernya (Chrome/Android/Windows umumnya) belum
+        // bisa decode. Kasih tau akar masalah + solusi konkret.
+        if(isHeic){
+          reject(new Error('Format foto ini (HEIC/HEIF, biasa dari kamera iPhone) belum bisa dibaca browser kamu. Ubah dulu ke JPG/PNG — misal share fotonya ke WhatsApp/aplikasi lain lalu simpan ulang, atau screenshot fotonya — baru upload lagi.'));
+        }else{
+          reject(new Error('Gagal memuat gambar — coba file lain'));
+        }
+      };
+      img.onload=function(){
+        let MAX=1024;
+        let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){
+          if(w>h){h=Math.round(h*(MAX/w));w=MAX;}
+          else{w=Math.round(w*(MAX/h));h=MAX;}
+        }
+        let canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        let ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        let dataUrl;
+        try{dataUrl=canvas.toDataURL('image/jpeg',0.8);}catch(e){reject(new Error('Gagal memproses gambar (mungkin file rusak)'));return;}
+        let base64=dataUrl.split(',')[1]||'';
+        if(!base64){reject(new Error('Gagal memproses gambar'));return;}
+        resolve({base64:base64,mime:'image/jpeg'});
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Upload foto produk — mode SINGLE (satu produk, hasil disimpan di VB.produkFotoBase64/Mime)
+async function vbHandleProdukFotoUpload(input){
+  let file=input.files&&input.files[0];
+  if(!file)return;
+  try{
+    let res=await _vbCompressImageFile(file);
+    VB.produkFotoBase64=res.base64;
+    VB.produkFotoMime=res.mime;
+    let img=document.getElementById('vb-produk-foto-img');
+    if(img)img.src='data:'+res.mime+';base64,'+res.base64;
+    let empty=document.getElementById('vb-produk-foto-empty');
+    let preview=document.getElementById('vb-produk-foto-preview');
+    if(empty)empty.classList.add('hidden');
+    if(preview)preview.classList.remove('hidden');
+  }catch(e){
+    console.warn('[vbHandleProdukFotoUpload]',e);
+    showToast('Gagal memproses foto: '+e.message,'error');
+  }finally{
+    input.value=''; // biar bisa pilih file yang sama lagi kalau mau ganti
+  }
+}
+function vbRemoveProdukFoto(){
+  VB.produkFotoBase64='';VB.produkFotoMime='';
+  let img=document.getElementById('vb-produk-foto-img'); if(img)img.src='';
+  let empty=document.getElementById('vb-produk-foto-empty'); if(empty)empty.classList.remove('hidden');
+  let preview=document.getElementById('vb-produk-foto-preview'); if(preview)preview.classList.add('hidden');
+}
 
 const VB_REF_MODE_TEXT={
   satu:'Gunakan foto tersebut sebagai acuan karakter, outfit, dan lokasi. Pertahankan semua detail secara konsisten sepanjang video.',
@@ -7362,13 +7469,22 @@ const VB_3SCRIPT_ROLES=[
 // diedit, dan JSON di bawahnya update REALTIME setiap ketikan.
 // ============================================================
 let VB_BULK_ITEMS=[]; // {produk, role, roleLabel, script} — flat, index = urutan tampil
-let VB_BULK_PRODUCTS=[]; // {nama, keunggulan} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
+let VB_BULK_PRODUCTS=[]; // {nama, keunggulan, fotoBase64, fotoMime} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
 
-// Cache PERSISTEN nama/keunggulan tiap baris bulk, bertahan sepanjang sesi
+// Override foto SEMENTARA khusus panel Revisi 1 produk, keyed by prodIdx —
+// hanya terisi kalau user benar-benar upload/hapus foto baru di panel itu.
+// TIDAK langsung mengubah VB_BULK_PRODUCTS (foto "resmi") — baru
+// dipermanenkan ke sana setelah user klik "Generate Ulang Produk Ini"
+// (lihat vbRevisiProdukAI). Direset tiap kali hasil bulk baru dirender
+// (_vbRenderBulkOutput) & di vbReset(), supaya tidak nyangkut ke prodIdx
+// yang salah di sesi/generate berikutnya.
+let VB_REVISI_FOTO_OVERRIDE={};
+
+// Cache PERSISTEN nama/keunggulan/foto tiap baris bulk, bertahan sepanjang sesi
 // (lihat FIX BUG#15 di bawah) — direset di vbReset().
 let VB_BULK_ROW_CACHE=[];
 
-// Bangun N baris input (Nama Produk *wajib + Keunggulan opsional) sesuai jumlah yang dipilih user
+// Bangun N baris input (Nama Produk *wajib + Keunggulan opsional + Foto opsional) sesuai jumlah yang dipilih user
 function vbBulkSetCount(){
   let countInput=document.getElementById('vb-bulk-count');
   let count=parseInt(countInput.value,10);
@@ -7391,22 +7507,70 @@ function vbBulkSetCount(){
   for(let i=0;i<rows.children.length;i++){
     let n=document.getElementById('vb-bulk-nama-'+i);
     let k=document.getElementById('vb-bulk-keunggulan-'+i);
-    if(n)VB_BULK_ROW_CACHE[i]={nama:n.value,keunggulan:k?k.value:''};
+    // FIX: baris ini dulu MENIMPA seluruh entri cache ({nama,keunggulan}
+    // baru dibuat dari nol), jadi kalau ada foto yang sudah diupload &
+    // tersimpan di VB_BULK_ROW_CACHE[i].fotoBase64 sebelumnya, foto itu ikut
+    // KEHAPUS begitu saja setiap kali jumlah produk diubah — padahal foto
+    // tidak dibaca dari <input> (bukan text field) jadi tidak pernah
+    // disertakan ulang di sini. Sekarang nama/keunggulan di-update TANPA
+    // menimpa field foto yang sudah ada di cache.
+    if(n){
+      let existing=VB_BULK_ROW_CACHE[i]||{};
+      VB_BULK_ROW_CACHE[i]={nama:n.value,keunggulan:k?k.value:'',fotoBase64:existing.fotoBase64||'',fotoMime:existing.fotoMime||''};
+    }
   }
 
   rows.innerHTML='';
   for(let i=0;i<count;i++){
-    let cached=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:''};
+    let cached=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:'',fotoBase64:'',fotoMime:''};
     let row=document.createElement('div');
     row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:7px 9px;margin-bottom:6px;';
+    let hasFoto=!!cached.fotoBase64;
     row.innerHTML='<div style="font-size:var(--fs-2xs);font-weight:700;color:var(--muted2);margin-bottom:4px;">PRODUK '+(i+1)+'</div>'
-      +'<div style="display:flex;gap:6px;">'
+      +'<div style="display:flex;gap:6px;margin-bottom:6px;">'
       +'<input class="inp" id="vb-bulk-nama-'+i+'" maxlength="80" placeholder="Nama produk *wajib" style="flex:1.3;font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
       +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" maxlength="150" placeholder="Keunggulan (opsional)" style="flex:1;font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.keunggulan||'')+'" />'
+      +'</div>'
+      +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="display:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
+      +'<div id="vb-bulk-foto-empty-'+i+'" onclick="document.getElementById(\'vb-bulk-foto-input-'+i+'\').click()" style="'+(hasFoto?'display:none;':'')+'border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);padding:8px;text-align:center;color:var(--muted);font-size:var(--fs-2xs);cursor:pointer;">'
+      +'<svg class="icon" style="width:14px;height:14px;"><use href="#ic-camera"></use></svg> Foto produk (opsional)</div>'
+      +'<div id="vb-bulk-foto-preview-'+i+'" style="'+(hasFoto?'':'display:none;')+'position:relative;display:inline-block;">'
+      +'<img id="vb-bulk-foto-img-'+i+'" src="'+(hasFoto?'data:'+cached.fotoMime+';base64,'+cached.fotoBase64:'')+'" style="max-width:70px;max-height:70px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
+      +'<button type="button" onclick="vbRemoveBulkFoto('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;">✕</button>'
       +'</div>';
     rows.appendChild(row);
   }
 }
+
+// Upload foto produk — mode BULK (per baris, index i), disimpan di VB_BULK_ROW_CACHE[i]
+async function vbHandleBulkFotoUpload(input,i){
+  let file=input.files&&input.files[0];
+  if(!file)return;
+  try{
+    let res=await _vbCompressImageFile(file);
+    let existing=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:''};
+    existing.fotoBase64=res.base64;existing.fotoMime=res.mime;
+    VB_BULK_ROW_CACHE[i]=existing;
+    let img=document.getElementById('vb-bulk-foto-img-'+i);
+    if(img)img.src='data:'+res.mime+';base64,'+res.base64;
+    let empty=document.getElementById('vb-bulk-foto-empty-'+i);
+    let preview=document.getElementById('vb-bulk-foto-preview-'+i);
+    if(empty)empty.style.display='none';
+    if(preview)preview.style.display='inline-block';
+  }catch(e){
+    console.warn('[vbHandleBulkFotoUpload]',e);
+    showToast('Gagal memproses foto: '+e.message,'error');
+  }finally{
+    input.value='';
+  }
+}
+function vbRemoveBulkFoto(i){
+  if(VB_BULK_ROW_CACHE[i]){VB_BULK_ROW_CACHE[i].fotoBase64='';VB_BULK_ROW_CACHE[i].fotoMime='';}
+  let img=document.getElementById('vb-bulk-foto-img-'+i); if(img)img.src='';
+  let empty=document.getElementById('vb-bulk-foto-empty-'+i); if(empty)empty.style.display='';
+  let preview=document.getElementById('vb-bulk-foto-preview-'+i); if(preview)preview.style.display='none';
+}
+
 
 // ── TIMEOUT PROTEKSI PANGGILAN GEMINI (FIX BUG KRITIS — ditemukan saat
 // audit mendalam) ───────────────────────────────────────────────────────
@@ -7476,6 +7640,54 @@ function _vbFetchWithTimeout(url,options,timeoutMs){
     .finally(function(){clearTimeout(timer);});
 }
 
+// ── PENANGANAN APP DI-BACKGROUND / LAYAR DIKUNCI SAAT GENERATE ──────────
+// Kalau HP di-lock atau tab/app dipindah ke background selagi proses
+// generate (termasuk saat lagi nunggu retry 429/503), banyak browser/WebView
+// mobile menunda ATAU (kalau layar sampai kekunci) mem-freeze total timer JS
+// & koneksi network — bikin proses kerasa macet lebih lama dari seharusnya
+// waktu user balik lagi ke app. Dua penanganan dipasang:
+// (1) Screen Wake Lock — cegah PENYEBAB PALING UMUM (layar auto-lock sendiri
+//     karena user diam megang HP nunggu) dengan minta layar tetap menyala
+//     selama proses generate berlangsung. Wake Lock otomatis lepas sendiri
+//     kalau user pindah tab/app manual (browser yang mewajibkan ini demi
+//     baterai) — itu di luar kendali kode, makanya ada penanganan (2).
+// (2) Deteksi visibilitychange — kalau user tetap pindah app/tab manual di
+//     tengah proses, begitu mereka balik lagi kasih toast yang jujur ("app
+//     sempat di-background, makanya kerasa lama") daripada user bingung
+//     kirain macet/rusak.
+let _vbWakeLock=null;
+async function _vbAcquireWakeLock(){
+  try{
+    if('wakeLock' in navigator){_vbWakeLock=await navigator.wakeLock.request('screen');}
+  }catch(e){
+    // Gagal (mis. browser tidak dukung, atau baterai rendah/hemat daya
+    // aktif) — dibiarkan, proses generate tetap jalan seperti biasa,
+    // cuma tanpa proteksi ini.
+    _vbWakeLock=null;
+  }
+}
+function _vbReleaseWakeLock(){
+  try{if(_vbWakeLock){_vbWakeLock.release();_vbWakeLock=null;}}catch(e){}
+}
+let _vbHiddenSinceTs=0;
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){
+    if(VAI&&VAI._isGenerating)_vbHiddenSinceTs=Date.now();
+  }else{
+    if(VAI&&VAI._isGenerating&&_vbHiddenSinceTs>0){
+      let hiddenSec=Math.round((Date.now()-_vbHiddenSinceTs)/1000);
+      // Cuma kasih tau kalau sempat cukup lama (>3 detik) di-background —
+      // dibawah itu biasanya cuma notifikasi sekilas/switch app sebentar,
+      // tidak perlu ganggu user dengan toast tiap kali.
+      if(hiddenSec>3){
+        showToast('Selamat datang kembali — proses masih lanjut (sempat '+hiddenSec+' detik di background).','success');
+      }
+    }
+    _vbHiddenSinceTs=0;
+  }
+});
+
+
 // ── Retry otomatis kalau server Gemini lagi sibuk (503) atau kena rate
 // limit (429) — error ini biasanya sementara. ──────────────────────────
 // FIX RETRY TANPA BATAS (permintaan user, Agustus 2026): sebelumnya cuma
@@ -7535,6 +7747,51 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
     await new Promise(r=>setTimeout(r,waitMs));
     totalWaited+=waitMs;
   }
+}
+
+// ── SANITIZER CTA — jaring pengaman KODE untuk frasa yang dilarang di
+// prompt ("keranjang kuning", "checkout", klaim urgensi/kelangkaan dsb).
+// Sebelumnya app 100% mengandalkan kepatuhan model AI ke instruksi teks di
+// prompt saja — tidak ada validasi/perbaikan otomatis sesudahnya kalau
+// modelnya "lupa" (lebih mungkin kejadian di model ringan seperti
+// Flash-Lite). Fungsi ini jalan SETELAH AI membalas dan SEBELUM perbaikan
+// jumlah kata — biar hitungan 25 kata di tahap berikutnya dihitung dari
+// teks yang sudah bersih, bukan dihitung dulu baru disensor belakangan
+// (yang bisa bikin jumlah katanya meleset lagi). Instruksi larangan di
+// prompt TETAP dipertahankan apa adanya — ini cuma lapisan kedua, bukan
+// pengganti. ──────────────────────────────────────────────────────────
+const _VB_FORBIDDEN_PATTERNS=[
+  {re:/keranjang\s+kuning/gi, to:'keranjang bawah'},
+  // FIX: pola lama /\bcheck[\s-]?out\b/gi TIDAK kena kalau "checkout" dapat
+  // imbuhan Bahasa Indonesia yang nempel langsung tanpa spasi (mis.
+  // "checkoutnya") — \b di akhir pola gagal karena 't' dan 'n' sama-sama
+  // karakter kata jadi tidak dianggap "batas kata". Sekarang imbuhan umum
+  // (-nya/-lah/-kan/-in) ditangkap sebagai grup terpisah & disambung lagi
+  // ke hasil ganti, biar "checkoutnya" jadi "cek keranjang bawahnya", bukan
+  // lolos apa adanya.
+  {re:/\bcheck[\s-]?out(nya|lah|kan|in)?\b/gi, to:function(m,suf){return 'cek keranjang bawah'+(suf||'');}},
+  {re:/\bstok\s+terbatas\b/gi, to:''},
+  {re:/\bburuan\s+sebelum\s+kehabisan\b/gi, to:''},
+  {re:/\bkehabisan\s+stok\b/gi, to:''},
+  {re:/\bsegera\s+habis\b/gi, to:''},
+  {re:/\bdiskon\s+(?:segera\s+)?berakhir\b/gi, to:''},
+  {re:/\bpromo\s+(?:segera\s+)?berakhir\b/gi, to:''}
+];
+function _vbSanitizeForbiddenPhrases(text){
+  if(!text)return text;
+  let out=text;
+  for(let p of _VB_FORBIDDEN_PATTERNS){
+    out=out.replace(p.re,p.to);
+  }
+  // FIX: kalau kalimat aslinya sudah punya "di bawah" sendiri (di luar
+  // frasa "keranjang kuning" yang baru diganti), hasilnya bisa jadi dobel
+  // "keranjang bawah di bawah". Gabungkan jadi satu biar tidak janggal.
+  out=out.replace(/\bkeranjang\s+bawah\s+di\s+bawah\b/gi,'keranjang bawah');
+  out=out.replace(/\bdi\s+bawah\s+keranjang\s+bawah\b/gi,'keranjang bawah');
+  // Rapikan bekas penghapusan frasa: spasi ganda & spasi nyangkut sebelum
+  // tanda baca (mis. "yuk  ." jadi "yuk.")
+  out=out.replace(/\s{2,}/g,' ').replace(/\s+([,.!?])/g,'$1').trim();
+  return out;
 }
 
 // ── Auto-perbaikan jumlah kata: AI kadang tidak akurat pas diminta "TEPAT
@@ -7648,13 +7905,26 @@ async function _vbFixWordCountBatchIfNeeded(prod){
 }
 
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
-  let produkListText=batch.map((p,i)=>(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')).join('\n');
+  // Tandai produk yang punya foto referensi dengan nomor urut gambar
+  // (Gambar 1, Gambar 2, dst — cuma dihitung dari produk yang benar-benar
+  // punya foto, urut sesuai posisinya di batch ini) supaya AI tahu foto
+  // mana punya produk yang mana waktu beberapa gambar dikirim sekaligus.
+  let _imgCounter=0;
+  let produkListText=batch.map((p,i)=>{
+    let line=(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'');
+    if(p.fotoBase64){
+      _imgCounter++;
+      line+=' (ADA FOTO REFERENSI PRODUK ASLI — lihat Gambar '+_imgCounter+' yang dilampirkan di bawah, manfaatkan biar script STORY-nya sesuai tampilan produk aslinya)';
+    }
+    return line;
+  }).join('\n');
   let prompt='Kamu adalah copywriter konten UGC (user generated content) untuk video promosi produk e-commerce Indonesia di TikTok/Instagram/Shopee Live.\n\n'
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
     +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — tulis script dengan energi/nada yang sesuai.\n'
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan nada/gaya bahasa script dengan aksen ini (Netral/Formal/Santai), tetap Bahasa Indonesia standar tanpa logat daerah.\n'
     +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n\n'
     +'Daftar produk ('+batch.length+' produk) — kalau ada info "keunggulan", manfaatkan di script STORY biar spesifik dan meyakinkan:\n'+produkListText+'\n\n'
+    +(_imgCounter>0?'Perhatikan baik-baik bentuk, warna, tekstur, kemasan, dan detail produk di foto-foto yang dilampirkan — sebutkan ciri khas produk secara spesifik dan akurat sesuai tampilan aslinya di foto, bukan tebakan/asumsi generik. Untuk produk yang TIDAK punya foto terlampir, tetap buat script berdasarkan nama & keunggulan seperti biasa.\n\n':'')
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
     +'Untuk SETIAP produk di atas, buatkan TEPAT 3 script/dialog dengan peran berbeda:\n'
     +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung.\n'
@@ -7663,6 +7933,13 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik menyebut nama/jenis produknya masing-masing, jangan generik.\n\n'
     +'PENTING: kamu WAJIB balikin TEPAT '+batch.length+' object dalam array — SATU untuk SETIAP produk di daftar, jangan ada yang dilewati/digabung/dikurangi.\n\n'
     +'Balas HANYA dengan JSON array berisi TEPAT '+batch.length+' object (satu per produk, urutan SAMA seperti daftar di atas), tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk 1","hook":"...","story":"...","cta":"..."}, {"produk":"nama produk 2","hook":"...","story":"...","cta":"..."}]';
+
+  // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
+  // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
+  let _promptParts=[{text:prompt}];
+  batch.forEach(function(p){
+    if(p.fotoBase64)_promptParts.push({inline_data:{mime_type:p.fotoMime||'image/jpeg',data:p.fotoBase64}});
+  });
 
   const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
   async function _callGemini(withThinkingOff){
@@ -7674,7 +7951,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
     return _vbFetchWithTimeout(url,{
       method:'POST',
       headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:cfg})
+      body:JSON.stringify({contents:[{parts:_promptParts}],generationConfig:cfg})
     },withThinkingOff?30000:45000);
   }
   let{resp,rawText}=await _vbFetchWithRetry(()=>_callGemini(true),undefined,onWait);
@@ -7741,6 +8018,11 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
 
   for(let pi=0;pi<arr.length;pi++){
     let prod=arr[pi];
+    // Sanitizer jalan DULU (jaring pengaman kode), baru perbaikan jumlah
+    // kata — biar 25 kata dihitung dari teks yang sudah bersih.
+    if(prod.hook)prod.hook=_vbSanitizeForbiddenPhrases(prod.hook);
+    if(prod.story)prod.story=_vbSanitizeForbiddenPhrases(prod.story);
+    if(prod.cta)prod.cta=_vbSanitizeForbiddenPhrases(prod.cta);
     let fixed=await _vbFixWordCountBatchIfNeeded(prod);
     prod.hook=fixed.hook;
     prod.story=fixed.story;
@@ -7771,12 +8053,13 @@ async function vbGenerateBulkAI(){
       if(namaEl)namaEl.focus();
       return;
     }
-    produkList.push({nama:nama,keunggulan:keunggulanEl?keunggulanEl.value.trim():''});
+    let cachedFoto=VB_BULK_ROW_CACHE[i]||{};
+    produkList.push({nama:nama,keunggulan:keunggulanEl?keunggulanEl.value.trim():'',fotoBase64:cachedFoto.fotoBase64||'',fotoMime:cachedFoto.fotoMime||''});
   }
   let targetAudience=document.getElementById('vb-bulk-target').value.trim();
   if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-bulk-target').focus();return;}
   VB.bulkTargetAudience=targetAudience;
-  VB_BULK_PRODUCTS=produkList.map(function(p){return{nama:p.nama,keunggulan:p.keunggulan};});
+  VB_BULK_PRODUCTS=produkList.map(function(p){return{nama:p.nama,keunggulan:p.keunggulan,fotoBase64:p.fotoBase64,fotoMime:p.fotoMime};});
 
   if(!VAI||!VAI.apiKey){
     try{
@@ -7805,6 +8088,7 @@ async function vbGenerateBulkAI(){
   for(let i=0;i<produkList.length;i+=BATCH_SIZE)batches.push(produkList.slice(i,i+BATCH_SIZE));
 
   VAI._isGenerating=true;
+  _vbAcquireWakeLock();
   let btn=document.getElementById('vb-bulk-btn');
   let genLogoState=startGenLogoBtn(btn,'Membuat Prompt...');
 
@@ -7868,6 +8152,7 @@ async function vbGenerateBulkAI(){
   }finally{
     stopGenLogoBtn(btn,genLogoState);
     VAI._isGenerating=false;
+    _vbReleaseWakeLock();
   }
 }
 
@@ -7887,7 +8172,16 @@ function _vbBuildProductMetaLookup(produkListMeta){
   let map={};
   (produkListMeta||[]).forEach(function(x){
     let key=(x.nama||'').trim().toLowerCase();
-    if(key)map[key]={nama:x.nama||'',keunggulan:x.keunggulan||''};
+    // FIX BUG KRITIS FOTO (ditemukan saat audit mendalam): lookup ini dulu
+    // cuma menyimpan {nama,keunggulan} — fotoBase64/fotoMime yang sudah
+    // diupload user ikut HILANG begitu saja tiap kali _vbRenderBulkOutput
+    // membangun ulang VB_BULK_PRODUCTS lewat lookup ini (lihat fix di bawah).
+    // Akibatnya foto yang diupload di step input cuma "hidup" sampai hasil
+    // generate PERTAMA tampil di layar — begitu itu terjadi, foto sudah
+    // tidak pernah lagi ikut terkirim ke AI walau tombol Revisi/Generate
+    // Ulang Semua diklik, padahal secara visual foto masih kelihatan
+    // terupload di baris inputnya. Sekarang foto ikut disimpan di lookup.
+    if(key)map[key]={nama:x.nama||'',keunggulan:x.keunggulan||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};
   });
   return map;
 }
@@ -7896,11 +8190,21 @@ function _vbBuildProductMetaLookup(produkListMeta){
 // JSON di bawahnya update REALTIME tiap ketikan (bukan cuma pas generate) ──
 function _vbRenderBulkOutput(products,produkListMeta){
   VB_BULK_ITEMS=[];
+  // Panel revisi dibangun ULANG dari nol di bawah (prodIdx bisa menunjuk ke
+  // produk yang berbeda dari sebelumnya kalau ada yang di-drop AI) — buang
+  // override foto lama biar tidak nyangkut ke prodIdx yang salah.
+  VB_REVISI_FOTO_OVERRIDE={};
   let metaLookup=_vbBuildProductMetaLookup(produkListMeta);
   VB_BULK_PRODUCTS=products.map(function(p){
     let key=(p.produk||'').trim().toLowerCase();
     let meta=key?metaLookup[key]:null;
-    return meta?{nama:meta.nama,keunggulan:meta.keunggulan}:{nama:p.produk||'',keunggulan:''};
+    // FIX BUG KRITIS FOTO (pasangan fix di _vbBuildProductMetaLookup di atas):
+    // baris return di sini juga dulu cuma mengambil {nama,keunggulan} dari meta,
+    // menjatuhkan fotoBase64/fotoMime walau lookup-nya sendiri sudah punya
+    // data itu. Sekarang foto ikut dibawa supaya VB_BULK_PRODUCTS[prodIdx]
+    // yang dipakai vbRevisiProdukAI & vbRegenerateAllBulk tetap punya foto
+    // yang sama seperti yang diupload user di awal.
+    return meta?{nama:meta.nama,keunggulan:meta.keunggulan,fotoBase64:meta.fotoBase64||'',fotoMime:meta.fotoMime||''}:{nama:p.produk||'',keunggulan:'',fotoBase64:'',fotoMime:''};
   });
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -7943,9 +8247,21 @@ function _vbRenderBulkOutput(products,produkListMeta){
     revisiPanel.id='vb-revisi-panel-'+prodIdx;
     revisiPanel.className='hidden';
     revisiPanel.style.cssText='padding:9px;background:var(--surface2);border-bottom:1px solid var(--border-hi);display:flex;flex-direction:column;gap:6px;';
+    let _revFoto=VB_BULK_PRODUCTS[prodIdx]||{};
+    let hasRevFoto=!!_revFoto.fotoBase64;
     revisiPanel.innerHTML='<div style="font-size:var(--fs-2xs);color:var(--muted);">Betulkan nama/keunggulan produk dan/atau kasih tau AI apa yang mau diubah, lalu generate ulang khusus produk ini.</div>'
       +'<input class="inp" id="vb-revisi-nama-'+prodIdx+'" maxlength="80" placeholder="Nama produk" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].nama)||p.produk||'')+'" />'
       +'<input class="inp" id="vb-revisi-keunggulan-'+prodIdx+'" maxlength="150" placeholder="Keunggulan (opsional)" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].keunggulan)||'')+'" />'
+      +'<div>'
+      +'<label class="inplabel" style="font-size:var(--fs-2xs);">Foto Referensi <span style="font-weight:400;color:var(--muted);">(kosongkan = pakai foto lama, atau upload buat ganti)</span></label>'
+      +'<input type="file" accept="image/*" id="vb-revisi-foto-input-'+prodIdx+'" style="display:none;" onchange="vbHandleRevisiFotoUpload(this,'+prodIdx+')" />'
+      +'<div id="vb-revisi-foto-empty-'+prodIdx+'" onclick="document.getElementById(\'vb-revisi-foto-input-'+prodIdx+'\').click()" style="'+(hasRevFoto?'display:none;':'')+'border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);padding:8px;text-align:center;color:var(--muted);font-size:var(--fs-2xs);cursor:pointer;">'
+      +'<svg class="icon" style="width:14px;height:14px;"><use href="#ic-camera"></use></svg> Tap buat upload/ganti foto</div>'
+      +'<div id="vb-revisi-foto-preview-'+prodIdx+'" style="'+(hasRevFoto?'':'display:none;')+'position:relative;display:inline-block;">'
+      +'<img id="vb-revisi-foto-img-'+prodIdx+'" src="'+(hasRevFoto?'data:'+_revFoto.fotoMime+';base64,'+_revFoto.fotoBase64:'')+'" style="max-width:70px;max-height:70px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
+      +'<button type="button" onclick="vbRemoveRevisiFoto('+prodIdx+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;">✕</button>'
+      +'</div>'
+      +'</div>'
       +'<textarea class="inp" id="vb-revisi-note-'+prodIdx+'" rows="2" placeholder="Opsional: instruksi revisi, misal \'buat CTA lebih santai\' atau \'ganti sudut cerita\'" style="font-size:var(--fs-xs2);padding:6px 8px;resize:vertical;"></textarea>'
       +'<div style="display:flex;gap:6px;">'
       +'<button class="btn sm" style="flex:1;" onclick="vbRevisiProdukAI('+prodIdx+')">Generate Ulang Produk Ini</button>'
@@ -8008,6 +8324,37 @@ function _vbUpdateProductCards(prodIdx,p){
   if(nameLabel)nameLabel.textContent=p.produk||('Produk '+(prodIdx+1));
 }
 
+// Ganti/hapus foto khusus di panel Revisi 1 produk — cuma disimpan sebagai
+// OVERRIDE sementara (VB_REVISI_FOTO_OVERRIDE), belum mengubah foto "resmi"
+// di VB_BULK_PRODUCTS sampai user benar-benar klik "Generate Ulang Produk
+// Ini" (baru dipermanenkan di situ, lihat vbRevisiProdukAI). Kalau user
+// batal/tidak upload apa-apa, foto lama tetap dipakai seperti biasa.
+async function vbHandleRevisiFotoUpload(input,prodIdx){
+  let file=input.files&&input.files[0];
+  if(!file)return;
+  try{
+    let res=await _vbCompressImageFile(file);
+    VB_REVISI_FOTO_OVERRIDE[prodIdx]={fotoBase64:res.base64,fotoMime:res.mime};
+    let img=document.getElementById('vb-revisi-foto-img-'+prodIdx);
+    if(img)img.src='data:'+res.mime+';base64,'+res.base64;
+    let empty=document.getElementById('vb-revisi-foto-empty-'+prodIdx);
+    let preview=document.getElementById('vb-revisi-foto-preview-'+prodIdx);
+    if(empty)empty.style.display='none';
+    if(preview)preview.style.display='inline-block';
+  }catch(e){
+    console.warn('[vbHandleRevisiFotoUpload]',e);
+    showToast('Gagal memproses foto: '+e.message,'error');
+  }finally{
+    input.value='';
+  }
+}
+function vbRemoveRevisiFoto(prodIdx){
+  VB_REVISI_FOTO_OVERRIDE[prodIdx]={fotoBase64:'',fotoMime:''};
+  let img=document.getElementById('vb-revisi-foto-img-'+prodIdx); if(img)img.src='';
+  let empty=document.getElementById('vb-revisi-foto-empty-'+prodIdx); if(empty)empty.style.display='';
+  let preview=document.getElementById('vb-revisi-foto-preview-'+prodIdx); if(preview)preview.style.display='none';
+}
+
 // Revisi 1 produk lewat AI (dipanggil dari panel revisi per-produk)
 async function vbRevisiProdukAI(prodIdx){
   if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
@@ -8026,12 +8373,19 @@ async function vbRevisiProdukAI(prodIdx){
   let submitBtn=document.querySelector('#vb-revisi-panel-'+prodIdx+' .btn.sm');
   let originalText=submitBtn?submitBtn.textContent:'';
   VAI._isGenerating=true;
+  _vbAcquireWakeLock();
   if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> Memproses...';}
   try{
     // FIX (audit lanjutan): jalur revisi 1 produk ini juga belum kasih tau
     // status nunggu waktu retry 429/503 — tombolnya cuma diam di "Memproses..."
     // Disambungkan ke submitBtn supaya konsisten dengan jalur generate lain.
-    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
+    // Foto referensi: kalau user upload/hapus foto BARU di panel ini
+    // (tersimpan di VB_REVISI_FOTO_OVERRIDE), itu yang dipakai. Kalau
+    // panel ini sama sekali tidak disentuh soal foto, pakai foto lama dari
+    // VB_BULK_PRODUCTS seperti biasa (revisi tetap "melihat" foto yang sama).
+    let existingFoto=VB_BULK_PRODUCTS[prodIdx]||{};
+    let effectiveFoto=VB_REVISI_FOTO_OVERRIDE.hasOwnProperty(prodIdx)?VB_REVISI_FOTO_OVERRIDE[prodIdx]:existingFoto;
+    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
       let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
@@ -8041,7 +8395,10 @@ async function vbRevisiProdukAI(prodIdx){
     if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
     let p=arr[0];
     if(!p.produk)p.produk=nama;
-    VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan};
+    // Foto yang barusan dipakai (lama ATAU hasil ganti di panel ini)
+    // dipermanenkan di sini, supaya revisi/generate-ulang BERIKUTNYA ikut
+    // memakai foto terbaru ini juga.
+    VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
     _vbUpdateProductCards(prodIdx,p);
     vbToggleRevisiPanel(prodIdx,true);
     // FIX BUG#20 (ditemukan saat audit lanjutan): _vbBuildCombinedHistoryEntry()
@@ -8060,6 +8417,7 @@ async function vbRevisiProdukAI(prodIdx){
     showToast('Gagal revisi: '+err.message,'error');
   }finally{
     VAI._isGenerating=false;
+    _vbReleaseWakeLock();
     if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=originalText;}
   }
 }
@@ -8169,8 +8527,9 @@ async function vbRegenerateAllBulk(newSettings){
   VB.bulkTargetAudience=newSettings.targetAudience;
 
   VAI._isGenerating=true;
+  _vbAcquireWakeLock();
   const BATCH_SIZE=3;
-  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan};});
+  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
   let batches=[];
   for(let bi=0;bi<produkList.length;bi+=BATCH_SIZE)batches.push(produkList.slice(bi,bi+BATCH_SIZE));
   // FIX: sebelumnya tidak ada indikator loading sama sekali selama proses ini
@@ -8222,6 +8581,7 @@ async function vbRegenerateAllBulk(newSettings){
   }finally{
     stopGenLogoBtn(btn,genLogoState);
     VAI._isGenerating=false;
+    _vbReleaseWakeLock();
   }
 }
 // Modal pilihan 3-arah: generate ulang AI / update data aja / batal
@@ -8349,6 +8709,7 @@ async function vbGenerate3AI(){
     return;
   }
   VAI._isGenerating=true;
+  _vbAcquireWakeLock();
 
   let btn=document.getElementById('vb-ai-script-btn');
   let genLogoState=startGenLogoBtn(btn,'Membuat 3 Script...');
@@ -8358,13 +8719,20 @@ async function vbGenerate3AI(){
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
     +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — tulis script dengan energi/nada yang sesuai.\n'
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan nada/gaya bahasa script dengan aksen ini (Netral/Formal/Santai), tetap Bahasa Indonesia standar tanpa logat daerah.\n'
-    +'Target audience: '+targetAudience+'\n\n'
+    +'Target audience: '+targetAudience+'\n'
+    +(VB.produkFotoBase64?'\nADA FOTO REFERENSI PRODUK ASLI TERLAMPIR — perhatikan baik-baik bentuk, warna, tekstur, kemasan, dan detail produk di foto tersebut. Manfaatkan itu supaya script (terutama bagian STORY) menyebutkan ciri khas produk secara spesifik dan akurat sesuai tampilan aslinya di foto, bukan tebakan/asumsi generik.\n':'\n')
     +'Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera, dengan peran berbeda:\n'
     +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung.\n'
     +'2. STORY — bercerita tentang produk, gambarkan bagaimana rasanya/manfaatnya KALAU audiens memakai produk ini (pakai sudut pandang membayangkan pengalaman audiens).\n'
     +'3. CTA — ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n\n'
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
     +'Balas HANYA dengan JSON array berisi TEPAT 3 object, tanpa teks lain, tanpa markdown. Format: [{"role":"hook","script":"..."},{"role":"story","script":"..."},{"role":"cta","script":"..."}]';
+  // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini) —
+  // hanya disertakan kalau user memang upload foto referensi produk.
+  let _vbPromptParts=[{text:prompt}];
+  if(VB.produkFotoBase64){
+    _vbPromptParts.push({inline_data:{mime_type:VB.produkFotoMime||'image/jpeg',data:VB.produkFotoBase64}});
+  }
 
   try{
     const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
@@ -8381,7 +8749,7 @@ async function vbGenerate3AI(){
       return _vbFetchWithTimeout(url,{
         method:'POST',
         headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-        body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:cfg})
+        body:JSON.stringify({contents:[{parts:_vbPromptParts}],generationConfig:cfg})
       },withThinkingOff?30000:45000);
     }
     // FIX: sebelumnya kalau kena limit Google (429/503), user cuma diam
@@ -8467,6 +8835,9 @@ async function vbGenerate3AI(){
 
     let _roleLabelsPlain=['Hook','Cerita Produk (Story)','CTA Keranjang'];
     for(let si=0;si<scripts.length;si++){
+      // Sanitizer jalan DULU (jaring pengaman kode), baru perbaikan jumlah
+      // kata — biar 25 kata dihitung dari teks yang sudah bersih.
+      scripts[si]=_vbSanitizeForbiddenPhrases(scripts[si]);
       scripts[si]=await _vbFixWordCountIfNeeded(scripts[si],_roleLabelsPlain[si]||('Script '+(si+1)),produkNama);
     }
 
@@ -8484,6 +8855,7 @@ async function vbGenerate3AI(){
   }finally{
     stopGenLogoBtn(btn,genLogoState);
     VAI._isGenerating=false;
+    _vbReleaseWakeLock();
   }
 }
 
@@ -8690,7 +9062,7 @@ function vbReset(){
     // sama seperti fResetFrom() di tab Foto, biar tidak ada entri nyangkut
     // yang salah unhide di sesi berikutnya.
     STEP_PAUSE_STACK.video=[];
-    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:''};
+    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:''};
     VB_BULK_PRODUCTS=[];
     // FIX BUG "SEMUA STEP VIDEO HILANG SELAMANYA SETELAH RESET": sama persis
     // dengan bug fResetFrom() di tab Foto — doneCard() SELALU menambahkan
@@ -8730,6 +9102,7 @@ function vbReset(){
     let v4cnt=document.getElementById('v4-counter'); if(v4cnt){v4cnt.textContent='0 / 120';v4cnt.className='inp-counter';}
     document.getElementById('vb-produk-nama').value='';
     document.getElementById('vb-target-audience').value='';
+    if(typeof vbRemoveProdukFoto==='function')vbRemoveProdukFoto(); // reset state + preview foto referensi mode single
     document.getElementById('vb-script-hook').value='';
     document.getElementById('vb-script-story').value='';
     document.getElementById('vb-script-cta').value='';
@@ -8741,6 +9114,7 @@ function vbReset(){
     document.querySelectorAll('#vb-mode-ai,#vb-mode-manual,#vb-mode-bulk').forEach(c=>c.classList.remove('sel'));
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
     VB_BULK_ROW_CACHE=[]; // FIX BUG#15: cache baris bulk juga wajib ikut bersih saat reset, biar tidak bocor ke sesi generate berikutnya
+    VB_REVISI_FOTO_OVERRIDE={}; // override foto panel Revisi juga wajib ikut bersih, biar tidak bocor ke sesi berikutnya
     let bulkCount=document.getElementById('vb-bulk-count'); if(bulkCount)bulkCount.value='3';
     let bulkTarget=document.getElementById('vb-bulk-target'); if(bulkTarget)bulkTarget.value='';
     let bulkArea=document.getElementById('vb-bulk-area'); if(bulkArea)bulkArea.classList.add('hidden');
