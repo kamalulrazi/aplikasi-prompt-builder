@@ -2312,22 +2312,21 @@ body input, body textarea, body [contenteditable="true"]{
     </div>
   </div>
 
-  <!-- V4: AKSEN / LOGAT -->
+  <!-- V4: AKSEN (logat daerah dihapus atas permintaan user, Sept 2026 —
+       sebelumnya ada chip Logat Jawa/Sunda/Betawi di sini. Opsi "tulis
+       sendiri" TETAP ada kalau user memang mau isi aksen custom manual. -->
   <div class="wcard pending" id="v4">
-    <div class="whead"><div class="wnum">4</div><div class="wtitle">Aksen & Logat</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va4"></div></div>
+    <div class="whead"><div class="wnum">4</div><div class="wtitle">Aksen</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va4"></div></div>
     <div class="wbody">
       <div class="chips">
         <div class="chip" onclick="vbPickAccent('standard neutral Indonesian accent, no regional dialect',this,'Netral')">Netral</div>
         <div class="chip" onclick="vbPickAccent('formal and polite tone',this,'Formal')">Formal</div>
         <div class="chip" onclick="vbPickAccent('casual relaxed everyday tone',this,'Santai')">Santai</div>
-        <div class="chip" onclick="vbPickAccent('with a subtle soft Javanese accent',this,'Logat Jawa')">Logat Jawa</div>
-        <div class="chip" onclick="vbPickAccent('with a subtle Sundanese accent',this,'Logat Sunda')">Logat Sunda</div>
-        <div class="chip" onclick="vbPickAccent('with a subtle Betawi accent',this,'Logat Betawi')">Logat Betawi</div>
       </div>
       <div class="mt12">
         <label class="inplabel">Atau tulis sendiri</label>
         <div class="inp-wrap">
-          <input class="inp" id="v4-custom" maxlength="120" placeholder="Contoh: dengan logat Medan yang kental" oninput="fCountInp(this,'v4-counter')" />
+          <input class="inp" id="v4-custom" maxlength="120" placeholder="Contoh: nada santai dan ramah" oninput="fCountInp(this,'v4-counter')" />
           <div class="inp-counter" id="v4-counter">0 / 120</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAccentCustom()">Konfirmasi →</button>
@@ -2426,7 +2425,7 @@ body input, body textarea, body [contenteditable="true"]{
   <div class="rule"></div>
   <div class="sec-title" style="font-size:16px;margin-bottom:12px;">Cara Pakai — Tab Video</div>
   <div class="guide-item"><div class="guide-n">1</div><div><h4>Pilih Mode Referensi Foto</h4><p>Mode 1 = satu foto dipakai untuk karakter, outfit, dan lokasi sekaligus. Mode 2 = pakai aset frame awal. Mode 3 = karakter, produk, dan lokasi diatur terpisah (paling detail).</p></div></div>
-  <div class="guide-item"><div class="guide-n">2</div><div><h4>Atur Suara Karakter</h4><p>Isi jenis kelamin & usia, nada bicara, lalu aksen/logat — ini menentukan gaya suara di voice_character pada JSON hasil akhir.</p></div></div>
+  <div class="guide-item"><div class="guide-n">2</div><div><h4>Atur Suara Karakter</h4><p>Isi jenis kelamin & usia, nada bicara, lalu aksen — ini menentukan gaya suara di voice_character pada JSON hasil akhir.</p></div></div>
   <div class="guide-item"><div class="guide-n">3</div><div><h4>Pilih Cara Bikin Script</h4><p><strong>Dibantu AI</strong> — isi nama produk & target audience, AI buatkan 3 script (Hook/Cerita/CTA) otomatis. <strong>Tulis Manual</strong> — kamu ketik sendiri ketiganya. <strong>Banyak Produk Sekaligus</strong> — generate sampai 10 produk (30 script) dalam satu proses, cocok kalau kamu jualan banyak SKU.</p></div></div>
   <div class="guide-item"><div class="guide-n">4</div><div><h4>Edit & Salin JSON</h4><p>Tiap script bisa diedit langsung di kartu hasil — JSON di bawahnya ikut update otomatis tiap kamu ketik. Salin, paste ke Veo 3 / Google Flow.</p></div></div>
   <div class="rule"></div>
@@ -6752,7 +6751,17 @@ function fReset(){
 // Video Builder langsung error "GEMINI_ENDPOINT is not defined" dan gagal total.
 // GANTI GEMINI_MODEL di bawah kalau kamu memang mau pakai versi model lain.
 const GEMINI_ENDPOINT='https://generativelanguage.googleapis.com/v1beta/models/';
-const GEMINI_MODEL='gemini-3.6-flash';
+// FIX GANTI MODEL (permintaan user, Sept 2026): sebelumnya pakai
+// 'gemini-3.6-flash' — model workhorse penuh yang sebenarnya kelebihan
+// buat kerjaan ini (cuma generate 3 kalimat script pendek per produk,
+// bukan reasoning/coding kompleks). Ganti ke 'gemini-3.5-flash-lite':
+// jauh lebih murah ($0.30/1M token input & $2.50/1M output, vs jauh
+// lebih mahal di 3.6 Flash), lebih cepat (~350 token/detik), dan di
+// free tier model Lite biasanya dapat jatah RPM (request/menit) yang
+// lebih longgar dibanding Flash biasa — jadi kemungkinan besar juga
+// lebih jarang kena limit 429. Cocok karena tugasnya memang sederhana
+// & bervolume (banyak produk × 3 script tiap generate).
+const GEMINI_MODEL='gemini-3.5-flash-lite';
 var VAI={apiKey:'',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 
@@ -7276,7 +7285,7 @@ function vbPickPitchConfirmed(val,label){
   doneCard('v3','va3',label);
   showCard('v4');
   document.getElementById('v4').classList.remove('pending');
-  vbUpdateProgress(4,'Aksen & Logat');
+  vbUpdateProgress(4,'Aksen');
 }
 function vbPickPitchCustom(){
   let val=document.getElementById('v3-custom').value.trim();
@@ -7485,13 +7494,18 @@ function _vbFetchWithTimeout(url,options,timeoutMs){
 // untuk limit PER-MENIT (RPM), yang memang reset sendiri. Kalau ternyata
 // yang kena adalah limit HARIAN (RPD) — itu BENAR-BENAR tidak akan reset
 // cuma dengan nunggu beberapa menit — jadi dikasih jaring pengaman
-// MAX_TOTAL_WAIT_MS: kalau sudah nunggu total ~10 menit dan masih tetap
+// MAX_TOTAL_WAIT_MS: kalau sudah nunggu total ~3 menit dan masih tetap
 // ditolak, baru dianggap gagal & dikasih pesan yang jujur ke user
 // (kemungkinan limit harian, bukan cuma limit per-menit).
+// MAX_TOTAL_WAIT_MS: sebelumnya ~10 menit, diturunkan ke ~3 menit atas
+// permintaan user — lebih cepat kelihatan hasil (berhasil ATAU pesan
+// gagal yang jelas) daripada nunggu lama yang kerasa seperti macet.
+// 3 menit masih cukup longgar untuk limit per-menit (RPM) reset
+// beberapa kali, tapi tidak sampai kerasa "ngagantung".
 async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
   let unlimited=(maxRetries===undefined||maxRetries===null);
   let cap=unlimited?Infinity:maxRetries;
-  const MAX_TOTAL_WAIT_MS=unlimited?10*60*1000:Infinity; // jaring pengaman ~10 menit, cuma berlaku saat unlimited
+  const MAX_TOTAL_WAIT_MS=unlimited?3*60*1000:Infinity; // jaring pengaman ~3 menit, cuma berlaku saat unlimited
   let totalWaited=0;
   let lastResp,lastRawText;
   for(let attempt=0;;attempt++){
@@ -7633,7 +7647,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
   let prompt='Kamu adalah copywriter konten UGC (user generated content) untuk video promosi produk e-commerce Indonesia di TikTok/Instagram/Shopee Live.\n\n'
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
     +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — tulis script dengan energi/nada yang sesuai.\n'
-    +'Aksen/logat karakter: '+(VB.accentLabel||VB.accent)+' — WAJIB tulis script dengan kosakata & gaya bahasa KHAS logat ini (bukan cuma catatan buat cara ngomong doang). Kalau logat daerah (Jawa/Sunda/Betawi/dst), selipkan kata/partikel khas logat tersebut secara natural (misal Betawi: "gue", "elu", "dong", "nih"; Jawa halus: nada lebih lembut & sopan; Sunda: partikel "atuh", "mah", "teh"). Kalau Netral/Formal/Santai, tulis Bahasa Indonesia standar sesuai gaya itu tanpa logat daerah.\n'
+    +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan nada/gaya bahasa script dengan aksen ini (Netral/Formal/Santai), tetap Bahasa Indonesia standar tanpa logat daerah.\n'
     +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n\n'
     +'Daftar produk ('+batch.length+' produk) — kalau ada info "keunggulan", manfaatkan di script STORY biar spesifik dan meyakinkan:\n'+produkListText+'\n\n'
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
@@ -7669,12 +7683,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait){
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
     // FIX RETRY TANPA BATAS: pesan di bawah ini sekarang cuma muncul kalau
-    // sudah dicoba ulang TERUS-MENERUS selama ~10 menit (jaring pengaman
+    // sudah dicoba ulang TERUS-MENERUS selama ~3 menit (jaring pengaman
     // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal — bukan lagi
     // setelah 3x percobaan singkat seperti dulu, jadi pesannya diubah biar
     // jujur soal kemungkinan penyebabnya.
-    if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~10 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
-    if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~10 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+    if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
+    if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
   }
   let data=JSON.parse(rawText);
@@ -8009,7 +8023,15 @@ async function vbRevisiProdukAI(prodIdx){
   VAI._isGenerating=true;
   if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> Memproses...';}
   try{
-    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan}],VB.bulkTargetAudience,note);
+    // FIX (audit lanjutan): jalur revisi 1 produk ini juga belum kasih tau
+    // status nunggu waktu retry 429/503 — tombolnya cuma diam di "Memproses..."
+    // Disambungkan ke submitBtn supaya konsisten dengan jalur generate lain.
+    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
+      if(!submitBtn)return;
+      let detik=Math.ceil(waitMs/1000);
+      let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+      submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'d)...';
+    });
     dlIncrement();
     if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
     let p=arr[0];
@@ -8068,7 +8090,7 @@ function _vbBuildGlobalSettingsPanel(panel){
   let genderOpts=[['male','Laki-laki'],['female','Perempuan']];
   let ageOpts=[['child, approximately 5-10 years old','Anak-anak'],['teenager, approximately 15-20 years old','Remaja'],['young adult, approximately 20-30 years old','Dewasa Muda'],['adult, approximately 30-45 years old','Dewasa'],['middle-aged adult, approximately 45-60 years old','Paruh Baya']];
   let pitchOpts=[['ceria','Ceria'],['tenang','Tenang'],['serius','Serius'],['lembut','Lembut'],['bersemangat','Bersemangat'],['misterius','Misterius']];
-  let accentOpts=[['standard neutral Indonesian accent, no regional dialect','Netral'],['formal and polite tone','Formal'],['casual relaxed everyday tone','Santai'],['with a subtle soft Javanese accent','Logat Jawa'],['with a subtle Sundanese accent','Logat Sunda'],['with a subtle Betawi accent','Logat Betawi']];
+  let accentOpts=[['standard neutral Indonesian accent, no regional dialect','Netral'],['formal and polite tone','Formal'],['casual relaxed everyday tone','Santai']];
   function chipRow(field,opts,current){
     return '<div class="chips" style="margin-bottom:10px;">'+opts.map(function(o){return _vbChipHtml(field,o[0],o[1],current);}).join('')+'</div>';
   }
@@ -8078,7 +8100,7 @@ function _vbBuildGlobalSettingsPanel(panel){
     +'<div class="text-hint-mb">Jenis Kelamin</div>'+chipRow('gender',genderOpts,VB_PANEL.gender)
     +'<div class="text-hint-mb">Usia</div>'+chipRow('age',ageOpts,VB_PANEL.age)
     +'<div class="text-hint-mb">Nada Bicara</div>'+chipRow('pitch',pitchOpts,VB_PANEL.pitch)
-    +'<div class="text-hint-mb">Aksen/Logat</div>'+chipRow('accent',accentOpts,VB_PANEL.accent)
+    +'<div class="text-hint-mb">Aksen</div>'+chipRow('accent',accentOpts,VB_PANEL.accent)
     +'<div class="text-hint-mb">Target Audience</div>'
     +'<input class="inp" id="vb-panel-target" maxlength="120" style="width:100%;box-sizing:border-box;margin-bottom:10px;" value="'+esc(VB.bulkTargetAudience||'')+'" />'
     +'<div style="display:flex;gap:8px;">'
@@ -8157,8 +8179,17 @@ async function vbRegenerateAllBulk(newSettings){
     for(let b=0;b<batches.length;b++){
       let dc=dlCheckBeforeCall();
       if(!dc.ok)throw new Error(dc.message+(allResults.length?' ('+allResults.length+' produk pertama sudah berhasil dibuat ulang.)':''));
-      updateGenLogoLabel(genLogoState,'Batch '+(b+1)+'/'+batches.length+'...');
-      let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience);
+      let batchLabelBase='Batch '+(b+1)+'/'+batches.length+'...';
+      updateGenLogoLabel(genLogoState,batchLabelBase);
+      // FIX (audit lanjutan): jalur "Generate Ulang Semua" ini lupa disambungkan
+      // ke status "⏳ nunggu" waktu retry 429/503 dipasang — padahal sama-sama
+      // pakai genLogoState. Tanpa ini, jalur ini bakal kerasa ngagantung lagi
+      // persis seperti bug yang sudah diperbaiki di vbGenerateBulkAI.
+      let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience,undefined,function(waitMs,attempt,status){
+        let detik=Math.ceil(waitMs/1000);
+        let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+        updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
+      });
       dlIncrement();
       // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
       // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
@@ -8321,7 +8352,7 @@ async function vbGenerate3AI(){
     +'Nama produk: '+produkNama+'\n'
     +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
     +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+' — tulis script dengan energi/nada yang sesuai.\n'
-    +'Aksen/logat karakter: '+(VB.accentLabel||VB.accent)+' — WAJIB tulis script dengan kosakata & gaya bahasa KHAS logat ini (bukan cuma catatan buat cara ngomong doang). Kalau logat daerah (Jawa/Sunda/Betawi/dst), selipkan kata/partikel khas logat tersebut secara natural (misal Betawi: "gue", "elu", "dong", "nih"; Jawa halus: nada lebih lembut & sopan; Sunda: partikel "atuh", "mah", "teh"). Kalau Netral/Formal/Santai, tulis Bahasa Indonesia standar sesuai gaya itu tanpa logat daerah.\n'
+    +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan nada/gaya bahasa script dengan aksen ini (Netral/Formal/Santai), tetap Bahasa Indonesia standar tanpa logat daerah.\n'
     +'Target audience: '+targetAudience+'\n\n'
     +'Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera, dengan peran berbeda:\n'
     +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung.\n'
@@ -8371,10 +8402,10 @@ async function vbGenerate3AI(){
     if(!resp.ok){
       let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
       // FIX RETRY TANPA BATAS: pesan di bawah ini sekarang cuma muncul kalau
-      // sudah dicoba ulang TERUS-MENERUS selama ~10 menit (jaring pengaman
+      // sudah dicoba ulang TERUS-MENERUS selama ~3 menit (jaring pengaman
       // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal.
-      if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~10 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
-      if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~10 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+      if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
+      if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
       throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
     }
     let data=JSON.parse(rawText);
