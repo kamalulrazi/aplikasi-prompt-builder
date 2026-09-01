@@ -2377,21 +2377,26 @@ body input, body textarea, body [contenteditable="true"]{
       </div>
 
       <div id="vb-mode-ai-area" class="hidden" style="margin-top:14px;">
-        <label class="inplabel">Nama Produk <span style="color:var(--red);">*wajib</span></label>
-        <div class="inp-wrap" style="margin-bottom:10px;">
-          <input class="inp" id="vb-produk-nama" maxlength="80" placeholder="Contoh: Serum Wajah Glow Aura" />
-        </div>
-        <label class="inplabel">Foto Referensi Produk <span style="font-weight:400;color:var(--muted);">(opsional — bantu AI biar script lebih sesuai produk asli)</span></label>
-        <div style="margin-bottom:12px;">
-          <input type="file" accept="image/*" id="vb-produk-foto-input" style="display:none;" onchange="vbHandleProdukFotoUpload(this)" />
-          <div id="vb-produk-foto-empty" onclick="document.getElementById('vb-produk-foto-input').click()" style="border:1.5px dashed var(--border-hi);border-radius:var(--radius-md);padding:14px;text-align:center;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;">
-            <svg class="icon" style="width:18px;height:18px;margin-bottom:3px;"><use href="#ic-camera"></use></svg><br>Tap untuk pilih foto produk
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;">
+          <div style="flex:1;min-width:0;">
+            <label class="inplabel">Nama Produk <span style="color:var(--red);">*wajib</span></label>
+            <div class="inp-wrap">
+              <input class="inp" id="vb-produk-nama" maxlength="80" placeholder="Contoh: Serum Wajah Glow Aura" />
+            </div>
           </div>
-          <div id="vb-produk-foto-preview" class="hidden" style="position:relative;display:inline-block;">
-            <img id="vb-produk-foto-img" style="max-width:110px;max-height:110px;border-radius:var(--radius-md);display:block;object-fit:cover;border:1px solid var(--border-hi);" />
-            <button type="button" onclick="vbRemoveProdukFoto()" style="position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:13px;line-height:1;cursor:pointer;">✕</button>
+          <div style="flex-shrink:0;width:64px;">
+            <label class="inplabel" style="font-size:var(--fs-2xs);line-height:1.3;display:block;">Foto <span style="font-weight:400;color:var(--muted);">opsional</span></label>
+            <input type="file" accept="image/*" id="vb-produk-foto-input" style="display:none;" onchange="vbHandleProdukFotoUpload(this)" />
+            <div id="vb-produk-foto-empty" onclick="document.getElementById('vb-produk-foto-input').click()" style="width:56px;height:56px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;">
+              <svg class="icon" style="width:18px;height:18px;"><use href="#ic-camera"></use></svg>
+            </div>
+            <div id="vb-produk-foto-preview" class="hidden" style="position:relative;width:56px;height:56px;">
+              <img id="vb-produk-foto-img" style="width:56px;height:56px;border-radius:var(--radius-md);display:block;object-fit:cover;border:1px solid var(--border-hi);" />
+              <button type="button" onclick="vbRemoveProdukFoto()" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;">✕</button>
+            </div>
           </div>
         </div>
+        <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:-8px 0 12px;">Foto produk bantu AI biar script lebih sesuai produk asli — opsional.</p>
         <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span></label>
         <div class="inp-wrap" style="margin-bottom:12px;">
           <input class="inp" id="vb-target-audience" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang peduli skincare" />
@@ -3777,6 +3782,19 @@ function fToggleAdv(id){
 
 function fUpdateRef(id,key,val){
   let r=FS.refs.find(x=>x.id===id);if(r)r[key]=val;
+  // FIX BUG TAMBAHAN (ditemukan saat verifikasi TC3): sebelumnya fUpdateRef
+  // cuma menyimpan nilai ke ref-nya sendiri, tanpa pernah memicu
+  // _fSyncImportProdukState() — padahal fungsi itulah yang menyalin
+  // r.focus jadi FS.produkNama (dibaca baris "Produk" di Ringkasan).
+  // Akibatnya: ketik nama produk baru di kartu foto Step 1 pasca-import
+  // tidak langsung kelihatan di Ringkasan — baru ke-sync kalau user sempat
+  // tambah/hapus foto lain, atau baru pas tombol Generate ditekan (yang
+  // punya re-sync sendiri). Sekarang disinkron live tiap ketikan, khusus
+  // untuk kartu bertipe 'produk' field 'focus' (nama produk), mode import.
+  if(r && r.type==='produk' && key==='focus' && FS.importActive){
+    _fSyncImportProdukState();
+    if(typeof fRenderSummary==='function') fRenderSummary();
+  }
 }
 function fClearRefField(id,key,taId){
   let r=FS.refs.find(x=>x.id===id);
@@ -5370,9 +5388,20 @@ function fGenerate(){
     return;
   }
 
-  // Re-sync nama produk dari DOM jika produkMode='foto' (user mungkin edit input setelah step done)
-  if(FS.produkMode==='foto'){
-    let produkRefs=FS.refs.filter(r=>r.type==='produk');
+  // Re-sync nama produk dari DOM kalau ada kartu foto tipe 'produk' di Step 1
+  // (user mungkin edit input setelah step done).
+  // FIX BUG TC5 — GENERATE TIDAK PERNAH DIBLOKIR PASCA-IMPOR: sebelumnya blok
+  // ini digantung ke "FS.produkMode==='foto'". Tombol chip "Produk" di Step 1
+  // (fAddRef('produk')) sebenarnya SELALU bisa dipakai kapan pun — baik di
+  // alur manual maupun pasca-import — tanpa syarat produkMode harus 'foto'
+  // dulu. Kalau produkMode kebetulan sudah 'pegang' (nilai default pasca-
+  // import kalau JSON bawa product block sendiri, lihat fImportPrompt), foto
+  // produk BARU yang ditambah lewat Step 1 dengan nama kosong sama sekali
+  // tidak tercek di sini — Generate lolos begitu saja. Sekarang dicek
+  // langsung berdasarkan ada/tidaknya kartu foto produk itu sendiri, tidak
+  // peduli produkMode-nya apa.
+  let produkRefs=FS.refs.filter(r=>r.type==='produk');
+  if(produkRefs.length>0){
     // FIX: Cek apakah ada foto produk tapi nama belum diisi — arahkan ke Step 1 (foto ref), bukan Step 2
     let emptyProdukRefs=produkRefs.filter(r=>!r.focus||!r.focus.trim());
     if(emptyProdukRefs.length>0){
@@ -5693,15 +5722,23 @@ function _fBuildImportedPromptJSON(ov){
       // karakter" — kontradiksi diri sendiri. Disamakan dengan jalur normal
       // (_fBuildPromptJSON, syarat "!ov.forceProdukSaja").
       if(isProdukSaja) return {};
+      // FIX BUG TC2 — GENERATED_OUTFIT NYANGKUT: sebelumnya kalau FS.refs
+      // sudah tidak punya outfit_random lagi (user hapus foto AI Outfit),
+      // kode ini fallback ke FS.importGeneratedOutfit — array MENTAH beku
+      // dari JSON impor awal yang tidak pernah dibersihkan waktu ref-nya
+      // dihapus. Akibatnya generated_outfit tetap muncul di hasil generate
+      // dengan data outfit yang sudah dihapus user. FS.refs adalah sumber
+      // kebenaran (sama seperti reference_photos di atas) — kalau kosong,
+      // artinya memang tidak ada outfit AI lagi, jangan fallback ke apa pun.
       let outfitRefsGO = FS.refs ? FS.refs.filter(function(r){return r.type==='outfit_random';}) : [];
-      let goList = outfitRefsGO.length ? outfitRefsGO.map(function(r,i){
+      let goList = outfitRefsGO.map(function(r,i){
         return {
           outfit_number: i+1,
           instruction: 'DO NOT look for a reference photo for this outfit. Instead, GENERATE the complete outfit entirely from this text description.',
           description: r.focus || '',
           generate: 'Create a complete, cohesive outfit — all garments, colors, textures, accessories, and styling details — based solely on the description above. Make it look naturally worn on the character, realistic, and consistent with the overall scene.'
         };
-      }) : (FS.importGeneratedOutfit || []);
+      });
       return goList.length ? {generated_outfit: goList} : {};
     })(),
     ...(effProductBlock ? {product: effProductBlock} : {}),
@@ -7578,16 +7615,18 @@ function vbBulkSetCount(){
     row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:7px 9px;margin-bottom:6px;';
     let hasFoto=!!cached.fotoBase64;
     row.innerHTML='<div style="font-size:var(--fs-2xs);font-weight:700;color:var(--muted2);margin-bottom:4px;">PRODUK '+(i+1)+'</div>'
-      +'<div style="display:flex;gap:6px;margin-bottom:6px;">'
-      +'<input class="inp" id="vb-bulk-nama-'+i+'" maxlength="80" placeholder="Nama produk *wajib" style="flex:1.3;font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
-      +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" maxlength="150" placeholder="Keunggulan (opsional)" style="flex:1;font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.keunggulan||'')+'" />'
+      +'<div style="display:flex;gap:6px;margin-bottom:0;align-items:flex-start;">'
+      +'<div style="flex:1;display:flex;flex-direction:column;gap:6px;">'
+      +'<input class="inp" id="vb-bulk-nama-'+i+'" maxlength="80" placeholder="Nama produk *wajib" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
+      +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" maxlength="150" placeholder="Keunggulan (opsional)" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.keunggulan||'')+'" />'
       +'</div>'
       +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="display:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
-      +'<div id="vb-bulk-foto-empty-'+i+'" onclick="document.getElementById(\'vb-bulk-foto-input-'+i+'\').click()" style="'+(hasFoto?'display:none;':'')+'border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);padding:8px;text-align:center;color:var(--muted);font-size:var(--fs-2xs);cursor:pointer;">'
-      +'<svg class="icon" style="width:14px;height:14px;"><use href="#ic-camera"></use></svg> Foto produk (opsional)</div>'
-      +'<div id="vb-bulk-foto-preview-'+i+'" style="'+(hasFoto?'':'display:none;')+'position:relative;display:inline-block;">'
-      +'<img id="vb-bulk-foto-img-'+i+'" src="'+(hasFoto?'data:'+cached.fotoMime+';base64,'+cached.fotoBase64:'')+'" style="max-width:70px;max-height:70px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
+      +'<div id="vb-bulk-foto-empty-'+i+'" onclick="document.getElementById(\'vb-bulk-foto-input-'+i+'\').click()" style="flex-shrink:0;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;'+(hasFoto?'display:none;':'')+'">'
+      +'<svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg></div>'
+      +'<div id="vb-bulk-foto-preview-'+i+'" style="'+(hasFoto?'':'display:none;')+'position:relative;flex-shrink:0;width:44px;height:44px;">'
+      +'<img id="vb-bulk-foto-img-'+i+'" src="'+(hasFoto?'data:'+cached.fotoMime+';base64,'+cached.fotoBase64:'')+'" style="width:44px;height:44px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
       +'<button type="button" onclick="vbRemoveBulkFoto('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;">✕</button>'
+      +'</div>'
       +'</div>';
     rows.appendChild(row);
   }
@@ -7625,7 +7664,7 @@ async function vbHandleBulkFotoUpload(input,i){
 function vbRemoveBulkFoto(i){
   if(VB_BULK_ROW_CACHE[i]){VB_BULK_ROW_CACHE[i].fotoBase64='';VB_BULK_ROW_CACHE[i].fotoMime='';}
   let img=document.getElementById('vb-bulk-foto-img-'+i); if(img)img.src='';
-  let empty=document.getElementById('vb-bulk-foto-empty-'+i); if(empty)empty.style.display='';
+  let empty=document.getElementById('vb-bulk-foto-empty-'+i); if(empty)empty.style.display='flex';
   let preview=document.getElementById('vb-bulk-foto-preview-'+i); if(preview)preview.style.display='none';
   fFitWbody(empty||img);
 }
@@ -10061,7 +10100,17 @@ function fRenderSummary() {
     // di Step 1 tapi namanya belum diisi (mis. baru saja ditambah), kasih
     // tahu di sini juga — bukan cuma nunggu diblok pas tombol Generate
     // ditekan — supaya user langsung tahu ke mana harus melengkapi.
-    if (FS.importActive && FS.hasProdukFoto && FS.produkMode === 'foto' && !FS.produkNama) {
+    // FIX BUG TC5 — WARNING TIDAK PERNAH MUNCUL: sebelumnya syarat ini
+    // digantung ke "FS.produkMode === 'foto'". Padahal pasca-import,
+    // FS.produkMode SELALU 'pegang' (lihat fImportPrompt) kalau JSON yang
+    // diimpor sudah bawa product block sendiri — dan _fSyncImportProdukState()
+    // cuma memindahkan produkMode ke 'foto' KALAU sebelumnya kosong/'tidak'.
+    // Jadi begitu user tambah foto produk BARU yang namanya kosong padahal
+    // sebelumnya sudah ada produk hasil import (produkMode='pegang'),
+    // kondisi "===foto" ini tidak pernah kena, warning-nya diam-diam tidak
+    // pernah tampil. Sekarang dicek langsung dari kartu foto produk yang
+    // benar-benar ada di FS.refs — tidak peduli produkMode-nya apa.
+    if (FS.importActive && FS.refs && FS.refs.some(function(r){return r.type==='produk' && (!r.focus || !r.focus.trim());})) {
       warnings.push('Ada foto produk yang namanya belum diisi — buka kartu fotonya di Step 1.');
     }
 
