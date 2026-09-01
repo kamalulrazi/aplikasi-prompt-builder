@@ -7518,10 +7518,15 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
     let waitMs;
     if(resp.status===429){
       let suggested=_vbParseRetryDelayMs(rawText);
-      // Dicap di 45 detik per percobaan (dulu naik terus tanpa batas atas)
-      // supaya kalaupun butuh puluhan kali coba, tiap jeda tidak jadi
-      // kelewat panjang sendiri-sendiri.
-      waitMs=suggested||Math.min(9000*(attempt+1),45000);
+      // BUG FIX (audit lanjutan): cap 45 detik sebelumnya CUMA berlaku untuk
+      // angka hitungan sendiri (fallback), TIDAK untuk 'suggested' (angka
+      // retryDelay yang dikirim Google sendiri di body error 429). Kalau
+      // Google kebetulan menyarankan tunggu lebih dari 45 detik, kode lama
+      // akan patuh nunggu SEPENUHNYA dalam satu jeda — bisa jebol jauh dari
+      // janji "~3 menit total" ke user, karena jaring pengaman
+      // MAX_TOTAL_WAIT_MS cuma dicek SEBELUM mulai nunggu, bukan membatasi
+      // durasi satu kali nunggu. Sekarang 'suggested' ikut di-cap juga.
+      waitMs=suggested?Math.min(suggested,45000):Math.min(9000*(attempt+1),45000);
     }else{
       waitMs=Math.min(1500*(attempt+1),15000);
     }
