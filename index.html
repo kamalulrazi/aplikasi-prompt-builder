@@ -43,6 +43,9 @@
   }
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- GOOGLE SIGN-IN — dipakai buat gerbang login sebelum masuk ke app.
+     Lihat blok #login-gate di <body> untuk logic-nya. -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* KUNCI ZOOM: cegah pinch-zoom & double-tap zoom di HP, biar kerasa kayak
    app native, bukan halaman web biasa. */
@@ -1238,9 +1241,91 @@ body input, body textarea, body [contenteditable="true"]{
 .desc-block{font-size:var(--fs-sm);color:var(--muted);margin-bottom:14px;line-height:1.7;}
 .desc-text{font-size:var(--fs-sm);color:var(--muted);line-height:1.6;}
 .info-card{background:var(--surface2);border-radius:var(--radius-md);padding:12px;display:flex;align-items:flex-start;gap:12px;}
+
+/* ── LOGIN GATE — layar penuh yang menutup app sampai user login dengan
+   Google. z-index paling tinggi di seluruh app (nav & step-jump-overlay
+   ada di 2xxx-an) supaya benar-benar menutupi semuanya termasuk nav yang
+   fixed di luar .app-shell. */
+.login-gate{
+  position:fixed;inset:0;z-index:999999;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;
+  padding-top:calc(24px + var(--safe-t,0px));
+  padding-bottom:calc(24px + var(--safe-b,0px));
+}
+.login-gate.hidden{display:none;}
+.login-card{
+  width:100%;max-width:340px;
+  display:flex;flex-direction:column;align-items:center;
+  text-align:center;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:32px 24px 28px;
+  box-shadow:var(--shadow-lg);
+}
+.login-logo{width:56px;height:56px;margin-bottom:16px;}
+.login-title{font-size:var(--fs-xl);font-weight:700;color:var(--text);margin-bottom:6px;}
+.login-desc{font-size:var(--fs-sm);color:var(--muted);line-height:1.6;margin-bottom:24px;}
+.login-btn-slot{display:flex;justify-content:center;min-height:44px;}
+.login-btn-native{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;max-width:260px;height:44px;
+  background:#131314;color:#e3e3e3;
+  border:1px solid #8e918f;border-radius:999px;
+  font-family:var(--font-body,inherit);font-size:14px;font-weight:500;
+  cursor:pointer;
+}
+.login-btn-native:active{background:#1a1a1b;}
+.login-btn-native svg{width:18px;height:18px;flex-shrink:0;}
+.login-btn-native.hidden{display:none;}
+.login-error{
+  margin-top:16px;font-size:var(--fs-xs2);color:var(--red);
+  background:var(--red-dim);border-radius:var(--radius-xs);
+  padding:8px 10px;line-height:1.5;
+}
+.login-error.hidden{display:none;}
+.login-footnote{margin-top:20px;font-size:var(--fs-2xs);color:var(--muted2);line-height:1.6;}
 </style>
 </head>
 <body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     LOGIN GATE — wajib login pakai Google sebelum bisa pakai app.
+     Ditaruh sebagai elemen PERTAMA di <body> + z-index tertinggi supaya
+     nutupin splash screen, app-shell, dan nav sekaligus. Logic lengkap
+     (init Google Sign-In, decode token, simpan sesi) ada di script di
+     bagian bawah body — lihat blok "LOGIN GATE — LOGIC".
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="login-gate" id="login-gate">
+  <div class="login-card">
+    <svg class="login-logo" viewBox="138 85 350 475" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="loginPGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#F0D9A0"/>
+          <stop offset="100%" stop-color="#B8965F"/>
+        </linearGradient>
+      </defs>
+      <path fill="url(#loginPGrad)" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>
+      <path fill="url(#loginPGrad)" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>
+    </svg>
+    <div class="login-title">Prompt Builder</div>
+    <div class="login-desc">Masuk dengan akun Google untuk melanjutkan ke aplikasi.</div>
+    <div class="login-btn-slot" id="g_id_signin_container"></div>
+    <button type="button" class="login-btn-native hidden" id="login-btn-native" onclick="pbNativeLoginStart()">
+      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.36-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Masuk dengan Google
+    </button>
+    <div class="login-error hidden" id="login-error"></div>
+    <div class="login-footnote">Sesi login tersimpan di perangkat ini sampai kamu keluar.</div>
+  </div>
+</div>
 
 <!-- ICON SPRITE — set ikon SVG konsisten, menggantikan emoji/dingbat (✓ ✕ ✦ ✏ ↺ ⏳)
      yang sebelumnya dipakai. Emoji dirender beda-beda tergantung skin OS HP (MIUI,
@@ -1382,6 +1467,199 @@ body input, body textarea, body [contenteditable="true"]{
     }
   });
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     LOGIN GATE — LOGIC. Pakai Google Identity Services (GIS) buat
+     Sign-In With Google. Token JWT ("credential") dari Google didecode
+     LANGSUNG DI BROWSER (bukan diverifikasi ke server sendiri, karena
+     app ini tidak punya backend) buat ambil email/nama/foto lalu
+     disimpan di localStorage supaya user tidak perlu login ulang tiap
+     buka app. Ini cukup buat GERBANG AKSES biasa (nolak orang yang
+     nggak login), TAPI BUKAN keamanan tingkat server — orang yang
+     ngerti devtools tetap bisa modif localStorage buat lewatin gerbang
+     ini di browser sendiri. Kalau butuh proteksi data/berkas yang
+     benar-benar rahasia, verifikasi token itu HARUS dilakukan di
+     backend (Google client library punya endpoint verifikasi resmi).
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  // ── GANTI INI dengan Client ID dari Google Cloud Console kamu sendiri.
+  // Cara dapatnya:
+  // 1) Buka console.cloud.google.com → buat project (atau pakai yang ada)
+  // 2) APIs & Services → OAuth consent screen → isi info dasar app
+  // 3) APIs & Services → Credentials → Create Credentials → OAuth client ID
+  //    → Application type: "Web application"
+  // 4) Di "Authorized JavaScript origins", tambahkan domain tempat app
+  //    ini di-hosting (mis. https://namadomainkamu.com). Untuk testing
+  //    lokal bisa tambahkan http://localhost:PORT juga.
+  // 5) Copy "Client ID" yang muncul (formatnya: xxxxx.apps.googleusercontent.com)
+  //    lalu paste ganti string di bawah ini.
+  var GOOGLE_CLIENT_ID = "256458024002-kg17bbd0t94he5st9olg89n01s9eoclr.apps.googleusercontent.com";
+  var STORAGE_KEY = 'pb_auth_user';
+
+  function pbDecodeJwt(token){
+    try{
+      var base64Url = token.split('.')[1];
+      var base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
+      var json = decodeURIComponent(atob(base64).split('').map(function(c){
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(json);
+    }catch(e){ return null; }
+  }
+
+  function pbShowLoginError(msg){
+    var el = document.getElementById('login-error');
+    if(el){ el.textContent = msg; el.classList.remove('hidden'); }
+  }
+
+  function pbApplyUserToHeader(user){
+    var pill = document.getElementById('pb-user-pill');
+    var nameEl = document.getElementById('pb-user-name');
+    var avatarEl = document.getElementById('pb-user-avatar');
+    if(nameEl) nameEl.textContent = (user.name || user.email || '').split(' ')[0];
+    if(avatarEl){
+      if(user.picture){ avatarEl.src = user.picture; avatarEl.style.display = 'block'; }
+      else{ avatarEl.style.display = 'none'; }
+    }
+    if(pill) pill.style.display = 'flex';
+  }
+
+  function pbShowApp(user){
+    var gate = document.getElementById('login-gate');
+    if(gate) gate.classList.add('hidden');
+    pbApplyUserToHeader(user);
+  }
+
+  // ── JEMBATAN KE APP ANDROID (CAPACITOR) ──────────────────────────────
+  // App ini dibungkus pakai Capacitor. Sisi native akan punya SATU
+  // Capacitor Plugin bernama "GoogleAuthNative" dengan 2 method: login()
+  // dan logout(). Capacitor otomatis menyediakan object
+  // window.Capacitor.Plugins.GoogleAuthNative kalau plugin itu terpasang
+  // dan didaftarkan di MainActivity. Kalau object itu belum ada (plugin
+  // belum dipasang, atau lagi dibuka di browser biasa buat testing),
+  // kita fallback ke Google Identity Services (GIS) yang biasa.
+  function pbIsInsideNativeApp(){
+    return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+  }
+  function pbNativePlugin(){
+    return (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.GoogleAuthNative : null;
+  }
+
+  // Dipanggil dari tombol "Masuk dengan Google" versi native.
+  window.pbNativeLoginStart = function(){
+    var plugin = pbNativePlugin();
+    if(!plugin || typeof plugin.login !== 'function'){
+      pbShowLoginError('Fitur login native belum terpasang di app ini.');
+      return;
+    }
+    plugin.login().then(function(result){
+      window.pbNativeLoginSuccess(result && result.email, result && result.name, result && result.photoUrl);
+    }).catch(function(err){
+      window.pbNativeLoginError((err && err.message) || 'Login dibatalkan atau gagal.');
+    });
+  };
+
+  // Dipanggil otomatis lewat Promise dari plugin di atas setelah user
+  // sukses login Google secara native.
+  window.pbNativeLoginSuccess = function(email, name, picture){
+    if(!email){ pbShowLoginError('Login Google gagal, coba lagi.'); return; }
+    var user = { email: email, name: name || email, picture: picture || '', ts: Date.now() };
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(user)); }catch(e){}
+    pbShowApp(user);
+  };
+
+  // Dipanggil OLEH KOTLIN kalau user membatalkan/login gagal, supaya
+  // error-nya kelihatan di layar (bukan cuma diam saja).
+  window.pbNativeLoginError = function(msg){
+    pbShowLoginError(msg || 'Login Google dibatalkan atau gagal.');
+  };
+  // ──────────────────────────────────────────────────────────────────
+
+  // Dipanggil Google setelah user berhasil pilih akun & login.
+  window.pbHandleCredentialResponse = function(response){
+    var payload = pbDecodeJwt(response.credential);
+    if(!payload || !payload.email){
+      pbShowLoginError('Gagal membaca data akun Google. Coba lagi.');
+      return;
+    }
+    var user = {
+      email: payload.email,
+      name: payload.name || payload.email,
+      picture: payload.picture || '',
+      ts: Date.now()
+    };
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(user)); }catch(e){}
+    pbShowApp(user);
+  };
+
+  // Tombol logout kecil di header (h-pill "pb-user-pill") manggil ini.
+  window.pbLogout = function(){
+    if(!confirm('Keluar dari akun ini?')) return;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    if(pbIsInsideNativeApp()){
+      var plugin = pbNativePlugin();
+      try{ if(plugin && typeof plugin.logout === 'function') plugin.logout(); }catch(e){}
+    } else {
+      try{
+        if(window.google && google.accounts && google.accounts.id){
+          google.accounts.id.disableAutoSelect();
+        }
+      }catch(e){}
+    }
+    location.reload();
+  };
+
+  function pbInitLogin(){
+    // Kalau sesi login sebelumnya masih ada di perangkat ini, langsung
+    // buka app tanpa nyuruh login ulang.
+    var saved = null;
+    try{ saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }catch(e){}
+    if(saved && saved.email){
+      pbShowApp(saved);
+      return;
+    }
+
+    // ── Jalur 1: di dalam app Android → tombol native, GIS dilewati. ──
+    if(pbIsInsideNativeApp()){
+      var nativeBtn = document.getElementById('login-btn-native');
+      if(nativeBtn) nativeBtn.classList.remove('hidden');
+      return;
+    }
+
+    // ── Jalur 2: dibuka di browser biasa → pakai GIS seperti biasa. ──
+    if(GOOGLE_CLIENT_ID.indexOf('GANTI_DENGAN_CLIENT_ID_ANDA') === 0){
+      pbShowLoginError('Login Google belum disetel — developer app ini perlu memasukkan Client ID dari Google Cloud Console terlebih dahulu.');
+      return;
+    }
+    if(typeof google === 'undefined' || !google.accounts || !google.accounts.id){
+      pbShowLoginError('Gagal memuat Google Sign-In. Periksa koneksi internet lalu muat ulang halaman.');
+      return;
+    }
+    try{
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: window.pbHandleCredentialResponse,
+        auto_select: true
+      });
+      google.accounts.id.renderButton(
+        document.getElementById('g_id_signin_container'),
+        { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', width: 260 }
+      );
+      // Munculkan prompt One Tap juga kalau browser mendukung.
+      google.accounts.id.prompt();
+    }catch(e){
+      pbShowLoginError('Terjadi kesalahan saat menyiapkan Google Sign-In.');
+    }
+  }
+
+  // Skrip GIS dimuat async — tunggu window 'load' supaya object `google`
+  // sudah pasti tersedia sebelum dipakai.
+  if(document.readyState === 'complete'){ pbInitLogin(); }
+  else{ window.addEventListener('load', pbInitLogin); }
+})();
+</script>
+
 <!-- APP SHELL — semua konten di-scroll di dalam sini, bukan di document root,
      supaya browser/WebView tidak menampilkan indikator scrollbar native-nya
      sendiri di tepi layar (yang bikin app kelihatan seperti "website"). -->
@@ -1401,6 +1679,10 @@ body input, body textarea, body [contenteditable="true"]{
     </svg>rompt Builder</h1>
   </div>
   <div class="h-pills">
+    <div class="h-pill" id="pb-user-pill" style="cursor:pointer;display:none;align-items:center;gap:6px;" onclick="pbLogout()" title="Klik untuk keluar">
+      <img id="pb-user-avatar" src="" alt="" style="width:16px;height:16px;border-radius:50%;display:none;">
+      <span id="pb-user-name" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    </div>
     <div class="h-pill" style="cursor:pointer;" onclick="openApiKeyModal()" title="Pengaturan koneksi AI"><svg><use href="#ic-sparkle"></use></svg>AI</div>
   </div>
 </div>
