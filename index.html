@@ -8248,6 +8248,16 @@ async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
     let timedOut=false;
     let timer=setTimeout(function(){timedOut=true;controller.abort();},withThinkingOff?30000:45000);
     let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
+    // FIX "Status 0: API error" TANPA KETERANGAN: sebelumnya kalau fetch()
+    // sendiri gagal (bukan server yang balas error, tapi koneksi browser
+    // gagal total — offline, diblokir firewall/DNS, ekstensi/ad-blocker,
+    // dsb), pesan error asli dari browser (mis. "Failed to fetch",
+    // "NetworkError when attempting to fetch resource") DIBUANG begitu saja
+    // di catch di bawah (rawText cuma diisi ''). Akibatnya user cuma lihat
+    // "Status 0: API error" tanpa petunjuk apa-apa. Sekarang pesan asli
+    // disimpan ke netErrMsg supaya bisa ditampilkan ke user di pesan error
+    // final (lihat pemanggil _vbStreamGeminiJSONWithRetry).
+    let netErrMsg='';
     try{
       await _vbThrottleGeminiGate();
       resp=await fetch(url,{
@@ -8291,6 +8301,11 @@ async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
       }
     }catch(e){
       rawText='';
+      // Simpan pesan error asli (nama + pesan) sebelum hilang. Kalau abort
+      // karena timeout, pakai pesan timeout yang sudah jelas; selain itu
+      // pakai pesan asli dari browser apa adanya.
+      netErrMsg=timedOut?'timeout — server tidak merespons dalam '+((withThinkingOff?30000:45000)/1000)+' detik'
+        :((e&&e.name)?e.name+': ':'')+((e&&e.message)?e.message:String(e));
     }finally{
       clearTimeout(timer);
     }
@@ -8305,6 +8320,10 @@ async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
     }
     let isTransient=status===503||status===429;
     if(!isTransient||totalWaited>=MAX_TOTAL_WAIT_MS){
+      // Kalau fetch gagal total (status 0, resp null) dan belum ada rawText,
+      // selipkan pesan error jaringan asli (netErrMsg) supaya pemanggil bisa
+      // menampilkannya, bukan cuma "Status 0: API error" yang tidak jelas.
+      if(!resp&&netErrMsg&&!rawText)rawText=netErrMsg;
       return{resp:resp||{ok:false,status:0},rawText};
     }
     let waitMs;
@@ -8687,6 +8706,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
     // jujur soal kemungkinan penyebabnya.
     if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
     if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+    if(resp.status===0)throw new Error('Gagal terhubung ke server AI Google'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Google yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
   }
   let data=JSON.parse(rawText);
@@ -10004,6 +10024,7 @@ async function vbGenerate3AI(){
       // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal.
       if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
       if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+      if(resp.status===0)throw new Error('Gagal terhubung ke server AI Google'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Google yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
       throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
     }
     let data=JSON.parse(rawText);
