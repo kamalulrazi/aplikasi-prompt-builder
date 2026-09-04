@@ -8181,6 +8181,18 @@ function _vbParseRetryDelayMs(rawText){
   return 0;
 }
 
+// ── Label alasan "⏳ nunggu..." yang ditampilkan ke user selama retry
+// otomatis berlangsung. Dipusatkan di satu fungsi supaya konsisten di
+// semua tempat (single, bulk, background retry, dst) — sebelumnya tiap
+// tempat nulis ternary sendiri-sendiri yang cuma tahu 429 vs selain-429,
+// jadi status 0 (timeout/koneksi putus, sekarang ikut di-retry juga)
+// salah dilabeli "server Google lagi sibuk" padahal bukan itu masalahnya.
+function _vbWaitReasonLabel(status){
+  if(status===429)return'nunggu limit Google reset';
+  if(status===0)return'koneksi sempat putus, mencoba lagi';
+  return'server Google lagi sibuk';
+}
+
 // ══════════════════════════════════════════════════════════════════
 // STREAMING REAL-TIME — script Hook/Story/CTA muncul kata-per-kata saat
 // AI masih "mengetik", bukan nunggu jawaban penuh baru muncul semua.
@@ -8318,7 +8330,18 @@ async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
     if(status&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)&&withThinkingOff){
       continue; // langsung ulang di attempt berikutnya TANPA thinkingConfig
     }
-    let isTransient=status===503||status===429;
+    // BUG FIX (audit lanjutan, Sept 2026): sebelumnya timeout/koneksi
+    // putus total (fetch() gagal SEBELUM sempat dapat respon HTTP apa pun
+    // — status jadi 0 di sini) TIDAK dianggap transient, jadi langsung
+    // nyerah di percobaan pertama TANPA retry sama sekali — beda dengan
+    // 429/503 yang sabar dicoba ulang sampai jaring pengaman ~3 menit.
+    // Padahal di 4G yang kadang lag/putus sebentar, timeout justru paling
+    // sering SEMENTARA dan paling masuk akal buat dicoba ulang — bukan
+    // alasan buat langsung menyerah. Sekarang status 0 (timeout/network
+    // error) ikut dianggap transient sama seperti 429/503, tetap dibatasi
+    // jaring pengaman MAX_TOTAL_WAIT_MS yang sama (~3 menit) supaya kalau
+    // internetnya memang benar-benar mati, tidak dicoba selamanya.
+    let isTransient=status===503||status===429||status===0;
     if(!isTransient||totalWaited>=MAX_TOTAL_WAIT_MS){
       // Kalau fetch gagal total (status 0, resp null) dan belum ada rawText,
       // selipkan pesan error jaringan asli (netErrMsg) supaya pemanggil bisa
@@ -8873,7 +8896,7 @@ async function vbGenerateBulkAI(){
       // berikutnya dikirim.
       let batchArr=await _vbCallBulkBatch(batches[b],targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
-        let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+        let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
       },onPartialThisBatch);
       dlIncrement();
@@ -9400,7 +9423,7 @@ async function vbRevisiProdukAI(prodIdx){
     let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
-      let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+      let alasan=_vbWaitReasonLabel(status);
       submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'d)...';
     });
     dlIncrement();
@@ -9572,7 +9595,7 @@ async function vbRevisiSingleAI(){
     let arr=await _vbCallBulkBatch([{nama:produkNama,keunggulan:keunggulan,fotoBase64:VB.produkFotoBase64||'',fotoMime:VB.produkFotoMime||''}],targetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
-      let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+      let alasan=_vbWaitReasonLabel(status);
       submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'d)...';
     });
     dlIncrement();
@@ -9746,7 +9769,7 @@ async function vbRegenerateAllBulk(newSettings){
       // persis seperti bug yang sudah diperbaiki di vbGenerateBulkAI.
       let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
-        let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+        let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
       });
       dlIncrement();
@@ -10012,7 +10035,7 @@ async function vbGenerate3AI(){
     // pem-parse-an JSON/sanitizer/fix-kata di bawah ini TIDAK berubah sama sekali.
     let _vbOnWait=function(waitMs,attempt,status){
       let detik=Math.ceil(waitMs/1000);
-      let alasan=status===429?'nunggu limit Google reset':'server Google lagi sibuk';
+      let alasan=_vbWaitReasonLabel(status);
       updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... Membuat 3 Script');
     };
     let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait);
