@@ -620,14 +620,19 @@ body input, body textarea, body [contenteditable="true"]{
 .reset-btn:hover{border-color:var(--border-hi);color:var(--muted);}
 
 /* ── GENERATE LOADING — logo P kebelah jadi utuh (branding) ── */
-.gen-logo-wrap{display:flex;align-items:center;justify-content:center;gap:var(--space-4);width:100%;padding:var(--space-1) 0;}
+/* FIX (permintaan user): label status ("⏳ nunggu limit Google reset...")
+   sekarang dirender lagi — tapi kecil & di BAWAH logo P (bukan di
+   samping seperti dulu), supaya animasi logo tetap jadi fokus utama dan
+   teks statusnya cuma pelengkap kecil. Makanya wrap diubah jadi kolom
+   (flex-direction:column) dan gap dikecilin dari var(--space-4) ke 6px. */
+.gen-logo-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;padding:var(--space-1) 0;}
 .gen-logo-box{
   width:40px;height:40px;flex-shrink:0;border-radius:var(--radius-sm);
   background:transparent;display:flex;align-items:center;justify-content:center;
   overflow:visible;
 }
 .gen-logo-svg{width:30px;height:30px;overflow:visible;}
-.gen-logo-label{font-size:var(--fs-base);font-weight:700;color:var(--text);letter-spacing:-0.2px;}
+.gen-logo-label{font-size:var(--fs-xs2);font-weight:500;color:var(--muted);letter-spacing:-0.1px;text-align:center;max-width:240px;line-height:1.4;}
 .p-layer{transition:transform 1.1s cubic-bezier(0.16,1,0.3,1),opacity 1.1s ease;}
 .p-layer-back{transform:translate(165px,-185px) rotate(10deg);opacity:0.4;}
 .p-layer-front{transform:translate(-135px,168px) rotate(-9deg);opacity:1;}
@@ -7292,12 +7297,14 @@ function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.cla
 // bukan cuma spinner ikon generik. id gradient dibuat unik per pemanggilan
 // (_genLogoSeq) supaya aman kalau ada lebih dari satu tombol loading sekaligus. ──
 var _genLogoSeq=0;
-// CATATAN: label TIDAK lagi dirender (dulu ada <span class="gen-logo-label">
-// di sini) — sekarang loading skrip video cukup logonya aja yang kelihatan,
-// dan karena cuma ada satu anak (gen-logo-box) di dalam flex+justify-center,
-// logo otomatis jadi di-tengah. Parameter "label" tetap diterima/diteruskan
-// (dipakai updateGenLogoLabel kalau2 nanti mau dipakai lagi) tapi aman kalau
-// dibiarkan tidak tampil — updateGenLogoLabel no-op kalau elemen label tidak ada.
+// FIX (permintaan user): label DIRENDER LAGI — tapi kecil & di BAWAH logo
+// P, bukan di samping seperti versi lama. Sebelumnya span label ini
+// sengaja dihilangkan supaya loading cuma nampilin logo P, tapi itu bikin
+// status "⏳ nunggu limit Google reset / server sibuk / koneksi sempat
+// putus, mencoba lagi..." (dari updateGenLogoLabel, lihat _vbWaitReasonLabel)
+// jadi TIDAK KELIHATAN sama sekali di UI walau nilainya sudah kehitung
+// benar di JS — user cuma lihat logo diam berputar tanpa keterangan kenapa
+// lama. Teks di-escape via esc() karena disisipkan sebagai HTML string.
 function _buildGenLogoHTML(label){
   _genLogoSeq++;
   var wid='gen-logo-wrap-'+_genLogoSeq;
@@ -7315,6 +7322,7 @@ function _buildGenLogoHTML(label){
         +'<path class="p-layer p-layer-front" fill="url(#'+gid+')" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>'
       +'</svg>'
     +'</div>'
+    +'<span class="gen-logo-label">'+esc(label||'')+'</span>'
   +'</div>';
   return{id:wid,html:html};
 }
@@ -7341,10 +7349,10 @@ function startGenLogoBtn(btn,label){
   if(w)w.classList.add('looping');
   return{origHTML:orig,wrapId:built.id};
 }
-// Update teks label saat proses masih berjalan (mis. progress "Batch 2/4...").
-// Karena _buildGenLogoHTML sekarang tidak merender span label sama sekali,
-// fungsi ini aman jadi no-op (elemen label tidak ditemukan) — dibiarkan ada
-// supaya pemanggil lama tidak perlu diubah.
+// Update teks label kecil di bawah logo P saat proses masih berjalan (mis.
+// progress "Batch 2/4..." atau status "⏳ nunggu limit Google reset...").
+// Pakai .textContent (bukan innerHTML) jadi otomatis aman dari HTML/XSS
+// apa pun isi label-nya.
 function updateGenLogoLabel(state,label){
   if(!state)return;
   var el=document.getElementById(state.wrapId);
