@@ -6301,9 +6301,15 @@ function _fComputePlacement(ov){
     // kontradiksi dengan instruksi pose. Deteksi via poseLabel dan pakai
     // placement khusus 1 tangan untuk kasus ini.
     // FIX: teks pose selfie sudah disederhanakan jadi "close-up selfie
-    // angle, phone out of frame" (permintaan user) — deteksi diganti dari
-    // substring lama 'POV selfie' ke 'phone out of frame' biar tetap nyambung.
-    let _isSelfiePose = (ov.poseOverride || FS.poseDesc || FS.pose || '').indexOf('phone out of frame') !== -1;
+    // angle, phone out of frame" (permintaan user). Deteksi cek DUA kata
+    // kunci sekaligus — teks baru ('phone out of frame') DAN teks lama
+    // ('POV selfie') — supaya prompt LAMA yang diimpor (masih berisi teks
+    // panjang lama) tetap terdeteksi benar sebagai pose selfie, tidak
+    // cuma prompt baru. Kalau cuma cek satu kata kunci baru saja, prompt
+    // lama impor+pegang-tangan akan balik ke placement "dua tangan" —
+    // kontradiksi dgn pose-nya sendiri yang bilang "tangan lain pegang HP".
+    let _poseTextChk = (ov.poseOverride || FS.poseDesc || FS.pose || '');
+    let _isSelfiePose = _poseTextChk.indexOf('phone out of frame') !== -1 || _poseTextChk.indexOf('POV selfie') !== -1;
     placement = _isSelfiePose
       ? 'held in one hand and directed toward the camera lens — the other hand is holding the phone for the selfie shot, product still faces the lens clearly, sharp and fully visible'
       : 'held in both hands directed straight toward the camera lens — product faces lens squarely, clearly visible and sharp';
