@@ -4395,7 +4395,7 @@ function fRenderList(){
     // di bawahnya — jadi bukan field tunggal lagi, tapi tetap TANPA tombol
     // "atur detail foto" terpisah dan TANPA chip elemen wajah (WAJAH_ELEMEN)
     // yang sudah dihapus sebelumnya. Satu klik pada kartu = buka semuanya.
-    let isExpandable = !isProdukType && !isRandom;
+    let isExpandable = !isProdukType && !isRandom && !isWajahOutfit;
     let isOutfitRandom = r.type === 'outfit_random';
     return `<div class="f1-ref-row${(hasDetail||isOutfitRandom)?' expanded':''}" id="pc-${r.id}" onclick="fCardClick(event,'${r.id}',${isExpandable})">
       <span class="f1-ref-num">${numStr}</span>
@@ -4413,28 +4413,34 @@ function fRenderList(){
             </div>`:''}
         </div>
       `:isWajahOutfit?`
-        <!-- Wajah & Outfit (permintaan user): tidak lagi pakai field "nama"
-             generik + chip elemen wajah (WAJAH_ELEMEN, sudah dihapus).
-             Klik kartu foto ini langsung membuka panel berisi Usia/Arahan
-             Tertentu di atas, lalu AMBIL & ABAIKAN di bawahnya — tanpa
-             tombol "atur detail foto" terpisah. r.focus tetap menampung
-             Usia/Arahan (dipakai sbg obj.detail di JSON), sedangkan
-             r.extractCustom/r.ignoreCustom (sudah prefilled dgn default
-             FTYPE.extract/.ignore saat foto ditambahkan, lihat fAddRef)
-             dipakai utk AMBIL/ABAIKAN — sama seperti panel produk/tipe
-             lain di bawah, cuma tanpa tombol togglenya. Produk & tipe
-             lain (atasan/bawahan/aksesori/objek) TIDAK disentuh. -->
-        <div id="detail-expanded-${r.id}" class="f1-ref-input" style="${hasDetail?'':'display:none'}">
-          <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--muted2);margin-bottom:4px;">${r.type==='wajah'?'Usia (opsional)':'Arahan Tertentu (opsional)'}</div>
-          ${r.type==='wajah'?`
-          <input class="inp" style="font-size:var(--fs-xs2);padding:5px 8px;margin-bottom:8px;" placeholder="${esc(phText)}" value="${esc(r.focus)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()" />
-          `:`
-          <textarea class="desc-ta" style="font-size:var(--fs-xs2);min-height:44px;margin-bottom:8px;" placeholder="${esc(phText)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()">${esc(r.focus)}</textarea>
-          `}
-          <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--green);margin-bottom:3px;"><svg class="icon"><use href="#ic-check"></use></svg> AMBIL</div>
-          <textarea class="desc-ta" style="font-size:var(--fs-xs);min-height:44px;" oninput="fUpdateRef('${r.id}','extractCustom',this.value)" onclick="event.stopPropagation()">${esc(r.extractCustom)}</textarea>
-          <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--red);margin:6px 0 3px;"><svg class="icon"><use href="#ic-close"></use></svg> ABAIKAN</div>
-          <textarea class="desc-ta red" style="font-size:var(--fs-xs);min-height:44px;" oninput="fUpdateRef('${r.id}','ignoreCustom',this.value)" onclick="event.stopPropagation()">${esc(r.ignoreCustom)}</textarea>
+        <!-- Wajah & Outfit (permintaan user): tombol "atur detail" langsung
+             kelihatan begitu foto ini ditambahkan di F1 (tidak perlu klik
+             kartu dulu, beda dari tipe produk/lain yang tombolnya bernama
+             "atur detail foto"). Baru setelah tombol INI diklik, ketiga
+             bagian panelnya kelihatan: Usia/Arahan Tertentu di atas, lalu
+             AMBIL, lalu ABAIKAN — persis pola adv-area/fToggleAdv yang
+             sudah ada, cuma labelnya "atur detail" (param ke-2 fToggleAdv)
+             dan isinya nambah field Usia/Arahan di baris paling atas.
+             Tidak ada lagi field "nama" generik / chip elemen wajah
+             (WAJAH_ELEMEN, sudah dihapus). r.focus = Usia/Arahan (tetap
+             jadi obj.detail di JSON); r.extractCustom/ignoreCustom sudah
+             prefilled default FTYPE.extract/.ignore sejak fAddRef, dipakai
+             utk AMBIL/ABAIKAN. Produk & tipe lain (atasan/bawahan/aksesori/
+             objek) TIDAK disentuh — tetap pakai panel lama di bawah. -->
+        <div class="f1-ref-input">
+          <button class="f1-adv-toggle" onclick="event.stopPropagation();fToggleAdv('${r.id}','atur detail')"><span id="adv-icon-${r.id}">▾</span> <span id="adv-text-${r.id}">atur detail</span></button>
+          <div id="adv-area-${r.id}" class="hidden" style="margin-top:8px;padding:8px;background:var(--bg);border-radius:var(--radius-xs);">
+            <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--muted2);margin-bottom:4px;">${r.type==='wajah'?'Usia (opsional)':'Arahan Tertentu (opsional)'}</div>
+            ${r.type==='wajah'?`
+            <input class="inp" style="font-size:var(--fs-xs2);padding:5px 8px;margin-bottom:8px;" placeholder="${esc(phText)}" value="${esc(r.focus)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()" />
+            `:`
+            <textarea class="desc-ta" style="font-size:var(--fs-xs2);min-height:44px;margin-bottom:8px;" placeholder="${esc(phText)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()">${esc(r.focus)}</textarea>
+            `}
+            <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--green);margin-bottom:3px;"><svg class="icon"><use href="#ic-check"></use></svg> AMBIL</div>
+            <textarea class="desc-ta" style="font-size:var(--fs-xs);min-height:44px;" oninput="fUpdateRef('${r.id}','extractCustom',this.value)" onclick="event.stopPropagation()">${esc(r.extractCustom)}</textarea>
+            <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--red);margin:6px 0 3px;"><svg class="icon"><use href="#ic-close"></use></svg> ABAIKAN</div>
+            <textarea class="desc-ta red" style="font-size:var(--fs-xs);min-height:44px;" oninput="fUpdateRef('${r.id}','ignoreCustom',this.value)" onclick="event.stopPropagation()">${esc(r.ignoreCustom)}</textarea>
+          </div>
         </div>
       `:`
         <div id="detail-expanded-${r.id}" class="f1-ref-input" style="${hasDetail?'':'display:none'}">
@@ -4477,14 +4483,15 @@ function fCardClick(e,id,isExpandable){
   if(inp)setTimeout(()=>inp.focus(),50);
 }
 
-function fToggleAdv(id){
+function fToggleAdv(id,label){
+  label = label || 'atur detail foto';
   let area=document.getElementById('adv-area-'+id);
   let icon=document.getElementById('adv-icon-'+id);
   let text=document.getElementById('adv-text-'+id);
   if(!area)return;
   let hidden=area.classList.toggle('hidden');
   if(icon)icon.textContent=hidden?'▾':'▴';
-  if(text)text.textContent=hidden?'atur detail foto':'sembunyikan';
+  if(text)text.textContent=hidden?label:'sembunyikan';
 }
 
 function fUpdateRef(id,key,val){
