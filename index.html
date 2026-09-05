@@ -3989,12 +3989,12 @@ const FTYPE_FRIENDLY={
   wajah:{
     ambil:'Paras wajah, warna & tekstur kulit, bentuk mata, hidung, bibir',
     abaikan:'Baju, hijab, aksesori — hanya wajah',
-    fokus_ph:'cth: wanita 25th, kulit sawo matang, mata sipit'
+    fokus_ph:'cth: 25 tahun'
   },
   outfit:{
     ambil:'Semua yang dipakai — baju, hijab, topi, kacamata, aksesori, sepatu',
     abaikan:'Wajah model — AI hanya ikuti outfitnya',
-    fokus_ph:'cth: abaya olive, hijab khimar cokelat'
+    fokus_ph:'cth: tambahkan aksesoris pada karakter, atau ubah hijab jadi lebih panjang'
   },
   atasan:{
     ambil:'Baju bagian atas — warna, potongan, detail lengan, kerah, bahan',
@@ -4106,7 +4106,7 @@ function fAddRef(typeKey){
   FS.refCounter++;
   let id='fr'+FS.refCounter;
   let def=FTYPE[typeKey];
-  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:'',wajahElemen:{}});
+  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:''});
   if(typeKey==='produk') FS.hasProdukFoto=true;
   fUpdateCounters();
   fRenderList();
@@ -4406,17 +4406,33 @@ function fRenderList(){
               ${isProdukType?`<div style="font-size:var(--fs-2xs);font-weight:600;color:var(--muted2);margin:6px 0 3px;">UKURAN PRODUK</div><input class="inp" style="font-size:var(--fs-xs);padding:4px 8px;" placeholder="cth: 110x50cm, XL, 250ml" value="${esc(r.ukuran||'')}" oninput="fUpdateRef('${r.id}','ukuran',this.value)" onclick="event.stopPropagation()" />`:''}${'\n'}
             </div>`:''}
         </div>
+      `:(r.type==='wajah'||r.type==='outfit')?`
+        <!-- SEDERHANA (permintaan user): foto Wajah & Outfit tidak lagi pakai
+             field "nama" generik + panel AMBIL/ABAIKAN yang rumit (2 textarea
+             + chip elemen wajah). Klik kartu foto ini langsung menampilkan
+             SATU input sederhana — Usia utk Wajah, Arahan Tertentu utk Outfit
+             — tanpa perlu tombol "atur detail foto" terpisah lagi. Nilainya
+             tetap disimpan ke r.focus seperti sebelumnya (jadi obj.detail di
+             JSON prompt tetap terisi, alur generate tidak berubah) — yang
+             berubah cuma tampilannya. AMBIL/ABAIKAN default (FTYPE.extract/
+             .ignore milik tipe ini) tetap otomatis dipakai di belakang layar
+             karena r.extractCustom/r.ignoreCustom sengaja dibiarkan kosong
+             (lihat fallback "!== undefined ? ... : def.extract/ignore" di
+             _fBuildPromptJSON). Produk & tipe lain (atasan/bawahan/aksesori/
+             objek) TIDAK disentuh — tetap pakai panel lama di bawah. -->
+        <div id="detail-expanded-${r.id}" class="f1-ref-input" style="${hasDetail?'':'display:none'}">
+          <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--muted2);margin-bottom:4px;">${r.type==='wajah'?'Usia (opsional)':'Arahan Tertentu (opsional)'}</div>
+          ${r.type==='wajah'?`
+          <input class="inp" style="font-size:var(--fs-xs2);padding:5px 8px;" placeholder="${esc(phText)}" value="${esc(r.focus)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()" />
+          `:`
+          <textarea class="desc-ta" style="font-size:var(--fs-xs2);min-height:44px;" placeholder="${esc(phText)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()">${esc(r.focus)}</textarea>
+          `}
+        </div>
       `:`
         <div id="detail-expanded-${r.id}" class="f1-ref-input" style="${hasDetail?'':'display:none'}">
           <input class="inp" style="font-size:var(--fs-xs2);padding:5px 8px;" placeholder="${esc(phText)}" value="${esc(r.focus)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()" />
           <button class="f1-adv-toggle" onclick="event.stopPropagation();fToggleAdv('${r.id}')"><span id="adv-icon-${r.id}">▾</span> <span id="adv-text-${r.id}">atur detail foto</span></button>
           <div id="adv-area-${r.id}" class="hidden" style="margin-top:8px;padding:8px;background:var(--bg);border-radius:var(--radius-xs);">
-            ${r.type==='wajah'?`
-            <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--muted2);margin-bottom:5px;">Elemen di foto ini — tap untuk pindah ke AMBIL kalau tidak mau diabaikan:</div>
-            <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;" onclick="event.stopPropagation()">
-              ${Object.keys(WAJAH_ELEMEN_LABELS).map(k=>`<span id="welem-${r.id}-${k}" class="chip${r.wajahElemen&&r.wajahElemen[k]?' sel':''}" style="font-size:var(--fs-xs);padding:5px 9px;" onclick="fToggleWajahElemen('${r.id}','${k}')">${WAJAH_ELEMEN_LABELS[k]}</span>`).join('')}
-            </div>
-            `:''}
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
               <span style="font-size:var(--fs-2xs);font-weight:600;color:var(--green);"><svg class="icon"><use href="#ic-check"></use></svg> AMBIL</span>
               <button class="tap-target" onclick="event.stopPropagation();fClearRefField('${r.id}','extractCustom','extract-ta-${r.id}')" style="background:none;border:none;color:var(--muted);font-size:var(--fs-2xs);cursor:pointer;padding:2px 4px;">Hapus</button>
@@ -4486,41 +4502,6 @@ function fClearRefField(id,key,taId){
   if(ta)ta.value='';
 }
 
-// ── TOGGLE ELEMEN FOTO WAJAH — user bisa pindahkan elemen (rambut,
-// hijab, pakaian/outfit, aksesori, background) dari daftar ABAIKAN
-// ke AMBIL, misalnya kalau outfit di foto wajah itu tidak ingin
-// diabaikan. Ini otomatis membangun ulang teks extractCustom /
-// ignoreCustom yang dipakai di JSON hasil generate. ─────────────────
-const WAJAH_ELEMEN_LABELS={
-  rambut:'rambut',
-  hijab:'hijab / penutup kepala',
-  pakaian:'pakaian / outfit yang dikenakan',
-  aksesori:'aksesori (kalung, anting, kacamata, dll)',
-  background:'background / latar foto'
-};
-function fBuildWajahExtractIgnore(r){
-  let baseExtract='fitur wajah yang tepat — bentuk wajah, struktur tulang, warna kulit, tekstur kulit, bentuk mata, bentuk hidung, bentuk bibir, ekspresi natural. Simpan sebagai blueprint DNA untuk pembuatan karakter.';
-  let we=r.wajahElemen||{};
-  let ambilExtra=[],abaikanList=[];
-  Object.keys(WAJAH_ELEMEN_LABELS).forEach(function(k){
-    if(we[k])ambilExtra.push(WAJAH_ELEMEN_LABELS[k]);else abaikanList.push(WAJAH_ELEMEN_LABELS[k]);
-  });
-  r.extractCustom=baseExtract+(ambilExtra.length?' Selain fitur wajah, ambil juga: '+ambilExtra.join(', ')+'.':'');
-  r.ignoreCustom=(abaikanList.length?abaikanList.join(', ')+' — ':'')+'ambil HANYA fitur wajah'+(ambilExtra.length?' beserta '+ambilExtra.join(', '):'')+' saja';
-}
-function fToggleWajahElemen(id,key){
-  let r=FS.refs.find(x=>x.id===id);
-  if(!r)return;
-  if(!r.wajahElemen)r.wajahElemen={};
-  r.wajahElemen[key]=!r.wajahElemen[key];
-  fBuildWajahExtractIgnore(r);
-  let chip=document.getElementById('welem-'+id+'-'+key);
-  if(chip)chip.classList.toggle('sel',!!r.wajahElemen[key]);
-  let extTa=document.getElementById('extract-ta-'+id);
-  if(extTa)extTa.value=r.extractCustom;
-  let ignTa=document.getElementById('ignore-ta-'+id);
-  if(ignTa)ignTa.value=r.ignoreCustom;
-}
 
 // STEP NAVIGATION HELPERS
 
@@ -4765,7 +4746,7 @@ function fAddRefSilent(typeKey){
   FS.refCounter++;
   let id='fr'+FS.refCounter;
   let def=FTYPE[typeKey];
-  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:'',wajahElemen:{}});
+  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:''});
   if(typeKey==='produk')FS.hasProdukFoto=true;
 }
 // ── TOGGLE PANEL f1 sesuai mode ──────────────────────────────────────────
