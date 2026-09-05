@@ -4389,9 +4389,15 @@ function fRenderList(){
     let isProdukType=r.type==='produk';
     let phText=isProdukType?'Nama produk *wajib':isRandom?r.focus||'Deskripsi outfit':friendly.fokus_ph;
     let hasDetail = !!(r.focus);
-    let isExpandable = !isProdukType && !isRandom;
+    let isWajahOutfit = (r.type==='wajah'||r.type==='outfit');
+    // Wajah & outfit: field Usia/Arahan Tertentu SELALU langsung kelihatan,
+    // tidak lagi disembunyikan di balik klik kartu (permintaan user: yang
+    // dihapus itu tombol "atur detail foto" + syarat klik DI ATAS panelnya,
+    // bukan panelnya sendiri). isExpandable dimatikan utk kedua tipe ini
+    // supaya fCardClick tidak lagi berperan sama sekali di sini.
+    let isExpandable = !isProdukType && !isRandom && !isWajahOutfit;
     let isOutfitRandom = r.type === 'outfit_random';
-    return `<div class="f1-ref-row${(hasDetail||isOutfitRandom)?' expanded':''}" id="pc-${r.id}" onclick="fCardClick(event,'${r.id}',${isExpandable})">
+    return `<div class="f1-ref-row${(hasDetail||isOutfitRandom||isWajahOutfit)?' expanded':''}" id="pc-${r.id}" onclick="fCardClick(event,'${r.id}',${isExpandable})">
       <span class="f1-ref-num">${numStr}</span>
       <span class="f1-ref-type">${def.icon} ${def.label.split(' ')[0]}</span>
       ${isProdukType||isRandom?`
@@ -4420,7 +4426,7 @@ function fRenderList(){
              (lihat fallback "!== undefined ? ... : def.extract/ignore" di
              _fBuildPromptJSON). Produk & tipe lain (atasan/bawahan/aksesori/
              objek) TIDAK disentuh — tetap pakai panel lama di bawah. -->
-        <div id="detail-expanded-${r.id}" class="f1-ref-input" style="${hasDetail?'':'display:none'}">
+        <div id="detail-expanded-${r.id}" class="f1-ref-input">
           <div style="font-size:var(--fs-2xs);font-weight:600;color:var(--muted2);margin-bottom:4px;">${r.type==='wajah'?'Usia (opsional)':'Arahan Tertentu (opsional)'}</div>
           ${r.type==='wajah'?`
           <input class="inp" style="font-size:var(--fs-xs2);padding:5px 8px;" placeholder="${esc(phText)}" value="${esc(r.focus)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()" />
