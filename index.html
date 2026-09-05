@@ -422,6 +422,10 @@ body input, body textarea, body [contenteditable="true"]{
 
 /* CHIPS */
 .chips{display:flex;flex-wrap:wrap;gap:var(--space-2);}
+/* LOKASI: baris tombol kategori (Kamar/Indoor/Outdoor) + grup chip yang
+   muncul/hilang bergantian saat salah satu kategori diklik. */
+.lokasi-cat-row{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-5);}
+.lokasi-group{margin-top:var(--space-2);}
 .clabel{
   width:100%;
   font-size:var(--fs-xs);font-weight:500;
@@ -2450,8 +2454,12 @@ body input, body textarea, body [contenteditable="true"]{
 
       <!-- PANEL NORMAL (karakter) -->
       <div id="f5-normal-panel">
-        <div class="chips">
-          <div class="clabel">Kamar</div>
+        <div class="lokasi-cat-row">
+          <div class="chip lokasi-cat" data-group="kamar" onclick="fToggleLokasiGroup('kamar')">Kamar</div>
+          <div class="chip lokasi-cat" data-group="indoor" onclick="fToggleLokasiGroup('indoor')">Indoor</div>
+          <div class="chip lokasi-cat" data-group="outdoor" onclick="fToggleLokasiGroup('outdoor')">Outdoor</div>
+        </div>
+        <div class="chips lokasi-group" id="f5-group-kamar" style="display:none;">
           <div class="chip" onclick="fPickLokasi('aesthetic bedroom large window natural light streaming in',this,'Kamar Aesthetic')">Kamar aesthetic</div>
           <div class="chip" onclick="fPickLokasi('minimalist modern bedroom crisp white walls clean geometric furniture',this,'Kamar Minimalis')">Kamar minimalis</div>
           <div class="chip" onclick="fPickLokasi('cozy bedroom warm amber lamp glow fairy lights soft blankets',this,'Kamar Cozy')">Kamar cozy warm</div>
@@ -2460,7 +2468,8 @@ body input, body textarea, body [contenteditable="true"]{
           <div class="chip" onclick="fPickLokasi('aesthetic bedroom pink white floral wallpaper fairy lights',this,'Kamar Pink Aesthetic')">Kamar pink aesthetic</div>
           <div class="chip" onclick="fPickLokasi('luxury bedroom opulent gold accents plush velvet headboard crystal chandelier marble floor rich drapes soft ambient glow',this,'Kamar Mewah')">Kamar mewah</div>
           <div class="chip" onclick="fPickLokasi('Spanish style bedroom warm terracotta walls ornate wooden furniture wrought iron details arched doorway patterned tiles warm golden light',this,'Kamar Spanyol')">Kamar ala Spanyol</div>
-          <div class="clabel">Indoor Lainnya</div>
+        </div>
+        <div class="chips lokasi-group" id="f5-group-indoor" style="display:none;">
           <div class="chip" onclick="fPickLokasi('minimalist white photo studio clean backdrop soft diffused light',this,'Studio Putih')">Studio putih</div>
           <div class="chip" onclick="fPickLokasi('modern living room neutral tones large sofa indoor plants',this,'Ruang Tamu')">Ruang tamu modern</div>
           <div class="chip" onclick="fPickLokasi('aesthetic cafe indoor plants rattan chairs warm ambient lighting',this,'Cafe Aesthetic')">Cafe aesthetic</div>
@@ -2468,11 +2477,11 @@ body input, body textarea, body [contenteditable="true"]{
           <div class="chip" onclick="fPickLokasi('aesthetic kitchen pastel cabinets small plants marble countertop',this,'Dapur Aesthetic')">Dapur aesthetic</div>
           <div class="chip" onclick="fPickLokasi('luxury living room grand marble floors tall columns gold-trimmed furniture statement chandelier lush velvet sofas floor-to-ceiling windows opulent decor',this,'Ruang Tamu Mewah')">Ruang tamu mewah</div>
           <div class="chip" onclick="fPickLokasi('Spanish colonial living room whitewashed walls exposed wooden beams colorful hand-painted tiles arched windows terracotta floor warm lantern light rustic elegant',this,'Ruang Tamu Spanyol')">Ruang tamu Spanyol</div>
-          <div class="clabel">Outdoor &amp; Mobil Mewah</div>
+        </div>
+        <div class="chips lokasi-group" id="f5-group-outdoor" style="display:none;">
           <div class="chip" onclick="fPickLokasi('luxury home terrace, elegant marble flooring, upscale outdoor furniture, ornate railings, warm golden hour light, lush garden view in background, high-end architecture',this,'Teras Rumah Mewah')">Teras rumah mewah</div>
           <div class="chip" onclick="fPickLokasi('luxury home front yard, manicured garden lawn, grand entrance with tall pillars, marble pathway, upscale landscaping, elegant fountain, golden hour natural light',this,'Halaman Rumah Mewah')">Halaman rumah mewah</div>
           <div class="chip" onclick="fPickLokasi('inside a luxury car interior, premium quilted leather seats, elegant ambient lighting, sophisticated modern automotive interior, soft natural light through window',this,'Di Dalam Mobil Mewah')">Di dalam mobil mewah</div>
-
         </div>
         <div class="mt12">
           <label class="inplabel">Atau tulis sendiri</label>
@@ -5692,6 +5701,27 @@ function fBack4(){
 }
 
 // STEP 5: LOKASI
+// Toggle kategori lokasi (Kamar/Indoor/Outdoor): klik satu kategori akan
+// menampilkan chip-chip di dalamnya dan menyembunyikan kategori lain yang
+// sedang terbuka. Klik kategori yang sama saat sedang terbuka akan
+// menutupnya kembali.
+function fToggleLokasiGroup(name){
+  let groups=['kamar','indoor','outdoor'];
+  let current=document.getElementById('f5-group-'+name);
+  let isOpen=current && current.style.display!=='none';
+  groups.forEach(function(g){
+    let el=document.getElementById('f5-group-'+g);
+    if(el) el.style.display='none';
+  });
+  document.querySelectorAll('#f5-normal-panel .lokasi-cat').forEach(function(b){
+    b.classList.remove('sel');
+  });
+  if(!isOpen){
+    if(current) current.style.display='flex';
+    let btn=document.querySelector('#f5-normal-panel .lokasi-cat[data-group="'+name+'"]');
+    if(btn) btn.classList.add('sel');
+  }
+}
 let _fLokasiCustomLock=false;
 function fPickLokasi(val,el,label){
   document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));
