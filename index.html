@@ -8020,6 +8020,18 @@ let VB_REVISI_FOTO_OVERRIDE={};
 // (lihat FIX BUG#15 di bawah) — direset di vbReset().
 let VB_BULK_ROW_CACHE=[];
 
+// FITUR BARU (permintaan user): kalau bulk generate berhenti di tengah
+// jalan (macet, limit Google habis, dst) dan sebagian produk SUDAH
+// berhasil dapat script, simpan konteksnya di sini supaya user bisa
+// pilih "Lanjutkan" — generate ULANG HANYA untuk produk yang BELUM
+// kebagian script, bukan mengulang semuanya dari nol (yang bakal
+// menimpa/mengulang script yang sudah bagus). null kalau tidak ada
+// sesi yang bisa dilanjutkan (belum pernah generate, atau sudah
+// lengkap semua). Diisi di catch/partial-success vbGenerateBulkAI &
+// vbBulkResumeAI, dibuang (null) begitu semua produk sudah lengkap
+// atau begitu user mulai generate BARU dari awal.
+let VB_BULK_LAST_CONTEXT=null; // {produkList, targetAudience, allResults}
+
 // FIX TOMBOL GENERATE HILANG/KETUTUP DI "BANYAK PRODUK SEKALIGUS": lihat
 // komentar panjang di CSS .wbody. Fungsi ini mengukur tinggi konten
 // SEBENARNYA dari card (.wbody) yang membungkus elemen `fromEl`, lalu
@@ -8805,7 +8817,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
 
 async function vbGenerateBulkAI(){
   let errBox=document.getElementById('vb-bulk-error');
-  errBox.classList.add('hidden');errBox.textContent='';
+  errBox.classList.add('hidden');errBox.innerHTML='';
 
   if(!VB.gender||!VB.age||!VB.pitch||!VB.accent){
     showToast('Lengkapi dulu step Jenis Kelamin, Usia, Nada Bicara, dan Aksen ya','error');
@@ -8850,6 +8862,51 @@ async function vbGenerateBulkAI(){
   }
   if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
 
+  // FITUR BARU (permintaan user): generate BARU dari awal selalu buang
+  // dulu sisa sesi "Lanjutkan" lama kalau ada (mis. user ganti-ganti isi
+  // form lagi) — supaya vbBulkResumeAI() tidak pernah jalan dengan data
+  // basi dari sesi produk yang berbeda.
+  VB_BULK_LAST_CONTEXT=null;
+  let toProcess=produkList.map(function(p,idx){return{p:p,idx:idx};});
+  await _vbRunBulkGenerate(produkList,targetAudience,toProcess,[]);
+}
+
+// FITUR BARU (permintaan user): kalau bulk generate berhenti di tengah
+// jalan (macet/limit/error apa pun) dan sebagian produk sudah berhasil,
+// fungsi ini melanjutkan HANYA untuk produk yang namanya BELUM ada di
+// hasil sejauh ini (VB_BULK_LAST_CONTEXT.allResults) — script yang sudah
+// jadi tidak diminta ulang ke AI dan tidak ditimpa.
+async function vbBulkResumeAI(){
+  let ctx=VB_BULK_LAST_CONTEXT;
+  if(!ctx){showToast('Tidak ada proses yang bisa dilanjutkan — generate dari awal ya.','error');return;}
+  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  let doneNames={};
+  ctx.allResults.forEach(function(r){doneNames[(r.produk||'').trim().toLowerCase()]=true;});
+  let toProcess=ctx.produkList
+    .map(function(p,idx){return{p:p,idx:idx};})
+    .filter(function(x){return !doneNames[(x.p.nama||'').trim().toLowerCase()];});
+  if(toProcess.length===0){
+    showToast('Semua produk sudah berhasil dibuat, tidak ada yang perlu dilanjutkan.','success');
+    VB_BULK_LAST_CONTEXT=null;
+    return;
+  }
+  await _vbRunBulkGenerate(ctx.produkList,ctx.targetAudience,toProcess,ctx.allResults.slice());
+}
+
+// Inti proses batch bulk generate — dipakai baik oleh generate PERTAMA
+// (vbGenerateBulkAI, toProcess = SEMUA produk, priorResults = []) maupun
+// oleh "Lanjutkan" (vbBulkResumeAI, toProcess = SISA produk yang belum,
+// priorResults = script yang sudah berhasil dari sesi sebelumnya).
+// `produkList` = daftar LENGKAP semua produk yang diminta di sesi ini
+// (dipakai buat total/label/render final) — TIDAK berubah walau yang
+// diproses cuma sebagian; `toProcess` = array {p,idx} yang BENERAN
+// dikirim ke AI kali ini, idx = posisi produk itu di `produkList` (dipakai
+// supaya update kartu live selalu nempel ke produk yang benar walau lagi
+// mode lanjutan).
+async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResults){
+  let errBox=document.getElementById('vb-bulk-error');
+  let isResume=priorResults.length>0;
+
   // FIX: sebelumnya 1 panggilan AI buat SEMUA produk sekaligus — kalau
   // banyak produk, model sering "kelupaan"/nge-drop sebagian dan cuma
   // balikin sebagian kecil (misal 10 diminta, cuma 1 yang keluar).
@@ -8857,36 +8914,45 @@ async function vbGenerateBulkAI(){
   // terbukti reliable, dikirim berurutan.
   const BATCH_SIZE=3;
   let batches=[];
-  for(let i=0;i<produkList.length;i+=BATCH_SIZE)batches.push(produkList.slice(i,i+BATCH_SIZE));
+  for(let i=0;i<toProcess.length;i+=BATCH_SIZE)batches.push(toProcess.slice(i,i+BATCH_SIZE));
 
   VAI._isGenerating=true;
   _vbAcquireWakeLock();
   let btn=document.getElementById('vb-bulk-btn');
-  let genLogoState=startGenLogoBtn(btn,'Membuat Prompt...');
+  let genLogoState=startGenLogoBtn(btn,isResume?'Melanjutkan Sisa Produk...':'Membuat Prompt...');
 
-  // ── REAL-TIME: tampilkan SEMUA grup produk + kartu Hook/Story/CTA
-  // kosong DULU (skipHistory=true — belum ada apa-apa buat dicatat ke
-  // Riwayat), baru diisi kata-per-kata per batch begitu potongan jawaban
-  // AI datang lewat streaming. Di akhir (setelah SEMUA batch selesai),
-  // _vbRenderBulkOutput dipanggil lagi seperti biasa (lihat bawah, tidak
-  // berubah) untuk merender versi FINAL yang sudah bersih — otomatis
-  // menimpa kartu live ini.
+  // ── REAL-TIME: tampilkan SEMUA grup produk sekaligus — produk yang
+  // SUDAH punya hasil dari priorResults (sesi sebelumnya, kalau ini mode
+  // Lanjutkan) langsung tampil PENUH tanpa diketik ulang; produk yang
+  // BELUM diproses tampil kosong dulu (skipHistory=true — belum ada apa2
+  // buat dicatat ke Riwayat), baru diisi kata-per-kata per batch begitu
+  // potongan jawaban AI datang. Di akhir (setelah SEMUA batch di sesi ini
+  // selesai), _vbRenderBulkOutput dipanggil lagi untuk merender versi
+  // FINAL yang sudah bersih — otomatis menimpa kartu live ini.
+  let priorByName={};
+  priorResults.forEach(function(r){priorByName[(r.produk||'').trim().toLowerCase()]=r;});
+  let initialDisplay=produkList.map(function(p){
+    let found=priorByName[(p.nama||'').trim().toLowerCase()];
+    return found||{produk:p.nama,hook:'',story:'',cta:''};
+  });
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
-  _vbRenderBulkOutput(produkList.map(function(p){return{produk:p.nama,hook:'',story:'',cta:''};}),produkList,true);
+  _vbRenderBulkOutput(initialDisplay,produkList,true);
 
-  let allResults=[];
+  let allResults=priorResults.slice();
   try{
     for(let b=0;b<batches.length;b++){
       let dlCheck=dlCheckBeforeCall();
       if(!dlCheck.ok){
-        throw new Error(dlCheck.message+(allResults.length?' ('+allResults.length+' produk pertama sudah berhasil dibuat.)':''));
+        throw new Error(dlCheck.message+(allResults.length?' ('+allResults.length+' produk sudah berhasil dibuat.)':''));
       }
-      let batchLabelBase='Batch '+(b+1)+'/'+batches.length+' ('+(b*BATCH_SIZE)+'/'+produkList.length+')...';
+      let batchLabelBase=(isResume?'Lanjutan — ':'')+'Batch '+(b+1)+'/'+batches.length+' ('+(b*BATCH_SIZE)+'/'+toProcess.length+')...';
       updateGenLogoLabel(genLogoState,batchLabelBase);
-      // Batch ke berapa lagi jalan sekarang — dipakai buat map balik dari
-      // index LOKAL di dalam batch (0,1,2) ke index produk GLOBAL (prodIdx)
-      // supaya update live nempel ke grup kartu produk yang benar.
-      let batchStartIdx=b*BATCH_SIZE;
+      // batches[b] = array {p,idx} — idx-nya sudah GLOBAL (posisi asli di
+      // produkList), jadi aman dipakai langsung buat update kartu live,
+      // baik ini generate pertama (idx = urutan biasa) maupun Lanjutkan
+      // (idx = posisi asli produk itu, BUKAN posisi di antara sisa saja).
+      let batchItems=batches[b];
+      let batchProducts=batchItems.map(function(x){return x.p;});
       // CATATAN: dulu di sini ada onPartialThisBatch yang mengisi kartu
       // kata-per-kata mengikuti potongan mentah streaming (real-time
       // per-chunk) — tapi karena tiap potongan bisa menyentuh Hook/Story/CTA
@@ -8902,14 +8968,14 @@ async function vbGenerateBulkAI(){
       // sementara jadi status "⏳ nunggu" yang jujur selama proses retry
       // otomatis berlangsung, lalu balik lagi ke label batch begitu request
       // berikutnya dikirim.
-      let batchArr=await _vbCallBulkBatch(batches[b],targetAudience,undefined,function(waitMs,attempt,status){
+      let batchArr=await _vbCallBulkBatch(batchProducts,targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
       },onPartialThisBatch);
       dlIncrement();
-      if(batchArr.length<batches[b].length){
-        console.warn('[vbGenerateBulkAI] batch '+b+' cuma balikin '+batchArr.length+' dari '+batches[b].length+' produk diminta');
+      if(batchArr.length<batchItems.length){
+        console.warn('[_vbRunBulkGenerate] batch '+b+' cuma balikin '+batchArr.length+' dari '+batchItems.length+' produk diminta');
       }
       // FIX BUG#16 (backfill nama produk) dipindah ke DALAM _vbCallBulkBatch
       // (lihat komentar lengkap di sana) — sekarang sudah aman dari
@@ -8935,21 +9001,22 @@ async function vbGenerateBulkAI(){
       // dimatikan (langsung tampil, tanpa ngetik ulang) karena isinya sudah
       // kepakai duluan di sini.
       //
-      // PENGAMAN WAJIB: update live ini pakai INDEX POSISI (batchStartIdx+j)
-      // buat tahu kartu produk mana yang harus diisi — itu CUMA aman kalau
-      // jumlah hasil PERSIS SAMA dengan jumlah yang diminta di batch ini.
-      // Kalau Gemini men-drop SATU produk di TENGAH batch (bukan di ujung),
-      // posisi hasil yang tersisa ikut geser — produk sesudah yang di-drop
-      // bakal ketiban script produk LAIN yang salah kalau tetap dipetakan
-      // by-index (persis masalah yang sudah pernah ditemukan & ditambal
-      // untuk backfill nama produk di _vbCallBulkBatch, lihat komentar di
-      // sana). Jadi kalau batch ini kena drop, live update-nya DILEWATI dulu
-      // (kartu-kartu di batch ini tetap kosong sampai render final di akhir,
-      // sama seperti perilaku SEBELUM fix ini) — render final tetap aman
-      // karena dia mencocokkan produk lewat NAMA (metaLookup), bukan posisi.
-      if(batchArr.length===batches[b].length){
+      // PENGAMAN WAJIB: update live ini pakai idx GLOBAL dari batchItems[j]
+      // (bukan lagi hitung batchStartIdx+j) buat tahu kartu produk mana
+      // yang harus diisi — itu CUMA aman kalau jumlah hasil PERSIS SAMA
+      // dengan jumlah yang diminta di batch ini. Kalau Gemini men-drop SATU
+      // produk di TENGAH batch (bukan di ujung), posisi hasil yang tersisa
+      // ikut geser — produk sesudah yang di-drop bakal ketiban script
+      // produk LAIN yang salah kalau tetap dipetakan by-index (persis
+      // masalah yang sudah pernah ditemukan & ditambal untuk backfill nama
+      // produk di _vbCallBulkBatch, lihat komentar di sana). Jadi kalau
+      // batch ini kena drop, live update-nya DILEWATI dulu (kartu-kartu di
+      // batch ini tetap kosong sampai render final di akhir, sama seperti
+      // perilaku SEBELUM fix ini) — render final tetap aman karena dia
+      // mencocokkan produk lewat NAMA (metaLookup), bukan posisi.
+      if(batchArr.length===batchItems.length){
         for(let j=0;j<batchArr.length;j++){
-          _vbUpdateProductCardsLive(batchStartIdx+j,batchArr[j]);
+          _vbUpdateProductCardsLive(batchItems[j].idx,batchArr[j]);
         }
       }
       // Jeda antar batch — di atas gate global (_VB_MIN_GEMINI_GAP_MS) yang
@@ -8982,24 +9049,52 @@ async function vbGenerateBulkAI(){
     doneCard('v5','va5',(allResults.length*3)+' script bulk AI');
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     if(allResults.length<produkList.length){
-      showToast('Hanya '+allResults.length+' dari '+produkList.length+' produk berhasil dibuat — sisanya bisa dicoba generate ulang.','error');
+      // FITUR BARU (permintaan user): dulu di sini cuma toast "sisanya bisa
+      // dicoba generate ulang" — maksudnya generate ULANG SEMUA dari nol,
+      // padahal sebagian sudah berhasil. Sekarang simpan konteksnya supaya
+      // tombol "Lanjutkan" di errBox cuma minta AI ngerjain SISA yang belum.
+      VB_BULK_LAST_CONTEXT={produkList:produkList,targetAudience:targetAudience,allResults:allResults.slice()};
+      _vbShowBulkResumeUI(errBox,(produkList.length-allResults.length));
+      showToast('Hanya '+allResults.length+' dari '+produkList.length+' produk berhasil dibuat.','error');
     }else{
+      VB_BULK_LAST_CONTEXT=null; // sudah lengkap semua — tidak ada lagi yang perlu dilanjutkan
       showToast((allResults.length*3)+' script + JSON berhasil dibuat!','success');
     }
   }catch(err){
-    console.error('vbGenerateBulkAI error:',err);
+    console.error('_vbRunBulkGenerate error:',err);
     if(allResults.length>0){
       _vbRenderBulkOutput(allResults,produkList);
       setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
     }
-    errBox.textContent=''+err.message;
-    errBox.classList.remove('hidden');
+    if(allResults.length<produkList.length){
+      VB_BULK_LAST_CONTEXT={produkList:produkList,targetAudience:targetAudience,allResults:allResults.slice()};
+      _vbShowBulkResumeUI(errBox,(produkList.length-allResults.length),err.message);
+    }else{
+      VB_BULK_LAST_CONTEXT=null;
+      errBox.textContent=''+err.message;
+      errBox.classList.remove('hidden');
+    }
     showToast('Gagal generate: '+err.message,'error');
   }finally{
     stopGenLogoBtn(btn,genLogoState);
     VAI._isGenerating=false;
     _vbReleaseWakeLock();
   }
+}
+
+// Render pesan error/peringatan + tombol "Lanjutkan N Produk yang Belum"
+// di errBox. remainingCount HARUS >0 tiap kali ini dipanggil (dicek oleh
+// pemanggil) — tombol manggil vbBulkResumeAI() yang cuma proses produk
+// yang namanya belum ada di VB_BULK_LAST_CONTEXT.allResults, jadi script
+// yang sudah jadi TIDAK diulang/ditimpa. Pesan diberi esc() sebelum
+// disisipkan sebagai HTML (beda dari dulu yang pakai .textContent) karena
+// sekarang errBox butuh markup buat tombolnya.
+function _vbShowBulkResumeUI(errBox,remainingCount,errMessage){
+  errBox.innerHTML=(errMessage?'<div>'+esc(errMessage)+'</div>':'')
+    +'<div style="margin-top:'+(errMessage?'6px':'0')+';">'+remainingCount+' produk belum kebagian script.</div>'
+    +'<button class="btn sm" style="width:100%;margin-top:8px;" onclick="vbBulkResumeAI()">'
+    +'<svg class="icon"><use href="#ic-sparkle"></use></svg> Lanjutkan '+remainingCount+' Produk yang Belum</button>';
+  errBox.classList.remove('hidden');
 }
 
 // FIX BUG #8 (ditemukan saat audit mendalam): sebelumnya VB_BULK_PRODUCTS
@@ -10597,6 +10692,7 @@ function vbReset(){
     let bulkTarget=document.getElementById('vb-bulk-target'); if(bulkTarget)bulkTarget.value='';
     let bulkArea=document.getElementById('vb-bulk-area'); if(bulkArea)bulkArea.classList.add('hidden');
     let bulkErr=document.getElementById('vb-bulk-error'); if(bulkErr){bulkErr.classList.add('hidden');bulkErr.textContent='';}
+    VB_BULK_LAST_CONTEXT=null; // reset builder — buang juga sisa sesi "Lanjutkan" kalau ada, biar tidak nyangkut ke sesi produk berikutnya
     VB_BULK_ITEMS=[];
     vbUpdateProgress(1,'Mode Referensi Foto');
     // FIX BUG#1: sama seperti saat init — vbUpdateProgress(1,...) hitung 20%,
