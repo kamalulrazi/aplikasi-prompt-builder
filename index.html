@@ -8434,6 +8434,42 @@ function vbConfirmRef(){
   showCard('v2');
   document.getElementById('v2').classList.remove('pending');
   vbUpdateProgress(2,'Jenis Kelamin & Usia');
+  // Mode 3 butuh 2 foto referensi dengan URUTAN TETAP saat upload ke Google
+  // Flow/Veo (foto 1 = karakter, foto 2 = produk) — kalau terbalik, video
+  // yang dihasilkan salah. Ingatkan sekali di sini, tepat setelah user
+  // mengonfirmasi pemilihan Mode 3.
+  if(VB.refMode==='kp')vbShowMode3PhotoOrderNotice();
+}
+
+// ── Notice urutan foto khusus Mode 3 (Karakter + Produk) — dipakai sama
+// persis polanya seperti fShowUploadNotice() di tab Foto, supaya konsisten
+// gaya visualnya di seluruh app. ──
+function vbShowMode3PhotoOrderNotice(){
+  let old=document.getElementById('vb-urutan-notif');
+  if(old)old.remove();
+
+  let el=document.createElement('div');
+  el.id='vb-urutan-notif';
+  el.style.cssText='position:fixed;top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:9999;'
+    +'background:linear-gradient(180deg,var(--surface3),var(--surface));color:var(--text);border-radius:var(--radius-lg);'
+    +'border:1px solid rgba(217,184,118,0.28);'
+    +'padding:16px 18px;width:calc(100% - 32px);max-width:480px;'
+    +'box-shadow:var(--shadow-lg),0 0 0 1px rgba(217,184,118,0.08);animation:notifSlideDown 0.25s ease;';
+
+  el.innerHTML='<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px;">'
+    +'<span style="width:26px;height:26px;flex-shrink:0;border-radius:var(--radius-md);background:var(--accent-dim-bg);display:flex;align-items:center;justify-content:center;">'
+    +'<svg class="icon" style="font-size:var(--fs-md);color:var(--accent-2);"><use href="#ic-warning"></use></svg>'
+    +'</span>'
+    +'<span style="font-size:var(--fs-sm);font-weight:700;letter-spacing:0.2px;color:var(--text);">Urutan Foto Tidak Boleh Terbalik</span>'
+    +'</div>'
+    +'<div style="font-size:var(--fs-xs2);margin-bottom:12px;color:var(--muted);line-height:1.6;">Upload ke Google Flow sesuai urutan ini — jika terbalik, hasil video akan salah.</div>'
+    +'<div style="font-size:var(--fs-sm);font-weight:600;margin-bottom:14px;color:var(--accent-2);font-family:\'Geist Mono\',monospace;letter-spacing:0.1px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;">1. foto karakter (character sheet)  ·  2. foto produk</div>'
+    +'<button onclick="var n=document.getElementById(\'vb-urutan-notif\');if(n)n.remove();" '
+    +'style="width:100%;background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#171310;border:none;padding:10px;border-radius:var(--radius);'
+    +'font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:Geist,sans-serif;box-shadow:0 4px 12px rgba(184,150,95,0.18);">Saya Mengerti</button>';
+
+  document.body.appendChild(el);
+  setTimeout(()=>{ let n=document.getElementById('vb-urutan-notif'); if(n)n.remove(); },12000);
 }
 
 function vbPickGender(val,label){
@@ -9278,11 +9314,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
     +'Daftar produk ('+batch.length+' produk) — kalau ada info "keunggulan", manfaatkan di script STORY biar spesifik dan meyakinkan:\n'+produkListText+'\n\n'
     +(_imgCounter>0?'Foto-foto yang dilampirkan HANYA supaya kamu tahu PERSIS jenis/tipe tiap produk (biar tidak salah asumsi generik soal jenis produknya). JANGAN mendeskripsikan bentuk/warna/tekstur/bahan/kemasan produk di dalam script manapun — foto murni referensi konteks internal, bukan sumber detail visual yang harus disebutkan ke penonton. Untuk produk yang TIDAK punya foto terlampir, tetap buat script berdasarkan nama & keunggulan seperti biasa.\n\n':'')
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
-    +'Untuk SETIAP produk di atas, buatkan TEPAT 3 script/dialog dengan peran berbeda:\n'
-    +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung.\n'
-    +'2. STORY — bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'), fokus ke SKENARIO/pengalaman audiens saat memakai produk ini dan bagaimana rasanya — BUKAN review/deskripsi fisik produk. JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
-    +'3. CTA — ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n\n'
+    +'Untuk SETIAP produk di atas, buatkan TEPAT 3 script/dialog. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
+    +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya).\n'
+    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
+    +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n\n'
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik menyebut nama/jenis produknya masing-masing, jangan generik.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita.\n\n'
     // FIX (permintaan user, sama seperti mode single — lihat komentar
     // lengkap di prompt single): minta AI verifikasi hitungan kata sendiri
     // SEBELUM menjawab, bukan cuma dikasih tahu aturannya doang.
@@ -10660,11 +10697,12 @@ async function vbGenerate3AI(){
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan nada/gaya bahasa script dengan aksen ini (Netral/Formal/Santai), tetap Bahasa Indonesia standar tanpa logat daerah.\n'
     +'Target audience: '+targetAudience+'\n'
     +(VB.produkFotoBase64?'\nADA FOTO REFERENSI PRODUK ASLI TERLAMPIR — foto ini HANYA supaya kamu tahu PERSIS jenis/tipe produk apa yang dimaksud (misal kalau nama produknya generik seperti "tas", foto ini kasih tahu tas seperti apa yang sedang dieksekusi), supaya kamu tidak salah asumsi soal jenis produknya. JANGAN mendeskripsikan bentuk/warna/tekstur/bahan/kemasan produk di dalam script — foto ini murni referensi konteks internal, bukan sumber detail visual yang harus disebutkan ke penonton.\n':'\n')
-    +'Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera, dengan peran berbeda:\n'
-    +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung.\n'
-    +'2. STORY — bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'), fokus ke SKENARIO/pengalaman audiens saat memakai produk ini dan bagaimana rasanya — BUKAN review/deskripsi fisik produk. JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
-    +'3. CTA — ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n\n'
+    +'Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
+    +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya).\n'
+    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
+    +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n\n'
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita.\n\n'
     // FIX (permintaan user: skrip beneran pas 25 kata TANPA mengorbankan
     // kualitas): sebelumnya AI cuma diminta "HARUS tepat 25 kata" tanpa
     // diminta verifikasi hitungannya sendiri sebelum menjawab — jadi kalau
@@ -10937,6 +10975,9 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
       b.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg>';
       setTimeout(function(){b.textContent=VB_COPY_BTN_LABEL;},1200);
       dl.classList.remove('hidden');
+      // Ingatkan lagi urutan foto tepat saat user menyalin (mau upload ke
+      // Google Flow) — khusus Mode 3 yang butuh 2 foto berurutan.
+      if(VB.refMode==='kp')vbShowMode3PhotoOrderNotice();
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
   };})(idx,copyBtn,doneLabel);
   let copyWrap=document.createElement('div');
@@ -11186,19 +11227,11 @@ function _vbBuildFlowText(scriptText,produkOverride){
   }
   let genderPrefix=VB.gender==='male'?'Male, ':VB.gender==='female'?'Female, ':'';
   let ageFull=genderPrefix+VB.age;
-  // FIX BUG#5 (ditemukan saat audit mendalam): sebelumnya instructionText
-  // (prose, belum jadi JSON) langsung disambung mentah dengan fragment
-  // '"dialogue":{"voice_character":{...}}}' TANPA kurung buka '{' di depan
-  // dan TANPA instructionText dibungkus jadi value JSON yang valid. Hasilnya:
-  // teks yang tampil di kotak JSON SELALU rusak (bukan JSON valid sama
-  // sekali) — ada 3 tanda '}' penutup tapi cuma 2 yang kebuka, dan prose-nya
-  // nyempil begitu saja tanpa quote. Ini terjadi di SETIAP prompt video yang
-  // pernah dibuat (AI single, manual, maupun bulk), sejak _vbBuildFlowText
-  // dipakai di semua jalur. Sekarang instructionText ikut di-escape & di-quote
-  // sebagai field "instruction", dibungkus 1 objek JSON yang valid dan bisa
-  // di-JSON.parse tanpa error — termasuk kalau Lokasi/Lighting/nama produk
-  // custom (mode 3) kebetulan mengandung tanda kutip.
-  return '{"instruction":"'+_vbEsc(instructionText)+'","dialogue":{"voice_character":{"age":"'+_vbEsc(ageFull)+'","pitch":"'+_vbEsc(VB.pitch)+'","accent":"'+_vbEsc(accentFull)+'","script":"'+_vbEsc(scriptText)+'"}}}';
+  // FORMAT OUTPUT (permintaan user, menggantikan format JSON lama): bukan JSON valid,
+  // "instruction:...dialogue:voice_character:age:...,pitch:...,accent:...,script:"...""
+  // — tidak perlu escaping JSON karena tidak ada JSON.parse yang membaca
+  // hasil fungsi ini di bagian lain app (hanya ditampilkan & disalin).
+  return instructionText+'dialogue:voice_character:age:'+ageFull+',pitch:'+VB.pitch+',accent:'+accentFull+',script:"'+scriptText+'"';
 }
 
 function vbReset(){
