@@ -1581,6 +1581,26 @@ body input, body textarea, body [contenteditable="true"]{
   font-size:14px;line-height:1;cursor:pointer;
 }
 .pb-flow-lightbox-label{font-size:var(--fs-sm);font-weight:700;color:var(--text);}
+/* Penjelasan tambahan + sub-foto "bahan" di bawah preview lightbox —
+   cuma dipakai buat kotak Video AI & Foto AI (yang punya bahan di
+   bawahnya). Diisi/disembunyikan dinamis lewat data-explain /
+   data-sub1-* / data-sub2-* di pbFlowLightboxOpen(). */
+.pb-flow-lightbox-explain{
+  font-size:var(--fs-xs);color:var(--muted);text-align:center;
+  line-height:1.4;margin-top:-2px;
+}
+.pb-flow-lightbox-subwrap{
+  display:none;gap:16px;justify-content:center;margin-top:2px;
+}
+.pb-flow-lightbox-subcol{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.pb-flow-lightbox-subimg{
+  width:56px;height:56px;object-fit:cover;border-radius:var(--radius-2xs);
+  border:1px solid var(--border-hi);display:block;
+}
+.pb-flow-lightbox-sublabel{
+  font-size:var(--fs-3xs);color:var(--muted2);text-align:center;
+  line-height:1.2;max-width:66px;
+}
 }
 }
 }
@@ -12125,6 +12145,8 @@ window.addEventListener('beforeunload', function(e){
       <button type="button" id="pb-flow-lightbox-mute" class="pb-flow-lightbox-mute" onclick="pbFlowLightboxToggleMute(event)">🔇</button>
     </div>
     <div class="pb-flow-lightbox-label" id="pb-flow-lightbox-label"></div>
+    <div class="pb-flow-lightbox-explain" id="pb-flow-lightbox-explain"></div>
+    <div class="pb-flow-lightbox-subwrap" id="pb-flow-lightbox-subwrap"></div>
   </div>
 </div>
 
@@ -12383,17 +12405,19 @@ function pbGoStep2(){
     + '<div class="pb-flow-wrap">'
     +   '<div class="pb-flow-row">'
     +     '<div class="pb-flow-box pb-flow-hero">'
-    +       '<div class="pb-flow-thumb" data-label="Video AI" onclick="pbFlowLightboxOpen(this)"><video src="'+PB_IMG_FLOW_VIDEOAI+'" muted autoplay loop playsinline></video></div>'
+    +       '<div class="pb-flow-thumb" data-label="Video AI" data-explain="Untuk menghasilkan video AI dibutuhkan 1 bahan" data-sub1-src="'+PB_IMG_FLOW_FOTOAI+'" data-sub1-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><video src="'+PB_IMG_FLOW_VIDEOAI+'" muted autoplay loop playsinline></video></div>'
     +       '<div class="pb-flow-label">🎬 Video AI</div>'
     +       '<div class="pb-flow-sub pb-flow-sub-ai">hasil akhirnya</div>'
     +     '</div>'
     +   '</div>'
+    +   '<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh 1 bahan</span></div>'
     +   '<div class="pb-flow-row">'
     +     '<div class="pb-flow-box">'
-    +       '<div class="pb-flow-thumb" data-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><img src="'+PB_IMG_FLOW_FOTOAI+'" alt="Foto AI"></div>'
+    +       '<div class="pb-flow-thumb" data-label="Foto AI" data-explain="Untuk menghasilkan foto AI dibutuhkan 2 bahan" data-sub1-src="'+PB_IMG_FLOW_KARAKTERSHEET+'" data-sub1-label="Foto Karakter Sheet" data-sub2-src="'+PB_IMG_FLOW_PRODUK+'" data-sub2-label="Foto Produk" onclick="pbFlowLightboxOpen(this)"><img src="'+PB_IMG_FLOW_FOTOAI+'" alt="Foto AI"></div>'
     +       '<div class="pb-flow-label">Foto AI</div>'
     +     '</div>'
     +   '</div>'
+    +   '<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh 2 bahan</span></div>'
     +   '<div class="pb-flow-row">'
     +     '<div class="pb-flow-box">'
     +       '<div class="pb-flow-thumb" data-label="Foto Karakter Sheet" onclick="pbFlowLightboxOpen(this)"><img src="'+PB_IMG_FLOW_KARAKTERSHEET+'" alt="Foto karakter sheet"></div>'
@@ -12408,7 +12432,7 @@ function pbGoStep2(){
     +   '</div>'
     + '</div>'
     + '<hr class="pb-flow-divider">'
-    + '<p style="margin-top:0;">Jadi yang perlu kakak siapkan cuma foto produk aja ya. Sedangkan bahan-bahan yang lain nanti bakalan aku arahin di langkah selanjutnya ya.</p>';
+    + '<p style="margin-top:0;">Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.</p>';
   pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep3);
 }
 // ── Dipanggil dari luar tur (mis. setelah salin prompt Karakter
@@ -12656,6 +12680,33 @@ function pbFlowLightboxOpen(el){
     return;
   }
   document.getElementById('pb-flow-lightbox-label').textContent=el.getAttribute('data-label')||'';
+  // Bahan tambahan — cuma ada di kotak Video AI & Foto AI (data-explain
+  // di-set di HTML-nya). Kotak Karakter Sheet/Produk nggak punya
+  // data-explain, jadi bagian ini otomatis disembunyikan buat mereka.
+  let explainEl=document.getElementById('pb-flow-lightbox-explain');
+  let subwrapEl=document.getElementById('pb-flow-lightbox-subwrap');
+  let explain=el.getAttribute('data-explain');
+  if(explain){
+    explainEl.textContent=explain;
+    explainEl.style.display='block';
+    let subsHtml='';
+    for(let i=1;i<=2;i++){
+      let src=el.getAttribute('data-sub'+i+'-src');
+      let label=el.getAttribute('data-sub'+i+'-label');
+      if(!src)continue;
+      subsHtml+='<div class="pb-flow-lightbox-subcol">'
+        +'<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span></div>'
+        +'<img class="pb-flow-lightbox-subimg" src="'+src+'" alt="'+(label||'')+'">'
+        +'<div class="pb-flow-lightbox-sublabel">'+(label||'')+'</div>'
+        +'</div>';
+    }
+    subwrapEl.innerHTML=subsHtml;
+    subwrapEl.style.display='flex';
+  }else{
+    explainEl.style.display='none';
+    subwrapEl.style.display='none';
+    subwrapEl.innerHTML='';
+  }
   document.getElementById('pb-flow-lightbox').classList.add('show');
 }
 // Tombol speaker kecil di pojok video lightbox — "tap to unmute" ala
