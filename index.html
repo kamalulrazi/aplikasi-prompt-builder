@@ -2102,7 +2102,7 @@ body input, body textarea, body [contenteditable="true"]{
   <div id="cs-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9996;display:none;align-items:center;justify-content:center;padding:20px;">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:420px;max-height:calc(100vh - 40px);overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.6);">
       <div style="font-size:var(--fs-md);font-weight:700;margin-bottom:4px;">Karakter Sheet</div>
-      <p style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:16px;line-height:1.6;">Prompt foto karakter multi-angle (depan, samping, low angle, high angle, eye level) lengkap dengan ekspresi — outfit &amp; background sudah disetel otomatis, kamu tinggal atur 3 hal di bawah.</p>
+      <p style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:16px;line-height:1.6;">Sekarang tinggal tentukan aja mau karakter AI seperti apa yang kakak inginkan.</p>
 
       <label class="inplabel">Karakter</label>
       <div class="chips" style="margin-bottom:14px;">
@@ -2127,22 +2127,32 @@ body input, body textarea, body [contenteditable="true"]{
       </div>
       <div class="rule" style="margin:10px 0;"></div>
       <label class="inplabel" style="margin-bottom:6px;">Atau isi sendiri</label>
-      <div style="display:flex;gap:6px;margin-bottom:16px;">
-        <div class="inp-wrap" style="flex:1;">
-          <input class="inp" id="cs-negara-custom" maxlength="60" placeholder="Contoh: Turki" />
-        </div>
-        <button class="btn sm" onclick="csPickNegaraCustom()" style="width:auto;flex-shrink:0;padding:0 14px;">Pakai</button>
+      <div class="inp-wrap" style="margin-bottom:16px;">
+        <input class="inp" id="cs-negara-custom" maxlength="60" placeholder="Contoh: Turki" oninput="csNegaraCustomInput()" />
+      </div>
+
+      <label class="inplabel">Penampilan</label>
+      <div class="chips" id="cs-penampilan-chips" style="margin-bottom:6px;">
+        <div class="chip sel" onclick="csPickPenampilan('Cantik, Putih',this)">Cantik, Putih</div>
+        <div class="chip" onclick="csPickPenampilan('Cantik, Sawo Matang',this)">Cantik, Sawo Matang</div>
+        <div class="chip" onclick="csPickPenampilan('Biasa aja',this)">Biasa aja</div>
+        <div class="chip" onclick="csPickPenampilan('Jelek',this)">Jelek</div>
+      </div>
+      <div class="rule" style="margin:10px 0;"></div>
+      <label class="inplabel" style="margin-bottom:6px;">Atau isi sendiri</label>
+      <div class="inp-wrap" style="margin-bottom:16px;">
+        <input class="inp" id="cs-penampilan-custom" maxlength="60" placeholder="Contoh: manis, kulit sawo matang" oninput="csPenampilanCustomInput()" />
       </div>
 
       <div id="cs-result-wrap" class="hidden" style="margin-bottom:14px;">
         <label class="inplabel">Hasil Prompt</label>
         <div id="cs-result-text" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:var(--fs-xs);color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:8px;"></div>
-        <button id="cs-copy-btn" onclick="csCopyPrompt()" style="width:100%;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;">Salin Prompt</button>
+        <button id="cs-copy-btn" onclick="csCopyPrompt()" style="width:100%;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;">Salin</button>
       </div>
 
       <div style="display:flex;gap:8px;">
         <button id="cs-close-btn" onclick="csCloseModal()" style="flex:1;background:none;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);cursor:pointer;font-family:'Geist',sans-serif;">Tutup</button>
-        <button id="cs-generate-btn" onclick="csGeneratePrompt()" style="flex:2;background:var(--text);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;">Buat Prompt</button>
+        <button id="cs-generate-btn" onclick="csGeneratePrompt()" style="flex:2;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;">Buat Prompt</button>
       </div>
     </div>
   </div>
@@ -7667,7 +7677,7 @@ function _copyTextRobust(text,onOk,onFail){
 // 3 hal yang bisa diatur user (Karakter/Usia/Negara) — outfit,
 // ekspresi, angle, & background FIXED sesuai template.
 // ════════════════════════════════════════════════════════════════
-let csState={gender:'wanita',usia:null,negara:'Indonesia'};
+let csState={gender:'wanita',usia:null,negara:'Indonesia',penampilan:'Cantik, Putih'};
 
 function csOpenModal(){
   document.getElementById('cs-modal').style.display='flex';
@@ -7705,27 +7715,102 @@ function csPickNegara(val,el){
   document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
 }
-function csPickNegaraCustom(){
+// Dipicu langsung tiap kali user mengetik (oninput) — bukan lewat tombol
+// "Pakai" lagi, supaya isian custom langsung dianggap "berlaku" begitu
+// diketik, dan chip Indonesia/Mesir/Arab Saudi yang lagi aktif langsung
+// kehilangan warna kuningnya (menjawab keluhan: kelihatan seolah masih
+// pakai Indonesia padahal user sudah mau isi sendiri). Kalau field
+// dikosongkan lagi, nilai negara TIDAK direset — tetap pakai isian
+// terakhir yang sempat diketik supaya prompt tidak pernah kosong.
+function csNegaraCustomInput(){
   let v=(document.getElementById('cs-negara-custom').value||'').trim();
-  if(!v){showToast('Tulis nama negaranya dulu ya','error');return;}
+  if(!v)return;
   csState.negara=v;
   document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>c.classList.remove('sel'));
 }
+// ── Penampilan — field baru, sama pola dengan Negara di atas: pilih chip
+// ATAU isi sendiri (live lewat oninput, tanpa tombol "Pakai"). Nilainya
+// dipakai gantiin kata sifat "cantik/tampan" yang dulu di-hardcode
+// berdasarkan gender saja di csGeneratePrompt(). ──────────────────────
+function csPickPenampilan(val,el){
+  csState.penampilan=val;
+  document.getElementById('cs-penampilan-custom').value='';
+  document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function csPenampilanCustomInput(){
+  let v=(document.getElementById('cs-penampilan-custom').value||'').trim();
+  if(!v)return;
+  csState.penampilan=v;
+  document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
+}
+// ── Klik "Buat Prompt" — tombol diganti sementara jadi animasi logo "P"
+// (sama persis dengan loading Generate Prompt Foto di f-gen-btn: pecah
+// dulu lalu nyatu di ~650ms, total 2 detik) baru hasil promptnya
+// ditampilkan — supaya jeda generate di sini terasa konsisten sebagai
+// bagian dari branding aplikasi, bukan cuma teks yang muncul instan. ──
 function csGeneratePrompt(){
+  let genBtn=document.getElementById('cs-generate-btn');
+  let genBtnOrigHTML=genBtn?genBtn.innerHTML:'';
+  if(genBtn){
+    genBtn.disabled=true;
+    genBtn.classList.add('btn-loading');
+    genBtn.innerHTML='<div class="gen-logo-wrap" id="cs-gen-logo-wrap">'
+      +'<div class="gen-logo-box">'
+        +'<svg class="gen-logo-svg" viewBox="0 0 642 635" xmlns="http://www.w3.org/2000/svg">'
+          +'<defs><linearGradient id="csGenPGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D9A0"/><stop offset="100%" stop-color="#B8965F"/></linearGradient></defs>'
+          +'<path class="p-layer p-layer-back" fill="url(#csGenPGrad)" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>'
+          +'<path class="p-layer p-layer-front" fill="url(#csGenPGrad)" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>'
+        +'</svg>'
+      +'</div>'
+      +'<span class="gen-logo-label">Membuat Prompt...</span>'
+    +'</div>';
+    void genBtn.offsetWidth;
+    setTimeout(function(){
+      let w=document.getElementById('cs-gen-logo-wrap');
+      if(w) w.classList.add('merged');
+    },650);
+  }
+  setTimeout(function(){
+    _csDoGeneratePrompt();
+    if(genBtn){genBtn.disabled=false;genBtn.classList.remove('btn-loading');genBtn.innerHTML=genBtnOrigHTML;}
+  },2000);
+}
+function _csDoGeneratePrompt(){
   // Baca usia langsung dari input (jaga-jaga kalau user isi tanpa toggle ke off dulu)
   let usiaBox=document.getElementById('cs-usia-box');
   let usiaVal=(!usiaBox.classList.contains('hidden'))?(document.getElementById('cs-usia-input').value||'').trim():'';
   csState.usia=usiaVal?usiaVal:null;
 
-  let adj=csState.gender==='laki-laki'?'tampan':'cantik';
   let outfit=csState.gender==='laki-laki'?'memakai outfit casual':'memakai abaya dan jilbab menutupi dada';
   let usiaClause=csState.usia?('berusia '+csState.usia+' tahun '):'';
+  let penampilanTxt=(csState.penampilan||'Cantik, Putih').toLowerCase();
   let text='buatkan aku foto karakter sheet multi angel lengkap dengan ekspresi dan beberapa angel mulai dari depan samping low angel, high angel, serta eye level. Karakter nya adalah seorang '
-    +csState.gender+' '+usiaClause+'yang sangat '+adj+' asal '+csState.negara
+    +csState.gender+' '+usiaClause+'dengan penampilan '+penampilanTxt+' asal '+csState.negara
     +', '+outfit+' dengan background putih bersih';
 
   document.getElementById('cs-result-text').textContent=text;
   document.getElementById('cs-result-wrap').classList.remove('hidden');
+}
+// Notifikasi tengah layar sesudah user salin prompt Karakter Sheet — beda
+// dari showConfirm() (judulnya selalu "Yakin?" + tombol Batal/Ya) karena
+// ini murni info sepihak, cuma butuh 1 tombol "Mengerti". Dipakai warna
+// aksen emas (bukan merah seperti .confirm-ok) karena ini bukan aksi
+// destruktif. ───────────────────────────────────────────────────────
+function csShowSavedNotif(onDone){
+  let overlay=document.createElement('div');
+  overlay.className='confirm-overlay';
+  let box=document.createElement('div');box.className='confirm-box';
+  let p=document.createElement('p');
+  p.style.cssText='color:var(--text);font-size:var(--fs-sm);line-height:1.6;margin-bottom:16px;';
+  p.textContent='Yang kakak salin itu namanya "prompt". Simpan baik-baik karena di langkah berikutnya akan kita pakai.';
+  let okBtn=document.createElement('button');
+  okBtn.textContent='Mengerti';
+  okBtn.style.cssText="width:100%;background:var(--accent);color:var(--bg);border:none;padding:11px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;";
+  box.appendChild(p);box.appendChild(okBtn);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  okBtn.onclick=function(){overlay.remove();if(onDone)onDone();};
 }
 function csCopyPrompt(){
   let btn=document.getElementById('cs-copy-btn');
@@ -7733,13 +7818,14 @@ function csCopyPrompt(){
   if(!text){showToast('Buat prompt-nya dulu ya','error');return;}
   function onOk(){
     btn.textContent='Tersalin!';
-    setTimeout(()=>{btn.textContent='Salin Prompt';},2000);
-    // Prompt karakter sheet sudah tersalin — tutup modal & bawa user
-    // balik ke Langkah 3 tur (lanjutkan panduan Google Flow), dikasih
-    // jeda sebentar biar sempat lihat "Tersalin!" dulu.
+    setTimeout(()=>{btn.textContent='Salin';},2000);
+    // Prompt karakter sheet sudah tersalin — tutup modal, kasih tahu lewat
+    // notifikasi tengah bahwa yang disalin itu "prompt" dan bakal dipakai
+    // di langkah berikutnya, lalu begitu "Mengerti" ditekan baru tur
+    // lanjut ke Langkah 4 (Upload hasil Karakter Sheet-nya).
     setTimeout(function(){
       csCloseModal();
-      pbBackToStep3();
+      csShowSavedNotif(function(){ pbGoStep4(); });
     },600);
   }
   function onFail(){
@@ -12495,7 +12581,7 @@ function pbOpenInChrome(e,url){
   return true; // non-Android: biarkan <a> jalan normal
 }
 
-function pbSetLabel(n){ document.getElementById('pb-tour-step-label').textContent='Langkah '+n+' dari 11'; }
+function pbSetLabel(n){ document.getElementById('pb-tour-step-label').textContent='Langkah '+n+' dari 10'; }
 function pbSetText(title,desc){
   document.getElementById('pb-tour-title').textContent=title;
   // innerHTML (bukan textContent) supaya desc bisa berisi link <a> yang
@@ -12616,9 +12702,15 @@ var pbProdukFotoUploaded=false;
 var pbProdukFotoDataUrl=null;
 // Diklik dari tombol "Lanjut" di Langkah 2 — kalau foto produk belum
 // disiapkan, buka Langkah 3 baru (siapkan foto produk) dulu; kalau sudah,
-// langsung lanjut ke Langkah 4 (Karakter Sheet, fungsi lama pbGoStep3()).
+// LANGSUNG buka modal Karakter Sheet asli (lewat pbOpenCharacterSheetFromTour,
+// definisinya ada di bawah) — tidak lagi mampir ke modal tutorial "Ayuk
+// kakak, sekarang kita bakalan bikin foto karakter sheet AI" (fungsi lama
+// pbGoStep3/pbRenderStep3 di bawah — sengaja DIBIARKAN masih ada sebagai
+// referensi/kalau dibutuhkan lagi, tapi sudah tidak dipanggil dari alur
+// utama manapun). Begitu prompt Karakter Sheet disalin & user tekan
+// "Mengerti", tur lanjut ke Langkah 4 (lihat csCopyPrompt→csShowSavedNotif).
 function pbGoStep2Next(){
-  if(pbProdukFotoUploaded){ pbGoStep3(); } else { pbGoStep2b(); }
+  if(pbProdukFotoUploaded){ pbOpenCharacterSheetFromTour(); } else { pbGoStep2b(); }
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
@@ -12687,6 +12779,16 @@ function pbStep2bPhotoPicked(input){
 // ── Dipanggil dari luar tur (mis. setelah salin prompt Karakter
 // Sheet) untuk "membangunkan" ulang tampilan tur langsung di Langkah
 // 3 — sama seperti pbStartTour() tapi tidak dari Langkah 1. ────────
+// ── SUDAH TIDAK DIPAKAI DI ALUR UTAMA (dibiarkan ada, bukan dihapus) ──
+// pbBackToStep3/pbRenderStep3/pbStep3RevealNext/PB_STEP3_ITEMS/pbGoStep3
+// di bawah ini adalah tutorial lama "install & pakai Google Flow" yang
+// dulu tampil sebagai Langkah tur tersendiri sesudah Karakter Sheet.
+// Sejak Karakter Sheet dibuka LANGSUNG dari Langkah 2/3 lewat
+// pbOpenCharacterSheetFromTour() (lihat pbGoStep2Next di atas) dan
+// csCopyPrompt() sekarang lanjut langsung ke pbGoStep4() lewat
+// csShowSavedNotif(), rangkaian fungsi ini tidak lagi terpanggil dari
+// mana pun di alur tur. Dibiarkan tetap ada untuk referensi/siapa tahu
+// dipakai lagi nanti — aman, tidak mengganggu nomor Langkah aktif.
 function pbBackToStep3(){
   pbDisarmDoneWait();
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
@@ -12778,12 +12880,6 @@ function pbStep3RevealNext(){
   pbRenderStep3();
 }
 // ── LANGKAH 4 — upload foto hasil Karakter Sheet dari Google Flow ──
-// User diminta unduh foto karakter sheet yang udah dia buat di Google
-// Flow (Langkah 3) terus upload di sini lewat icon kamera. Fotonya
-// SENGAJA TIDAK ditampilkan (cuma dipakai sebagai trigger) — begitu
-// dipilih, icon kamera diganti animasi logo P pisah→nyatu (kesannya
-// loading), lalu begitu nyatu diganti lagi jadi tulisan pujian. Tombol
-// "Lanjut" tur disembunyikan sampai seluruh urutan itu selesai.
 function pbGoStep4(){
   let desc = '<p style="margin-top:0;">Coba kakak unduh foto karakter sheet yang kakak buat di Google Flow, terus upload di sini ya — aku pengen lihat hasilnya!</p>'
     + '<input type="file" accept="image/*" id="pb-step4-photo-input" style="display:none;" onchange="pbStep4PhotoPicked(this)">'
@@ -12815,7 +12911,7 @@ function pbGoStep4(){
     + '</div>'
     + '</div>'
     + '</div>';
-  pbShowModal(5,'Upload hasil Karakter Sheet-nya, yuk',desc,'Lanjut',pbGoStep5);
+  pbShowModal(4,'Upload hasil Karakter Sheet-nya, yuk',desc,'Lanjut',pbGoStep5);
   let nextBtn=document.getElementById('pb-tour-next-btn');
   if(nextBtn) nextBtn.style.display='none';
 }
@@ -12973,14 +13069,14 @@ function pbFlowLightboxClose(){
 }
 // ── LANGKAH 5 — interaktif, pilih subjek (f0) ────────────────────
 function pbGoStep5(){
-  pbShowInteractive(6,'Pilih karakter AI kakak','Udah siapkan foto wajah sama foto produk kan? Nah sekarang kakak pilih karakter AI kakak (laki-laki atau perempuan) sesuai foto wajah yang kakak siapkan.','#f0');
+  pbShowInteractive(5,'Pilih karakter AI kakak','Udah siapkan foto wajah sama foto produk kan? Nah sekarang kakak pilih karakter AI kakak (laki-laki atau perempuan) sesuai foto wajah yang kakak siapkan.','#f0');
   pbArmDoneWait('f0',pbGoStep6);
 }
 // ── LANGKAH 6 — interaktif, foto referensi & outfit (f1) ─────────
 // Dibuka OTOMATIS begitu doneCard('f0') beneran terpanggil (user
 // sudah pilih & konfirmasi subjek) — bukan lewat tombol tur.
 function pbGoStep6(){
-  pbShowInteractive(7,'Masukkan foto & outfit','Nah sekarang kakak tinggal sesuaikan aja nih sama foto yang ada di galeri kakak. Kan tadi kakak udah punya foto wajah dan foto produk. Sekarang tinggal klik aja foto wajah dan foto produk. Kemudian isi nama produk yang ada di foto kakak di galeri. Terus klik juga isi outfit karakter. Tujuannya supaya kakak bisa membuat karakter AI kakak memakai outfit dengan selera kakak. Kemudian lanjut.','#f1');
+  pbShowInteractive(6,'Masukkan foto & outfit','Nah sekarang kakak tinggal sesuaikan aja nih sama foto yang ada di galeri kakak. Kan tadi kakak udah punya foto wajah dan foto produk. Sekarang tinggal klik aja foto wajah dan foto produk. Kemudian isi nama produk yang ada di foto kakak di galeri. Terus klik juga isi outfit karakter. Tujuannya supaya kakak bisa membuat karakter AI kakak memakai outfit dengan selera kakak. Kemudian lanjut.','#f1');
   // Kunci chip yang TIDAK relevan di langkah ini — cuma Wajah, Produk, &
   // "Isi Outfit Karakter" yang boleh dipakai user di sini. Chip "Outfit"
   // (foto) & "Objek" jadi tidak merespons klik sampai step ini selesai.
@@ -13004,7 +13100,7 @@ function pbUnlockChip(sel){
 // Dibuka OTOMATIS begitu doneCard('f1') terpanggil (user sudah
 // selesai isi foto referensi & tekan "Lanjut →" bawaan step itu).
 function pbGoStep7(){
-  pbShowModal(8,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','Lanjut',pbGoStep7Reveal);
+  pbShowModal(7,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','Lanjut',pbGoStep7Reveal);
 }
 // ── LANGKAH 7 — fase B: interaktif, sorot card Produk (f3) ───────
 // Nomor langkah TETAP 7 (masih konten yang sama), cuma modenya
@@ -13017,14 +13113,14 @@ function pbGoStep7Reveal(){
   // card "Cara Tampil Produk" yang sungguhan dilihat & diisi user (itu
   // card '#f3' — cek chip Dipakai/Hanger/Dipegang & doneCard('f3',...) di
   // fPickHold/fPickHoldCustom). Target & id wait dibetulkan ke f3.
-  pbShowInteractive(8,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','#f3');
+  pbShowInteractive(7,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','#f3');
   pbArmDoneWait('f3',pbGoStep8);
 }
 // ── LANGKAH 8 — modal, "lanjut sampai selesai" ───────────────────
 // Dibuka OTOMATIS begitu doneCard('f3') terpanggil (user sudah
 // pilih cara tampil produk & konfirmasi).
 function pbGoStep8(){
-  pbShowModal(9,'Lanjut sampai selesai','Sekarang dan seterusnya kakak tinggal ikutin aja ya sampai selesai, pilih aja sesuai selera kakak, oke?','Lanjut',pbGoHideUntilGenerate);
+  pbShowModal(8,'Lanjut sampai selesai','Sekarang dan seterusnya kakak tinggal ikutin aja ya sampai selesai, pilih aja sesuai selera kakak, oke?','Lanjut',pbGoHideUntilGenerate);
 }
 // Begitu user tekan "Lanjut" di langkah 8: tur HILANG TOTAL (bukan
 // cuma ganti step) supaya tidak mengganggu sisa wizard, lalu mulai
@@ -13046,7 +13142,7 @@ function pbGoStep9(){
   let el=document.getElementById('f-gen-btn');
   let targetEl=(el&&el.offsetParent!==null)?el:null;
   pbSetPassive(false); // step penutup, blocking spt tur versi lama
-  pbSetLabel(10);
+  pbSetLabel(9);
   pbSetText('Generate & salin','Wah udah ya kak? Nah sekarang klik tombol Generate Prompt.');
   let btn=document.getElementById('pb-tour-next-btn');
   btn.style.display='';
@@ -13078,7 +13174,7 @@ function pbGoWaitForCopyBtn(){
 // klik tombolnya (bukan tombol "Lanjut" tur), lalu tur SELESAI —
 // panduan Google Flow sudah ditunjukkan lebih awal di langkah 3 ──
 function pbGoStep10(){
-  pbShowInteractive(11,'Klik Salin','Sekarang klik salin.','#f-copy-btn');
+  pbShowInteractive(10,'Klik Salin','Sekarang klik salin.','#f-copy-btn');
   pbWaitingCopyClick=true;
 }
 
