@@ -3113,8 +3113,15 @@ body input, body textarea, body [contenteditable="true"]{
         </div>
         <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:-8px 0 12px;">Foto produk bantu AI biar script lebih sesuai produk asli — opsional.</p>
         <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span></label>
-        <div class="inp-wrap" style="margin-bottom:12px;">
+        <div class="inp-wrap" style="margin-bottom:8px;">
           <input class="inp" id="vb-target-audience" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang peduli skincare" />
+        </div>
+        <button type="button" id="vb-topik-toggle" onclick="vbToggleTopik()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-bottom:12px;">+ Arah pembahasan (opsional)</button>
+        <div id="vb-topik-box" class="hidden" style="margin-bottom:12px;">
+          <div class="inp-wrap">
+            <input class="inp" id="vb-topik-input" maxlength="150" placeholder="Contoh: tas yang dipakai kalangan atas" />
+          </div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kasih tahu AI mau ngebahas soal apa spesifiknya — kosongkan kalau mau AI bebas nentukan sendiri.</p>
         </div>
         <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Buatkan 3 Script + JSON dengan AI</button>
         <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">AI otomatis buat 3 script sekaligus (Hook, Cerita Produk, CTA) — masing-masing 25 kata, langsung jadi 3 prompt JSON siap pakai.</p>
@@ -8639,6 +8646,16 @@ function vbShowMode3PhotoOrderNotice(){
   setTimeout(()=>{ let n=document.getElementById('vb-urutan-notif'); if(n)n.remove(); },12000);
 }
 
+// Toggle kolom "Arah pembahasan (opsional)" di mode Skrip dibantu AI
+// (single produk) — sama pola-nya kayak toggle Usia di Karakter Sheet.
+function vbToggleTopik(){
+  let box=document.getElementById('vb-topik-box');
+  let btn=document.getElementById('vb-topik-toggle');
+  let opening=box.classList.contains('hidden');
+  box.classList.toggle('hidden');
+  if(btn)btn.textContent=opening?'– Sembunyikan arah pembahasan':'+ Arah pembahasan (opsional)';
+  if(opening)document.getElementById('vb-topik-input').focus();
+}
 function vbPickGender(val,label){
   document.querySelectorAll('#vb-gender-chips .chip').forEach(c=>c.classList.remove('sel'));
   document.getElementById(val==='male'?'vb-gender-male':'vb-gender-female').classList.add('sel');
@@ -8836,6 +8853,20 @@ function fFitWbody(fromEl){
   });
 }
 
+// Toggle kolom "Arah pembahasan (opsional)" per baris produk di mode Bulk.
+function vbBulkToggleTopik(i){
+  let box=document.getElementById('vb-bulk-topik-box-'+i);
+  let btn=document.getElementById('vb-bulk-topik-toggle-'+i);
+  if(!box)return;
+  let opening=box.classList.contains('hidden');
+  box.classList.toggle('hidden');
+  if(btn)btn.textContent=opening?'– Sembunyikan arah pembahasan':'+ Arah pembahasan (opsional)';
+  if(opening){
+    let inp=document.getElementById('vb-bulk-topik-'+i);
+    if(inp)inp.focus();
+  }
+  fFitWbody(box);
+}
 // Bangun N baris input (Nama Produk *wajib + Keunggulan opsional + Foto opsional) sesuai jumlah yang dipilih user
 function vbBulkSetCount(){
   let countInput=document.getElementById('vb-bulk-count');
@@ -8859,6 +8890,7 @@ function vbBulkSetCount(){
   for(let i=0;i<rows.children.length;i++){
     let n=document.getElementById('vb-bulk-nama-'+i);
     let k=document.getElementById('vb-bulk-keunggulan-'+i);
+    let t=document.getElementById('vb-bulk-topik-'+i);
     // FIX: baris ini dulu MENIMPA seluruh entri cache ({nama,keunggulan}
     // baru dibuat dari nol), jadi kalau ada foto yang sudah diupload &
     // tersimpan di VB_BULK_ROW_CACHE[i].fotoBase64 sebelumnya, foto itu ikut
@@ -8868,21 +8900,26 @@ function vbBulkSetCount(){
     // menimpa field foto yang sudah ada di cache.
     if(n){
       let existing=VB_BULK_ROW_CACHE[i]||{};
-      VB_BULK_ROW_CACHE[i]={nama:n.value,keunggulan:k?k.value:'',fotoBase64:existing.fotoBase64||'',fotoMime:existing.fotoMime||''};
+      VB_BULK_ROW_CACHE[i]={nama:n.value,keunggulan:k?k.value:'',topik:t?t.value:(existing.topik||''),fotoBase64:existing.fotoBase64||'',fotoMime:existing.fotoMime||''};
     }
   }
 
   rows.innerHTML='';
   for(let i=0;i<count;i++){
-    let cached=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:'',fotoBase64:'',fotoMime:''};
+    let cached=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:'',topik:'',fotoBase64:'',fotoMime:''};
     let row=document.createElement('div');
     row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:7px 9px;margin-bottom:6px;';
     let hasFoto=!!cached.fotoBase64;
+    let hasTopik=!!cached.topik;
     row.innerHTML='<div style="font-size:var(--fs-2xs);font-weight:700;color:var(--muted2);margin-bottom:4px;">PRODUK '+(i+1)+'</div>'
       +'<div style="display:flex;gap:6px;margin-bottom:0;align-items:flex-start;">'
       +'<div style="flex:1;display:flex;flex-direction:column;gap:6px;">'
       +'<input class="inp" id="vb-bulk-nama-'+i+'" maxlength="80" placeholder="Nama produk *wajib" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
       +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" maxlength="150" placeholder="Keunggulan (opsional)" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.keunggulan||'')+'" />'
+      +'<button type="button" onclick="vbBulkToggleTopik('+i+')" id="vb-bulk-topik-toggle-'+i+'" style="background:none;border:none;color:var(--accent);font-size:var(--fs-2xs);cursor:pointer;padding:0;font-weight:600;text-align:left;">'+(hasTopik?'– Sembunyikan arah pembahasan':'+ Arah pembahasan (opsional)')+'</button>'
+      +'<div id="vb-bulk-topik-box-'+i+'" class="'+(hasTopik?'':'hidden')+'">'
+      +'<input class="inp" id="vb-bulk-topik-'+i+'" maxlength="150" placeholder="Contoh: tas yang dipakai kalangan atas" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.topik||'')+'" />'
+      +'</div>'
       +'</div>'
       +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="display:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
       +'<div id="vb-bulk-foto-empty-'+i+'" onclick="document.getElementById(\'vb-bulk-foto-input-'+i+'\').click()" style="flex-shrink:0;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;'+(hasFoto?'display:none;':'')+'">'
@@ -9507,7 +9544,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
   // mana punya produk yang mana waktu beberapa gambar dikirim sekaligus.
   let _imgCounter=0;
   let produkListText=batch.map((p,i)=>{
-    let line=(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'');
+    let line=(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')+(p.topik?' — arah pembahasan: '+p.topik+' (WAJIB jadi fokus utama STORY produk ini, boleh disinggung juga di HOOK, tapi tetap 100% soal produk ini, jangan melenceng ke luar arah ini)':'');
     if(p.fotoBase64){
       _imgCounter++;
       line+=' (ADA FOTO REFERENSI PRODUK ASLI — lihat Gambar '+_imgCounter+' yang dilampirkan di bawah, ini HANYA supaya kamu tahu persis jenis produknya, BUKAN untuk dideskripsikan di script)';
@@ -9524,14 +9561,14 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
     +(_imgCounter>0?'Foto-foto yang dilampirkan supaya kamu tahu PERSIS jenis/tipe tiap produk (biar tidak salah asumsi generik soal jenis produknya). BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 5 di bawah, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto. Untuk produk yang TIDAK punya foto terlampir, tetap buat script berdasarkan nama & keunggulan seperti biasa (tanpa detail visual mengarang).\n\n':'')
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
     +'Untuk SETIAP produk di atas, buatkan TEPAT 3 script/dialog. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
-    +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya).\n'
+    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience-nya masing-masing: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat. KARENA ADA BEBERAPA PRODUK SEKALIGUS DI BATCH INI: HOOK tiap produk WAJIB beda gaya/pola pembuka satu sama lain — JANGAN pakai struktur kalimat atau kata pembuka yang sama persis/mirip untuk lebih dari 1 produk (misal jangan semua produk dibuka dengan "pernah gak sih" atau pola tanya yang identik), supaya kalau dibaca berurutan tidak kedengaran seperti hasil copy-paste satu rumus.\n'
     +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
     +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
     +'4. KONSISTENSI SAPAAN (WAJIB): sapaan ke audiens SUDAH DITENTUKAN di atas (lihat baris "Sapaan ke audiens") — PAKAI SAMA PERSIS kata itu terus dari HOOK sampai CTA, jangan pilih atau ganti ke kata lain. JANGAN PERNAH ganti sapaan di tengah jalan (misal mulai dengan "bunda-bunda" di HOOK terus tiba-tiba jadi "kalian" di STORY) — itu bikin kedengaran seperti 2 orang beda yang lagi ngomong, bukan 1 karakter yang sama.\n'
     +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
     +'6. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik merujuk ke JENIS produknya masing-masing (jangan generik/tertukar antar produk), TAPI dengan kata-kata natural buatanmu sendiri — bukan menyalin persis teks nama produk yang diberikan di daftar atas apa adanya.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di batch ini satu sama lain — kalau ada 2 atau lebih yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama), tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
     // FIX (permintaan user, sama seperti mode single — lihat komentar
     // lengkap di prompt single): minta AI verifikasi hitungan kata sendiri
     // SEBELUM menjawab, bukan cuma dikasih tahu aturannya doang.
@@ -9644,6 +9681,7 @@ async function vbGenerateBulkAI(){
   for(let i=0;i<count;i++){
     let namaEl=document.getElementById('vb-bulk-nama-'+i);
     let keunggulanEl=document.getElementById('vb-bulk-keunggulan-'+i);
+    let topikEl=document.getElementById('vb-bulk-topik-'+i);
     let nama=namaEl?namaEl.value.trim():'';
     if(!nama){
       showToast('Nama Produk '+(i+1)+' belum diisi','error');
@@ -9651,12 +9689,12 @@ async function vbGenerateBulkAI(){
       return;
     }
     let cachedFoto=VB_BULK_ROW_CACHE[i]||{};
-    produkList.push({nama:nama,keunggulan:keunggulanEl?keunggulanEl.value.trim():'',fotoBase64:cachedFoto.fotoBase64||'',fotoMime:cachedFoto.fotoMime||''});
+    produkList.push({nama:nama,keunggulan:keunggulanEl?keunggulanEl.value.trim():'',topik:topikEl?topikEl.value.trim():'',fotoBase64:cachedFoto.fotoBase64||'',fotoMime:cachedFoto.fotoMime||''});
   }
   let targetAudience=document.getElementById('vb-bulk-target').value.trim();
   if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-bulk-target').focus();return;}
   VB.bulkTargetAudience=targetAudience;
-  VB_BULK_PRODUCTS=produkList.map(function(p){return{nama:p.nama,keunggulan:p.keunggulan,fotoBase64:p.fotoBase64,fotoMime:p.fotoMime};});
+  VB_BULK_PRODUCTS=produkList.map(function(p){return{nama:p.nama,keunggulan:p.keunggulan,topik:p.topik,fotoBase64:p.fotoBase64,fotoMime:p.fotoMime};});
 
   if(!VAI||!VAI.apiKey){
     try{
@@ -10857,6 +10895,7 @@ async function vbGenerate3AI(){
   }
   let produkNama=document.getElementById('vb-produk-nama').value.trim();
   let targetAudience=document.getElementById('vb-target-audience').value.trim();
+  let topikArah=(document.getElementById('vb-topik-input').value||'').trim();
   if(!produkNama){showToast('Nama Produk wajib diisi dulu','error');document.getElementById('vb-produk-nama').focus();return;}
   if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-target-audience').focus();return;}
   // FIX BUG#21 (ditemukan saat audit mendalam khusus builder video, lanjutan):
@@ -10910,9 +10949,10 @@ async function vbGenerate3AI(){
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+' — sesuaikan pilihan kata & struktur kalimat script dengan aksen ini, tetap Bahasa Indonesia standar tanpa logat daerah. Contoh: "Formal" → kata baku, tanpa singkatan gaul, sopan. "Santai" → bahasa sehari-hari yang ringan tapi tetap umum dimengerti semua umur. "Gaul/Kekinian" → selipkan istilah gaul/medsos yang lagi tren (pilih dari/mirip: "literally", "spill", "worth it banget", "auto", "gercep", "healing", "real talk", "no debat", "beneran deh") SECUKUPNYA supaya beda dari aksen Santai biasa, TAPI KEALAMIAN KALIMAT LEBIH PENTING DARIPADA JUMLAH ISTILAH — kalau 1 istilah sudah cukup bikin kalimat kerasa kekinian dan tetap enak dibaca, JANGAN paksa tambah istilah kedua. JANGAN PERNAH menumpuk 2+ istilah gaul berturut-turut dalam satu kalimat pendek (misal "auto healing gercep") karena kedengaran seperti tempelan kata kunci, bukan orang ngomong beneran. Tiap istilah yang dipakai harus masuk secara gramatikal wajar ke kalimat, bukan disisipkan paksa.\n'
     +'Sapaan ke audiens: WAJIB pakai "'+_vbDetectSapaan(targetAudience)+'" — SAMA PERSIS kata ini, di HOOK, STORY, DAN CTA, tanpa terkecuali. Ini BUKAN pilihan bebas, ini instruksi tetap. JANGAN PERNAH pakai sapaan lain di bagian manapun (misal jangan campur dengan "kalian" kalau sudah ditentukan "bunda-bunda", atau sebaliknya).\n'
     +'Target audience: '+targetAudience+'\n'
+    +(topikArah?'Arah pembahasan spesifik yang diminta user: '+topikArah+' — WAJIB jadi fokus utama STORY (boleh disinggung juga di HOOK), TAPI tetap 100% soal produk yang sama, JANGAN melenceng jadi cerita di luar arah ini.\n':'')
     +(VB.produkFotoBase64?'\nADA FOTO REFERENSI PRODUK ASLI TERLAMPIR — foto ini supaya kamu tahu PERSIS jenis/tipe produk apa yang dimaksud (misal kalau nama produknya generik seperti "tas", foto ini kasih tahu tas seperti apa yang sedang dieksekusi), supaya kamu tidak salah asumsi soal jenis produknya. BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 5 di bawah, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto.\n':'\n')
     +'Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
-    +'1. HOOK — kalimat pembuka yang bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya).\n'
+    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience ini: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat.\n'
     +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
     +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
     +'4. KONSISTENSI SAPAAN (WAJIB): sapaan ke audiens SUDAH DITENTUKAN di atas (lihat baris "Sapaan ke audiens") — PAKAI SAMA PERSIS kata itu terus dari HOOK sampai CTA, jangan pilih atau ganti ke kata lain. JANGAN PERNAH ganti sapaan di tengah jalan (misal mulai dengan "bunda-bunda" di HOOK terus tiba-tiba jadi "kalian" di STORY) — itu bikin kedengaran seperti 2 orang beda yang lagi ngomong, bukan 1 karakter yang sama.\n'
