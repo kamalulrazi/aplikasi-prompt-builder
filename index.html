@@ -3731,6 +3731,7 @@ function doneCard(id,ansId,text){
               _mo.style.display='none';
               _mo.innerHTML='';
               VB_BULK_ITEMS=[];
+              VB_CARD_TAMPIL={};
               _doOpenEdit();
             },null,'Ya, Ubah & Hapus Hasil');
           }else{
@@ -8607,6 +8608,24 @@ const VB_3SCRIPT_ROLES=[
 // diedit, dan JSON di bawahnya update REALTIME setiap ketikan.
 // ============================================================
 let VB_BULK_ITEMS=[]; // {produk, role, roleLabel, script} — flat, index = urutan tampil
+// FITUR BARU: "Cara Tampil Produk" per kartu script (khusus Mode 3 — Karakter
+// + Produk / VB.refMode==='kp'), supaya user bisa tentukan per Hook/Story/CTA
+// apakah produk digantung di hanger & dipegang (khusus outfit) atau
+// diperlihatkan langsung ke kamera. Disimpan terpisah dari VB_BULK_ITEMS
+// (bukan bagian dari teks script yang diucapkan, tapi instruksi visual
+// tambahan yang masuk ke instructionText saat JSON dibangun). Key = idx kartu
+// (sama seperti VB_BULK_ITEMS), di-reset tiap render baru sama seperti
+// VB_BULK_ITEMS supaya tidak nyangkut ke idx kartu sesi sebelumnya.
+let VB_CARD_TAMPIL={};
+const VB_TAMPIL_PRODUK_OPTS=[
+  ['hanger','Digantung di Hanger & Dipegang','Produk (outfit) digantung di hanger lalu dipegang oleh karakter menghadap kamera, belum dikenakan.'],
+  ['kamera','Diperlihatkan ke Kamera','Produk diperlihatkan langsung ke arah kamera oleh karakter, dipegang dengan jelas terlihat.']
+];
+// Helper kecil: ambil teks instruksi tampilan produk untuk kartu ke-idx
+// (kosong kalau user belum pilih apa-apa untuk kartu itu).
+function _vbTampilText(idx){
+  return (VB_CARD_TAMPIL[idx]&&VB_CARD_TAMPIL[idx].text)||'';
+}
 let VB_BULK_PRODUCTS=[]; // {nama, keunggulan, fotoBase64, fotoMime} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
 
 // Override foto SEMENTARA khusus panel Revisi 1 produk, keyed by prodIdx —
@@ -9143,7 +9162,16 @@ const _VB_FORBIDDEN_PATTERNS=[
   {re:/\bkehabisan\s+stok\b/gi, to:''},
   {re:/\bsegera\s+habis\b/gi, to:''},
   {re:/\bdiskon\s+(?:segera\s+)?berakhir\b/gi, to:''},
-  {re:/\bpromo\s+(?:segera\s+)?berakhir\b/gi, to:''}
+  {re:/\bpromo\s+(?:segera\s+)?berakhir\b/gi, to:''},
+  // FIX (permintaan user): larangan diperluas — sebelumnya cuma menyensor
+  // FRASA spesifik ("promo berakhir", "diskon berakhir" dkk), jadi kata
+  // "promo"/"diskon"/"terbatas" yang berdiri sendiri (mis. "promo spesial
+  // hari ini", "stok sangat terbatas", "edisi terbatas") masih lolos. Sekarang
+  // kata-kata inti ini disensor SENDIRI tanpa perlu nempel ke frasa tertentu.
+  {re:/\bpromo\w*\b/gi, to:''},
+  {re:/\bdiskon\w*\b/gi, to:''},
+  {re:/\bterbatas\b/gi, to:''},
+  {re:/\blimited(\s+edition)?\b/gi, to:''}
 ];
 function _vbSanitizeForbiddenPhrases(text){
   if(!text)return text;
@@ -9336,9 +9364,10 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
     +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
     +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
     +'4. KONSISTENSI SAPAAN (WAJIB): sapaan ke audiens SUDAH DITENTUKAN di atas (lihat baris "Sapaan ke audiens") — PAKAI SAMA PERSIS kata itu terus dari HOOK sampai CTA, jangan pilih atau ganti ke kata lain. JANGAN PERNAH ganti sapaan di tengah jalan (misal mulai dengan "bunda-bunda" di HOOK terus tiba-tiba jadi "kalian" di STORY) — itu bikin kedengaran seperti 2 orang beda yang lagi ngomong, bukan 1 karakter yang sama.\n'
-    +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya.\n\n'
+    +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya.\n'
+    +'6. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik menyebut nama/jenis produknya masing-masing, jangan generik.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun — kalau ada, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun — kalau ada, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
     // FIX (permintaan user, sama seperti mode single — lihat komentar
     // lengkap di prompt single): minta AI verifikasi hitungan kata sendiri
     // SEBELUM menjawab, bukan cuma dikasih tahu aturannya doang.
@@ -9766,6 +9795,7 @@ function _vbBuildProductMetaLookup(produkListMeta){
 // dengan mode single (lihat vbGenerateBulkAI/vbRegenerateAllBulk).
 function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   VB_BULK_ITEMS=[];
+  VB_CARD_TAMPIL={};
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   // Panel revisi dibangun ULANG dari nol di bawah (prodIdx bisa menunjuk ke
   // produk yang berbeda dari sebelumnya kalau ada yang di-drop AI) — buang
@@ -10013,7 +10043,7 @@ function _vbUpdateProductCards(prodIdx,p){
     let scriptText=_vbTruncate25Words(p[roleKey]||'');
     if(ta)ta.value=scriptText;
     if(VB_BULK_ITEMS[idx]){VB_BULK_ITEMS[idx].script=scriptText;VB_BULK_ITEMS[idx].produk=p.produk||VB_BULK_ITEMS[idx].produk;}
-    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''));
+    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''),_vbTampilText(idx));
     if(wcLabel){let wc=scriptText.trim().split(/\s+/).filter(Boolean).length;wcLabel.textContent=wc+'/25 kata';wcLabel.style.color=wc===25?'var(--green)':'var(--muted2)';}
   });
   let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
@@ -10453,7 +10483,7 @@ function vbApplyMetadataOnly(s){
     let ta=document.getElementById('vb-bulk-script-'+idx);
     let jsonBox=document.getElementById('vb-bulk-json-'+idx);
     if(!ta||!jsonBox)continue;
-    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk);
+    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx));
   }
   // FIX BUG#20b (sama akar masalahnya dengan BUG#20 di vbRevisiProdukAI):
   // update metadata (suara/target audience) di sini mengubah JSON yang
@@ -10606,7 +10636,7 @@ function vbBulkUpdateJson(i){
   }
   if(VB_BULK_ITEMS[i])VB_BULK_ITEMS[i].script=ta.value;
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
-  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem);
+  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i));
   if(wcLabel){wcLabel.textContent=words.length+'/25 kata';wcLabel.style.color=words.length===25?'var(--green)':'var(--muted2)';}
 }
 
@@ -10722,9 +10752,10 @@ async function vbGenerate3AI(){
     +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
     +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
     +'4. KONSISTENSI SAPAAN (WAJIB): sapaan ke audiens SUDAH DITENTUKAN di atas (lihat baris "Sapaan ke audiens") — PAKAI SAMA PERSIS kata itu terus dari HOOK sampai CTA, jangan pilih atau ganti ke kata lain. JANGAN PERNAH ganti sapaan di tengah jalan (misal mulai dengan "bunda-bunda" di HOOK terus tiba-tiba jadi "kalian" di STORY) — itu bikin kedengaran seperti 2 orang beda yang lagi ngomong, bukan 1 karakter yang sama.\n'
-    +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya.\n\n'
+    +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya.\n'
+    +'6. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun — kalau ada, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun — kalau ada, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
     // FIX (permintaan user: skrip beneran pas 25 kata TANPA mengorbankan
     // kualitas): sebelumnya AI cuma diminta "HARUS tepat 25 kata" tanpa
     // diminta verifikasi hitungannya sendiri sebelum menjawab — jadi kalau
@@ -10967,7 +10998,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   // displayScript = apa yang tampil di textarea/JSON/counter SAAT kartu
   // pertama dibangun. Kosong kalau mau dianimasikan ketik, penuh kalau tidak.
   let displayScript=skipInitialFill?'':initialScript;
-  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory);
+  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx));
   let card=document.createElement('div');
   card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;';
 
@@ -11003,13 +11034,40 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
   };})(idx,copyBtn,doneLabel);
   let copyWrap=document.createElement('div');
-  copyWrap.style.cssText='display:flex;align-items:center;';
+  copyWrap.style.cssText='display:flex;align-items:center;gap:5px;';
+  // FITUR BARU: tombol "Tampilan" — khusus Mode 3 (VB.refMode==='kp', foto
+  // karakter + foto produk terpisah) — biar user bisa tentukan PER KARTU
+  // (Hook/Story/CTA beda-beda boleh) apakah produknya digantung di hanger &
+  // dipegang (cocok utk outfit) atau diperlihatkan langsung ke kamera. Tidak
+  // muncul di mode lain karena tanpa foto produk terpisah, instruksi ini
+  // tidak relevan (tidak ada apa-apa yang perlu "ditampilkan").
+  if(VB.refMode==='kp'){
+    let tampilBtn=document.createElement('button');
+    tampilBtn.id='vb-tampil-btn-'+idx;
+    tampilBtn.className='copy-btn';
+    tampilBtn.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+    tampilBtn.innerHTML='<svg class="icon" style="width:12px;height:12px;"><use href="#ic-camera"></use></svg> Tampilan';
+    tampilBtn.onclick=(function(ii){return function(){vbToggleTampilPanel(ii);};})(idx);
+    copyWrap.appendChild(tampilBtn);
+  }
   copyWrap.appendChild(copyBtn);
   copyWrap.appendChild(doneLabel);
   head.appendChild(copyWrap);
 
   let body=document.createElement('div');
   body.style.cssText='padding:7px 9px;';
+
+  // Panel pilihan "Cara Tampil Produk" — tersembunyi default, dibuka lewat
+  // tombol "Tampilan" di atas. Isi diisi ulang oleh vbToggleTampilPanel()
+  // supaya highlight chip yang aktif selalu sinkron dengan VB_CARD_TAMPIL.
+  let tampilPanel=null;
+  if(VB.refMode==='kp'){
+    tampilPanel=document.createElement('div');
+    tampilPanel.id='vb-tampil-panel-'+idx;
+    tampilPanel.className='hidden';
+    tampilPanel.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding:8px;background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius-xs);';
+    body.appendChild(tampilPanel);
+  }
 
   let ta=document.createElement('textarea');
   ta.id='vb-bulk-script-'+idx;
@@ -11038,6 +11096,9 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   body.appendChild(jsonBox);
   card.appendChild(head);
   card.appendChild(body);
+  // Isi awal panel tampilan (kalau ada) — dibangun sekali di sini, lalu
+  // vbToggleTampilPanel() hanya menampilkan/menyembunyikan + refresh highlight.
+  if(tampilPanel)_vbFillTampilPanel(idx,tampilPanel);
 
   // FIX BUG#13 (ditemukan saat audit mendalam — ini AKAR MASALAH Bug#10 yang
   // belum sempat tuntas di sesi audit sebelumnya karena kehabisan limit):
@@ -11060,6 +11121,50 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   return card;
 }
 
+// Isi/refresh konten panel "Cara Tampil Produk" untuk kartu ke-idx — dipanggil
+// sekali saat kartu dibangun (isi awal) dan tiap kali dibuka lewat tombol
+// "Tampilan" (biar highlight chip yang aktif selalu sinkron).
+function _vbFillTampilPanel(idx,panelEl){
+  panelEl.innerHTML='';
+  let current=VB_CARD_TAMPIL[idx];
+  VB_TAMPIL_PRODUK_OPTS.forEach(function(opt){
+    let chip=document.createElement('div');
+    chip.className='chip'+(current&&current.key===opt[0]?' sel':'');
+    chip.style.cssText='font-size:var(--fs-2xs);padding:6px 10px;';
+    chip.textContent=opt[1];
+    chip.onclick=(function(ii,o){return function(){vbPickTampilProduk(ii,o[0],o[1],o[2]);};})(idx,opt);
+    panelEl.appendChild(chip);
+  });
+  let clearChip=document.createElement('div');
+  clearChip.className='chip'+(current?'':' sel');
+  clearChip.style.cssText='font-size:var(--fs-2xs);padding:6px 10px;color:var(--muted);';
+  clearChip.textContent='Tidak ditentukan';
+  clearChip.onclick=(function(ii){return function(){vbPickTampilProduk(ii,'','','');};})(idx);
+  panelEl.appendChild(clearChip);
+}
+
+// Buka/tutup panel "Cara Tampil Produk" milik kartu ke-idx.
+function vbToggleTampilPanel(idx){
+  let panel=document.getElementById('vb-tampil-panel-'+idx);
+  if(!panel)return;
+  let willOpen=panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  if(willOpen)_vbFillTampilPanel(idx,panel); // refresh highlight tiap dibuka
+}
+
+// User pilih (atau hapus, kalau key kosong) opsi tampilan produk untuk kartu
+// ke-idx — langsung terisi ke JSON di bawahnya, PERSIS seperti kalau user
+// ngetik manual di textarea (lewat vbBulkUpdateJson yang sama).
+function vbPickTampilProduk(idx,key,label,text){
+  if(key){VB_CARD_TAMPIL[idx]={key:key,label:label,text:text};}
+  else{delete VB_CARD_TAMPIL[idx];}
+  let btn=document.getElementById('vb-tampil-btn-'+idx);
+  if(btn)btn.innerHTML='<svg class="icon" style="width:12px;height:12px;"><use href="#ic-camera"></use></svg> '+(key?label:'Tampilan');
+  let panel=document.getElementById('vb-tampil-panel-'+idx);
+  if(panel){_vbFillTampilPanel(idx,panel);panel.classList.add('hidden');}
+  vbBulkUpdateJson(idx); // rebuild JSON kartu ini — sama seperti oninput textarea
+}
+
 // Satu entri Riwayat GABUNGAN untuk 1 sesi generate (dipanggil sekali per
 // generate/regenerate-all, bukan per kartu) — mengambil isi dari
 // VB_BULK_ITEMS yang sudah diisi _vbBuildEditableCard untuk semua kartu yang
@@ -11067,9 +11172,9 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
 // aturan baku Haha kalau ada beberapa prompt sekaligus dalam satu balasan.
 function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
-  let blocks=VB_BULK_ITEMS.map(function(item){
+  let blocks=VB_BULK_ITEMS.map(function(item,idx){
     let plainLabel=String(item.roleLabel||'').replace(/<[^>]*>/g,'').trim();
-    let jsonText=_vbBuildFlowText(item.script,item.produk);
+    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx));
     return '// '+plainLabel+(item.produk?' — '+item.produk:'')+'\n'+jsonText;
   });
   historyAdd('video',sessionLabel,blocks.join('\n\n---\n\n'));
@@ -11085,6 +11190,7 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
 // jadi kartu live ini otomatis "diganti" bersih di akhir.
 function _vbRenderMultiOutputLive(produkNamaForHistory){
   VB_BULK_ITEMS=[];
+  VB_CARD_TAMPIL={};
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -11113,6 +11219,7 @@ function _vbLiveUpdateCard(idx,text){
 // supaya tidak nabrak/mengganggu animasi yang masih berjalan.
 function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate){
   VB_BULK_ITEMS=[];
+  VB_CARD_TAMPIL={};
   VB_SINGLE_REVISI_BACKUP=null; // sesi generate baru — backup revisi lama sudah tidak relevan
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   let multiWrap=document.getElementById('vb-multi-output');
@@ -11231,7 +11338,7 @@ function _vbEsc(s){
     .replace(/\t/g,'\\t')
     .replace(/[\u0000-\u001F]/g,function(ch){return '\\u'+ch.charCodeAt(0).toString(16).padStart(4,'0');});
 }
-function _vbBuildFlowText(scriptText,produkOverride){
+function _vbBuildFlowText(scriptText,produkOverride,tampilOverride){
   let accentFull='Natural Indonesian intonation, '+VB.accent;
   let instructionText;
   if(VB.refMode==='kp'){
@@ -11244,6 +11351,12 @@ function _vbBuildFlowText(scriptText,produkOverride){
     // baru dipakai kalau keduanya sama-sama tidak ada.
     let produkForRef=produkOverride||VB.mode3Produk||'produk tersebut';
     instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi 2 adalah produk yaitu '+produkForRef+'. Manfaatkan kedua foto tersebut untuk membuat sebuah video. Lokasi: '+VB.mode3Lokasi+'. Lighting: '+VB.mode3Lighting+'. ';
+    // FITUR BARU: "Cara Tampil Produk" per kartu (tombol kecil di kartu
+    // Hook/Story/CTA, khusus Mode 3 — lihat _vbBuildEditableCard &
+    // VB_TAMPIL_PRODUK_OPTS) — kalau user sudah pilih salah satu opsi untuk
+    // kartu ini, sisipkan instruksinya di sini supaya ikut ke JSON yang
+    // disalin, sama seperti kalau user ketik manual.
+    if(tampilOverride)instructionText+=tampilOverride+' ';
   }else{
     instructionText=VB_REF_MODE_TEXT[VB.refMode]||VB_REF_MODE_TEXT.satu;
   }
@@ -11321,6 +11434,7 @@ function vbReset(){
     let bulkErr=document.getElementById('vb-bulk-error'); if(bulkErr){bulkErr.classList.add('hidden');bulkErr.textContent='';}
     VB_BULK_LAST_CONTEXT=null; // reset builder — buang juga sisa sesi "Lanjutkan" kalau ada, biar tidak nyangkut ke sesi produk berikutnya
     VB_BULK_ITEMS=[];
+    VB_CARD_TAMPIL={};
     vbUpdateProgress(1,'Mode Referensi Foto');
     // FIX BUG#1: sama seperti saat init — vbUpdateProgress(1,...) hitung 20%,
     // override balik ke 0% karena user baru saja reset (belum isi apa-apa).
