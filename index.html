@@ -12495,7 +12495,7 @@ function pbOpenInChrome(e,url){
   return true; // non-Android: biarkan <a> jalan normal
 }
 
-function pbSetLabel(n){ document.getElementById('pb-tour-step-label').textContent='Langkah '+n+' dari 10'; }
+function pbSetLabel(n){ document.getElementById('pb-tour-step-label').textContent='Langkah '+n+' dari 11'; }
 function pbSetText(title,desc){
   document.getElementById('pb-tour-title').textContent=title;
   // innerHTML (bukan textContent) supaya desc bisa berisi link <a> yang
@@ -12594,15 +12594,95 @@ function pbGoStep2(){
     +       '<div class="pb-flow-sub">kita akan buat sama-sama</div>'
     +     '</div>'
     +     '<div class="pb-flow-box">'
-    +       '<div class="pb-flow-thumb" data-label="Foto Produk" onclick="pbFlowLightboxOpen(this)"><img src="'+PB_IMG_FLOW_PRODUK+'" alt="Foto produk"></div>'
+    +       '<div style="position:relative;display:inline-block;">'
+    +         '<div class="pb-flow-thumb" id="pb-flow-produk-thumb" data-label="Foto Produk" onclick="pbFlowLightboxOpen(this)"><img src="'+(pbProdukFotoUploaded?pbProdukFotoDataUrl:PB_IMG_FLOW_PRODUK)+'" alt="Foto produk"></div>'
+    +         (pbProdukFotoUploaded?'<div style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--surface2);"><svg class="icon" style="width:12px;height:12px;color:#08080A;"><use href="#ic-check"></use></svg></div>':'')
+    +       '</div>'
     +       '<div class="pb-flow-label">Foto Produk</div>'
-    +       '<div class="pb-flow-sub">cukup foto produk aja yang perlu kakak siapkan</div>'
+    +       '<div class="pb-flow-sub'+(pbProdukFotoUploaded?' pb-flow-sub-ai':'')+'">'+(pbProdukFotoUploaded?'sudah disiapkan':'cukup foto produk aja yang perlu kakak siapkan')+'</div>'
     +     '</div>'
     +   '</div>'
     + '</div>'
     + '<hr class="pb-flow-divider">'
     + '<p style="margin-top:0;">Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.</p>';
-  pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep3);
+  pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep2Next);
+}
+// ── State: apakah foto produk sudah "disiapkan" lewat Langkah 3 baru
+// (siapkan foto produk) di bawah ini. Begitu true, thumbnail Foto Produk
+// di Langkah 2 diganti foto asli yang diupload user + centang hijau, dan
+// tombol "Lanjut" di Langkah 2 melompati Langkah 3 (langsung ke Karakter
+// Sheet) supaya user tidak diminta siapkan foto produk berkali-kali. ──
+var pbProdukFotoUploaded=false;
+var pbProdukFotoDataUrl=null;
+// Diklik dari tombol "Lanjut" di Langkah 2 — kalau foto produk belum
+// disiapkan, buka Langkah 3 baru (siapkan foto produk) dulu; kalau sudah,
+// langsung lanjut ke Langkah 4 (Karakter Sheet, fungsi lama pbGoStep3()).
+function pbGoStep2Next(){
+  if(pbProdukFotoUploaded){ pbGoStep3(); } else { pbGoStep2b(); }
+}
+// ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
+// Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
+// sesaat (efek "muncul dari situ"), lalu kartu tur berpindah ke Langkah 3
+// yang menaruh foto produk yang sama di paling atas (ukuran kecil) diikuti
+// instruksi screenshot produk dari toko TikTok, lalu tombol "Udah?".
+// Fase 2 (pbGoStep2bCamera): tampilan fase 1 diganti total jadi cuma
+// icon kamera untuk upload. Begitu foto dipilih, foto itu dipakai beneran
+// (dibaca jadi data URL) buat mengganti thumbnail Foto Produk di Langkah 2,
+// lalu tur otomatis balik ke Langkah 2 (lihat pbStep2bPhotoPicked). ──────
+function pbGoStep2b(){
+  let thumb=document.getElementById('pb-flow-produk-thumb');
+  if(thumb){
+    thumb.style.transition='transform .28s ease';
+    thumb.style.transform='scale(1.14)';
+  }
+  setTimeout(function(){
+    if(thumb) thumb.style.transform='';
+    pbRenderStep2b();
+  },thumb?260:0);
+}
+function pbRenderStep2b(){
+  let desc = '<div style="display:flex;justify-content:center;margin:0 0 14px;">'
+    + '<img src="'+PB_IMG_FLOW_PRODUK+'" alt="Foto produk" style="width:72px;height:72px;object-fit:cover;border-radius:var(--radius-2xs);border:1px solid var(--border-hi);">'
+    + '</div>'
+    + '<p style="margin-top:0;text-align:center;">Sekarang kakak siapkan foto produk.<br>Caranya cukup masuk ke toko di TikTok terus screenshot produknya.</p>'
+    + '<div style="display:flex;justify-content:center;margin-top:16px;">'
+    + '<button type="button" onclick="pbGoStep2bCamera()" style="background:var(--accent);color:var(--bg);font-weight:700;font-size:var(--fs-sm);border:none;border-radius:var(--radius-sm);padding:11px 30px;cursor:pointer;">Udah?</button>'
+    + '</div>';
+  pbShowModal(3,'Siapkan foto produk',desc,'Lanjut',pbGoStep2Next);
+  // Tombol "Lanjut" tur disembunyikan — di langkah ini user lanjut lewat
+  // tombol "Udah?" sendiri, bukan tombol bawaan tur.
+  let nextBtn=document.getElementById('pb-tour-next-btn');
+  if(nextBtn) nextBtn.style.display='none';
+}
+// Fase 2 Langkah 3 — ganti isi kartu total jadi cuma icon kamera (tampilan
+// foto+teks+tombol "Udah?" fase 1 dilepas semua, sesuai permintaan).
+function pbGoStep2bCamera(){
+  let desc = '<input type="file" accept="image/*" id="pb-step2b-photo-input" style="display:none;" onchange="pbStep2bPhotoPicked(this)">'
+    + '<div style="display:flex;justify-content:center;margin:18px 0 4px;">'
+    + '<div onclick="document.getElementById(\'pb-step2b-photo-input\').click()" style="width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1px solid var(--border-hi);display:flex;align-items:center;justify-content:center;cursor:pointer;">'
+    + '<svg class="icon" style="width:28px;height:28px;color:var(--accent);"><use href="#ic-camera"></use></svg>'
+    + '</div>'
+    + '</div>';
+  pbSetText('Upload foto produknya','Klik icon kamera untuk upload foto produk yang sudah kakak screenshot.');
+  document.getElementById('pb-tour-desc').innerHTML=desc;
+  let nextBtn=document.getElementById('pb-tour-next-btn');
+  if(nextBtn) nextBtn.style.display='none';
+}
+// Dipanggil begitu user pilih foto produk lewat icon kamera di atas. Beda
+// dari upload Karakter Sheet (Langkah 4/5) yang filenya sengaja diabaikan,
+// di sini fotonya BENERAN dipakai — dibaca jadi data URL supaya bisa
+// ditampilkan menggantikan thumbnail Foto Produk di Langkah 2.
+function pbStep2bPhotoPicked(input){
+  let file=input.files&&input.files[0];
+  if(!file)return;
+  input.value='';
+  let reader=new FileReader();
+  reader.onload=function(e){
+    pbProdukFotoDataUrl=e.target.result;
+    pbProdukFotoUploaded=true;
+    pbGoStep2();
+  };
+  reader.readAsDataURL(file);
 }
 // ── Dipanggil dari luar tur (mis. setelah salin prompt Karakter
 // Sheet) untuk "membangunkan" ulang tampilan tur langsung di Langkah
@@ -12683,7 +12763,7 @@ function pbRenderStep3(){
   if(pbStep3Revealed>=2 && pbStep3Revealed<PB_STEP3_ITEMS.length){
     desc+='<button type="button" onclick="pbStep3RevealNext()" style="display:block;width:100%;background:var(--surface2);color:var(--text);font-weight:700;font-size:var(--fs-sm);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px 14px;margin:14px 0 0;cursor:pointer;text-align:center;">Sudah, lanjut ke langkah berikutnya</button>';
   }
-  pbShowModal(3,'Ayuk kakak, sekarang kita bakalan bikin foto karakter sheet AI',desc,'Lanjut',pbGoStep4);
+  pbShowModal(4,'Ayuk kakak, sekarang kita bakalan bikin foto karakter sheet AI',desc,'Lanjut',pbGoStep4);
   // Tombol "Lanjut" tur cuma nongol begitu SEMUA butir (no.1–7) udah
   // kebuka (pbStep3Revealed sudah mentok di PB_STEP3_ITEMS.length) —
   // sebelum itu disembunyikan biar user gak salah tekan & malah
@@ -12735,7 +12815,7 @@ function pbGoStep4(){
     + '</div>'
     + '</div>'
     + '</div>';
-  pbShowModal(4,'Upload hasil Karakter Sheet-nya, yuk',desc,'Lanjut',pbGoStep5);
+  pbShowModal(5,'Upload hasil Karakter Sheet-nya, yuk',desc,'Lanjut',pbGoStep5);
   let nextBtn=document.getElementById('pb-tour-next-btn');
   if(nextBtn) nextBtn.style.display='none';
 }
@@ -12893,14 +12973,14 @@ function pbFlowLightboxClose(){
 }
 // ── LANGKAH 5 — interaktif, pilih subjek (f0) ────────────────────
 function pbGoStep5(){
-  pbShowInteractive(5,'Pilih karakter AI kakak','Udah siapkan foto wajah sama foto produk kan? Nah sekarang kakak pilih karakter AI kakak (laki-laki atau perempuan) sesuai foto wajah yang kakak siapkan.','#f0');
+  pbShowInteractive(6,'Pilih karakter AI kakak','Udah siapkan foto wajah sama foto produk kan? Nah sekarang kakak pilih karakter AI kakak (laki-laki atau perempuan) sesuai foto wajah yang kakak siapkan.','#f0');
   pbArmDoneWait('f0',pbGoStep6);
 }
 // ── LANGKAH 6 — interaktif, foto referensi & outfit (f1) ─────────
 // Dibuka OTOMATIS begitu doneCard('f0') beneran terpanggil (user
 // sudah pilih & konfirmasi subjek) — bukan lewat tombol tur.
 function pbGoStep6(){
-  pbShowInteractive(6,'Masukkan foto & outfit','Nah sekarang kakak tinggal sesuaikan aja nih sama foto yang ada di galeri kakak. Kan tadi kakak udah punya foto wajah dan foto produk. Sekarang tinggal klik aja foto wajah dan foto produk. Kemudian isi nama produk yang ada di foto kakak di galeri. Terus klik juga isi outfit karakter. Tujuannya supaya kakak bisa membuat karakter AI kakak memakai outfit dengan selera kakak. Kemudian lanjut.','#f1');
+  pbShowInteractive(7,'Masukkan foto & outfit','Nah sekarang kakak tinggal sesuaikan aja nih sama foto yang ada di galeri kakak. Kan tadi kakak udah punya foto wajah dan foto produk. Sekarang tinggal klik aja foto wajah dan foto produk. Kemudian isi nama produk yang ada di foto kakak di galeri. Terus klik juga isi outfit karakter. Tujuannya supaya kakak bisa membuat karakter AI kakak memakai outfit dengan selera kakak. Kemudian lanjut.','#f1');
   // Kunci chip yang TIDAK relevan di langkah ini — cuma Wajah, Produk, &
   // "Isi Outfit Karakter" yang boleh dipakai user di sini. Chip "Outfit"
   // (foto) & "Objek" jadi tidak merespons klik sampai step ini selesai.
@@ -12924,7 +13004,7 @@ function pbUnlockChip(sel){
 // Dibuka OTOMATIS begitu doneCard('f1') terpanggil (user sudah
 // selesai isi foto referensi & tekan "Lanjut →" bawaan step itu).
 function pbGoStep7(){
-  pbShowModal(7,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','Lanjut',pbGoStep7Reveal);
+  pbShowModal(8,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','Lanjut',pbGoStep7Reveal);
 }
 // ── LANGKAH 7 — fase B: interaktif, sorot card Produk (f3) ───────
 // Nomor langkah TETAP 7 (masih konten yang sama), cuma modenya
@@ -12937,14 +13017,14 @@ function pbGoStep7Reveal(){
   // card "Cara Tampil Produk" yang sungguhan dilihat & diisi user (itu
   // card '#f3' — cek chip Dipakai/Hanger/Dipegang & doneCard('f3',...) di
   // fPickHold/fPickHoldCustom). Target & id wait dibetulkan ke f3.
-  pbShowInteractive(7,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','#f3');
+  pbShowInteractive(8,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','#f3');
   pbArmDoneWait('f3',pbGoStep8);
 }
 // ── LANGKAH 8 — modal, "lanjut sampai selesai" ───────────────────
 // Dibuka OTOMATIS begitu doneCard('f3') terpanggil (user sudah
 // pilih cara tampil produk & konfirmasi).
 function pbGoStep8(){
-  pbShowModal(8,'Lanjut sampai selesai','Sekarang dan seterusnya kakak tinggal ikutin aja ya sampai selesai, pilih aja sesuai selera kakak, oke?','Lanjut',pbGoHideUntilGenerate);
+  pbShowModal(9,'Lanjut sampai selesai','Sekarang dan seterusnya kakak tinggal ikutin aja ya sampai selesai, pilih aja sesuai selera kakak, oke?','Lanjut',pbGoHideUntilGenerate);
 }
 // Begitu user tekan "Lanjut" di langkah 8: tur HILANG TOTAL (bukan
 // cuma ganti step) supaya tidak mengganggu sisa wizard, lalu mulai
@@ -12966,7 +13046,7 @@ function pbGoStep9(){
   let el=document.getElementById('f-gen-btn');
   let targetEl=(el&&el.offsetParent!==null)?el:null;
   pbSetPassive(false); // step penutup, blocking spt tur versi lama
-  pbSetLabel(9);
+  pbSetLabel(10);
   pbSetText('Generate & salin','Wah udah ya kak? Nah sekarang klik tombol Generate Prompt.');
   let btn=document.getElementById('pb-tour-next-btn');
   btn.style.display='';
@@ -12998,7 +13078,7 @@ function pbGoWaitForCopyBtn(){
 // klik tombolnya (bukan tombol "Lanjut" tur), lalu tur SELESAI —
 // panduan Google Flow sudah ditunjukkan lebih awal di langkah 3 ──
 function pbGoStep10(){
-  pbShowInteractive(10,'Klik Salin','Sekarang klik salin.','#f-copy-btn');
+  pbShowInteractive(11,'Klik Salin','Sekarang klik salin.','#f-copy-btn');
   pbWaitingCopyClick=true;
 }
 
