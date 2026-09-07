@@ -2146,12 +2146,6 @@ body input, body textarea, body [contenteditable="true"]{
         <input class="inp" id="cs-penampilan-custom" maxlength="60" placeholder="Contoh: manis, kulit sawo matang" oninput="csPenampilanCustomInput()" onfocus="csPenampilanCustomFocus()" onblur="csPenampilanCustomBlur()" />
       </div>
 
-      <div id="cs-result-wrap" class="hidden" style="margin-bottom:14px;">
-        <label class="inplabel">Hasil Prompt</label>
-        <div id="cs-result-text" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:var(--fs-xs);color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:8px;"></div>
-        <button id="cs-copy-btn" onclick="csCopyPrompt()" style="width:100%;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;">Salin</button>
-      </div>
-
       <div style="display:flex;gap:8px;">
         <button id="cs-close-btn" onclick="csCloseModal()" style="flex:1;background:none;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);cursor:pointer;font-family:'Geist',sans-serif;">Tutup</button>
         <button id="cs-generate-btn" onclick="csGeneratePrompt()" style="flex:2;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;">Buat Prompt</button>
@@ -7680,6 +7674,7 @@ function _copyTextRobust(text,onOk,onFail){
 // ekspresi, angle, & background FIXED sesuai template.
 // ════════════════════════════════════════════════════════════════
 let csState={gender:'wanita',usia:null,negara:'Indonesia',penampilan:'Cantik, Putih'};
+let csLastPromptText='';
 
 function csOpenModal(){
   document.getElementById('cs-modal').style.display='flex';
@@ -7832,8 +7827,45 @@ function _csDoGeneratePrompt(){
     +csState.gender+' '+usiaClause+'dengan penampilan '+penampilanTxt+' asal '+csState.negara
     +', '+outfit+' dengan background putih bersih';
 
-  document.getElementById('cs-result-text').textContent=text;
-  document.getElementById('cs-result-wrap').classList.remove('hidden');
+  csLastPromptText=text;
+  csShowResultNotif(text);
+}
+// Notifikasi tengah layar berisi Hasil Prompt + tombol Salin, muncul di
+// ATAS modal Karakter Sheet (#cs-modal tetap kebuka di belakangnya) begitu
+// user klik "Buat Prompt". Ada tombol kecil "Buat ulang" — kalau user mau
+// ganti-ganti pilihan dulu sebelum salin, tinggal tekan itu buat nutup
+// notifikasi ini aja (modal Karakter Sheet di belakang tetap ada & masih
+// bisa diedit, tinggal klik "Buat Prompt" lagi).
+function csShowResultNotif(text){
+  let old=document.getElementById('cs-result-notif');
+  if(old)old.remove();
+  let overlay=document.createElement('div');
+  overlay.className='confirm-overlay';
+  overlay.id='cs-result-notif';
+  overlay.style.zIndex='9999';
+  let box=document.createElement('div');
+  box.className='confirm-box';
+  box.style.cssText='max-width:340px;text-align:left;';
+  let label=document.createElement('label');
+  label.className='inplabel';
+  label.style.cssText='margin-top:0;';
+  label.textContent='Hasil Prompt';
+  let textBox=document.createElement('div');
+  textBox.id='cs-result-text';
+  textBox.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:var(--fs-xs);color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:12px;max-height:38vh;overflow-y:auto;';
+  textBox.textContent=text;
+  let copyBtn=document.createElement('button');
+  copyBtn.id='cs-copy-btn';
+  copyBtn.textContent='Salin';
+  copyBtn.style.cssText="width:100%;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;";
+  copyBtn.onclick=csCopyPrompt;
+  let redoBtn=document.createElement('button');
+  redoBtn.textContent='Buat ulang';
+  redoBtn.style.cssText="display:block;width:100%;background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;text-decoration:underline;padding:10px 0 0;text-align:center;font-family:'Geist',sans-serif;";
+  redoBtn.onclick=function(){overlay.remove();};
+  box.appendChild(label);box.appendChild(textBox);box.appendChild(copyBtn);box.appendChild(redoBtn);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 // Notifikasi tengah layar sesudah user salin prompt Karakter Sheet — beda
 // dari showConfirm() (judulnya selalu "Yakin?" + tombol Batal/Ya) karena
@@ -7857,18 +7889,21 @@ function csShowSavedNotif(onDone){
 }
 function csCopyPrompt(){
   let btn=document.getElementById('cs-copy-btn');
-  let text=document.getElementById('cs-result-text').textContent||'';
+  let text=csLastPromptText||'';
   if(!text){showToast('Buat prompt-nya dulu ya','error');return;}
   function onOk(){
     btn.textContent='Tersalin!';
     setTimeout(()=>{btn.textContent='Salin';},2000);
-    // Prompt karakter sheet sudah tersalin — tutup modal, kasih tahu lewat
-    // notifikasi tengah bahwa yang disalin itu "prompt" dan bakal dipakai
-    // di langkah berikutnya, lalu begitu "Mengerti" ditekan baru tur
-    // lanjut ke Langkah 4 (Upload hasil Karakter Sheet-nya).
+    // Prompt karakter sheet sudah tersalin — tutup notifikasi hasil prompt +
+    // modal Karakter Sheet, kasih tahu lewat notifikasi tengah bahwa yang
+    // disalin itu "prompt" dan bakal dipakai di langkah berikutnya, lalu
+    // begitu "Mengerti" ditekan baru tur BALIK ke Langkah 3 (buka butir
+    // no.2: install Google Flow) — bukan langsung lompat ke Langkah 4.
     setTimeout(function(){
+      let notif=document.getElementById('cs-result-notif');
+      if(notif)notif.remove();
       csCloseModal();
-      csShowSavedNotif(function(){ pbGoStep4(); });
+      csShowSavedNotif(function(){ pbBackToStep3(); });
     },600);
   }
   function onFail(){
@@ -12819,19 +12854,11 @@ function pbStep2bPhotoPicked(input){
   };
   reader.readAsDataURL(file);
 }
-// ── Dipanggil dari luar tur (mis. setelah salin prompt Karakter
-// Sheet) untuk "membangunkan" ulang tampilan tur langsung di Langkah
-// 3 — sama seperti pbStartTour() tapi tidak dari Langkah 1. ────────
-// ── SUDAH TIDAK DIPAKAI DI ALUR UTAMA (dibiarkan ada, bukan dihapus) ──
-// pbBackToStep3/pbRenderStep3/pbStep3RevealNext/PB_STEP3_ITEMS/pbGoStep3
-// di bawah ini adalah tutorial lama "install & pakai Google Flow" yang
-// dulu tampil sebagai Langkah tur tersendiri sesudah Karakter Sheet.
-// Sejak Karakter Sheet dibuka LANGSUNG dari Langkah 2/3 lewat
-// pbOpenCharacterSheetFromTour() (lihat pbGoStep2Next di atas) dan
-// csCopyPrompt() sekarang lanjut langsung ke pbGoStep4() lewat
-// csShowSavedNotif(), rangkaian fungsi ini tidak lagi terpanggil dari
-// mana pun di alur tur. Dibiarkan tetap ada untuk referensi/siapa tahu
-// dipakai lagi nanti — aman, tidak mengganggu nomor Langkah aktif.
+// ── Dipanggil dari csCopyPrompt() (lihat komentar di sana) untuk
+// "membangunkan" ulang tampilan tur langsung di Langkah 3 — sama seperti
+// pbStartTour() tapi tidak dari Langkah 1. AKTIF DI ALUR UTAMA: begitu
+// user salin prompt Karakter Sheet & tekan "Mengerti", tur balik ke sini
+// (buka butir no.2: install Google Flow), BUKAN langsung ke pbGoStep4(). ─
 function pbBackToStep3(){
   pbDisarmDoneWait();
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
