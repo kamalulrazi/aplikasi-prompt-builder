@@ -2110,10 +2110,10 @@ body input, body textarea, body [contenteditable="true"]{
         <div class="chip" id="cs-gender-lakilaki" onclick="csPickGender('laki-laki',this)">Laki-laki</div>
       </div>
 
-      <label class="inplabel" style="display:flex;align-items:center;justify-content:space-between;">
-        Usia <button type="button" id="cs-usia-toggle" onclick="csToggleUsia()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;">+ Atur usia (opsional)</button>
-      </label>
-      <div id="cs-usia-box" class="hidden" style="margin-bottom:14px;">
+      <div class="inplabel" style="margin-bottom:0;">
+        <button type="button" id="cs-usia-toggle" onclick="csToggleUsia()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;">+ Atur usia (opsional)</button>
+      </div>
+      <div id="cs-usia-box" class="hidden" style="margin-bottom:14px;margin-top:8px;">
         <div class="inp-wrap">
           <input class="inp" type="number" min="1" max="100" id="cs-usia-input" placeholder="Contoh: 25" />
         </div>
@@ -2129,21 +2129,21 @@ body input, body textarea, body [contenteditable="true"]{
       </div>
       <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
       <div class="inp-wrap" style="margin-bottom:16px;">
-        <input class="inp" id="cs-negara-custom" maxlength="60" placeholder="Contoh: Turki" oninput="csNegaraCustomInput()" />
+        <input class="inp" id="cs-negara-custom" maxlength="60" placeholder="Contoh: Turki" oninput="csNegaraCustomInput()" onfocus="csNegaraCustomFocus()" onblur="csNegaraCustomBlur()" />
       </div>
 
       <div class="rule" style="margin:10px 0 16px;"></div>
 
       <label class="inplabel">Penampilan</label>
       <div class="chips" id="cs-penampilan-chips" style="margin-bottom:6px;">
-        <div class="chip sel" onclick="csPickPenampilan('Cantik, Putih',this)">Cantik, Putih</div>
-        <div class="chip" onclick="csPickPenampilan('Cantik, Sawo Matang',this)">Cantik, Sawo Matang</div>
-        <div class="chip" onclick="csPickPenampilan('Biasa aja',this)">Biasa aja</div>
-        <div class="chip" onclick="csPickPenampilan('Jelek',this)">Jelek</div>
+        <div class="chip sel" data-f="Cantik, Putih" data-m="Ganteng, Putih" onclick="csPickPenampilan(this)">Cantik, Putih</div>
+        <div class="chip" data-f="Cantik, Sawo Matang" data-m="Ganteng, Sawo Matang" onclick="csPickPenampilan(this)">Cantik, Sawo Matang</div>
+        <div class="chip" data-f="Biasa aja" data-m="Biasa aja" onclick="csPickPenampilan(this)">Biasa aja</div>
+        <div class="chip" data-f="Jelek" data-m="Jelek" onclick="csPickPenampilan(this)">Jelek</div>
       </div>
       <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
       <div class="inp-wrap" style="margin-bottom:16px;">
-        <input class="inp" id="cs-penampilan-custom" maxlength="60" placeholder="Contoh: manis, kulit sawo matang" oninput="csPenampilanCustomInput()" />
+        <input class="inp" id="cs-penampilan-custom" maxlength="60" placeholder="Contoh: manis, kulit sawo matang" oninput="csPenampilanCustomInput()" onfocus="csPenampilanCustomFocus()" onblur="csPenampilanCustomBlur()" />
       </div>
 
       <div id="cs-result-wrap" class="hidden" style="margin-bottom:14px;">
@@ -7696,6 +7696,20 @@ function csPickGender(val,el){
   csState.gender=val;
   document.querySelectorAll('#cs-gender-wanita,#cs-gender-lakilaki').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  csRelabelPenampilan();
+}
+// Ganti label chip Penampilan sesuai gender ("Cantik" utk wanita, "Ganteng"
+// utk laki-laki). Kalau chip yang sedang aktif (sel) adalah salah satu dari
+// keduanya, csState.penampilan ikut disegarkan biar isi prompt konsisten
+// sama label baru yang kelihatan di layar.
+function csRelabelPenampilan(){
+  let isLaki=csState.gender==='laki-laki';
+  document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>{
+    let label=isLaki?c.dataset.m:c.dataset.f;
+    if(!label)return;
+    c.textContent=label;
+    if(c.classList.contains('sel'))csState.penampilan=label;
+  });
 }
 function csToggleUsia(){
   let box=document.getElementById('cs-usia-box');
@@ -7717,6 +7731,21 @@ function csPickNegara(val,el){
   document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
 }
+// Begitu user tap ke kolom "isi sendiri", langsung lepas warna kuning dari
+// chip Negara — sebelum sempat ngetik apa pun — supaya gak kelihatan kayak
+// dua-duanya (chip + isian sendiri) bakal dipakai bareng di prompt.
+function csNegaraCustomFocus(){
+  document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>c.classList.remove('sel'));
+}
+// Kalau user keluar dari kolom tanpa ngetik apa-apa, kembalikan warna
+// kuning ke chip yang sesuai csState.negara (biar gak kelihatan kosong).
+function csNegaraCustomBlur(){
+  let v=(document.getElementById('cs-negara-custom').value||'').trim();
+  if(v)return;
+  document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>{
+    if(c.textContent.trim()===csState.negara)c.classList.add('sel');
+  });
+}
 // Dipicu langsung tiap kali user mengetik (oninput) — bukan lewat tombol
 // "Pakai" lagi, supaya isian custom langsung dianggap "berlaku" begitu
 // diketik, dan chip Indonesia/Mesir/Arab Saudi yang lagi aktif langsung
@@ -7734,11 +7763,23 @@ function csNegaraCustomInput(){
 // ATAU isi sendiri (live lewat oninput, tanpa tombol "Pakai"). Nilainya
 // dipakai gantiin kata sifat "cantik/tampan" yang dulu di-hardcode
 // berdasarkan gender saja di csGeneratePrompt(). ──────────────────────
-function csPickPenampilan(val,el){
-  csState.penampilan=val;
+function csPickPenampilan(el){
+  csState.penampilan=el.textContent.trim();
   document.getElementById('cs-penampilan-custom').value='';
   document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+}
+// Sama seperti Negara: lepas warna kuning chip Penampilan begitu kolom
+// "isi sendiri" difokus, dan kembalikan kalau ditinggal kosong.
+function csPenampilanCustomFocus(){
+  document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
+}
+function csPenampilanCustomBlur(){
+  let v=(document.getElementById('cs-penampilan-custom').value||'').trim();
+  if(v)return;
+  document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>{
+    if(c.textContent.trim()===csState.penampilan)c.classList.add('sel');
+  });
 }
 function csPenampilanCustomInput(){
   let v=(document.getElementById('cs-penampilan-custom').value||'').trim();
