@@ -3155,7 +3155,14 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
               <img id="vb-produk-foto-img" style="width:56px;height:56px;border-radius:var(--radius-md);display:block;object-fit:cover;border:1px solid var(--border-hi);" />
               <button type="button" onclick="vbRemoveProdukFoto()" style="position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg class="icon"><use href="#ic-close"></use></svg></button>
             </div>
+            <button type="button" onclick="vbToggleProdukFotoPanel('ai')" style="margin-top:4px;width:56px;background:none;border:none;color:var(--accent);font-size:9px;line-height:1.3;cursor:pointer;padding:0;text-align:center;">
+              <svg class="icon" style="width:11px;height:11px;vertical-align:-1px;"><use href="#ic-camera"></use></svg> <span id="vb-ai-fotobadge">2-5 foto?</span>
+            </button>
           </div>
+        </div>
+        <div id="vb-ai-fotopanel" class="hidden" style="margin:-6px 0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
+          <p style="font-size:var(--fs-2xs);color:var(--muted);margin:0 0 8px;">Khusus Mode 3 (Karakter+Produk+Lokasi): tambah 2–5 foto produk supaya JSON otomatis menyebut "foto referensi 2,3,4 adalah produk". Foto pertama sama dengan slot di atas.</p>
+          <div id="vb-ai-fotopanel-list"></div>
         </div>
         <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:-8px 0 12px;">Foto produk bantu AI biar script lebih sesuai produk asli — opsional.</p>
         <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span></label>
@@ -3190,8 +3197,18 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
       <div id="vb-manual-script-area" class="hidden" style="margin-top:14px;">
         <div id="vb-manual-mode3-produk-wrap" class="hidden" style="margin-bottom:12px;">
           <label class="inplabel">Nama Produk (di foto referensi 2) <span style="color:var(--red);">*wajib</span></label>
-          <div class="inp-wrap">
-            <input class="inp" id="vb-manual-mode3-produk" maxlength="80" placeholder="Contoh: jam tangan" />
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <div class="inp-wrap" style="flex:1;min-width:0;">
+              <input class="inp" id="vb-manual-mode3-produk" maxlength="80" placeholder="Contoh: jam tangan" />
+            </div>
+            <button type="button" onclick="vbToggleProdukFotoPanel('manual')" style="flex-shrink:0;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);background:none;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;">
+              <svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg>
+              <span id="vb-manual-fotobadge" style="font-size:8px;line-height:1;"></span>
+            </button>
+          </div>
+          <div id="vb-manual-fotopanel" class="hidden" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
+            <p style="font-size:var(--fs-2xs);color:var(--muted);margin:0 0 8px;">Tambah 2–5 foto produk (foto referensi 1 = karakter, sisanya produk) — JSON otomatis menyebut nomor foto referensi yang sesuai.</p>
+            <div id="vb-manual-fotopanel-list"></div>
           </div>
         </div>
         <label class="inplabel"><span class="step-num-inline">1</span> Hook — pembuka penasaran</label>
@@ -3273,7 +3290,7 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
          (contoh: v3.6 → v3.7). Jangan pernah edit aplikasi tanpa menaikkan
          versi ini — kalau lupa/terlewat di update sebelumnya, naikkan
          sekarang untuk menutup selisihnya. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v3.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v3.9 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -8501,7 +8518,7 @@ function historyRender(){
 // ============================================================
 // VIDEO BUILDER — Reference + Dialogue (voice_character)
 // ============================================================
-let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',hookType:'',hookTypeLabel:''};
+let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',produkFotoExtra:[],hookType:'',hookTypeLabel:''};
 
 // ── FOTO REFERENSI PRODUK (untuk bantu AI bikin script sesuai produk asli) ──
 // Foto kamera HP sering beberapa MB — kalau dikirim mentah ke Gemini bisa
@@ -8584,6 +8601,7 @@ async function vbHandleProdukFotoUpload(input){
     let preview=document.getElementById('vb-produk-foto-preview');
     if(empty)empty.classList.add('hidden');
     if(preview)preview.classList.remove('hidden');
+    _vbRenderProdukFotoMulti();
   }catch(e){
     console.warn('[vbHandleProdukFotoUpload]',e);
     showToast('Gagal memproses foto: '+e.message,'error');
@@ -8596,6 +8614,90 @@ function vbRemoveProdukFoto(){
   let img=document.getElementById('vb-produk-foto-img'); if(img)img.src='';
   let empty=document.getElementById('vb-produk-foto-empty'); if(empty)empty.classList.remove('hidden');
   let preview=document.getElementById('vb-produk-foto-preview'); if(preview)preview.classList.add('hidden');
+  _vbRenderProdukFotoMulti();
+}
+
+// ── FOTO REFERENSI PRODUK MULTI (2–5 foto), khusus Mode 3 (Karakter+Produk+Lokasi) ──
+// Foto pertama tetap dipakai lewat slot lama (VB.produkFotoBase64/Mime, kompatibel
+// dengan semua kode lama: preview AI, panel revisi, dll). Foto ke-2 sampai ke-5
+// ditambahkan di VB.produkFotoExtra (array {base64,mime}). Total foto (1 slot lama +
+// isi produkFotoExtra) menentukan berapa banyak "foto referensi" yang disebut di
+// teks instruksi JSON (lihat _vbBuildFlowText) — dipakai bareng di mode AI, Manual,
+// maupun Bulk (foto ini SATU set yang sama untuk semua produk di sesi ini).
+function vbProdukFotoCount(){
+  return (VB.produkFotoBase64?1:0)+((VB.produkFotoExtra&&VB.produkFotoExtra.length)||0);
+}
+function vbProdukFotoList(){
+  let list=[];
+  if(VB.produkFotoBase64)list.push({base64:VB.produkFotoBase64,mime:VB.produkFotoMime});
+  (VB.produkFotoExtra||[]).forEach(function(f){list.push(f);});
+  return list;
+}
+async function vbAddProdukFotoMulti(input){
+  let file=input.files&&input.files[0];
+  if(!file)return;
+  if(vbProdukFotoCount()>=5){showToast('Maksimal 5 foto produk','error');input.value='';return;}
+  try{
+    let res=await _vbCompressImageFile(file);
+    if(!VB.produkFotoBase64){
+      VB.produkFotoBase64=res.base64;VB.produkFotoMime=res.mime;
+    }else{
+      VB.produkFotoExtra=VB.produkFotoExtra||[];
+      VB.produkFotoExtra.push({base64:res.base64,mime:res.mime});
+    }
+    _vbSyncProdukFotoPreviews();
+  }catch(e){
+    console.warn('[vbAddProdukFotoMulti]',e);
+    showToast('Gagal memproses foto: '+e.message,'error');
+  }finally{
+    input.value='';
+  }
+}
+function vbRemoveProdukFotoAt(idx){
+  if(idx===0){
+    if(VB.produkFotoExtra&&VB.produkFotoExtra.length){
+      let next=VB.produkFotoExtra.shift();
+      VB.produkFotoBase64=next.base64;VB.produkFotoMime=next.mime;
+    }else{
+      VB.produkFotoBase64='';VB.produkFotoMime='';
+    }
+  }else{
+    VB.produkFotoExtra.splice(idx-1,1);
+  }
+  _vbSyncProdukFotoPreviews();
+}
+function vbToggleProdukFotoPanel(prefix){
+  let panel=document.getElementById('vb-'+prefix+'-fotopanel');
+  if(!panel)return;
+  let willOpen=panel.classList.contains('hidden');
+  // tutup panel lain (ai/manual) biar tidak dobel kebuka
+  ['ai','manual'].forEach(function(p){
+    let el=document.getElementById('vb-'+p+'-fotopanel');
+    if(el&&p!==prefix)el.classList.add('hidden');
+  });
+  panel.classList.toggle('hidden',!willOpen);
+  if(willOpen)_vbRenderProdukFotoMulti();
+}
+function _vbRenderProdukFotoMulti(){
+  let list=vbProdukFotoList();
+  ['ai','manual'].forEach(function(prefix){
+    let badge=document.getElementById('vb-'+prefix+'-fotobadge');
+    if(badge)badge.textContent=list.length?(list.length+'/5 foto'):'';
+    let wrap=document.getElementById('vb-'+prefix+'-fotopanel-list');
+    if(!wrap)return;
+    let thumbs=list.map(function(f,i){
+      return '<div style="position:relative;width:44px;height:44px;display:inline-block;margin:0 6px 6px 0;">'
+        +'<img src="data:'+(f.mime||'image/jpeg')+';base64,'+f.base64+'" style="width:44px;height:44px;border-radius:var(--radius-xs);object-fit:cover;border:1px solid var(--border-hi);display:block;" />'
+        +'<button type="button" onclick="vbRemoveProdukFotoAt('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;"><svg class="icon" style="width:10px;height:10px;"><use href="#ic-close"></use></svg></button>'
+        +'</div>';
+    }).join('');
+    let addBtn=list.length<5
+      ?('<label style="display:inline-flex;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);align-items:center;justify-content:center;color:var(--muted);cursor:pointer;vertical-align:top;">'
+        +'<input type="file" accept="image/*" style="display:none;" onchange="vbAddProdukFotoMulti(this)" />'
+        +'<svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg></label>')
+      :'';
+    wrap.innerHTML=(list.length?thumbs:'<p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 6px;">Belum ada foto produk.</p>')+addBtn;
+  });
 }
 
 const VB_REF_MODE_TEXT={
@@ -8893,6 +8995,7 @@ function vbSelectScriptMode(mode){
   // bulk sudah nanya sendiri, manual belum punya kotaknya jadi ditambahin di sini
   let m3produkWrap=document.getElementById('vb-manual-mode3-produk-wrap');
   if(m3produkWrap)m3produkWrap.classList.toggle('hidden',!(mode==='manual'&&VB.refMode==='kp'));
+  _vbRenderProdukFotoMulti();
   if(mode==='bulk'&&!document.getElementById('vb-bulk-rows').children.length)vbBulkSetCount();
   // FIX TOMBOL GENERATE KETUTUP: kalau baris produk bulk SUDAH ada dari
   // sebelumnya (user sempat pindah ke mode lain lalu balik lagi ke "Banyak
@@ -10692,6 +10795,7 @@ function _vbSyncProdukFotoPreviews(){
     let empty=document.getElementById(prefix+'-empty'); if(empty)empty.classList.toggle('hidden',has);
     let preview=document.getElementById(prefix+'-preview'); if(preview)preview.classList.toggle('hidden',!has);
   });
+  _vbRenderProdukFotoMulti();
 }
 
 async function vbRevisiSingleAI(){
@@ -11191,9 +11295,9 @@ async function vbGenerate3AI(){
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini) —
   // hanya disertakan kalau user memang upload foto referensi produk.
   let _vbPromptParts=[{text:prompt}];
-  if(VB.produkFotoBase64){
-    _vbPromptParts.push({inline_data:{mime_type:VB.produkFotoMime||'image/jpeg',data:VB.produkFotoBase64}});
-  }
+  vbProdukFotoList().forEach(function(f){
+    _vbPromptParts.push({inline_data:{mime_type:f.mime||'image/jpeg',data:f.base64}});
+  });
 
   // Tampilkan 3 kartu KOSONG (Hook/Story/CTA) SEBELUM request dikirim, biar
   // user langsung lihat "slot"-nya sudah siap sambil nunggu AI jawab.
@@ -11874,7 +11978,17 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // pakai itu MENGGANTIKAN VB.mode3Lokasi (lokasi default 1 sesi dari step 1)
     // — supaya tiap script (bukan cuma tiap produk) bisa punya lokasi beda.
     let lokasiForCard=lokasiOverride||VB.mode3Lokasi;
-    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi 2 adalah produk yaitu '+produkForRef+'. Manfaatkan kedua foto tersebut untuk membuat sebuah video. Lokasi: '+lokasiForCard+'. Lighting: '+VB.mode3Lighting+'. ';
+    // FITUR BARU: dulu selalu "foto referensi 2 adalah produk" (1 foto produk
+    // saja). Sekarang user bisa upload 2-5 foto produk (lihat panel kamera di
+    // samping Nama Produk, state di VB.produkFotoBase64+VB.produkFotoExtra) —
+    // nomor foto referensi produk di teks JSON menyesuaikan jumlah foto yang
+    // benar-benar diisi, foto referensi 1 tetap selalu karakter.
+    let produkFotoTotal=Math.max(1,vbProdukFotoCount());
+    let produkRefNums=[];
+    for(let n=2;n<=1+produkFotoTotal;n++)produkRefNums.push(n);
+    let produkRefLabel=produkRefNums.join(',');
+    let jumlahFotoTotal=1+produkFotoTotal;
+    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi '+produkRefLabel+' adalah produk yaitu '+produkForRef+'. Manfaatkan ke-'+jumlahFotoTotal+' foto tersebut untuk membuat sebuah video. Lokasi: '+lokasiForCard+'. Lighting: '+VB.mode3Lighting+'. ';
     // FITUR BARU: "Cara Tampil Produk" per kartu (tombol kecil di kartu
     // Hook/Story/CTA, khusus Mode 3 — lihat _vbBuildEditableCard &
     // VB_TAMPIL_PRODUK_OPTS) — kalau user sudah pilih salah satu opsi untuk
@@ -11899,7 +12013,7 @@ function vbReset(){
     // sama seperti fResetFrom() di tab Foto, biar tidak ada entri nyangkut
     // yang salah unhide di sesi berikutnya.
     STEP_PAUSE_STACK.video=[];
-    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:''};
+    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',produkFotoExtra:[]};
     VB_BULK_PRODUCTS=[];
     // FIX BUG "SEMUA STEP VIDEO HILANG SELAMANYA SETELAH RESET": sama persis
     // dengan bug fResetFrom() di tab Foto — doneCard() SELALU menambahkan
