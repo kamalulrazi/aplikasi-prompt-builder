@@ -1398,6 +1398,11 @@ body input, body textarea, body [contenteditable="true"]{
 }
 .pb-tour-eyebrow{font-size:var(--fs-2xs);color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;}
 .pb-tour-title{font-size:var(--fs-md2);font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.3;}
+.pb-tour-title:empty{display:none;margin-bottom:0;}
+/* Nav bawah (Foto/Video/Riwayat/Panduan) disembunyikan selama tur
+   panduan aktif — dari pbStartTour() sampai pbEndTour() — supaya user
+   fokus ke tur tanpa godaan pindah tab. */
+.nav.pb-tour-navhide{display:none;}
 .pb-tour-desc{font-size:var(--fs-sm);color:var(--muted);line-height:1.55;margin-bottom:14px;}
 .pb-tour-desc:empty{display:none;margin-bottom:0;}
 .pb-tour-desc img{width:88%;max-width:88%;border-radius:var(--radius-sm);border:1px solid var(--border-hi);display:block;margin:8px auto 14px;}
@@ -3217,7 +3222,7 @@ body input, body textarea, body [contenteditable="true"]{
          (contoh: v3.6 → v3.7). Jangan pernah edit aplikasi tanpa menaikkan
          versi ini — kalau lupa/terlewat di update sebelumnya, naikkan
          sekarang untuk menutup selisihnya. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v3.6 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v3.7 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -12532,7 +12537,7 @@ window.addEventListener('beforeunload', function(e){
       <div class="pb-pn-msg" id="pb-pn-msg"></div>
     </div>
   </div>
-  <button type="button" class="pb-pn-cta" onclick="pbStep4NotifTap()">Yuk, buat foto karakter memegang/memakai produk</button>
+  <button type="button" class="pb-pn-cta" onclick="pbStep4NotifTap()">Lanjut</button>
 </div>
 
 <!-- Lightbox buat diagram alur Langkah 2 — tap salah satu kotak
@@ -12775,6 +12780,11 @@ function pbStartTour(force){
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
   clearInterval(pbCopyPollTimer);pbCopyPollTimer=null;
   document.getElementById('pb-tour-backdrop').classList.add('show');
+  // Sembunyikan nav Foto/Video/Riwayat/Panduan selama tur berlangsung
+  // (baru ditampilkan lagi begitu tur benar-benar selesai/di-skip, lihat
+  // pbEndTour()) — biar user fokus ke tur, tidak tergoda pindah tab.
+  let navEl=document.querySelector('.nav');
+  if(navEl) navEl.classList.add('pb-tour-navhide');
   setTimeout(function(){ pbGoStep1(); },shell?120:0);
 }
 
@@ -12782,6 +12792,10 @@ function pbStartTour(force){
 function pbEndTour(){
   pbMarkTourDone();
   pbHideOverlay();
+  // Tur benar-benar selesai — tampilkan lagi nav Foto/Video/Riwayat/Panduan
+  // yang disembunyikan sejak pbStartTour().
+  let navEl=document.querySelector('.nav');
+  if(navEl) navEl.classList.remove('pb-tour-navhide');
 }
 // Cuma menyembunyikan tampilan tur (dipakai transisi antar-step,
 // termasuk "hilang total" di langkah 6→7) TANPA menandai tur sudah
@@ -12838,9 +12852,12 @@ function pbGoStep2(){
     +   '<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh 2 bahan</span></div>'
     +   '<div class="pb-flow-row">'
     +     '<div class="pb-flow-box">'
-    +       '<div class="pb-flow-thumb" data-label="Foto Karakter Sheet" onclick="pbFlowLightboxOpen(this)"><img src="'+PB_IMG_FLOW_KARAKTERSHEET+'" alt="Foto karakter sheet"></div>'
+    +       '<div style="position:relative;display:inline-block;">'
+    +         '<div class="pb-flow-thumb" id="pb-flow-ks-thumb" data-label="Foto Karakter Sheet" onclick="pbFlowLightboxOpen(this)"><img src="'+(pbKsFotoUploaded?pbKsFotoDataUrl:PB_IMG_FLOW_KARAKTERSHEET)+'" alt="Foto karakter sheet"></div>'
+    +         (pbKsFotoUploaded?'<div style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--surface2);"><svg class="icon" style="width:12px;height:12px;color:#08080A;"><use href="#ic-check"></use></svg></div>':'')
+    +       '</div>'
     +       '<div class="pb-flow-label">Foto Karakter Sheet</div>'
-    +       '<div class="pb-flow-sub">kita akan buat sama-sama</div>'
+    +       '<div class="pb-flow-sub'+(pbKsFotoUploaded?' pb-flow-sub-ai':'')+'">'+(pbKsFotoUploaded?'sudah dibuat':'kita akan buat sama-sama')+'</div>'
     +     '</div>'
     +     '<div class="pb-flow-box">'
     +       '<div style="position:relative;display:inline-block;">'
@@ -12853,7 +12870,7 @@ function pbGoStep2(){
     +   '</div>'
     + '</div>'
     + '<hr class="pb-flow-divider">'
-    + '<p style="margin-top:0;">'+(pbProdukFotoUploaded?'Oke, sekarang kita bakalan bikin foto karakter sheet buat kakak. Silahkan klik "Lanjut".':'Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.')+'</p>';
+    + '<p style="margin-top:0;">'+(pbProdukFotoUploaded&&pbKsFotoUploaded?'Oke, Sekarang kita udah punya 2 bahannya nih. Saatnya kita bikin FOTO AI.......':(pbProdukFotoUploaded?'Oke, sekarang kita bakalan bikin foto karakter sheet buat kakak. Silahkan klik "Lanjut".':'Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.'))+'</p>';
   pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep2Next);
 }
 // ── State: apakah foto produk sudah "disiapkan" lewat Langkah 3 baru
@@ -12863,17 +12880,29 @@ function pbGoStep2(){
 // Sheet) supaya user tidak diminta siapkan foto produk berkali-kali. ──
 var pbProdukFotoUploaded=false;
 var pbProdukFotoDataUrl=null;
+// ── State: apakah foto Karakter Sheet hasil unduhan Google Flow sudah
+// diupload lewat Langkah 4 (lihat pbStep4PhotoPicked). Begitu true,
+// thumbnail Foto Karakter Sheet di Langkah 2 diganti foto asli yang
+// diupload user + centang hijau, dan tombol "Lanjut" di Langkah 2 tidak
+// lagi membuka ulang modal Karakter Sheet. ────────────────────────
+var pbKsFotoUploaded=false;
+var pbKsFotoDataUrl=null;
 // Diklik dari tombol "Lanjut" di Langkah 2 — kalau foto produk belum
-// disiapkan, buka Langkah 3 baru (siapkan foto produk) dulu; kalau sudah,
-// LANGSUNG buka modal Karakter Sheet asli (lewat pbOpenCharacterSheetFromTour,
-// definisinya ada di bawah) — tidak lagi mampir ke modal tutorial "Ayuk
-// kakak, sekarang kita bakalan bikin foto karakter sheet AI" (fungsi lama
+// disiapkan, buka Langkah 3 baru (siapkan foto produk) dulu; kalau foto
+// produk sudah ada tapi foto Karakter Sheet belum, LANGSUNG buka modal
+// Karakter Sheet asli (lewat pbOpenCharacterSheetFromTour, definisinya
+// ada di bawah) — tidak lagi mampir ke modal tutorial "Ayuk kakak,
+// sekarang kita bakalan bikin foto karakter sheet AI" (fungsi lama
 // pbGoStep3/pbRenderStep3 di bawah — sengaja DIBIARKAN masih ada sebagai
 // referensi/kalau dibutuhkan lagi, tapi sudah tidak dipanggil dari alur
 // utama manapun). Begitu prompt Karakter Sheet disalin & user tekan
 // "Mengerti", tur lanjut ke Langkah 4 (lihat csCopyPrompt→csShowSavedNotif).
+// Kalau KEDUA bahan (produk + karakter sheet) sudah lengkap, untuk
+// sekarang tur diakhiri di sini — lanjutan "bikin Foto AI" belum dibuat.
 function pbGoStep2Next(){
-  if(pbProdukFotoUploaded){ pbOpenCharacterSheetFromTour(); } else { pbGoStep2b(); }
+  if(!pbProdukFotoUploaded){ pbGoStep2b(); }
+  else if(!pbKsFotoUploaded){ pbOpenCharacterSheetFromTour(); }
+  else { pbEndTour(); }
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
@@ -12993,7 +13022,7 @@ var PB_STEP3_ITEMS=[
     + '<p>Setelah kakak install nanti bakalan muncul tampilan kebijakan-kebijakannya, kakak tinggal centang aja sampai muncul seperti foto di bawah ini:</p>'
     + '<img src="'+PB_IMG_G1+'" alt="Tampilan Google Flow setelah setuju kebijakan">'
     + '<p>Setelah itu kakak tinggal klik +Baru.</p>',
-  '<p><strong style="color:var(--text);">2.</strong> Kemudian kakak tempel prompt karakter sheet yang sudah kakak salin tadi di tulisan "Apa yang ingin Anda buat?"</p>'
+  '<p><strong style="color:var(--text);">2.</strong> Kemudian kakak tempel prompt karakter sheet yang sudah kakak salin tadi, di tulisan "Apa yang ingin Anda buat?"</p>'
     + '<img src="'+PB_IMG_G6+'" alt="Tempel prompt di kolom Apa yang ingin Anda buat">',
   '<p><strong style="color:var(--text);">3.</strong> Setelah kakak tempel prompt-nya, sekarang kita edit sedikit ya. Klik "Gambar" sesuai dengan tampilan di bawah:</p>'
     + '<img src="'+PB_IMG_G7+'" alt="Klik opsi Gambar">',
@@ -13023,7 +13052,7 @@ function pbRenderStep3(){
   if(pbStep3Revealed>=1 && pbStep3Revealed<PB_STEP3_ITEMS.length){
     desc+='<button type="button" onclick="pbStep3RevealNext()" style="display:block;width:100%;background:var(--surface2);color:var(--text);font-weight:700;font-size:var(--fs-sm);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px 14px;margin:14px 0 0;cursor:pointer;text-align:center;">Sudah, lanjut ke langkah berikutnya</button>';
   }
-  pbShowModal(4,'Ayuk kakak, sekarang kita bakalan bikin foto karakter sheet AI',desc,'Lanjut',pbGoStep4);
+  pbShowModal(4,'Install Google Flow, dan kita mainkan!',desc,'Lanjut',pbGoStep4);
   // Tombol "Lanjut" tur cuma nongol begitu SEMUA butir (no.1–6) udah
   // kebuka (pbStep3Revealed sudah mentok di PB_STEP3_ITEMS.length) —
   // sebelum itu disembunyikan biar user gak salah tekan & malah
@@ -13039,7 +13068,7 @@ function pbStep3RevealNext(){
 }
 // ── LANGKAH 4 — upload foto hasil Karakter Sheet dari Google Flow ──
 function pbGoStep4(){
-  let desc = '<p style="margin-top:0;">Coba kakak unduh foto karakter sheet yang kakak buat di Google Flow, terus upload di sini ya — aku pengen lihat hasilnya!</p>'
+  let desc = '<p style="margin-top:0;">Foto karakter sheet yang telah kakak unduh, coba upload disini, aku pengen lihat.</p>'
     + '<input type="file" accept="image/*" id="pb-step4-photo-input" style="display:none;" onchange="pbStep4PhotoPicked(this)">'
     // FIX (dilaporkan user — klik icon kamera gak ngapa-ngapain): sebelumnya
     // pakai <label for="..."> buat mancing klik ke input file tersembunyi.
@@ -13069,20 +13098,29 @@ function pbGoStep4(){
     + '</div>'
     + '</div>'
     + '</div>';
-  pbShowModal(4,'Upload hasil Karakter Sheet-nya, yuk',desc,'Lanjut',pbGoStep5);
+  pbShowModal(4,'',desc,'Lanjut',pbGoStep5);
   let nextBtn=document.getElementById('pb-tour-next-btn');
   if(nextBtn) nextBtn.style.display='none';
 }
 // Dipanggil begitu user pilih file dari galeri lewat icon kamera di
-// Langkah 4. Fotonya sendiri SENGAJA tidak dibaca/ditampilkan — cuma
-// dipakai sebagai trigger buat urutan animasi: icon kamera hilang →
-// logo P nongol dalam keadaan terpisah → nyatu (kesannya loading) →
-// KARTU LANGKAH 4 DISEMBUNYIKAN → notifikasi premium bermerek muncul
-// menggantikan tulisan pujian, lalu lanjut otomatis ke Langkah 5.
+// Langkah 4. Fotonya DIBACA jadi data URL (supaya bisa dipakai gantiin
+// thumbnail "Foto Karakter Sheet" di Langkah 2 begitu user balik ke
+// sana), sekaligus dipakai sebagai trigger buat urutan animasi: icon
+// kamera hilang → logo P nongol dalam keadaan terpisah → nyatu (kesannya
+// loading) → KARTU LANGKAH 4 DISEMBUNYIKAN → notifikasi premium
+// bermerek muncul menggantikan tulisan pujian, lalu begitu tombol
+// "Lanjut" di notifikasi ditekan, tur balik ke Langkah 2 (lihat
+// pbStep4NotifTap()).
 function pbStep4PhotoPicked(input){
   let file=input.files&&input.files[0];
   if(!file)return;
   input.value='';
+  let reader=new FileReader();
+  reader.onload=function(e){
+    pbKsFotoDataUrl=e.target.result;
+    pbKsFotoUploaded=true;
+  };
+  reader.readAsDataURL(file);
   let camBtn=document.getElementById('pb-step4-photo-btn');
   if(camBtn) camBtn.classList.add('hidden');
   let logoWrap=document.getElementById('pb-step4-logo-wrap');
@@ -13138,16 +13176,18 @@ function pbStep4ShowSuccessNotif(){
   if(timeEl) timeEl.textContent='sekarang';
   notif.classList.add('show');
 }
-// Dipanggil HANYA saat user tap tombol CTA di notifikasi — menutup
-// notifikasi lalu melanjutkan tur ke Langkah 5.
+// Dipanggil HANYA saat user tap tombol CTA "Lanjut" di notifikasi —
+// menutup notifikasi lalu tur BALIK ke Langkah 2 (bukan lanjut ke
+// Langkah 5) supaya user lihat foto Karakter Sheet yang baru diupload
+// sudah menggantikan thumbnail-nya di diagram Langkah 2.
 function pbStep4NotifTap(){
   let notif=document.getElementById('pb-premium-notif');
   if(notif) notif.classList.remove('show');
   // Jaga-jaga: pastikan backdrop tur tetap "show" (harusnya memang sudah,
-  // karena tidak lagi dilepas saat notifikasi tampil) supaya Langkah 5
+  // karena tidak lagi dilepas saat notifikasi tampil) supaya Langkah 2
   // dst normal seperti biasa.
   document.getElementById('pb-tour-backdrop').classList.add('show');
-  pbGoStep5();
+  pbGoStep2();
 }
 // ── LIGHTBOX diagram Langkah 2 — buka preview lebih besar saat salah
 // satu kotak (karakter sheet/produk/foto AI/video AI) di-tap. `el` yang
