@@ -1418,14 +1418,14 @@ body input, body textarea, body [contenteditable="true"]{
 .pb-tour-skip:active{opacity:0.7;}
 .pb-tour-next{font-size:var(--fs-sm);font-weight:700;color:var(--bg);background:var(--accent);border:none;border-radius:var(--radius-pill);padding:8px 16px;cursor:pointer;}
 .pb-tour-next:active{opacity:0.85;}
-/* ── TOUR — versi sederhana Langkah 5 (Subjek Foto): sembunyikan
-   deskripsi tiap kartu subjek (Perempuan/Laki-laki/Produk Saja) supaya
-   cuma judulnya yang kelihatan, dan buram-kan elemen lain di halaman
-   (judul "Builder Prompt Foto", kartu Karakter Sheet, link "Punya
-   prompt lama") biar fokus user cuma ke kartu Subjek Foto. Dipasang di
-   pbGoStep5(), dilepas lagi di pbTourResetF0Ui() begitu subjek dipilih
-   atau tur di-skip. ────────────────────────────────────────────── */
-#f0.pb-tour-f0-simple .sk-desc{display:none;}
+/* ── TOUR — Langkah 5 (Subjek Foto), versi baru: TIDAK ADA lagi kartu
+   instruksi maupun kotak sorot (spotlight) kuning di langkah ini —
+   satu-satunya penanda "fokus di sini" adalah blur pada elemen lain di
+   halaman (judul "Builder Prompt Foto", kartu Karakter Sheet, link
+   "Punya prompt lama") lewat body.pb-tour-blur-context di bawah. Kartu
+   Subjek Foto sendiri TIDAK disederhanakan lagi — tampil apa adanya,
+   sama seperti di luar tur. Dipasang di pbGoStep5(), dilepas lagi di
+   pbTourResetF0Ui() begitu subjek dipilih atau tur di-skip. ────────── */
 body.pb-tour-blur-context .sec-title,
 body.pb-tour-blur-context .sec-desc,
 body.pb-tour-blur-context #cs-entry-btn,
@@ -13311,44 +13311,47 @@ function pbFlowLightboxClose(){
   document.getElementById('pb-flow-lightbox').classList.remove('show');
   document.getElementById('pb-flow-lightbox-video').pause();
 }
-// ── LANGKAH 5 — interaktif, pilih subjek (f0), VERSI SEDERHANA ───
-// Sengaja disederhanakan dari tampilan f0 aslinya SELAMA tur masih
-// aktif di step ini: deskripsi tiap kartu (Perempuan/Laki-laki/Produk
-// Saja) disembunyikan, kartu "Produk Saja" dibekukan (cuma 2 opsi yang
-// bisa dipilih user di sini), elemen lain di halaman (judul "Builder
-// Prompt Foto", kartu Karakter Sheet, link "Punya prompt lama") ikut
-// diburamkan biar fokus user cuma ke 3 kartu subjek. Semua perubahan
-// ini di-revert lagi di pbTourResetF0Ui() begitu subjek dipilih (lewat
-// pbArmDoneWait('f0',...) di bawah) atau tur di-skip (lihat
-// pbHideOverlay()) — di luar tur, tampilan f0 kembali seperti biasa.
+// ── LANGKAH 5+6 (DIGABUNG) — user pilih subjek foto (f0), lalu LANGSUNG
+// lanjut isi foto referensi (f1), TANPA kartu instruksi tur & TANPA
+// kotak sorot (spotlight) kuning di titik mana pun — dari sudut pandang
+// user ini satu alur menerus (masih disebut "Langkah 5" secara internal,
+// f1 TIDAK lagi punya kartu/label "Langkah 6" sendiri). Blur pada elemen
+// lain di halaman (lewat body.pb-tour-blur-context) dipasang begitu masuk
+// f0 dan TETAP menyala selama transisi ke f1 — baru dilepas di akhir,
+// begitu foto referensi juga selesai (lihat pbTourResetF1Ui()).
+// Tampilan kartu Subjek Foto sendiri (termasuk deskripsi tiap opsi
+// Perempuan/Laki-laki/Produk Saja) dibiarkan APA ADANYA seperti kalau
+// user TIDAK sedang dalam tur. SATU pengecualian: "Produk Saja" TETAP
+// dibekukan selama f0 (cuma Perempuan/Laki-laki yang relevan buat alur
+// onboarding karakter sheet).
 function pbGoStep5(){
-  pbShowInteractive(5,'Pilih karakter AI kakak','Udah siapkan foto wajah sama foto produk kan? Nah sekarang kakak pilih jenis kelamin karakter AI kakak sesuai foto wajah yang kakak siapkan.','#f0');
+  pbDisarmDoneWait();
+  clearInterval(pbGenPollTimer);pbGenPollTimer=null;
+  clearInterval(pbCopyPollTimer);pbCopyPollTimer=null;
+  window.removeEventListener('resize',pbRepositionCurrent);
+  let shellEl=document.getElementById('app-shell');
+  if(shellEl) shellEl.removeEventListener('scroll',pbRepositionCurrent);
+  document.getElementById('pb-tour-backdrop').classList.remove('show','pb-passive');
+  document.getElementById('pb-tour-spot').classList.remove('show','pb-airy');
+  document.getElementById('pb-tour-card').classList.remove('show');
   document.body.classList.add('pb-tour-blur-context');
-  let f0=document.getElementById('f0');
-  if(f0) f0.classList.add('pb-tour-f0-simple');
-  let descEl=document.getElementById('f0-desc-text');
-  if(descEl) descEl.textContent='Jenis kelamin foto karakter sheet kakak apa?';
-  // "Produk Saja" dibekukan dulu di langkah ini — cuma Perempuan/
-  // Laki-laki yang relevan buat alur onboarding (karakter sheet).
   pbLockChip('#sk-produk');
   pbArmDoneWait('f0',function(){
     pbTourResetF0Ui();
     pbGoStep6();
   });
 }
-// Kembalikan tampilan f0 seperti semula (dipanggil begitu subjek
-// dipilih & tur lanjut ke Langkah 6, ATAU dari pbHideOverlay() kalau
-// tur di-skip persis waktu Langkah 5 masih aktif).
+// Kembalikan chip "Produk Saja" (dipanggil begitu subjek dipilih & alur
+// lanjut ke foto referensi, ATAU dari pbHideOverlay() kalau tur di-skip
+// persis waktu f0 masih aktif). Blur latar SENGAJA TIDAK dilepas di sini
+// — tetap menyala sampai foto referensi (f1) juga selesai, lihat
+// pbTourResetF1Ui().
 function pbTourResetF0Ui(){
-  document.body.classList.remove('pb-tour-blur-context');
-  let f0=document.getElementById('f0');
-  if(f0) f0.classList.remove('pb-tour-f0-simple');
-  let descEl=document.getElementById('f0-desc-text');
-  if(descEl) descEl.textContent='Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.';
   pbUnlockChip('#sk-produk');
 }
-// ── LANGKAH 6 — interaktif, foto referensi & outfit (f1), VERSI
-// SEDERHANA. Dibuka OTOMATIS begitu doneCard('f0') beneran terpanggil
+// ── LANJUTAN LANGKAH 5 — foto referensi & outfit (f1), VERSI SEDERHANA,
+// masih bagian dari alur yang sama (TANPA kartu/label/spotlight
+// terpisah). Dipanggil OTOMATIS begitu doneCard('f0') beneran terpanggil
 // (user sudah pilih & konfirmasi subjek) — bukan lewat tombol tur.
 // Sengaja disederhanakan SELAMA tur masih aktif di step ini: banner
 // "Cek HP dulu" & chip "Objek" disembunyikan total (bukan cuma
@@ -13356,9 +13359,11 @@ function pbTourResetF0Ui(){
 // ditambahkan otomatis begitu step ini terbuka (user tidak perlu klik
 // sendiri), chip "Outfit" (foto) tetap dikunci, dan tanda "+" pada
 // "Isi Outfit Karakter" dilepas. Direvert lagi di pbTourResetF1Ui().
+// Begitu foto referensi selesai diisi & doneCard('f1') terpanggil, tur
+// SELESAI (pbEndTour()) — belum ada langkah lanjutan (dulu Langkah
+// 7–10) untuk sekarang.
 var pbTourF1Active=false;
 function pbGoStep6(){
-  pbShowInteractive(6,'Masukkan foto & outfit','Nah sekarang kakak tinggal klik Karakter Sheet buat pakai foto wajah yang kakak siapkan, isi nama produk sesuai foto kakak di galeri, dan kalau mau, isi juga outfit karakter sesuai selera kakak. Kemudian lanjut.','#f1');
   pbTourF1Active=true;
   let f1=document.getElementById('f1');
   if(f1) f1.classList.add('pb-tour-f1-simple');
@@ -13379,13 +13384,15 @@ function pbGoStep6(){
   }
   pbArmDoneWait('f1',function(){
     pbTourResetF1Ui();
-    pbGoStep7();
+    pbEndTour();
   });
 }
-// Kembalikan tampilan f1 seperti semula (dipanggil begitu foto
-// referensi selesai & tur lanjut ke Langkah 7, ATAU dari
-// pbHideOverlay() kalau tur di-skip persis waktu Langkah 6 aktif).
+// Kembalikan tampilan f1 seperti semula DAN lepas blur latar (yang
+// dipasang sejak f0 tadi) — dipanggil begitu foto referensi selesai &
+// tur berakhir, ATAU dari pbHideOverlay() kalau tur di-skip persis
+// waktu f0/f1 masih aktif.
 function pbTourResetF1Ui(){
+  document.body.classList.remove('pb-tour-blur-context');
   pbTourF1Active=false;
   let f1=document.getElementById('f1');
   if(f1) f1.classList.remove('pb-tour-f1-simple');
@@ -13427,89 +13434,6 @@ function pbUnlockChip(sel){
     }
   };
 })();
-// ── LANGKAH 7 — fase A: modal penjelasan cara tampil produk ──────
-// Dibuka OTOMATIS begitu doneCard('f1') terpanggil (user sudah
-// selesai isi foto referensi & tekan "Lanjut →" bawaan step itu).
-function pbGoStep7(){
-  pbShowModal(7,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','Lanjut',pbGoStep7Reveal);
-}
-// ── LANGKAH 7 — fase B: interaktif, sorot card Produk (f3) ───────
-// Nomor langkah TETAP 7 (masih konten yang sama), cuma modenya
-// pindah dari modal ke interaktif begitu user tekan "Lanjut".
-function pbGoStep7Reveal(){
-  // FIX: sebelumnya menyorot '#f2' — card itu SENGAJA disembunyikan permanen
-  // (style="display:none!important", lihat komentar "F2: PRODUK —
-  // disembunyikan dari UI" di HTML-nya), jadi ukurannya selalu 0×0 dan
-  // spotlight-nya nongol sebagai kotak/dot kecil nyasar, bukan menyorot
-  // card "Cara Tampil Produk" yang sungguhan dilihat & diisi user (itu
-  // card '#f3' — cek chip Dipakai/Hanger/Dipegang & doneCard('f3',...) di
-  // fPickHold/fPickHoldCustom). Target & id wait dibetulkan ke f3.
-  pbShowInteractive(7,'Cara produk ditampilkan','Kemudian kakak pilih aja produk kakak ingin ditampilkan gimana, misal produk kakak tas, kakak bisa pilih aja dipakai ke karakter, atau kakak bisa isi sendiri sesuai selera.','#f3');
-  pbArmDoneWait('f3',pbGoStep8);
-}
-// ── LANGKAH 8 — modal, "lanjut sampai selesai" ───────────────────
-// Dibuka OTOMATIS begitu doneCard('f3') terpanggil (user sudah
-// pilih cara tampil produk & konfirmasi).
-function pbGoStep8(){
-  pbShowModal(8,'Lanjut sampai selesai','Sekarang dan seterusnya kakak tinggal ikutin aja ya sampai selesai, pilih aja sesuai selera kakak, oke?','Lanjut',pbGoHideUntilGenerate);
-}
-// Begitu user tekan "Lanjut" di langkah 8: tur HILANG TOTAL (bukan
-// cuma ganti step) supaya tidak mengganggu sisa wizard, lalu mulai
-// mengintai kemunculan tombol Generate Prompt.
-function pbGoHideUntilGenerate(){
-  pbHideOverlay();
-  clearInterval(pbGenPollTimer);
-  pbGenPollTimer=setInterval(function(){
-    let btn=document.getElementById('f-gen-btn');
-    if(btn && btn.offsetParent!==null){
-      clearInterval(pbGenPollTimer);pbGenPollTimer=null;
-      pbGoStep9();
-    }
-  },400);
-}
-// ── LANGKAH 9 — tombol Generate sudah muncul, tur balik lagi ─────
-function pbGoStep9(){
-  document.getElementById('pb-tour-backdrop').classList.add('show');
-  let el=document.getElementById('f-gen-btn');
-  let targetEl=(el&&el.offsetParent!==null)?el:null;
-  pbSetPassive(false); // step penutup, blocking spt tur versi lama
-  pbSetLabel(9);
-  pbSetText('Generate & salin','Wah udah ya kak? Nah sekarang klik tombol Generate Prompt.');
-  let btn=document.getElementById('pb-tour-next-btn');
-  btn.style.display='';
-  btn.textContent='Lanjut';
-  btn.onclick=pbGoWaitForCopyBtn;
-  pbCurrentSelector=targetEl?'#f-gen-btn':null;
-  if(targetEl) pbScrollToTarget(targetEl);
-  setTimeout(function(){ pbPositionSpot(targetEl); },targetEl?320:0);
-  window.addEventListener('resize',pbRepositionCurrent);
-  let shell=document.getElementById('app-shell');
-  if(shell) shell.addEventListener('scroll',pbRepositionCurrent);
-}
-// Begitu user tekan "Lanjut" di langkah 9: tur HILANG SEMENTARA
-// (sama seperti transisi langkah 8→9) supaya tidak mengganggu user
-// klik Generate, lalu mulai mengintai kemunculan prompt/JSON hasil
-// generate (menandakan tombol Salin JSON sudah tampil).
-function pbGoWaitForCopyBtn(){
-  pbHideOverlay();
-  clearInterval(pbCopyPollTimer);
-  pbCopyPollTimer=setInterval(function(){
-    let btn=document.getElementById('f-copy-btn');
-    if(btn && btn.offsetParent!==null){
-      clearInterval(pbCopyPollTimer);pbCopyPollTimer=null;
-      pbGoStep10();
-    }
-  },400);
-}
-// ── LANGKAH 10 — arahkan ke tombol Salin JSON, tunggu user beneran
-// klik tombolnya (bukan tombol "Lanjut" tur), lalu tur SELESAI —
-// panduan Google Flow sudah ditunjukkan lebih awal di langkah 3 ──
-function pbGoStep10(){
-  pbShowInteractive(10,'Klik Salin','Sekarang klik salin.','#f-copy-btn');
-  pbWaitingCopyClick=true;
-}
-
-// ── Helper generik: render step MODAL (tengah layar, blocking,
 // tombol "Lanjut" tur yang manual) ───────────────────────────────
 function pbShowModal(n,title,desc,btnLabel,onNext){
   pbCurrentSelector=null;
