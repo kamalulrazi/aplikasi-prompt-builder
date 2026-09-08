@@ -3828,6 +3828,7 @@ function doneCard(id,ansId,text){
               VB_BULK_ITEMS=[];
               VB_CARD_TAMPIL={};
               VB_CARD_LOKASI={};
+              VB_CARD_FOTOCOUNT={};
               _doOpenEdit();
             },null,'Ya, Ubah & Hapus Hasil');
           }else{
@@ -9066,6 +9067,24 @@ const VB_LOKASI_OPTS=[
 function _vbLokasiText(idx){
   return (VB_CARD_LOKASI[idx]&&VB_CARD_LOKASI[idx].text)||'';
 }
+
+// FITUR BARU: "Jumlah Foto Produk" per kartu script (khusus Mode 3), lewat
+// panel "Tampilan" yang sama dengan "Cara Tampil Produk" di atas. Sebelumnya
+// jumlah foto referensi produk yang disebut di instructionText (foto referensi
+// 2/2,3/2,3,4 dst) SELALU ikut jumlah foto yang BENAR-BENAR diupload di panel
+// kamera dekat "Nama Produk" (vbProdukFotoCount()) — user tidak bisa
+// menimpanya per kartu. Sekarang user bisa pilih angka 1-5 di sini; kalau
+// dipilih, angka itu MENGGANTIKAN vbProdukFotoCount() khusus untuk kartu ini
+// saja (kartu lain & jumlah foto yang benar-benar diupload tidak berubah).
+// Key = idx kartu, sama polanya seperti VB_CARD_TAMPIL/VB_CARD_LOKASI —
+// direset bareng di semua titik reset sesi yang sama.
+let VB_CARD_FOTOCOUNT={};
+// Helper kecil: ambil angka jumlah foto produk override untuk kartu ke-idx
+// (0/undefined kalau user belum pilih apa-apa untuk kartu itu — berarti pakai
+// vbProdukFotoCount() apa adanya, sama seperti sebelum fitur ini ada).
+function _vbFotoCountVal(idx){
+  return VB_CARD_FOTOCOUNT[idx]||0;
+}
 let VB_BULK_PRODUCTS=[]; // {nama, keunggulan, fotoBase64, fotoMime} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
 
 // Override foto SEMENTARA khusus panel Revisi 1 produk, keyed by prodIdx —
@@ -10300,6 +10319,7 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
   VB_CARD_LOKASI={};
+  VB_CARD_FOTOCOUNT={};
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   // Panel revisi dibangun ULANG dari nol di bawah (prodIdx bisa menunjuk ke
   // produk yang berbeda dari sebelumnya kalau ada yang di-drop AI) — buang
@@ -10547,7 +10567,7 @@ function _vbUpdateProductCards(prodIdx,p){
     let scriptText=_vbTruncate25Words(p[roleKey]||'');
     if(ta)ta.value=scriptText;
     if(VB_BULK_ITEMS[idx]){VB_BULK_ITEMS[idx].script=scriptText;VB_BULK_ITEMS[idx].produk=p.produk||VB_BULK_ITEMS[idx].produk;}
-    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''),_vbTampilText(idx),_vbLokasiText(idx));
+    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''),_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
     if(wcLabel){let wc=scriptText.trim().split(/\s+/).filter(Boolean).length;wcLabel.textContent=wc+'/25 kata';wcLabel.style.color=wc===25?'var(--green)':'var(--muted2)';}
   });
   let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
@@ -10988,7 +11008,7 @@ function vbApplyMetadataOnly(s){
     let ta=document.getElementById('vb-bulk-script-'+idx);
     let jsonBox=document.getElementById('vb-bulk-json-'+idx);
     if(!ta||!jsonBox)continue;
-    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx),_vbLokasiText(idx));
+    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
   }
   // FIX BUG#20b (sama akar masalahnya dengan BUG#20 di vbRevisiProdukAI):
   // update metadata (suara/target audience) di sini mengubah JSON yang
@@ -11144,7 +11164,7 @@ function vbBulkUpdateJson(i){
   }
   if(VB_BULK_ITEMS[i])VB_BULK_ITEMS[i].script=ta.value;
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
-  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i));
+  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i),_vbFotoCountVal(i));
   if(wcLabel){wcLabel.textContent=words.length+'/25 kata';wcLabel.style.color=words.length===25?'var(--green)':'var(--muted2)';}
 }
 
@@ -11522,7 +11542,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   // displayScript = apa yang tampil di textarea/JSON/counter SAAT kartu
   // pertama dibangun. Kosong kalau mau dianimasikan ketik, penuh kalau tidak.
   let displayScript=skipInitialFill?'':initialScript;
-  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx),_vbLokasiText(idx));
+  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
   let card=document.createElement('div');
   card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;';
 
@@ -11691,6 +11711,45 @@ function _vbFillTampilPanel(idx,panelEl){
   clearChip.textContent='Tidak ditentukan';
   clearChip.onclick=(function(ii){return function(){vbPickTampilProduk(ii,'','','');};})(idx);
   panelEl.appendChild(clearChip);
+
+  // FITUR BARU: "Jumlah Foto Produk" — baris terpisah di bawah chip Cara
+  // Tampil Produk, di dalam panel yang sama (dibuka lewat tombol "Tampilan"
+  // yang sama juga). Pilih angka 1-5 di sini langsung mengubah penomoran
+  // "foto referensi 2,3,..." dan "Manfaatkan ke-N foto" di JSON kartu ini
+  // TANPA perlu upload ulang foto di panel "Nama Produk".
+  let fcWrap=document.createElement('div');
+  fcWrap.style.cssText='width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);';
+  let fcLabel=document.createElement('div');
+  fcLabel.style.cssText='font-size:var(--fs-2xs);color:var(--muted);width:100%;margin-bottom:2px;';
+  fcLabel.textContent='Jumlah Foto Produk (foto referensi 2 dst.)';
+  fcWrap.appendChild(fcLabel);
+  let currentFc=_vbFotoCountVal(idx);
+  [1,2,3,4,5].forEach(function(n){
+    let chip=document.createElement('div');
+    chip.className='chip'+(currentFc===n?' sel':'');
+    chip.style.cssText='font-size:var(--fs-2xs);padding:6px 10px;min-width:28px;text-align:center;';
+    chip.textContent=String(n);
+    chip.onclick=(function(ii,nn){return function(){vbPickFotoCount(ii,nn);};})(idx,n);
+    fcWrap.appendChild(chip);
+  });
+  let fcClearChip=document.createElement('div');
+  fcClearChip.className='chip'+(currentFc?'':' sel');
+  fcClearChip.style.cssText='font-size:var(--fs-2xs);padding:6px 10px;color:var(--muted);';
+  fcClearChip.textContent='Ikuti foto asli';
+  fcClearChip.onclick=(function(ii){return function(){vbPickFotoCount(ii,0);};})(idx);
+  fcWrap.appendChild(fcClearChip);
+  panelEl.appendChild(fcWrap);
+}
+
+// User pilih (atau hapus, kalau count=0) angka jumlah foto produk untuk kartu
+// ke-idx — langsung mengubah penomoran "foto referensi ..." dan "Manfaatkan
+// ke-N foto" di JSON kartu ini saja, sama seperti vbPickTampilProduk di atas.
+function vbPickFotoCount(idx,count){
+  if(count){VB_CARD_FOTOCOUNT[idx]=count;}
+  else{delete VB_CARD_FOTOCOUNT[idx];}
+  let panel=document.getElementById('vb-tampil-panel-'+idx);
+  if(panel){_vbFillTampilPanel(idx,panel);}
+  vbBulkUpdateJson(idx); // rebuild JSON kartu ini — sama seperti oninput textarea
 }
 
 // Buka/tutup panel "Cara Tampil Produk" milik kartu ke-idx.
@@ -11794,7 +11853,7 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
   let blocks=VB_BULK_ITEMS.map(function(item,idx){
     let plainLabel=String(item.roleLabel||'').replace(/<[^>]*>/g,'').trim();
-    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx),_vbLokasiText(idx));
+    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
     return '// '+plainLabel+(item.produk?' — '+item.produk:'')+'\n'+jsonText;
   });
   historyAdd('video',sessionLabel,blocks.join('\n\n---\n\n'));
@@ -11812,6 +11871,7 @@ function _vbRenderMultiOutputLive(produkNamaForHistory){
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
   VB_CARD_LOKASI={};
+  VB_CARD_FOTOCOUNT={};
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -11842,6 +11902,7 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate){
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
   VB_CARD_LOKASI={};
+  VB_CARD_FOTOCOUNT={};
   VB_SINGLE_REVISI_BACKUP=null; // sesi generate baru — backup revisi lama sudah tidak relevan
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   let multiWrap=document.getElementById('vb-multi-output');
@@ -11960,7 +12021,7 @@ function _vbEsc(s){
     .replace(/\t/g,'\\t')
     .replace(/[\u0000-\u001F]/g,function(ch){return '\\u'+ch.charCodeAt(0).toString(16).padStart(4,'0');});
 }
-function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride){
+function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride,fotoCountOverride){
   let accentFull='Natural Indonesian intonation, '+VB.accent;
   let instructionText;
   if(VB.refMode==='kp'){
@@ -11983,12 +12044,17 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // samping Nama Produk, state di VB.produkFotoBase64+VB.produkFotoExtra) —
     // nomor foto referensi produk di teks JSON menyesuaikan jumlah foto yang
     // benar-benar diisi, foto referensi 1 tetap selalu karakter.
-    let produkFotoTotal=Math.max(1,vbProdukFotoCount());
+    // FITUR BARU: kalau user pilih "Jumlah Foto Produk" khusus untuk kartu ini
+    // (lewat panel Tampilan, lihat VB_CARD_FOTOCOUNT/_vbFotoCountVal), angka
+    // itu dipakai DULUAN — menggantikan vbProdukFotoCount() (jumlah foto yang
+    // BENAR-BENAR diupload) khusus untuk kartu ini. Kartu lain yang belum
+    // diisi tetap ikut jumlah foto asli yang diupload, seperti sebelumnya.
+    let produkFotoTotal=Math.max(1,fotoCountOverride||vbProdukFotoCount());
     let produkRefNums=[];
     for(let n=2;n<=1+produkFotoTotal;n++)produkRefNums.push(n);
     let produkRefLabel=produkRefNums.join(',');
     let jumlahFotoTotal=1+produkFotoTotal;
-    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi '+produkRefLabel+' adalah produk yaitu '+produkForRef+'. Manfaatkan ke-'+jumlahFotoTotal+' foto tersebut untuk membuat sebuah video. Lokasi: '+lokasiForCard+'. Lighting: '+VB.mode3Lighting+'. ';
+    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi '+produkRefLabel+' adalah produk yaitu '+produkForRef+' (cukup ambil produknya saja, abaikan elemen lain yang ada di foto tersebut). Manfaatkan ke-'+jumlahFotoTotal+' foto tersebut untuk membuat sebuah video. Lokasi: '+lokasiForCard+'. Lighting: '+VB.mode3Lighting+'. Jangan pernah membuat atau menampilkan sesuatu yang tidak ditampilkan dalam foto referensi yang dilampirkan (misalnya membuka isi '+produkForRef+' kalau memang di foto tidak pernah terlihat isinya). ';
     // FITUR BARU: "Cara Tampil Produk" per kartu (tombol kecil di kartu
     // Hook/Story/CTA, khusus Mode 3 — lihat _vbBuildEditableCard &
     // VB_TAMPIL_PRODUK_OPTS) — kalau user sudah pilih salah satu opsi untuk
@@ -12080,6 +12146,7 @@ function vbReset(){
     VB_BULK_ITEMS=[];
     VB_CARD_TAMPIL={};
     VB_CARD_LOKASI={};
+    VB_CARD_FOTOCOUNT={};
     vbUpdateProgress(1,'Mode Referensi Foto');
     // FIX BUG#1: sama seperti saat init — vbUpdateProgress(1,...) hitung 20%,
     // override balik ke 0% karena user baru saja reset (belum isi apa-apa).
