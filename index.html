@@ -3162,12 +3162,25 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
         <div class="inp-wrap" style="margin-bottom:8px;">
           <input class="inp" id="vb-target-audience" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang peduli skincare" />
         </div>
-        <button type="button" id="vb-topik-toggle" onclick="vbToggleTopik()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-bottom:12px;">+ Arah pembahasan (opsional)</button>
+        <button type="button" id="vb-topik-toggle" onclick="vbToggleTopik()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-bottom:12px;">+ Atur detail (opsional)</button>
         <div id="vb-topik-box" class="hidden" style="margin-bottom:12px;">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Arah Pembahasan</label>
           <div class="inp-wrap">
             <input class="inp" id="vb-topik-input" maxlength="150" placeholder="Contoh: tas yang dipakai kalangan atas" />
           </div>
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kasih tahu AI mau ngebahas soal apa spesifiknya — kosongkan kalau mau AI bebas nentukan sendiri.</p>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 14px;">Kasih tahu AI mau ngebahas soal apa spesifiknya — kosongkan kalau mau AI bebas nentukan sendiri.</p>
+
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Atur Hook</label>
+          <div id="vb-hook-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+            <div class="chip" id="vb-hook-psikologis" onclick="vbPickHook('psikologis',this,'Hook Psikologis')" style="min-height:36px;padding:6px 12px;font-size:var(--fs-xs2);">Hook Psikologis</div>
+            <div class="chip" id="vb-hook-murah" onclick="vbPickHook('murah',this,'Hook Harga Murah')" style="min-height:36px;padding:6px 12px;font-size:var(--fs-xs2);">Hook Harga Murah</div>
+            <div class="chip" id="vb-hook-heboh" onclick="vbPickHook('heboh',this,'Hook Super Heboh')" style="min-height:36px;padding:6px 12px;font-size:var(--fs-xs2);">Hook Super Heboh</div>
+            <div class="chip" id="vb-hook-custom" onclick="vbPickHook('custom',this,'Isi Sendiri')" style="min-height:36px;padding:6px 12px;font-size:var(--fs-xs2);">Isi Sendiri</div>
+          </div>
+          <div id="vb-hook-custom-box" class="hidden" style="margin-top:8px;">
+            <input class="inp" id="vb-hook-custom-input" maxlength="150" placeholder="Contoh: hook yang bikin penasaran soal isi paketnya" />
+          </div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Tentukan gaya HOOK pembuka — kosongkan (jangan pilih apapun) kalau mau AI bebas nentukan sendiri.</p>
         </div>
         <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Buatkan 3 Script + JSON dengan AI</button>
         <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">AI otomatis buat 3 script sekaligus (Hook, Cerita Produk, CTA) — masing-masing 25 kata, langsung jadi 3 prompt JSON siap pakai.</p>
@@ -3797,6 +3810,7 @@ function doneCard(id,ansId,text){
               _mo.innerHTML='';
               VB_BULK_ITEMS=[];
               VB_CARD_TAMPIL={};
+              VB_CARD_LOKASI={};
               _doOpenEdit();
             },null,'Ya, Ubah & Hapus Hasil');
           }else{
@@ -8487,7 +8501,7 @@ function historyRender(){
 // ============================================================
 // VIDEO BUILDER — Reference + Dialogue (voice_character)
 // ============================================================
-let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:''};
+let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',hookType:'',hookTypeLabel:''};
 
 // ── FOTO REFERENSI PRODUK (untuk bantu AI bikin script sesuai produk asli) ──
 // Foto kamera HP sering beberapa MB — kalau dikirim mentah ke Gemini bisa
@@ -8756,8 +8770,28 @@ function vbToggleTopik(){
   let btn=document.getElementById('vb-topik-toggle');
   let opening=box.classList.contains('hidden');
   box.classList.toggle('hidden');
-  if(btn)btn.textContent=opening?'– Sembunyikan arah pembahasan':'+ Arah pembahasan (opsional)';
+  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur detail (opsional)';
   if(opening)document.getElementById('vb-topik-input').focus();
+}
+
+// Pilih gaya Hook pembuka (opsional) di mode Skrip dibantu AI (single produk).
+// Klik ulang chip yang sudah aktif = batalkan pilihan (balik ke default bebas AI).
+function vbPickHook(val,el,label){
+  let already=el.classList.contains('sel');
+  document.querySelectorAll('#vb-hook-chips .chip').forEach(c=>c.classList.remove('sel'));
+  let customBox=document.getElementById('vb-hook-custom-box');
+  if(already){
+    VB.hookType='';VB.hookTypeLabel='';
+    if(customBox)customBox.classList.add('hidden');
+    return;
+  }
+  el.classList.add('sel');
+  VB.hookType=val;VB.hookTypeLabel=label;
+  if(val==='custom'){
+    if(customBox){customBox.classList.remove('hidden');document.getElementById('vb-hook-custom-input').focus();}
+  }else{
+    if(customBox)customBox.classList.add('hidden');
+  }
 }
 function vbPickGender(val,label){
   document.querySelectorAll('#vb-gender-chips .chip').forEach(c=>c.classList.remove('sel'));
@@ -8909,6 +8943,25 @@ const VB_TAMPIL_PRODUK_OPTS=[
 // (kosong kalau user belum pilih apa-apa untuk kartu itu).
 function _vbTampilText(idx){
   return (VB_CARD_TAMPIL[idx]&&VB_CARD_TAMPIL[idx].text)||'';
+}
+
+// FITUR BARU: "Atur Detail" → Lokasi per kartu script (khusus Mode 3), supaya
+// user bisa timpa lokasi PER HOOK/STORY/CTA (bukan cuma 1 lokasi buat semua
+// produk & semua kartu dari step "Lokasi" awal). Pola & lifecycle sama persis
+// seperti VB_CARD_TAMPIL di atas (key = idx kartu, direset bareng tiap render
+// baru & di vbReset()). Kosong = pakai VB.mode3Lokasi (default 1 sesi) apa adanya.
+let VB_CARD_LOKASI={};
+const VB_LOKASI_OPTS=[
+  ['ruang tamu mewah','Ruang tamu mewah'],
+  ['kamar tidur estetik','Kamar tidur estetik'],
+  ['dapur minimalis modern','Dapur minimalis'],
+  ['taman outdoor rumah','Taman outdoor'],
+  ['cafe estetik','Cafe estetik']
+];
+// Helper kecil: ambil teks lokasi override untuk kartu ke-idx (kosong kalau
+// user belum pilih apa-apa untuk kartu itu — berarti pakai VB.mode3Lokasi).
+function _vbLokasiText(idx){
+  return (VB_CARD_LOKASI[idx]&&VB_CARD_LOKASI[idx].text)||'';
 }
 let VB_BULK_PRODUCTS=[]; // {nama, keunggulan, fotoBase64, fotoMime} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
 
@@ -9668,7 +9721,7 @@ function _vbDetectSapaan(targetAudience){
   if(/\bsis\b|\bsista\b/.test(ta)) return 'sis';
   return 'kalian';
 }
-async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial){
+async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks){
   // Tandai produk yang punya foto referensi dengan nomor urut gambar
   // (Gambar 1, Gambar 2, dst — cuma dihitung dari produk yang benar-benar
   // punya foto, urut sesuai posisinya di batch ini) supaya AI tahu foto
@@ -9691,6 +9744,15 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
     +'Daftar produk ('+batch.length+' produk) — nama produk di bawah ini HANYA supaya kamu paham jenis/konteks tiap produk (dipakai buat referensi internal), BUKAN teks yang wajib disalin persis apa adanya ke dalam script — terutama kalau nama produknya berupa deskripsi/kalimat panjang (bukan nama baku singkat), tulis ulang dengan bahasa natural sendiri yang tetap jelas merujuk ke jenis produknya, jangan asal tempel teks aslinya. Kalau ada info "keunggulan", manfaatkan di script STORY biar spesifik dan meyakinkan:\n'+produkListText+'\n\n'
     +(_imgCounter>0?'Foto-foto yang dilampirkan supaya kamu tahu PERSIS jenis/tipe tiap produk (biar tidak salah asumsi generik soal jenis produknya). BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 5 di bawah, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto. Untuk produk yang TIDAK punya foto terlampir, tetap buat script berdasarkan nama & keunggulan seperti biasa (tanpa detail visual mengarang).\n\n':'')
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
+    // FIX (permintaan user: hook antar produk masih kedengaran "tempelan"
+    // kalau jumlah produk bulk lebih dari BATCH_SIZE=3, karena tiap panggilan
+    // batch cuma tahu HOOK di batch-nya sendiri — batch ke-2/3/4 dst tidak
+    // tahu HOOK apa saja yang sudah dipakai di batch SEBELUMNYA, jadi pola
+    // pembukanya gampang balik lagi mirip. Sekarang daftar HOOK yang sudah
+    // dipakai di batch-batch sebelumnya (dalam sesi bulk generate yang sama)
+    // dikirim ke tiap panggilan berikutnya sebagai larangan eksplisit, supaya
+    // variasi hook terjaga LINTAS BATCH, bukan cuma di dalam 1 batch.
+    +(usedHooks&&usedHooks.length?'HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA (batch lain, dalam sesi generate yang sama) — WAJIB DIHINDARI, jangan pakai kalimat yang sama/mirip maupun pola/struktur pembuka yang sama (misal sama-sama pertanyaan retoris dengan bentuk kalimat serupa, atau sama-sama mulai dengan gambaran situasi sehari-hari yang mirip):\n'+usedHooks.map(function(h,i){return'- "'+h+'"';}).join('\n')+'\n\nHOOK produk-produk di batch ini WAJIB pakai sudut masuk & pola kalimat yang BEDA dari semua contoh di atas, supaya kalau semua produk bulk ini dibaca berurutan dari awal, tidak ada 2 hook pun yang kedengaran seperti rumus yang sama ditempel ulang.\n\n':'')
     +'Untuk SETIAP produk di atas, buatkan TEPAT 3 script/dialog. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
     +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience-nya masing-masing: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat. KARENA ADA BEBERAPA PRODUK SEKALIGUS DI BATCH INI: HOOK tiap produk WAJIB beda gaya/pola pembuka satu sama lain — JANGAN pakai struktur kalimat atau kata pembuka yang sama persis/mirip untuk lebih dari 1 produk (misal jangan semua produk dibuka dengan "pernah gak sih" atau pola tanya yang identik), supaya kalau dibaca berurutan tidak kedengaran seperti hasil copy-paste satu rumus.\n'
     +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
@@ -9699,7 +9761,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial)
     +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
     +'6. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
     +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik merujuk ke JENIS produknya masing-masing (jangan generik/tertukar antar produk), TAPI dengan kata-kata natural buatanmu sendiri — bukan menyalin persis teks nama produk yang diberikan di daftar atas apa adanya.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di batch ini satu sama lain — kalau ada 2 atau lebih yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama), tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di batch ini satu sama lain, DAN bandingkan juga dengan daftar "HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA" (kalau ada) — kalau ada yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama) baik sesama produk di batch ini maupun dengan hook dari batch sebelumnya, tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
     // FIX (permintaan user, sama seperti mode single — lihat komentar
     // lengkap di prompt single): minta AI verifikasi hitungan kata sendiri
     // SEBELUM menjawab, bukan cuma dikasih tahu aturannya doang.
@@ -9958,11 +10020,16 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // sementara jadi status "⏳ nunggu" yang jujur selama proses retry
       // otomatis berlangsung, lalu balik lagi ke label batch begitu request
       // berikutnya dikirim.
+      // FIX (variasi hook lintas batch): kumpulkan semua HOOK yang sudah
+      // berhasil dibuat di batch-batch sebelumnya (termasuk dari sesi
+      // Lanjutkan lewat priorResults) dan kirim sebagai daftar larangan ke
+      // batch berikutnya, supaya AI tidak mengulang pola pembuka yang sama.
+      let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean);
       let batchArr=await _vbCallBulkBatch(batchProducts,targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
-      },onPartialThisBatch);
+      },onPartialThisBatch,usedHooksSoFar);
       dlIncrement();
       if(batchArr.length<batchItems.length){
         console.warn('[_vbRunBulkGenerate] batch '+b+' cuma balikin '+batchArr.length+' dari '+batchItems.length+' produk diminta');
@@ -10129,6 +10196,7 @@ function _vbBuildProductMetaLookup(produkListMeta){
 function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
+  VB_CARD_LOKASI={};
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   // Panel revisi dibangun ULANG dari nol di bawah (prodIdx bisa menunjuk ke
   // produk yang berbeda dari sebelumnya kalau ada yang di-drop AI) — buang
@@ -10376,7 +10444,7 @@ function _vbUpdateProductCards(prodIdx,p){
     let scriptText=_vbTruncate25Words(p[roleKey]||'');
     if(ta)ta.value=scriptText;
     if(VB_BULK_ITEMS[idx]){VB_BULK_ITEMS[idx].script=scriptText;VB_BULK_ITEMS[idx].produk=p.produk||VB_BULK_ITEMS[idx].produk;}
-    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''),_vbTampilText(idx));
+    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''),_vbTampilText(idx),_vbLokasiText(idx));
     if(wcLabel){let wc=scriptText.trim().split(/\s+/).filter(Boolean).length;wcLabel.textContent=wc+'/25 kata';wcLabel.style.color=wc===25?'var(--green)':'var(--muted2)';}
   });
   let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
@@ -10816,7 +10884,7 @@ function vbApplyMetadataOnly(s){
     let ta=document.getElementById('vb-bulk-script-'+idx);
     let jsonBox=document.getElementById('vb-bulk-json-'+idx);
     if(!ta||!jsonBox)continue;
-    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx));
+    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx),_vbLokasiText(idx));
   }
   // FIX BUG#20b (sama akar masalahnya dengan BUG#20 di vbRevisiProdukAI):
   // update metadata (suara/target audience) di sini mengubah JSON yang
@@ -10861,11 +10929,14 @@ async function vbRegenerateAllBulk(newSettings){
       // ke status "⏳ nunggu" waktu retry 429/503 dipasang — padahal sama-sama
       // pakai genLogoState. Tanpa ini, jalur ini bakal kerasa ngagantung lagi
       // persis seperti bug yang sudah diperbaiki di vbGenerateBulkAI.
+      // FIX (variasi hook lintas batch, sama seperti vbGenerateBulkAI): kirim
+      // HOOK yang sudah dipakai di batch sebelumnya sebagai larangan eksplisit.
+      let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean);
       let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
-      });
+      },undefined,usedHooksSoFar);
       dlIncrement();
       // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
       // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
@@ -10969,7 +11040,7 @@ function vbBulkUpdateJson(i){
   }
   if(VB_BULK_ITEMS[i])VB_BULK_ITEMS[i].script=ta.value;
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
-  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i));
+  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i));
   if(wcLabel){wcLabel.textContent=words.length+'/25 kata';wcLabel.style.color=words.length===25?'var(--green)':'var(--muted2)';}
 }
 
@@ -11027,6 +11098,19 @@ async function vbGenerate3AI(){
   let produkNama=document.getElementById('vb-produk-nama').value.trim();
   let targetAudience=document.getElementById('vb-target-audience').value.trim();
   let topikArah=(document.getElementById('vb-topik-input').value||'').trim();
+  // Arahan gaya HOOK (opsional, lihat vbPickHook) — dibaca ulang dari state
+  // VB.hookType tiap generate supaya selalu ikut pilihan chip TERBARU user.
+  let hookCustomText=(document.getElementById('vb-hook-custom-input').value||'').trim();
+  let hookDirective='';
+  if(VB.hookType==='psikologis'){
+    hookDirective='Gaya HOOK yang WAJIB dipakai: HOOK PSIKOLOGIS — buka dengan kalimat yang menyentuh sisi psikologis manusia (rasa penasaran, insecure, FOMO/takut tertinggal, kebutuhan validasi/diakui, atau relate ke masalah sehari-hari) supaya audiens berhenti scroll karena merasa "kena", bukan sekadar pertanyaan generik. WAJIB tetap mengikuti nada bicara & aksen karakter yang sudah ditentukan di atas — jangan ubah gaya bicara cuma demi efek psikologis ini.\n';
+  }else if(VB.hookType==='murah'){
+    hookDirective='Gaya HOOK yang WAJIB dipakai: HOOK HARGA MURAH — buka dengan kesan bahwa produk ini terjangkau/murah/hemat di kantong. JANGAN PERNAH sebut angka harga atau nominal apapun (jangan sebut "Rp", nominal ribuan, atau harga spesifik dalam bentuk apapun) — cukup kesan "murah/terjangkau/hemat" secara umum lewat kata seperti "murah", "terjangkau", "hemat di kantong", "gak bikin kantong bolong", tanpa embel-embel angka sama sekali.\n';
+  }else if(VB.hookType==='heboh'){
+    hookDirective='Gaya HOOK yang WAJIB dipakai: HOOK SUPER HEBOH — buka dengan energi sangat tinggi & ekspresif, seolah lagi excited banget mau kasih tahu sesuatu, boleh pakai kata seru (wah, gila, gokil, parah, dst) dan kalimat bertenaga — tapi tetap jelas & tidak norak berlebihan sampai pesannya hilang.\n';
+  }else if(VB.hookType==='custom'&&hookCustomText){
+    hookDirective='Gaya HOOK yang WAJIB dipakai (arahan langsung dari user): '+hookCustomText+' — pastikan HOOK yang dibuat benar-benar mengikuti arahan ini, tetap dalam nada bicara & aksen karakter yang sudah ditentukan di atas.\n';
+  }
   if(!produkNama){showToast('Nama Produk wajib diisi dulu','error');document.getElementById('vb-produk-nama').focus();return;}
   if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-target-audience').focus();return;}
   // FIX BUG#21 (ditemukan saat audit mendalam khusus builder video, lanjutan):
@@ -11081,6 +11165,7 @@ async function vbGenerate3AI(){
     +'Sapaan ke audiens: WAJIB pakai "'+_vbDetectSapaan(targetAudience)+'" — SAMA PERSIS kata ini, di HOOK, STORY, DAN CTA, tanpa terkecuali. Ini BUKAN pilihan bebas, ini instruksi tetap. JANGAN PERNAH pakai sapaan lain di bagian manapun (misal jangan campur dengan "kalian" kalau sudah ditentukan "bunda-bunda", atau sebaliknya).\n'
     +'Target audience: '+targetAudience+'\n'
     +(topikArah?'Arah pembahasan spesifik yang diminta user: '+topikArah+' — WAJIB jadi fokus utama STORY (boleh disinggung juga di HOOK), TAPI tetap 100% soal produk yang sama, JANGAN melenceng jadi cerita di luar arah ini.\n':'')
+    +(hookDirective?hookDirective:'')
     +(VB.produkFotoBase64?'\nADA FOTO REFERENSI PRODUK ASLI TERLAMPIR — foto ini supaya kamu tahu PERSIS jenis/tipe produk apa yang dimaksud (misal kalau nama produknya generik seperti "tas", foto ini kasih tahu tas seperti apa yang sedang dieksekusi), supaya kamu tidak salah asumsi soal jenis produknya. BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 5 di bawah, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto.\n':'\n')
     +'Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
     +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience ini: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat.\n'
@@ -11333,7 +11418,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   // displayScript = apa yang tampil di textarea/JSON/counter SAAT kartu
   // pertama dibangun. Kosong kalau mau dianimasikan ketik, penuh kalau tidak.
   let displayScript=skipInitialFill?'':initialScript;
-  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx));
+  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx),_vbLokasiText(idx));
   let card=document.createElement('div');
   card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;';
 
@@ -11384,6 +11469,18 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
     tampilBtn.innerHTML='<svg class="icon" style="width:12px;height:12px;"><use href="#ic-camera"></use></svg> Tampilan';
     tampilBtn.onclick=(function(ii){return function(){vbToggleTampilPanel(ii);};})(idx);
     copyWrap.appendChild(tampilBtn);
+
+    // FITUR BARU: tombol "Lokasi" — bagian dari "Atur Detail" per kartu,
+    // khusus Mode 3 juga, biar user bisa timpa Lokasi PER KARTU (Hook/Story/
+    // CTA boleh beda-beda), bukan cuma 1 lokasi buat semua kartu & semua
+    // produk dari step "Lokasi" di awal (VB.mode3Lokasi). Lihat vbPickLokasiCard.
+    let lokasiBtn=document.createElement('button');
+    lokasiBtn.id='vb-lokasi-btn-'+idx;
+    lokasiBtn.className='copy-btn';
+    lokasiBtn.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+    lokasiBtn.textContent=(VB_CARD_LOKASI[idx]?VB_CARD_LOKASI[idx].label:'Lokasi');
+    lokasiBtn.onclick=(function(ii){return function(){vbToggleLokasiPanel(ii);};})(idx);
+    copyWrap.appendChild(lokasiBtn);
   }
   copyWrap.appendChild(copyBtn);
   copyWrap.appendChild(doneLabel);
@@ -11402,6 +11499,19 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
     tampilPanel.className='hidden';
     tampilPanel.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding:8px;background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius-xs);';
     body.appendChild(tampilPanel);
+  }
+
+  // Panel "Atur Detail" (Lokasi) — sama pola-nya seperti panel Tampilan di
+  // atas, tersembunyi default, dibuka lewat tombol "Lokasi". Isi diisi ulang
+  // oleh vbToggleLokasiPanel() supaya highlight & isi kotak custom selalu
+  // sinkron dengan VB_CARD_LOKASI.
+  let lokasiPanel=null;
+  if(VB.refMode==='kp'){
+    lokasiPanel=document.createElement('div');
+    lokasiPanel.id='vb-lokasi-panel-'+idx;
+    lokasiPanel.className='hidden';
+    lokasiPanel.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding:8px;background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius-xs);';
+    body.appendChild(lokasiPanel);
   }
 
   let ta=document.createElement('textarea');
@@ -11434,6 +11544,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   // Isi awal panel tampilan (kalau ada) — dibangun sekali di sini, lalu
   // vbToggleTampilPanel() hanya menampilkan/menyembunyikan + refresh highlight.
   if(tampilPanel)_vbFillTampilPanel(idx,tampilPanel);
+  if(lokasiPanel)_vbFillLokasiPanel(idx,lokasiPanel);
 
   // FIX BUG#13 (ditemukan saat audit mendalam — ini AKAR MASALAH Bug#10 yang
   // belum sempat tuntas di sesi audit sebelumnya karena kehabisan limit):
@@ -11500,6 +11611,76 @@ function vbPickTampilProduk(idx,key,label,text){
   vbBulkUpdateJson(idx); // rebuild JSON kartu ini — sama seperti oninput textarea
 }
 
+// Isi/refresh konten panel "Atur Detail" (Lokasi) untuk kartu ke-idx — sama
+// pola-nya seperti _vbFillTampilPanel di atas, ditambah 1 baris "isi sendiri"
+// (lokasi custom bebas ketik, beda dari Cara Tampil Produk yang cuma preset).
+function _vbFillLokasiPanel(idx,panelEl){
+  panelEl.innerHTML='';
+  let current=VB_CARD_LOKASI[idx];
+  VB_LOKASI_OPTS.forEach(function(opt){
+    let chip=document.createElement('div');
+    chip.className='chip'+(current&&current.key===opt[0]?' sel':'');
+    chip.style.cssText='font-size:var(--fs-2xs);padding:6px 10px;';
+    chip.textContent=opt[1];
+    chip.onclick=(function(ii,o){return function(){vbPickLokasiCard(ii,o[0],o[1]);};})(idx,opt);
+    panelEl.appendChild(chip);
+  });
+  let clearChip=document.createElement('div');
+  clearChip.className='chip'+((!current)?' sel':'');
+  clearChip.style.cssText='font-size:var(--fs-2xs);padding:6px 10px;color:var(--muted);';
+  clearChip.textContent='Tidak ditentukan';
+  clearChip.onclick=(function(ii){return function(){vbPickLokasiCard(ii,'','');};})(idx);
+  panelEl.appendChild(clearChip);
+
+  let customRow=document.createElement('div');
+  customRow.style.cssText='display:flex;gap:6px;width:100%;margin-top:6px;';
+  let customInput=document.createElement('input');
+  customInput.className='inp';
+  customInput.id='vb-lokasi-custom-'+idx;
+  customInput.maxLength=120;
+  customInput.placeholder='Isi sendiri, contoh: rooftop malam hari';
+  customInput.style.cssText='flex:1;font-size:var(--fs-2xs);padding:6px 8px;';
+  if(current&&current.key==='custom')customInput.value=current.label;
+  customInput.onkeydown=(function(ii){return function(e){if(e.key==='Enter'){e.preventDefault();document.getElementById('vb-lokasi-custom-btn-'+ii).click();}};})(idx);
+  customRow.appendChild(customInput);
+  let customBtn=document.createElement('button');
+  customBtn.type='button';
+  customBtn.id='vb-lokasi-custom-btn-'+idx;
+  customBtn.className='btn sm';
+  customBtn.style.cssText='width:auto;flex-shrink:0;padding:0 12px;font-size:var(--fs-2xs);';
+  customBtn.textContent='Pakai';
+  customBtn.onclick=(function(ii){return function(){
+    let v=document.getElementById('vb-lokasi-custom-'+ii).value.trim();
+    if(!v){showToast('Isi lokasinya dulu ya','error');return;}
+    vbPickLokasiCard(ii,'custom',v);
+  };})(idx);
+  customRow.appendChild(customBtn);
+  panelEl.appendChild(customRow);
+}
+
+// Buka/tutup panel "Atur Detail" (Lokasi) milik kartu ke-idx.
+function vbToggleLokasiPanel(idx){
+  let panel=document.getElementById('vb-lokasi-panel-'+idx);
+  if(!panel)return;
+  let willOpen=panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  if(willOpen)_vbFillLokasiPanel(idx,panel); // refresh highlight tiap dibuka
+}
+
+// User pilih (atau hapus, kalau key kosong) lokasi override untuk kartu
+// ke-idx — langsung terisi ke JSON di bawahnya lewat _vbBuildFlowText
+// (menggantikan VB.mode3Lokasi khusus buat kartu ini), sama seperti kalau
+// user ngetik manual di textarea.
+function vbPickLokasiCard(idx,key,label){
+  if(key){VB_CARD_LOKASI[idx]={key:key,label:label,text:label};}
+  else{delete VB_CARD_LOKASI[idx];}
+  let btn=document.getElementById('vb-lokasi-btn-'+idx);
+  if(btn)btn.textContent=key?label:'Lokasi';
+  let panel=document.getElementById('vb-lokasi-panel-'+idx);
+  if(panel){_vbFillLokasiPanel(idx,panel);panel.classList.add('hidden');}
+  vbBulkUpdateJson(idx); // rebuild JSON kartu ini — sama seperti oninput textarea
+}
+
 // Satu entri Riwayat GABUNGAN untuk 1 sesi generate (dipanggil sekali per
 // generate/regenerate-all, bukan per kartu) — mengambil isi dari
 // VB_BULK_ITEMS yang sudah diisi _vbBuildEditableCard untuk semua kartu yang
@@ -11509,7 +11690,7 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
   let blocks=VB_BULK_ITEMS.map(function(item,idx){
     let plainLabel=String(item.roleLabel||'').replace(/<[^>]*>/g,'').trim();
-    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx));
+    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx),_vbLokasiText(idx));
     return '// '+plainLabel+(item.produk?' — '+item.produk:'')+'\n'+jsonText;
   });
   historyAdd('video',sessionLabel,blocks.join('\n\n---\n\n'));
@@ -11526,6 +11707,7 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
 function _vbRenderMultiOutputLive(produkNamaForHistory){
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
+  VB_CARD_LOKASI={};
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -11555,6 +11737,7 @@ function _vbLiveUpdateCard(idx,text){
 function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate){
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
+  VB_CARD_LOKASI={};
   VB_SINGLE_REVISI_BACKUP=null; // sesi generate baru — backup revisi lama sudah tidak relevan
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   let multiWrap=document.getElementById('vb-multi-output');
@@ -11673,7 +11856,7 @@ function _vbEsc(s){
     .replace(/\t/g,'\\t')
     .replace(/[\u0000-\u001F]/g,function(ch){return '\\u'+ch.charCodeAt(0).toString(16).padStart(4,'0');});
 }
-function _vbBuildFlowText(scriptText,produkOverride,tampilOverride){
+function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride){
   let accentFull='Natural Indonesian intonation, '+VB.accent;
   let instructionText;
   if(VB.refMode==='kp'){
@@ -11685,7 +11868,13 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride){
     // (mis. field "produk" hasil AI gagal terisi); 'produk tersebut' generik
     // baru dipakai kalau keduanya sama-sama tidak ada.
     let produkForRef=produkOverride||VB.mode3Produk||'produk tersebut';
-    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi 2 adalah produk yaitu '+produkForRef+'. Manfaatkan kedua foto tersebut untuk membuat sebuah video. Lokasi: '+VB.mode3Lokasi+'. Lighting: '+VB.mode3Lighting+'. ';
+    // FITUR BARU: "Atur Detail" → Lokasi per kartu (tombol "Lokasi" di kartu
+    // Hook/Story/CTA, khusus Mode 3 — lihat _vbBuildEditableCard, vbPickLokasiCard
+    // & VB_LOKASI_OPTS). Kalau user sudah pilih lokasi khusus untuk kartu ini,
+    // pakai itu MENGGANTIKAN VB.mode3Lokasi (lokasi default 1 sesi dari step 1)
+    // — supaya tiap script (bukan cuma tiap produk) bisa punya lokasi beda.
+    let lokasiForCard=lokasiOverride||VB.mode3Lokasi;
+    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi 2 adalah produk yaitu '+produkForRef+'. Manfaatkan kedua foto tersebut untuk membuat sebuah video. Lokasi: '+lokasiForCard+'. Lighting: '+VB.mode3Lighting+'. ';
     // FITUR BARU: "Cara Tampil Produk" per kartu (tombol kecil di kartu
     // Hook/Story/CTA, khusus Mode 3 — lihat _vbBuildEditableCard &
     // VB_TAMPIL_PRODUK_OPTS) — kalau user sudah pilih salah satu opsi untuk
@@ -11750,6 +11939,12 @@ function vbReset(){
     let v4cnt=document.getElementById('v4-counter'); if(v4cnt){v4cnt.textContent='0 / 120';v4cnt.className='inp-counter';}
     document.getElementById('vb-produk-nama').value='';
     document.getElementById('vb-target-audience').value='';
+    let vbTopikInp=document.getElementById('vb-topik-input'); if(vbTopikInp)vbTopikInp.value='';
+    let vbTopikBox=document.getElementById('vb-topik-box'); if(vbTopikBox)vbTopikBox.classList.add('hidden');
+    let vbTopikToggle=document.getElementById('vb-topik-toggle'); if(vbTopikToggle)vbTopikToggle.textContent='+ Atur detail (opsional)';
+    document.querySelectorAll('#vb-hook-chips .chip').forEach(c=>c.classList.remove('sel'));
+    let vbHookCustomBox=document.getElementById('vb-hook-custom-box'); if(vbHookCustomBox)vbHookCustomBox.classList.add('hidden');
+    let vbHookCustomInp=document.getElementById('vb-hook-custom-input'); if(vbHookCustomInp)vbHookCustomInp.value='';
     if(typeof vbRemoveProdukFoto==='function')vbRemoveProdukFoto(); // reset state + preview foto referensi mode single
     document.getElementById('vb-script-hook').value='';
     document.getElementById('vb-script-story').value='';
@@ -11770,6 +11965,7 @@ function vbReset(){
     VB_BULK_LAST_CONTEXT=null; // reset builder — buang juga sisa sesi "Lanjutkan" kalau ada, biar tidak nyangkut ke sesi produk berikutnya
     VB_BULK_ITEMS=[];
     VB_CARD_TAMPIL={};
+    VB_CARD_LOKASI={};
     vbUpdateProgress(1,'Mode Referensi Foto');
     // FIX BUG#1: sama seperti saat init — vbUpdateProgress(1,...) hitung 20%,
     // override balik ke 0% karena user baru saja reset (belum isi apa-apa).
