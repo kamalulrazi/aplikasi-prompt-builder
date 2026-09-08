@@ -8013,19 +8013,20 @@ function fReset(){
 // BUG FIX: konstanta ini dipakai di vbGenerate3AI() & _vbCallBulkBatch() tapi
 // sebelumnya tidak pernah dideklarasikan di mana pun → setiap generate AI di
 // Video Builder langsung error "GEMINI_ENDPOINT is not defined" dan gagal total.
-// GANTI GEMINI_MODEL di bawah kalau kamu memang mau pakai versi model lain.
+// GANTI model di bawah kalau kamu memang mau pakai versi model lain.
 const GEMINI_ENDPOINT='https://generativelanguage.googleapis.com/v1beta/models/';
-// FIX GANTI MODEL (permintaan user, Sept 2026): sebelumnya pakai
-// 'gemini-3.6-flash' — model workhorse penuh yang sebenarnya kelebihan
-// buat kerjaan ini (cuma generate 3 kalimat script pendek per produk,
-// bukan reasoning/coding kompleks). Ganti ke 'gemini-3.5-flash-lite':
-// jauh lebih murah ($0.30/1M token input & $2.50/1M output, vs jauh
-// lebih mahal di 3.6 Flash), lebih cepat (~350 token/detik), dan di
-// free tier model Lite biasanya dapat jatah RPM (request/menit) yang
-// lebih longgar dibanding Flash biasa — jadi kemungkinan besar juga
-// lebih jarang kena limit 429. Cocok karena tugasnya memang sederhana
-// & bervolume (banyak produk × 3 script tiap generate).
-const GEMINI_MODEL='gemini-3.5-flash-lite';
+// MODEL UTAMA + CADANGAN (permintaan user, Sept 2026): app sekarang PAKAI
+// DUA-DUANYA, bukan pilih salah satu. Semua panggilan Gemini coba dulu ke
+// GEMINI_MODEL_PRIMARY ('gemini-3.6-flash' — model workhorse penuh, lebih
+// pintar terutama buat script yang butuh nuansa/kreativitas). Kalau
+// primary gagal TOTAL (retry internal sudah dicoba habis-habisan tapi
+// tetap kena error/limit — lihat _vbFetchWithGeminiFallback &
+// _vbStreamGeminiJSONWithRetry di bawah), app otomatis lempar ke
+// GEMINI_MODEL_FALLBACK ('gemini-3.5-flash-lite' — jauh lebih murah,
+// lebih cepat, dan biasanya dapat jatah RPM free tier yang lebih longgar)
+// supaya proses generate tetap jalan, bukan langsung gagal total ke user.
+const GEMINI_MODEL_PRIMARY='gemini-3.6-flash';
+const GEMINI_MODEL_FALLBACK='gemini-3.5-flash-lite';
 var VAI={apiKey:'',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 
@@ -8998,7 +8999,7 @@ function vbRemoveBulkFoto(i){
 // ataupun perbaikan kata) — jadi total laju request ke Gemini selalu di
 // bawah limit, bukan cuma "kelihatan" dijeda per-batch doang.
 let _vbLastGeminiCallTs=0;
-const _VB_MIN_GEMINI_GAP_MS=4500; // ~13 request/menit maksimum — aman untuk free tier. Naikkan kalau masih kena limit (mis. 6500 untuk ~9 RPM).
+const _VB_MIN_GEMINI_GAP_MS=6500; // ~9 request/menit maksimum — diperlebar dari 4500ms (~13 RPM) atas permintaan user (Sept 2026) supaya lebih jarang kena limit 429, terutama saat pakai model primary gemini-3.6-flash yang jatah RPM free tier-nya cenderung lebih ketat dari Flash-Lite.
 async function _vbThrottleGeminiGate(){
   let now=Date.now();
   let wait=_vbLastGeminiCallTs+_VB_MIN_GEMINI_GAP_MS-now;
@@ -9090,14 +9091,17 @@ function _vbTryParsePartialJsonArray(buf){
 // .parts[0].text, finishReason, dst) — supaya kode pemanggil (parse
 // JSON, sanitizer, fix kata) tidak perlu berubah sama sekali.
 // Retry & fallback thinkingConfig meniru persis _vbFetchWithRetry lama.
-async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
+// Menerima parameter 'model' eksplisit — dipanggil oleh
+// _vbStreamGeminiJSONWithRetry (lihat di bawah) yang mengurus pergantian
+// primary→fallback antar model.
+async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait){
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
   for(let attempt=0;;attempt++){
     let withThinkingOff=(attempt===0);
     let cfg={maxOutputTokens:4096,responseMimeType:'application/json'};
     if(withThinkingOff)cfg.thinkingConfig={thinkingLevel:'minimal'};
-    const url=GEMINI_ENDPOINT+GEMINI_MODEL+':streamGenerateContent?alt=sse';
+    const url=GEMINI_ENDPOINT+model+':streamGenerateContent?alt=sse';
     let controller=new AbortController();
     let timedOut=false;
     let timer=setTimeout(function(){timedOut=true;controller.abort();},withThinkingOff?30000:45000);
@@ -9202,6 +9206,18 @@ async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
     await new Promise(r=>setTimeout(r,waitMs));
     totalWaited+=waitMs;
   }
+}
+
+// Coba GEMINI_MODEL_PRIMARY dulu (lewat _vbStreamGeminiJSONWithRetryModel,
+// termasuk retry internalnya sampai jaring pengaman ~3 menit). Kalau
+// PRIMARY tetap gagal total sesudah itu, baru dicoba SEKALI LAGI dari nol
+// pakai GEMINI_MODEL_FALLBACK — supaya generate tetap bisa jalan walau
+// primary lagi kena limit/error, bukan langsung gagal ke user.
+async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
+  let r=await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_PRIMARY,promptParts,onPartial,onWait);
+  if(r.resp&&r.resp.ok)return r;
+  console.log('[_vbStreamGeminiJSONWithRetry] '+GEMINI_MODEL_PRIMARY+' gagal, coba '+GEMINI_MODEL_FALLBACK);
+  return await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_FALLBACK,promptParts,onPartial,onWait);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -9329,6 +9345,29 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
   }
 }
 
+// ── FALLBACK MODEL untuk panggilan generateContent (non-streaming) ──────
+// Coba GEMINI_MODEL_PRIMARY dulu lewat _vbFetchWithRetry seperti biasa
+// (429/503 tetap di-retry sesuai maxRetries). Kalau setelah retry habis
+// hasilnya TETAP gagal (resp.ok false), baru dicoba SEKALI LAGI dari nol
+// pakai GEMINI_MODEL_FALLBACK. bodyObj sama persis dipakai di percobaan
+// manapun — cuma model & url di endpoint yang beda.
+async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
+  const urlPrimary=GEMINI_ENDPOINT+GEMINI_MODEL_PRIMARY+':generateContent';
+  let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(urlPrimary,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
+    body:JSON.stringify(bodyObj)
+  },timeoutMs),maxRetries);
+  if(r.resp.ok)return r;
+  console.log('[_vbFetchWithGeminiFallback] '+GEMINI_MODEL_PRIMARY+' gagal (status '+r.resp.status+'), coba '+GEMINI_MODEL_FALLBACK);
+  const urlFallback=GEMINI_ENDPOINT+GEMINI_MODEL_FALLBACK+':generateContent';
+  return await _vbFetchWithRetry(()=>_vbFetchWithTimeout(urlFallback,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
+    body:JSON.stringify(bodyObj)
+  },timeoutMs),maxRetries);
+}
+
 // ── SANITIZER CTA — jaring pengaman KODE untuk frasa yang dilarang di
 // prompt ("keranjang kuning", "checkout", klaim urgensi/kelangkaan dsb).
 // Sebelumnya app 100% mengandalkan kepatuhan model AI ke instruksi teks di
@@ -9426,12 +9465,7 @@ async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
       +'Script saat ini ('+wc+' kata): '+current+'\n\n'
       +'Balas HANYA dengan teks script hasil perbaikan (hitung ulang sendiri sampai persis 25 kata sebelum menjawab), tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
     try{
-      const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
-      let{resp,rawText}=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(url,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-        body:JSON.stringify({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}})
-      },30000),1);
+      let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
       if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
       let data=JSON.parse(rawText);
       if(data.error){console.warn('[_vbFixWordCountIfNeeded] error API:',data.error.message);return current;}
@@ -9490,12 +9524,7 @@ async function _vbFixWordCountBatchIfNeeded(prod){
       +'Script yang perlu diperbaiki:\n'+listText+'\n\n'
       +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (hitung ulang sendiri sampai persis 25 kata tiap-tiap sebelum menjawab), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
     try{
-      const url=GEMINI_ENDPOINT+GEMINI_MODEL+':generateContent';
-      let{resp,rawText}=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(url,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-        body:JSON.stringify({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}})
-      },30000),1);
+      let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}},30000,1);
       if(!resp.ok){console.warn('[_vbFixWordCountBatchIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
       let data=JSON.parse(rawText);
       if(data.error){console.warn('[_vbFixWordCountBatchIfNeeded] error API:',data.error.message);return current;}
