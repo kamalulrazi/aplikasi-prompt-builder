@@ -1426,6 +1426,13 @@ body input, body textarea, body [contenteditable="true"]{
    Subjek Foto sendiri TIDAK disederhanakan lagi — tampil apa adanya,
    sama seperti di luar tur. Dipasang di pbGoStep5(), dilepas lagi di
    pbTourResetF0Ui() begitu subjek dipilih atau tur di-skip. ────────── */
+/* ── TOUR — Langkah 5 (Subjek Foto): pertanyaan diganti versi yang lebih
+   spesifik ke konteks karakter sheet, dan baris deskripsi kecil di tiap
+   kartu (Perempuan/Laki-laki/Produk Saja) disembunyikan biar tampilan
+   lebih ringkas — cuma judul opsi yang kelihatan. "Produk Saja" tetap
+   dibekukan (lihat .subjek-card.pb-locked). Dipasang di pbGoStep5(),
+   dilepas lagi di pbTourResetF0Ui(). ────────────────────────────────── */
+#f0.pb-tour-f0-simple .sk-desc{display:none;}
 body.pb-tour-blur-context .sec-title,
 body.pb-tour-blur-context .sec-desc,
 body.pb-tour-blur-context #cs-entry-btn,
@@ -2279,6 +2286,13 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
         <div id="f1-cekhp-banner" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-left:3px solid var(--warning);border-radius:var(--radius-xs);">
           <span style="font-size:var(--fs-sm);font-weight:700;color:var(--warning);letter-spacing:-0.2px;">Cek HP dulu</span>
           <span style="font-size:var(--fs-xs2);color:var(--text);line-height:1.4;">Tap sesuai foto yang kamu punya — jangan asal pilih</span>
+        </div>
+        <!-- Pengganti banner "Cek HP dulu" KHUSUS selama tur panduan foto
+             referensi — teks abu-abu netral, tidak menyuruh cek galeri lagi.
+             Disembunyikan default, ditampilkan lewat pbGoStep6() &
+             disembunyikan lagi di pbTourResetF1Ui(). -->
+        <div id="f1-tour-hint" style="display:none;padding:8px 10px;margin-bottom:12px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.4;">
+          Tap bahan yang udah kakak siapkan, yaitu: karakter sheet dan produk.
         </div>
         <div id="f1-type-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
 
@@ -4160,6 +4174,7 @@ function fConfirmOutfitRandom(){
   let def=FTYPE['outfit_random'];
   // Simpan deskripsi user di field focus
   FS.refs.push({id,type:'outfit_random',focus:desc,extractCustom:def.extract,ignoreCustom:def.ignore});
+  fSyncWajahOutfitDefault();
   fUpdateCounters();
   fRenderList();
   fRenderPreview();
@@ -4174,12 +4189,37 @@ function fConfirmOutfitRandom(){
       setTimeout(()=>{let el=document.getElementById('pc-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
     }, function(){
       FS.refs=FS.refs.filter(r=>r.id!==id);
+      fSyncWajahOutfitDefault();
       fUpdateCounters();fRenderList();fRenderPreview();
     });
     return;
   }
   showToast('Outfit random ditambahkan!','success');
   setTimeout(()=>{let el=document.getElementById('pc-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
+}
+
+// SINKRONISASI DEFAULT AMBIL/ABAIKAN UNTUK FOTO WAJAH (KARAKTER SHEET):
+// Kalau user BELUM isi "Isi Outfit Karakter" (tidak ada ref bertipe
+// outfit_random), foto wajah TIDAK BOLEH cuma fokus wajah — otomatis
+// diubah supaya AI ambil wajah SEKALIGUS outfit yang dipakai di foto
+// tersebut (abaikan dikosongkan, karena tidak ada lagi yang perlu
+// diabaikan). Begitu user isi outfit karakter (ref outfit_random ada),
+// dikembalikan ke default aslinya (fokus wajah saja, abaikan outfit).
+// r.autoSyncOutfit (default true, di-set false begitu user MENGEDIT
+// manual textarea ambil/abaikan di kartu foto wajah — lihat fUpdateRef/
+// fClearRefField) mencegah fungsi ini menimpa balik hasil edit manual.
+function fSyncWajahOutfitDefault(){
+  let hasOutfitRandom=FS.refs.some(function(r){return r.type==='outfit_random';});
+  FS.refs.forEach(function(r){
+    if(r.type!=='wajah'||r.autoSyncOutfit===false)return;
+    if(hasOutfitRandom){
+      r.extractCustom=FTYPE.wajah.extract;
+      r.ignoreCustom=FTYPE.wajah.ignore;
+    } else {
+      r.extractCustom='ambil semua wajah serta outfit yang dipakai';
+      r.ignoreCustom='';
+    }
+  });
 }
 
 // ADD FOTO REF
@@ -4203,8 +4243,9 @@ function fAddRef(typeKey){
   FS.refCounter++;
   let id='fr'+FS.refCounter;
   let def=FTYPE[typeKey];
-  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:''});
+  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:'',autoSyncOutfit:true});
   if(typeKey==='produk') FS.hasProdukFoto=true;
+  fSyncWajahOutfitDefault();
   fUpdateCounters();
   fRenderList();
   fRenderPreview();
@@ -4395,6 +4436,7 @@ function fRemoveRef(id){
   if(FS.importActive){
     FS.refs=FS.refs.filter(r=>r.id!==id);
     FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
+    fSyncWajahOutfitDefault();
     // FIX SINKRONISASI PRODUK PASCA-IMPOR: lihat komentar di
     // _fSyncImportProdukState() — tanpa ini, hapus foto produk lewat sini
     // tidak pernah membersihkan FS.produkNama/hold/importProductBlock.
@@ -4415,6 +4457,7 @@ function fRemoveRef(id){
     showConfirm('Menghapus foto akan mereset semua pilihan Step 2–8. Lanjutkan?', function(){
       FS.refs=FS.refs.filter(r=>r.id!==id);
       FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
+      fSyncWajahOutfitDefault();
       fUpdateCounters();fRenderList();fRenderPreview();
       f1.classList.remove('done','hidden');
       let fa1=document.getElementById('fa1');if(fa1)fa1.textContent='';
@@ -4425,6 +4468,7 @@ function fRemoveRef(id){
   }
   FS.refs=FS.refs.filter(r=>r.id!==id);
   FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
+  fSyncWajahOutfitDefault();
   fUpdateCounters();
   fRenderList();
   fRenderPreview();
@@ -4593,6 +4637,9 @@ function fToggleAdv(id,label){
 
 function fUpdateRef(id,key,val){
   let r=FS.refs.find(x=>x.id===id);if(r)r[key]=val;
+  // User mengedit manual field ambil/abaikan di kartu foto wajah — jangan
+  // ditimpa lagi oleh fSyncWajahOutfitDefault() (lihat definisinya).
+  if(r && r.type==='wajah' && (key==='extractCustom'||key==='ignoreCustom')) r.autoSyncOutfit=false;
   // FIX BUG TAMBAHAN (ditemukan saat verifikasi TC3): sebelumnya fUpdateRef
   // cuma menyimpan nilai ke ref-nya sendiri, tanpa pernah memicu
   // _fSyncImportProdukState() — padahal fungsi itulah yang menyalin
@@ -4609,7 +4656,10 @@ function fUpdateRef(id,key,val){
 }
 function fClearRefField(id,key,taId){
   let r=FS.refs.find(x=>x.id===id);
-  if(r)r[key]='';
+  if(r){
+    r[key]='';
+    if(r.type==='wajah' && (key==='extractCustom'||key==='ignoreCustom')) r.autoSyncOutfit=false;
+  }
   let ta=document.getElementById(taId);
   if(ta)ta.value='';
 }
@@ -13317,13 +13367,12 @@ function pbFlowLightboxClose(){
 // user ini satu alur menerus (masih disebut "Langkah 5" secara internal,
 // f1 TIDAK lagi punya kartu/label "Langkah 6" sendiri). Blur pada elemen
 // lain di halaman (lewat body.pb-tour-blur-context) dipasang begitu masuk
-// f0 dan TETAP menyala selama transisi ke f1 — baru dilepas di akhir,
-// begitu foto referensi juga selesai (lihat pbTourResetF1Ui()).
-// Tampilan kartu Subjek Foto sendiri (termasuk deskripsi tiap opsi
-// Perempuan/Laki-laki/Produk Saja) dibiarkan APA ADANYA seperti kalau
-// user TIDAK sedang dalam tur. SATU pengecualian: "Produk Saja" TETAP
-// dibekukan selama f0 (cuma Perempuan/Laki-laki yang relevan buat alur
-// onboarding karakter sheet).
+// Tampilan kartu Subjek Foto SEKARANG disederhanakan selama tur: teks
+// pertanyaan diganti versi spesifik karakter sheet, dan baris deskripsi
+// kecil di tiap opsi (Perempuan/Laki-laki/Produk Saja) disembunyikan —
+// direvert lagi di pbTourResetF0Ui(). "Produk Saja" TETAP dibekukan
+// selama f0 (cuma Perempuan/Laki-laki yang relevan buat alur onboarding
+// karakter sheet).
 function pbGoStep5(){
   pbDisarmDoneWait();
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
@@ -13336,18 +13385,26 @@ function pbGoStep5(){
   document.getElementById('pb-tour-card').classList.remove('show');
   document.body.classList.add('pb-tour-blur-context');
   pbLockChip('#sk-produk');
+  let f0=document.getElementById('f0');
+  if(f0) f0.classList.add('pb-tour-f0-simple');
+  let f0Desc=document.getElementById('f0-desc-text');
+  if(f0Desc) f0Desc.textContent='Jenis kelamin foto karakter sheet kakak apa?';
   pbArmDoneWait('f0',function(){
     pbTourResetF0Ui();
     pbGoStep6();
   });
 }
-// Kembalikan chip "Produk Saja" (dipanggil begitu subjek dipilih & alur
-// lanjut ke foto referensi, ATAU dari pbHideOverlay() kalau tur di-skip
-// persis waktu f0 masih aktif). Blur latar SENGAJA TIDAK dilepas di sini
-// — tetap menyala sampai foto referensi (f1) juga selesai, lihat
-// pbTourResetF1Ui().
+// Kembalikan chip "Produk Saja" + tampilan kartu Subjek Foto seperti
+// semula (dipanggil begitu subjek dipilih & alur lanjut ke foto
+// referensi, ATAU dari pbHideOverlay() kalau tur di-skip persis waktu f0
+// masih aktif). Blur latar SENGAJA TIDAK dilepas di sini — tetap menyala
+// sampai foto referensi (f1) juga selesai, lihat pbTourResetF1Ui().
 function pbTourResetF0Ui(){
   pbUnlockChip('#sk-produk');
+  let f0=document.getElementById('f0');
+  if(f0) f0.classList.remove('pb-tour-f0-simple');
+  let f0Desc=document.getElementById('f0-desc-text');
+  if(f0Desc) f0Desc.textContent='Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.';
 }
 // ── LANJUTAN LANGKAH 5 — foto referensi & outfit (f1), VERSI SEDERHANA,
 // masih bagian dari alur yang sama (TANPA kartu/label/spotlight
@@ -13363,8 +13420,14 @@ function pbTourResetF0Ui(){
 // SELESAI (pbEndTour()) — belum ada langkah lanjutan (dulu Langkah
 // 7–10) untuk sekarang.
 var pbTourF1Active=false;
+// Sudah ditampilkan notifikasi "Isi Outfit Karakter" untuk sesi tur
+// yang sedang berjalan? Direset tiap kali masuk step ini (pbGoStep6),
+// supaya cuma muncul SEKALI per sesi tur, persis begitu kedua bahan
+// (Karakter Sheet & Produk) sudah ditap user sendiri.
+var pbTourOutfitHintShown=false;
 function pbGoStep6(){
   pbTourF1Active=true;
+  pbTourOutfitHintShown=false;
   let f1=document.getElementById('f1');
   if(f1) f1.classList.add('pb-tour-f1-simple');
   let wajahLabel=document.getElementById('ftb-wajah-label');
@@ -13376,16 +13439,36 @@ function pbGoStep6(){
   pbLockChip('#ftb-outfit');
   let outfitRandomBadge=document.getElementById('ftc-outfit_random');
   if(outfitRandomBadge) outfitRandomBadge.textContent='';
-  // "Karakter Sheet" (dulu "Wajah") langsung ditambahkan otomatis
-  // begitu masuk step ini — cukup 1x klik (lewat auto-add ini) buat
-  // user, tidak perlu klik chip-nya sendiri lagi.
-  if(!FS.refs.some(function(r){return r.type==='wajah';})){
-    fAddRef('wajah');
-  }
+  let tourHint=document.getElementById('f1-tour-hint');
+  if(tourHint) tourHint.style.display='block';
+  // "Karakter Sheet" TIDAK lagi ditambahkan otomatis — user sendiri
+  // yang harus tap chip-nya (juga chip Produk), masing-masing cuma
+  // boleh 1x (lihat wrapper fAddRef di bawah).
   pbArmDoneWait('f1',function(){
     pbTourResetF1Ui();
     pbEndTour();
   });
+}
+// Notifikasi tengah layar, tampil PERSIS SEKALI begitu user sudah tap
+// Karakter Sheet DAN Produk (2 bahan) di step ini — kasih tahu bahwa
+// outfit karakter bisa diatur lewat "Isi Outfit Karakter". Pola sama
+// seperti csShowSavedNotif() (1 tombol "Mengerti", bukan Ya/Batal).
+function pbShowOutfitHintNotif(){
+  if(pbTourOutfitHintShown)return;
+  pbTourOutfitHintShown=true;
+  let overlay=document.createElement('div');
+  overlay.className='confirm-overlay';
+  let box=document.createElement('div');box.className='confirm-box';
+  let p=document.createElement('p');
+  p.style.cssText='color:var(--text);font-size:var(--fs-sm);line-height:1.6;margin-bottom:16px;';
+  p.textContent='Kalo kakak mau atur outfit karakter sheet kakak, tinggal klik aja "Isi Outfit Karakter".';
+  let okBtn=document.createElement('button');
+  okBtn.textContent='Mengerti';
+  okBtn.style.cssText="width:100%;background:var(--accent);color:var(--bg);border:none;padding:11px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;";
+  box.appendChild(p);box.appendChild(okBtn);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  okBtn.onclick=function(){overlay.remove();};
 }
 // Kembalikan tampilan f1 seperti semula DAN lepas blur latar (yang
 // dipasang sejak f0 tadi) — dipanggil begitu foto referensi selesai &
@@ -13400,6 +13483,8 @@ function pbTourResetF1Ui(){
   if(wajahLabel) wajahLabel.textContent='Wajah';
   let objekChip=document.getElementById('ftb-objek');
   if(objekChip) objekChip.style.display='';
+  let tourHint=document.getElementById('f1-tour-hint');
+  if(tourHint) tourHint.style.display='none';
   pbUnlockChip('#ftb-outfit');
   pbUnlockChip('#ftb-objek');
   let outfitRandomBadge=document.getElementById('ftc-outfit_random');
@@ -13417,20 +13502,32 @@ function pbUnlockChip(sel){
   let el=document.querySelector(sel);
   if(el) el.classList.remove('pb-locked');
 }
-// ── Wrapper fAddRef(): SELAMA Langkah 6 tur (pb-tour-f1-simple) aktif,
-// begitu foto ref baru ditambahkan (mis. user klik "Produk"), panel
-// "atur detail"-nya langsung dibuka otomatis — user cukup 1x klik pada
-// chip-nya, tidak perlu klik terpisah ke tombol "atur detail" lagi. Di
-// luar tur, perilaku fAddRef TIDAK berubah sama sekali. ─────────────
+// ── Wrapper fAddRef(): SELAMA Langkah 6 tur (pb-tour-f1-simple) aktif —
+// 1) Karakter Sheet & Produk masing-masing HANYA boleh ditambah 1x —
+//    tap ke-2/ke-4 dst pada chip yang sama diabaikan (bukan menambah
+//    foto baru), supaya user tidak bingung ada beberapa kartu Karakter
+//    Sheet/Produk sekaligus.
+// 2) Panel "atur detail" TIDAK dibuka otomatis lagi — tetap disembunyikan
+//    sampai user sendiri yang tap tombolnya (sama seperti di luar tur).
+// 3) Begitu Karakter Sheet DAN Produk sudah sama-sama ada (2 bahan
+//    lengkap), munculkan notifikasi soal "Isi Outfit Karakter" sekali.
+// Di luar tur, perilaku fAddRef TIDAK berubah sama sekali. ─────────────
 (function(){
   let _pbOrigFAddRef=fAddRef;
   fAddRef=function(typeKey){
+    if(pbTourF1Active && (typeKey==='wajah'||typeKey==='produk') &&
+       FS.refs.some(function(r){return r.type===typeKey;})){
+      showToast((typeKey==='wajah'?'Karakter Sheet':'Produk')+' cukup 1 foto aja ya','error');
+      return;
+    }
     let before=FS.refs.length;
     _pbOrigFAddRef.apply(this,arguments);
     if(pbTourF1Active && FS.refs.length>before){
-      let newRef=FS.refs[FS.refs.length-1];
-      let advLabel=(typeKey==='wajah'||typeKey==='outfit')?'atur detail':undefined;
-      setTimeout(function(){ fToggleAdv(newRef.id,advLabel); },60);
+      let hasWajah=FS.refs.some(function(r){return r.type==='wajah';});
+      let hasProduk=FS.refs.some(function(r){return r.type==='produk';});
+      if(hasWajah && hasProduk){
+        setTimeout(pbShowOutfitHintNotif,400);
+      }
     }
   };
 })();
