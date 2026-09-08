@@ -1079,6 +1079,10 @@ body input, body textarea, body [contenteditable="true"]{
    otomatis begitu langkah 4 selesai / tur di-skip (lihat pbLockChip/
    pbUnlockChip & pbHideOverlay). */
 .f1chip.pb-locked{opacity:0.35;pointer-events:none;filter:grayscale(0.6);}
+/* Reuse tanda "dikunci" yang sama di atas untuk kartu Subjek Foto (f0) —
+   dipakai tur Langkah 5 buat "membekukan" kartu Produk Saja sementara,
+   lihat pbGoStep5()/pbTourResetF0Ui(). */
+.subjek-card.pb-locked{opacity:0.35;pointer-events:none;filter:grayscale(0.6);}
 .f1chip>svg.icon{color:var(--muted);opacity:0.75;transition:color 0.12s,opacity 0.12s;}
 .f1chip:hover>svg.icon{color:var(--accent);opacity:1;}
 .f1chip .col-tight>span:first-child{color:var(--text);font-weight:600;}
@@ -1414,6 +1418,26 @@ body input, body textarea, body [contenteditable="true"]{
 .pb-tour-skip:active{opacity:0.7;}
 .pb-tour-next{font-size:var(--fs-sm);font-weight:700;color:var(--bg);background:var(--accent);border:none;border-radius:var(--radius-pill);padding:8px 16px;cursor:pointer;}
 .pb-tour-next:active{opacity:0.85;}
+/* ── TOUR — versi sederhana Langkah 5 (Subjek Foto): sembunyikan
+   deskripsi tiap kartu subjek (Perempuan/Laki-laki/Produk Saja) supaya
+   cuma judulnya yang kelihatan, dan buram-kan elemen lain di halaman
+   (judul "Builder Prompt Foto", kartu Karakter Sheet, link "Punya
+   prompt lama") biar fokus user cuma ke kartu Subjek Foto. Dipasang di
+   pbGoStep5(), dilepas lagi di pbTourResetF0Ui() begitu subjek dipilih
+   atau tur di-skip. ────────────────────────────────────────────── */
+#f0.pb-tour-f0-simple .sk-desc{display:none;}
+body.pb-tour-blur-context .sec-title,
+body.pb-tour-blur-context .sec-desc,
+body.pb-tour-blur-context #cs-entry-btn,
+body.pb-tour-blur-context #f-import-toggle-wrap{
+  filter:blur(5px);pointer-events:none;user-select:none;transition:filter .25s ease;
+}
+/* ── TOUR — versi sederhana Langkah 6 (Foto Referensi): sembunyikan
+   total banner "Cek HP dulu" & chip "Objek" (bukan cuma dikunci) biar
+   user cuma lihat Karakter Sheet (dulu "Wajah"), Produk, dan Isi Outfit
+   Karakter. Dipasang di pbGoStep6(), dilepas lagi di pbTourResetF1Ui().
+   ─────────────────────────────────────────────────────────────────── */
+#f1.pb-tour-f1-simple #f1-cekhp-banner{display:none;}
 #pb-tour-replay-btn{
   display:flex;align-items:center;justify-content:center;gap:8px;
   width:100%;margin-top:18px;padding:12px;font-size:var(--fs-sm);font-weight:600;
@@ -2163,7 +2187,7 @@ body input, body textarea, body [contenteditable="true"]{
 
   <!-- IMPORT PROMPT LAMA — tempel JSON hasil generate sebelumnya, tools
        otomatis isi step-step yang cocok tanpa perlu pilih ulang dari awal -->
-  <div style="margin-bottom:14px;">
+  <div id="f-import-toggle-wrap" style="margin-bottom:14px;">
     <button onclick="fToggleImportArea()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;text-decoration:underline;padding:0;">Punya prompt lama? Tempel di sini biar nggak perlu isi ulang</button>
     <div id="f-import-area" class="hidden" style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;">
       <p style="font-size:var(--fs-xs);color:var(--muted);margin-bottom:8px;line-height:1.6;">Tempel JSON prompt foto yang pernah kamu generate dari tools ini. Lokasi, cahaya, angle, pose, dan mood-nya otomatis keisi — tinggal ubah bagian yang mau diganti aja. <strong style="color:var(--text);">Info foto referensi ikut dibawa apa adanya</strong> (nggak bisa diubah lewat wizard).</p>
@@ -2187,7 +2211,7 @@ body input, body textarea, body [contenteditable="true"]{
       <div class="wanswer" id="fa0"></div>
     </div>
     <div class="wbody">
-      <p class="desc-block">
+      <p class="desc-block" id="f0-desc-text">
         Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.
       </p>
       <div style="display:grid;gap:10px;">
@@ -2252,7 +2276,7 @@ body input, body textarea, body [contenteditable="true"]{
         </div>
 
         <!-- CHIP SELECTOR — tap untuk toggle -->
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-left:3px solid var(--warning);border-radius:var(--radius-xs);">
+        <div id="f1-cekhp-banner" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-left:3px solid var(--warning);border-radius:var(--radius-xs);">
           <span style="font-size:var(--fs-sm);font-weight:700;color:var(--warning);letter-spacing:-0.2px;">Cek HP dulu</span>
           <span style="font-size:var(--fs-xs2);color:var(--text);line-height:1.4;">Tap sesuai foto yang kamu punya — jangan asal pilih</span>
         </div>
@@ -2261,7 +2285,7 @@ body input, body textarea, body [contenteditable="true"]{
           <button class="f1chip" id="ftb-wajah" onclick="fAddRef('wajah')">
             <svg class="icon" style="font-size:var(--fs-base);flex-shrink:0;"><use href="#ic-face"></use></svg>
             <div class="col-tight">
-              <span>Wajah</span>
+              <span id="ftb-wajah-label">Wajah</span>
               <span class="f1chip-sub" id="fts-wajah">Apakah kamu punya fotonya di galeri?</span>
             </div>
             <span class="f1chip-badge" id="ftc-wajah">+</span>
@@ -2324,9 +2348,9 @@ body input, body textarea, body [contenteditable="true"]{
       <div id="outfit-random-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9995;display:none;align-items:center;justify-content:center;padding:20px;">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:420px;box-shadow:0 16px 48px rgba(0,0,0,0.6);">
           <div style="font-size:var(--fs-md);font-weight:600;margin-bottom:4px;">Isi Outfit Karakter</div>
-          <p style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;line-height:1.6;">Deskripsikan outfit yang kamu inginkan — AI yang generate.</p>
+          <p id="outfit-random-desc" style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;line-height:1.6;">Deskripsikan outfit yang kamu inginkan — AI yang generate.</p>
           <textarea id="outfit-random-input" rows="3" class="inp textarea-base"  placeholder="Contoh: dress midi floral sage green, casual elegant..."></textarea>
-          <p style="font-size:var(--fs-xs);color:var(--muted2);margin-top:4px;margin-bottom:14px;">Semakin detail, hasil AI semakin akurat.</p>
+          <p id="outfit-random-footnote" style="font-size:var(--fs-xs);color:var(--muted2);margin-top:4px;margin-bottom:14px;">Semakin detail, hasil AI semakin akurat.</p>
           <div style="display:flex;gap:8px;">
             <button onclick="fCloseOutfitRandom()" style="flex:1;background:none;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);cursor:pointer;font-family:'Geist',sans-serif;">Batal</button>
             <button onclick="fConfirmOutfitRandom()" style="flex:2;background:var(--text);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:600;cursor:pointer;font-family:'Geist',sans-serif;"><svg class="icon"><use href="#ic-check"></use></svg> Tambah →</button>
@@ -3222,7 +3246,7 @@ body input, body textarea, body [contenteditable="true"]{
          (contoh: v3.6 → v3.7). Jangan pernah edit aplikasi tanpa menaikkan
          versi ini — kalau lupa/terlewat di update sebelumnya, naikkan
          sekarang untuk menutup selisihnya. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v3.7 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v3.8 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -4094,6 +4118,20 @@ function fOpenOutfitRandom(){
   if(!modal)return;
   document.getElementById('outfit-random-input').value='';
   modal.style.display='flex';
+  // TOUR — Langkah 6: sementara tur masih menuntun user isi outfit
+  // karakter, teks pembuka & footer modal ini diganti versi yang lebih
+  // spesifik ke konteks "karakter sheet". Di luar tur (pbTourF1Active
+  // false), teks aslinya dipakai seperti biasa. Lihat pbGoStep6() &
+  // pbTourResetF1Ui().
+  let descEl=document.getElementById('outfit-random-desc');
+  let footEl=document.getElementById('outfit-random-footnote');
+  if(pbTourF1Active){
+    if(descEl) descEl.textContent='Sekarang kakak isi aja setelan baju apa yang akan dipakai oleh karakter sheet.';
+    if(footEl) footEl.textContent='Semakin detail semakin bagus.';
+  } else {
+    if(descEl) descEl.textContent='Deskripsikan outfit yang kamu inginkan — AI yang generate.';
+    if(footEl) footEl.textContent='Semakin detail, hasil AI semakin akurat.';
+  }
   setTimeout(()=>document.getElementById('outfit-random-input').focus(),100);
 }
 function fCloseOutfitRandom(){
@@ -12810,6 +12848,13 @@ function pbHideOverlay(){
   // jangan sampai nyangkut terkunci walau tur sudah tidak tampil.
   pbUnlockChip('#ftb-outfit');
   pbUnlockChip('#ftb-objek');
+  // Jaga-jaga: kalau tur ditutup/di-skip persis waktu Langkah 5 atau 6
+  // (versi sederhana f0/f1) masih aktif, pastikan tampilannya selalu
+  // kembali normal — jangan sampai nyangkut buram/tersembunyi walau
+  // tur sudah tidak tampil. Fungsi ini aman dipanggil kapan pun
+  // (idempotent) walau langkah tersebut belum pernah dibuka.
+  if(typeof pbTourResetF0Ui==='function') pbTourResetF0Ui();
+  if(typeof pbTourResetF1Ui==='function') pbTourResetF1Ui();
   document.getElementById('pb-tour-backdrop').classList.remove('show','pb-passive');
   document.getElementById('pb-tour-spot').classList.remove('show','pb-airy');
   document.getElementById('pb-tour-card').classList.remove('show');
@@ -12897,12 +12942,13 @@ var pbKsFotoDataUrl=null;
 // referensi/kalau dibutuhkan lagi, tapi sudah tidak dipanggil dari alur
 // utama manapun). Begitu prompt Karakter Sheet disalin & user tekan
 // "Mengerti", tur lanjut ke Langkah 4 (lihat csCopyPrompt→csShowSavedNotif).
-// Kalau KEDUA bahan (produk + karakter sheet) sudah lengkap, untuk
-// sekarang tur diakhiri di sini — lanjutan "bikin Foto AI" belum dibuat.
+// Kalau KEDUA bahan (produk + karakter sheet) sudah lengkap, tur
+// dilanjutkan ke Langkah 5 (versi sederhana dari step "Subjek Foto" f0
+// asli) — lihat pbGoStep5() di bawah.
 function pbGoStep2Next(){
   if(!pbProdukFotoUploaded){ pbGoStep2b(); }
   else if(!pbKsFotoUploaded){ pbOpenCharacterSheetFromTour(); }
-  else { pbEndTour(); }
+  else { pbGoStep5(); }
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
@@ -13265,26 +13311,96 @@ function pbFlowLightboxClose(){
   document.getElementById('pb-flow-lightbox').classList.remove('show');
   document.getElementById('pb-flow-lightbox-video').pause();
 }
-// ── LANGKAH 5 — interaktif, pilih subjek (f0) ────────────────────
+// ── LANGKAH 5 — interaktif, pilih subjek (f0), VERSI SEDERHANA ───
+// Sengaja disederhanakan dari tampilan f0 aslinya SELAMA tur masih
+// aktif di step ini: deskripsi tiap kartu (Perempuan/Laki-laki/Produk
+// Saja) disembunyikan, kartu "Produk Saja" dibekukan (cuma 2 opsi yang
+// bisa dipilih user di sini), elemen lain di halaman (judul "Builder
+// Prompt Foto", kartu Karakter Sheet, link "Punya prompt lama") ikut
+// diburamkan biar fokus user cuma ke 3 kartu subjek. Semua perubahan
+// ini di-revert lagi di pbTourResetF0Ui() begitu subjek dipilih (lewat
+// pbArmDoneWait('f0',...) di bawah) atau tur di-skip (lihat
+// pbHideOverlay()) — di luar tur, tampilan f0 kembali seperti biasa.
 function pbGoStep5(){
-  pbShowInteractive(5,'Pilih karakter AI kakak','Udah siapkan foto wajah sama foto produk kan? Nah sekarang kakak pilih karakter AI kakak (laki-laki atau perempuan) sesuai foto wajah yang kakak siapkan.','#f0');
-  pbArmDoneWait('f0',pbGoStep6);
+  pbShowInteractive(5,'Pilih karakter AI kakak','Udah siapkan foto wajah sama foto produk kan? Nah sekarang kakak pilih jenis kelamin karakter AI kakak sesuai foto wajah yang kakak siapkan.','#f0');
+  document.body.classList.add('pb-tour-blur-context');
+  let f0=document.getElementById('f0');
+  if(f0) f0.classList.add('pb-tour-f0-simple');
+  let descEl=document.getElementById('f0-desc-text');
+  if(descEl) descEl.textContent='Jenis kelamin foto karakter sheet kakak apa?';
+  // "Produk Saja" dibekukan dulu di langkah ini — cuma Perempuan/
+  // Laki-laki yang relevan buat alur onboarding (karakter sheet).
+  pbLockChip('#sk-produk');
+  pbArmDoneWait('f0',function(){
+    pbTourResetF0Ui();
+    pbGoStep6();
+  });
 }
-// ── LANGKAH 6 — interaktif, foto referensi & outfit (f1) ─────────
-// Dibuka OTOMATIS begitu doneCard('f0') beneran terpanggil (user
-// sudah pilih & konfirmasi subjek) — bukan lewat tombol tur.
+// Kembalikan tampilan f0 seperti semula (dipanggil begitu subjek
+// dipilih & tur lanjut ke Langkah 6, ATAU dari pbHideOverlay() kalau
+// tur di-skip persis waktu Langkah 5 masih aktif).
+function pbTourResetF0Ui(){
+  document.body.classList.remove('pb-tour-blur-context');
+  let f0=document.getElementById('f0');
+  if(f0) f0.classList.remove('pb-tour-f0-simple');
+  let descEl=document.getElementById('f0-desc-text');
+  if(descEl) descEl.textContent='Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.';
+  pbUnlockChip('#sk-produk');
+}
+// ── LANGKAH 6 — interaktif, foto referensi & outfit (f1), VERSI
+// SEDERHANA. Dibuka OTOMATIS begitu doneCard('f0') beneran terpanggil
+// (user sudah pilih & konfirmasi subjek) — bukan lewat tombol tur.
+// Sengaja disederhanakan SELAMA tur masih aktif di step ini: banner
+// "Cek HP dulu" & chip "Objek" disembunyikan total (bukan cuma
+// dikunci), chip "Wajah" berlabel "Karakter Sheet" & langsung
+// ditambahkan otomatis begitu step ini terbuka (user tidak perlu klik
+// sendiri), chip "Outfit" (foto) tetap dikunci, dan tanda "+" pada
+// "Isi Outfit Karakter" dilepas. Direvert lagi di pbTourResetF1Ui().
+var pbTourF1Active=false;
 function pbGoStep6(){
-  pbShowInteractive(6,'Masukkan foto & outfit','Nah sekarang kakak tinggal sesuaikan aja nih sama foto yang ada di galeri kakak. Kan tadi kakak udah punya foto wajah dan foto produk. Sekarang tinggal klik aja foto wajah dan foto produk. Kemudian isi nama produk yang ada di foto kakak di galeri. Terus klik juga isi outfit karakter. Tujuannya supaya kakak bisa membuat karakter AI kakak memakai outfit dengan selera kakak. Kemudian lanjut.','#f1');
-  // Kunci chip yang TIDAK relevan di langkah ini — cuma Wajah, Produk, &
-  // "Isi Outfit Karakter" yang boleh dipakai user di sini. Chip "Outfit"
-  // (foto) & "Objek" jadi tidak merespons klik sampai step ini selesai.
+  pbShowInteractive(6,'Masukkan foto & outfit','Nah sekarang kakak tinggal klik Karakter Sheet buat pakai foto wajah yang kakak siapkan, isi nama produk sesuai foto kakak di galeri, dan kalau mau, isi juga outfit karakter sesuai selera kakak. Kemudian lanjut.','#f1');
+  pbTourF1Active=true;
+  let f1=document.getElementById('f1');
+  if(f1) f1.classList.add('pb-tour-f1-simple');
+  let wajahLabel=document.getElementById('ftb-wajah-label');
+  if(wajahLabel) wajahLabel.textContent='Karakter Sheet';
+  let objekChip=document.getElementById('ftb-objek');
+  if(objekChip) objekChip.style.display='none';
+  // Chip "Outfit" (foto) tidak relevan di langkah ini — user isi outfit
+  // lewat "Isi Outfit Karakter" (teks bebas), bukan lewat foto.
   pbLockChip('#ftb-outfit');
-  pbLockChip('#ftb-objek');
+  let outfitRandomBadge=document.getElementById('ftc-outfit_random');
+  if(outfitRandomBadge) outfitRandomBadge.textContent='';
+  // "Karakter Sheet" (dulu "Wajah") langsung ditambahkan otomatis
+  // begitu masuk step ini — cukup 1x klik (lewat auto-add ini) buat
+  // user, tidak perlu klik chip-nya sendiri lagi.
+  if(!FS.refs.some(function(r){return r.type==='wajah';})){
+    fAddRef('wajah');
+  }
   pbArmDoneWait('f1',function(){
-    pbUnlockChip('#ftb-outfit');
-    pbUnlockChip('#ftb-objek');
+    pbTourResetF1Ui();
     pbGoStep7();
   });
+}
+// Kembalikan tampilan f1 seperti semula (dipanggil begitu foto
+// referensi selesai & tur lanjut ke Langkah 7, ATAU dari
+// pbHideOverlay() kalau tur di-skip persis waktu Langkah 6 aktif).
+function pbTourResetF1Ui(){
+  pbTourF1Active=false;
+  let f1=document.getElementById('f1');
+  if(f1) f1.classList.remove('pb-tour-f1-simple');
+  let wajahLabel=document.getElementById('ftb-wajah-label');
+  if(wajahLabel) wajahLabel.textContent='Wajah';
+  let objekChip=document.getElementById('ftb-objek');
+  if(objekChip) objekChip.style.display='';
+  pbUnlockChip('#ftb-outfit');
+  pbUnlockChip('#ftb-objek');
+  let outfitRandomBadge=document.getElementById('ftc-outfit_random');
+  if(outfitRandomBadge) outfitRandomBadge.textContent='+';
+  let orDesc=document.getElementById('outfit-random-desc');
+  if(orDesc) orDesc.textContent='Deskripsikan outfit yang kamu inginkan — AI yang generate.';
+  let orFoot=document.getElementById('outfit-random-footnote');
+  if(orFoot) orFoot.textContent='Semakin detail, hasil AI semakin akurat.';
 }
 function pbLockChip(sel){
   let el=document.querySelector(sel);
@@ -13294,6 +13410,23 @@ function pbUnlockChip(sel){
   let el=document.querySelector(sel);
   if(el) el.classList.remove('pb-locked');
 }
+// ── Wrapper fAddRef(): SELAMA Langkah 6 tur (pb-tour-f1-simple) aktif,
+// begitu foto ref baru ditambahkan (mis. user klik "Produk"), panel
+// "atur detail"-nya langsung dibuka otomatis — user cukup 1x klik pada
+// chip-nya, tidak perlu klik terpisah ke tombol "atur detail" lagi. Di
+// luar tur, perilaku fAddRef TIDAK berubah sama sekali. ─────────────
+(function(){
+  let _pbOrigFAddRef=fAddRef;
+  fAddRef=function(typeKey){
+    let before=FS.refs.length;
+    _pbOrigFAddRef.apply(this,arguments);
+    if(pbTourF1Active && FS.refs.length>before){
+      let newRef=FS.refs[FS.refs.length-1];
+      let advLabel=(typeKey==='wajah'||typeKey==='outfit')?'atur detail':undefined;
+      setTimeout(function(){ fToggleAdv(newRef.id,advLabel); },60);
+    }
+  };
+})();
 // ── LANGKAH 7 — fase A: modal penjelasan cara tampil produk ──────
 // Dibuka OTOMATIS begitu doneCard('f1') terpanggil (user sudah
 // selesai isi foto referensi & tekan "Lanjut →" bawaan step itu).
