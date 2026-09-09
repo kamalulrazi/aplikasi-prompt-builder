@@ -3106,6 +3106,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <div class="chip sel" id="vb-mode-satu" onclick="vbPickRefMode('satu')">Mode 1 — 1 foto untuk semua</div>
         <div class="chip" id="vb-mode-aset" onclick="vbPickRefMode('aset')">Mode 2 — Aset frame awal</div>
         <div class="chip" id="vb-mode-kp" onclick="vbPickRefMode('kp')">Mode 3 — Karakter + Produk + Lokasi</div>
+        <div class="chip" id="vb-mode-ikuti" onclick="vbPickRefMode('ikuti')">Mode 4 — Ikuti Gerakan Video Referensi</div>
       </div>
       <p id="vb-mode-desc" style="font-size:var(--fs-xs);color:var(--muted);margin-bottom:12px;line-height:1.6;">Foto dipakai sebagai satu acuan karakter, outfit, dan lokasi untuk seluruh video — dari awal sampai akhir.</p>
 
@@ -3162,9 +3163,25 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         </div>
       </div>
 
-      <p style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;line-height:1.6;">Foto referensinya di-upload langsung di Google Flow/Veo saat kamu pakai prompt ini — bukan di sini.</p>
-      <div style="margin-top:10px;text-align:right;">
-        <button class="btn sm" onclick="vbConfirmRef()" style="width:auto;padding:8px 18px;">Lanjut →</button>
+      <!-- MODE 4: kotak hasil siap-salin — tidak ada step lanjutan -->
+      <div id="vb-mode4-area" class="hidden" style="margin-bottom:14px;">
+        <div class="out-card">
+          <div class="out-head">
+            <div class="out-label">Prompt — Ikuti Gerakan Video</div>
+            <div style="display:flex;align-items:center;gap:7px;">
+              <button class="copy-btn" onclick="vbCopyMode4Prompt()">Salin</button>
+            </div>
+          </div>
+          <div class="out-body"><pre id="vb-mode4-prompt-text" style="white-space:pre-wrap;">Aku ingin kamu membuat foto yang dilampirkan mengikuti setiap gerakan yang ada di dalam video yang dilampirkan, termasuk transisi di dalam video. Pastikan lokasi, lighting, outfit, dan mood wajib persis dengan foto yang dilampirkan.</pre></div>
+        </div>
+        <p style="font-size:var(--fs-xs2);color:var(--muted);margin-top:10px;line-height:1.6;">Upload FOTO dan VIDEO referensinya langsung di Google Flow/Veo, lalu tempel prompt di atas — bukan di sini.</p>
+      </div>
+
+      <div id="vb-mode-normal-footer">
+        <p style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;line-height:1.6;">Foto referensinya di-upload langsung di Google Flow/Veo saat kamu pakai prompt ini — bukan di sini.</p>
+        <div style="margin-top:10px;text-align:right;">
+          <button class="btn sm" onclick="vbConfirmRef()" style="width:auto;padding:8px 18px;">Lanjut →</button>
+        </div>
       </div>
     </div>
   </div>
@@ -9171,8 +9188,19 @@ const VB_REF_MODE_TEXT={
 const VB_REF_MODE_DESC={
   satu:'Foto dipakai sebagai satu acuan karakter, outfit, dan lokasi untuk seluruh video — dari awal sampai akhir.',
   aset:'Foto yang dilampirkan jadi frame awal SETIAP pergantian scene, scene wajib 100% sama dengan foto (kalau di foto tidak ada wajah, jangan dimunculkan wajah), dan urutan scene wajib berurutan sesuai foto yang dilampirkan.',
-  kp:'Foto referensi 1 = karakter (wajah & outfit dipertahankan), foto referensi 2 = produk. Kamu pilih sendiri lokasi & lighting video-nya di bawah.'
+  kp:'Foto referensi 1 = karakter (wajah & outfit dipertahankan), foto referensi 2 = produk. Kamu pilih sendiri lokasi & lighting video-nya di bawah.',
+  ikuti:'Foto yang dilampirkan mengikuti gerakan & transisi dari video referensi yang dilampirkan — lokasi, lighting, outfit, dan mood tetap wajib persis seperti foto. Tinggal salin promptnya, tidak perlu isi step lain.'
 };
+// ── MODE 4 — "Ikuti Gerakan Video Referensi": beda total dari Mode 1-3.
+// Mode 1-3 masih lanjut ke wizard suara karakter & script dialog (V2-V5)
+// karena hasil akhirnya JSON video ber-dialog. Mode 4 TIDAK — hasilnya
+// cuma satu kalimat instruksi siap-salin, jadi begitu dipilih langsung
+// tampilkan kotak "Salin" di sini, dan sembunyikan tombol "Lanjut →"
+// (V2 dst tidak relevan buat mode ini).
+const VB_MODE4_PROMPT_TEXT='Aku ingin kamu membuat foto yang dilampirkan mengikuti setiap gerakan yang ada di dalam video yang dilampirkan, termasuk transisi di dalam video. Pastikan lokasi, lighting, outfit, dan mood wajib persis dengan foto yang dilampirkan.';
+function vbCopyMode4Prompt(){
+  _copyTextRobust(VB_MODE4_PROMPT_TEXT,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+}
 function vbPickRefMode(mode){
   // FIX BUG #7 (ditemukan saat audit mendalam): sebelumnya baris terakhir
   // fungsi ini SELALU memanggil vbMode3ResetSteps() setiap kali mode 'kp'
@@ -9188,10 +9216,19 @@ function vbPickRefMode(mode){
   document.getElementById('vb-mode-satu').classList.toggle('sel',mode==='satu');
   document.getElementById('vb-mode-aset').classList.toggle('sel',mode==='aset');
   document.getElementById('vb-mode-kp').classList.toggle('sel',mode==='kp');
+  let mode4Chip=document.getElementById('vb-mode-ikuti');
+  if(mode4Chip)mode4Chip.classList.toggle('sel',mode==='ikuti');
   let desc=document.getElementById('vb-mode-desc');
   if(desc)desc.textContent=VB_REF_MODE_DESC[mode];
   let area=document.getElementById('vb-mode3-area');
   if(area)area.classList.toggle('hidden',mode!=='kp');
+  // Mode 4: sembunyikan footer normal (catatan + tombol "Lanjut →", yang
+  // membawa ke V2 wizard suara — tidak relevan buat mode ini) & tampilkan
+  // kotak salin promptnya langsung di sini.
+  let mode4Area=document.getElementById('vb-mode4-area');
+  if(mode4Area)mode4Area.classList.toggle('hidden',mode!=='ikuti');
+  let normalFooter=document.getElementById('vb-mode-normal-footer');
+  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti');
   if(justSwitchedToKp)vbMode3ResetSteps();
 }
 // Reset ke step 1 (Nama Produk) tiap kali Mode 3 dipilih ulang
