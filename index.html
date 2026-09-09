@@ -262,7 +262,7 @@ body input, body textarea, body [contenteditable="true"]{
 }
 .header-p-icon{width:9.8px;height:13.3px;flex-shrink:0;vertical-align:-1.5px;margin-right:2px;}
 .h-eyebrow{display:none;}/* removed */
-.h-pills{display:flex;gap:var(--space-2);flex-wrap:wrap;grid-column:3;justify-self:end;}
+.h-pills{display:flex;gap:var(--space-2);flex-wrap:wrap;grid-column:3;justify-self:end;position:relative;z-index:50;}
 .h-pill{
   display:inline-flex;align-items:center;gap:4px;
   background:var(--accent-dim-bg);border:1px solid rgba(217,184,118,0.28);
@@ -271,6 +271,12 @@ body input, body textarea, body [contenteditable="true"]{
   font-family:'Geist Mono',monospace;letter-spacing:0.2px;
   box-shadow:var(--shadow-sm);
   transition:border-color 0.15s,color 0.15s,background 0.15s;
+  /* FIX: tombol "AI" kadang kerasa tidak bisa diklik lagi setelah user
+     menyambungkan API key — dipastikan di sini elemen ini SELALU bisa
+     menerima klik (pointer-events) dan SELALU berada di lapisan paling
+     atas relatif terhadap elemen header di sekitarnya, supaya tidak ada
+     elemen transparan lain yang kebetulan menimpa & mencuri klik-nya. */
+  pointer-events:auto;position:relative;z-index:1;
 }
 .h-pill:hover{border-color:rgba(217,184,118,0.5);background:rgba(217,184,118,0.18);}
 .h-pill svg{width:10px;height:10px;flex-shrink:0;color:var(--accent-2);}
@@ -2168,23 +2174,23 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <div class="wcard" id="vai-key" style="border:none;padding:0;">
         <div class="whead" style="display:none;"><div class="wnum">1</div><div class="wtitle">Sambungkan ke AI (sekali saja)</div><div class="wanswer" id="vai-key-ans"></div></div>
         <div class="wbody" style="padding:0;">
-          <p class="desc-block">Untuk fitur generate JSON prompt via AI, tools ini perlu disambungkan ke Google AI. <strong style="color:var(--text);">Gratis</strong> dan hanya perlu dilakukan sekali.</p>
+          <p class="desc-block">Untuk fitur generate JSON prompt via AI, tools ini perlu disambungkan ke Groq (bisa baca teks & foto). <strong style="color:var(--text);">Gratis</strong> dan hanya perlu dilakukan sekali.</p>
           <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-            <div class="info-card"><div class="num-badge">1</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Buka browser baru</div><div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:8px;">Ketik atau copy link ini di address bar browser:</div><div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);color:var(--accent);display:flex;align-items:center;justify-content:space-between;gap:8px;"><span>aistudio.google.com/apikey</span><button onclick="copyText('aistudio.google.com/apikey',this)" style="background:var(--surface3);border:1px solid var(--border-hi);color:var(--accent);padding:4px 10px;border-radius:var(--radius-2xs);font-size:var(--fs-xs);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;white-space:nowrap;">Copy Link</button></div></div></div>
-            <div class="info-card"><div class="num-badge">2</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Login dengan akun Google</div><div class="desc-text">Pakai akun Gmail kamu yang biasa.</div></div></div>
-            <div class="info-card"><div class="num-badge">3</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Klik tombol "Create API Key"</div><div class="desc-text">Tombolnya ada di bagian atas, warna biru. Klik → pilih project → Create.</div></div></div>
-            <div class="info-card"><div class="num-badge">4</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Copy API Key yang muncul</div><div class="desc-text">Kode panjang diawali <strong style="color:var(--text);font-family:'Geist Mono',monospace;">AIza...</strong> atau <strong style="color:var(--text);font-family:'Geist Mono',monospace;">AQ....</strong></div></div></div>
+            <div class="info-card"><div class="num-badge">1</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Buka browser baru</div><div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:8px;">Ketik atau copy link ini di address bar browser:</div><div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);color:var(--accent);display:flex;align-items:center;justify-content:space-between;gap:8px;"><span>console.groq.com/keys</span><button onclick="copyText('console.groq.com/keys',this)" style="background:var(--surface3);border:1px solid var(--border-hi);color:var(--accent);padding:4px 10px;border-radius:var(--radius-2xs);font-size:var(--fs-xs);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;white-space:nowrap;">Copy Link</button></div></div></div>
+            <div class="info-card"><div class="num-badge">2</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Daftar/login akun Groq</div><div class="desc-text">Bisa pakai akun Google/Gmail kamu juga buat daftar cepat.</div></div></div>
+            <div class="info-card"><div class="num-badge">3</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Klik tombol "Create API Key"</div><div class="desc-text">Tombolnya ada di halaman API Keys. Kasih nama bebas → Submit.</div></div></div>
+            <div class="info-card"><div class="num-badge">4</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Copy API Key yang muncul</div><div class="desc-text">Kode panjang diawali <strong style="color:var(--text);font-family:'Geist Mono',monospace;">gsk_...</strong> — cuma tampil SEKALI, langsung copy.</div></div></div>
             <div style="background:rgba(76,175,125,0.08);border:1px solid rgba(76,175,125,0.25);border-radius:var(--radius-md);padding:12px;display:flex;align-items:flex-start;gap:12px;"><div style="width:28px;height:28px;background:var(--green);color:#fff;border-radius:50%;font-size:var(--fs-sm);font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Geist Mono',monospace;">5</div><div><div style="font-size:var(--fs-base);font-weight:700;color:var(--green);margin-bottom:4px;">Paste di kotak di bawah ini</div><div class="desc-text">Kembali ke halaman ini → tekan lama di kotak bawah → pilih Paste → klik Simpan.</div></div></div>
           </div>
           <label class="inplabel">Paste API Key di sini</label>
           <div style="display:flex;gap:8px;">
-            <input class="inp" id="gemini-api-key" type="password" placeholder="AIza... atau AQ.... (paste kode dari Google AI Studio)" style="flex:1;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);" oninput="let eb=document.getElementById('vai-key-error');if(eb)eb.classList.add('hidden');" />
+            <input class="inp" id="gemini-api-key" type="password" placeholder="gsk_... (paste kode dari Groq Console)" style="flex:1;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);" oninput="let eb=document.getElementById('vai-key-error');if(eb)eb.classList.add('hidden');" />
             <button onclick="vaiToggleKeyVisibility(this)" title="Tampilkan/sembunyikan API key" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:0 12px;border-radius:var(--radius-md);cursor:pointer;font-size:16px;"><svg class="icon"><use href="#ic-eye"></use></svg></button>
           </div>
           <div id="vai-key-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.12);border:1px solid rgba(224,92,92,0.4);border-radius:var(--radius-md);padding:10px 12px;font-size:var(--fs-xs2);color:var(--red);line-height:1.6;"></div>
-          <p style="font-size:var(--fs-xs2);color:var(--muted);margin-top:6px;line-height:1.6;">Kode ini hanya tersimpan di browser kamu — tidak dikirim ke server manapun selain Google.</p>
+          <p style="font-size:var(--fs-xs2);color:var(--muted);margin-top:6px;line-height:1.6;">Kode ini hanya tersimpan di browser kamu — tidak dikirim ke server manapun selain Groq.</p>
           <p style="font-size:var(--fs-xs2);color:var(--muted);margin-top:4px;line-height:1.6;">Mode incognito/private: key <strong>tidak tersimpan</strong> — kamu perlu isi ulang setiap sesi baru.</p>
-          <p style="font-size:var(--fs-xs2);color:rgba(224,92,92,0.8);margin-top:4px;line-height:1.6;"><strong>Tips keamanan:</strong> Key hanya tersimpan di browser kamu (tidak dikirim ke server kami). Jangan share perangkat saat key tersimpan. Jika curiga bocor, hapus dan buat key baru di Google AI Studio.</p>
+          <p style="font-size:var(--fs-xs2);color:rgba(224,92,92,0.8);margin-top:4px;line-height:1.6;"><strong>Tips keamanan:</strong> Key hanya tersimpan di browser kamu (tidak dikirim ke server kami). Jangan share perangkat saat key tersimpan. Jika curiga bocor, hapus dan buat key baru di Groq Console.</p>
           <button class="btn sm" onclick="vaiSaveKey()" style="margin-top:10px;"><svg class="icon"><use href="#ic-check"></use></svg> Simpan & Mulai →</button>
           <div style="margin-top:12px;text-align:center;"><button onclick="vaiShowSavedKey()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;font-family:'Geist',sans-serif;">Sudah pernah simpan key sebelumnya?</button></div>
         </div>
@@ -3462,7 +3468,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v4.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.1 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -3504,6 +3510,17 @@ function openApiKeyModal(){
   if(m)m.style.display='flex';
   let errBox=document.getElementById('vai-key-error');
   if(errBox){errBox.classList.add('hidden');errBox.textContent='';}
+  // FIX: tombol "Simpan & Mulai" di dalam modal ini di-disable sesaat
+  // selagi proses simpan key berjalan (lihat vaiSaveKey). Kalau proses itu
+  // kebetulan terhenti di tengah jalan (mis. tab di-refresh/pindah pas lagi
+  // proses), tombolnya bisa nyangkut permanen dalam keadaan disabled untuk
+  // sesi berikutnya. Supaya tombol "AI" ini SELALU bisa dipakai lagi tiap
+  // dibuka, statusnya dipaksa reset ke kondisi normal di sini.
+  let saveBtn=document.querySelector('#vai-key .btn');
+  if(saveBtn&&saveBtn.disabled){
+    saveBtn.disabled=false;
+    saveBtn.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> Simpan & Mulai';
+  }
 }
 function closeApiKeyModal(){
   let m=document.getElementById('apikey-modal-overlay');
@@ -3692,11 +3709,12 @@ document.addEventListener('keydown', function(e){
 
 // FIX A14: esc() dipindah ke scope global agar tidak dibuat ulang tiap render
 function esc(str){return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-// FIX: Google mulai transisi format API key dari "AIza..." (Standard key, lama)
-// ke "AQ...." (Auth key, baru) sejak pertengahan 2026. Kode ini harus terima
-// KEDUA format — sebelumnya cuma cek AIza dan menolak key AQ yang valid.
+// GANTI PROVIDER KE GROQ: API key Groq selalu diawali "gsk_" (beda dari
+// key Gemini yang diawali "AIza..."/"AQ...."). Nama fungsi TIDAK diubah
+// biar tidak perlu ganti semua call-site (_isValidGeminiKey dipanggil di
+// beberapa tempat lain di file ini).
 function _isValidGeminiKey(k){
-  return !!(k && (k.startsWith('AIza') || k.startsWith('AQ.')));
+  return !!(k && k.startsWith('gsk_'));
 }
 
 // ============================================================
@@ -8465,19 +8483,24 @@ function fReset(){
 // sebelumnya tidak pernah dideklarasikan di mana pun → setiap generate AI di
 // Video Builder langsung error "GEMINI_ENDPOINT is not defined" dan gagal total.
 // GANTI model di bawah kalau kamu memang mau pakai versi model lain.
-const GEMINI_ENDPOINT='https://generativelanguage.googleapis.com/v1beta/models/';
-// MODEL UTAMA + CADANGAN (permintaan user, Sept 2026): app sekarang PAKAI
-// DUA-DUANYA, bukan pilih salah satu. Semua panggilan Gemini coba dulu ke
-// GEMINI_MODEL_PRIMARY ('gemini-3.6-flash' — model workhorse penuh, lebih
-// pintar terutama buat script yang butuh nuansa/kreativitas). Kalau
-// primary gagal TOTAL (retry internal sudah dicoba habis-habisan tapi
-// tetap kena error/limit — lihat _vbFetchWithGeminiFallback &
-// _vbStreamGeminiJSONWithRetry di bawah), app otomatis lempar ke
-// GEMINI_MODEL_FALLBACK ('gemini-3.5-flash-lite' — jauh lebih murah,
-// lebih cepat, dan biasanya dapat jatah RPM free tier yang lebih longgar)
-// supaya proses generate tetap jalan, bukan langsung gagal total ke user.
-const GEMINI_MODEL_PRIMARY='gemini-3.6-flash';
-const GEMINI_MODEL_FALLBACK='gemini-3.5-flash-lite';
+// ── PINDAH KE GROQ (permintaan user) ────────────────────────────────────
+// Sebelumnya provider-nya Gemini (Google AI Studio). Sekarang diganti ke
+// Groq — endpoint-nya OpenAI-compatible (/openai/v1/chat/completions),
+// BUKAN format request/response Gemini. Supaya semua kode pemanggil di
+// bawah (_vbFetchWithGeminiFallback, _vbStreamGeminiJSONWithRetryModel,
+// dst — namanya sengaja TIDAK diganti biar tidak perlu ubah puluhan
+// call-site lain) tidak perlu diubah satu-satu, kedua fungsi itu yang
+// menerjemahkan: request dibungkus ulang jadi format Groq sebelum dikirim,
+// lalu response Groq dibungkus BALIK jadi bentuk {candidates:[{content:
+// {parts:[{text}]}}]} persis seperti balikan Gemini — jadi seluruh kode
+// yang membaca data.candidates[0].content.parts[0].text tetap jalan apa
+// adanya.
+const GROQ_ENDPOINT='https://api.groq.com/openai/v1/chat/completions';
+// Kedua model ini gratis di akun Groq (free tier) DAN bisa baca foto
+// (vision) — beda dari model teks-only Groq yang lain (mis. llama-3.1-8b)
+// yang TIDAK bisa terima gambar sama sekali.
+const GEMINI_MODEL_PRIMARY='meta-llama/llama-4-scout-17b-16e-instruct';
+const GEMINI_MODEL_FALLBACK='meta-llama/llama-4-maverick-17b-128e-instruct';
 var VAI={apiKey:'',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 
@@ -8628,21 +8651,21 @@ async function vaiSaveKey(){
   if(errBox){errBox.classList.add('hidden');errBox.textContent='';}
   if(!key){
     showToast('Paste API Key dulu ya!','error');
-    if(errBox){errBox.textContent='Kotaknya masih kosong — paste dulu API Key dari Google AI Studio.';errBox.classList.remove('hidden');}
+    if(errBox){errBox.textContent='Kotaknya masih kosong — paste dulu API Key dari Groq Console.';errBox.classList.remove('hidden');}
     return;
   }
   if(!_isValidGeminiKey(key)){
-    showToast('Kode tidak valid — harus diawali AIza... atau AQ....','error');
+    showToast('Kode tidak valid — harus diawali gsk_...','error');
     if(errBox){
       let preview=key.length>12?key.substring(0,12)+'...':key;
-      errBox.innerHTML='Kode yang kamu paste (<code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">'+esc(preview)+'</code>) <strong>bukan API Key Gemini yang benar</strong>. API Key asli diawali <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">AIza...</code> (format lama) atau <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">AQ....</code> (format baru). Kemungkinan kamu copy dari tempat yang salah — buka lagi <strong>aistudio.google.com/apikey</strong> dan copy kode API Key-nya.';
+      errBox.innerHTML='Kode yang kamu paste (<code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">'+esc(preview)+'</code>) <strong>bukan API Key Groq yang benar</strong>. API Key asli diawali <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">gsk_...</code>. Kemungkinan kamu copy dari tempat yang salah — buka lagi <strong>console.groq.com/keys</strong> dan copy kode API Key-nya.';
       errBox.classList.remove('hidden');
     }
     return;
   }
   if(key.length<30){
     showToast('Kode kelihatannya kependekan/kepotong — coba copy ulang','error');
-    if(errBox){errBox.textContent='Kode ini cuma '+key.length+' karakter — kelihatannya kepotong pas di-copy. API Key Gemini biasanya jauh lebih panjang. Coba copy ulang dari aistudio.google.com/apikey, pastikan ke-copy semua.';errBox.classList.remove('hidden');}
+    if(errBox){errBox.textContent='Kode ini cuma '+key.length+' karakter — kelihatannya kepotong pas di-copy. API Key Groq biasanya jauh lebih panjang. Coba copy ulang dari console.groq.com/keys, pastikan ke-copy semua.';errBox.classList.remove('hidden');}
     return;
   }
   // FIX #10: Disable tombol segera setelah validasi lolos — cegah double-klik
@@ -8676,7 +8699,7 @@ async function vaiSaveKey(){
   if(visBtn){let use=visBtn.querySelector('use');if(use)use.setAttribute('href','#ic-eye');}
   // BUG Y FIX: Re-enable saveBtn — tanpa ini saat vaiBack ke vai-key tombol tetap disabled
   if(saveBtn){saveBtn.disabled=false;saveBtn.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> Simpan & Mulai';}
-  vaiDoneCard('vai-key','vai-key-ans','Terhubung ke Google AI');
+  vaiDoneCard('vai-key','vai-key-ans','Terhubung ke Groq AI');
   dlRenderBar(); // Update limit bar sesuai API key baru
   showToast('Berhasil tersambung ke AI!','success');
   setTimeout(()=>closeApiKeyModal(),700);
@@ -10027,12 +10050,18 @@ async function _vbThrottleGeminiGate(){
   _vbLastGeminiCallTs=Date.now();
 }
 
-// ── Baca "retryDelay" yang dikirim Google di body error 429 (kalau ada)
-// — ini google.rpc.RetryInfo, saran resmi dari Google berapa lama HARUS
-// nunggu sebelum retry. Lebih akurat daripada nebak jeda sendiri. ──────
+// ── Baca saran "tunggu sekian detik" dari body error 429 (kalau ada) —
+// lebih akurat daripada nebak jeda sendiri. Dulu cuma parsing format Gemini
+// (google.rpc.RetryInfo di error.details[]). FIX MIGRASI GROQ: format itu
+// TIDAK ADA di error Groq, jadi fungsi ini selalu balik 0 sejak pindah
+// provider (retry tetap jalan, cuma pakai hitungan manual, bukan angka asli
+// dari server). Sekarang ditambah fallback baca pesan error Groq yang
+// biasanya mengandung teks "try again in X.Ys" (format standar rate-limit
+// ala OpenAI-compatible yang dipakai Groq). ──────────────────────────────
 function _vbParseRetryDelayMs(rawText){
   try{
     let j=JSON.parse(rawText);
+    // Format lama (Gemini): google.rpc.RetryInfo di error.details[]
     let details=j&&j.error&&j.error.details||[];
     for(let d of details){
       if(d&&typeof d['@type']==='string'&&d['@type'].indexOf('RetryInfo')!==-1&&d.retryDelay){
@@ -10040,6 +10069,10 @@ function _vbParseRetryDelayMs(rawText){
         if(m)return Math.ceil(parseFloat(m[1])*1000)+500;
       }
     }
+    // Format Groq: error.message berisi teks "...try again in 1.234s..."
+    let msg=(j&&j.error&&j.error.message)||'';
+    let mg=/try again in ([\d.]+)s/i.exec(msg);
+    if(mg)return Math.ceil(parseFloat(mg[1])*1000)+500;
   }catch(e){}
   return 0;
 }
@@ -10051,9 +10084,9 @@ function _vbParseRetryDelayMs(rawText){
 // jadi status 0 (timeout/koneksi putus, sekarang ikut di-retry juga)
 // salah dilabeli "server Google lagi sibuk" padahal bukan itu masalahnya.
 function _vbWaitReasonLabel(status){
-  if(status===429)return'nunggu limit Google reset';
+  if(status===429)return'nunggu limit Groq reset';
   if(status===0)return'koneksi sempat putus, mencoba lagi';
-  return'server Google lagi sibuk';
+  return'server Groq lagi sibuk';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -10114,14 +10147,30 @@ function _vbTryParsePartialJsonArray(buf){
 // Menerima parameter 'model' eksplisit — dipanggil oleh
 // _vbStreamGeminiJSONWithRetry (lihat di bawah) yang mengurus pergantian
 // primary→fallback antar model.
+// Ubah 'parts' gaya Gemini (dipakai di banyak tempat di file ini — teks
+// biasa {text:'...'} dan foto {inline_data:{mime_type,data}}) jadi
+// 'content' gaya OpenAI/Groq, supaya seluruh prompt yang sudah disusun
+// di tempat lain TIDAK perlu diubah — cuma diterjemahkan di titik paling
+// akhir sebelum benar-benar dikirim ke Groq.
+function _vbGeminiPartsToGroqContent(parts){
+  if(!parts||!parts.length)return[{type:'text',text:''}];
+  return parts.map(function(p){
+    if(p&&p.inline_data)return{type:'image_url',image_url:{url:'data:'+(p.inline_data.mime_type||'image/jpeg')+';base64,'+p.inline_data.data}};
+    if(p&&p.inlineData)return{type:'image_url',image_url:{url:'data:'+(p.inlineData.mimeType||'image/jpeg')+';base64,'+p.inlineData.data}};
+    return{type:'text',text:(p&&p.text)||''};
+  });
+}
 async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait){
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
   for(let attempt=0;;attempt++){
     let withThinkingOff=(attempt===0);
-    let cfg={maxOutputTokens:4096,responseMimeType:'application/json'};
-    if(withThinkingOff)cfg.thinkingConfig={thinkingLevel:'minimal'};
-    const url=GEMINI_ENDPOINT+model+':streamGenerateContent?alt=sse';
+    // CATATAN: cfg.thinkingConfig (khusus Gemini) sudah tidak dipakai lagi
+    // sejak pindah ke Groq — dibiarkan sebagai variabel kosong supaya baris
+    // di bawah yang mengecek 'thinkingConfig' di pesan error tetap aman
+    // (tidak pernah match, tidak pernah dipakai untuk apa-apa).
+    let cfg={maxOutputTokens:4096};
+    const url=GROQ_ENDPOINT;
     let controller=new AbortController();
     let timedOut=false;
     let timer=setTimeout(function(){timedOut=true;controller.abort();},withThinkingOff?30000:45000);
@@ -10140,8 +10189,8 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       await _vbThrottleGeminiGate();
       resp=await fetch(url,{
         method:'POST',
-        headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-        body:JSON.stringify({contents:[{parts:promptParts}],generationConfig:cfg}),
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+VAI.apiKey},
+        body:JSON.stringify({model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToGroqContent(promptParts)}]}),
         signal:controller.signal
       });
       if(resp.ok&&resp.body&&typeof resp.body.getReader==='function'){
@@ -10162,8 +10211,11 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
             if(!js||js==='[DONE]')continue;
             try{
               let evt=JSON.parse(js);
-              let delta=evt.candidates&&evt.candidates[0]&&evt.candidates[0].content&&evt.candidates[0].content.parts&&evt.candidates[0].content.parts[0]&&evt.candidates[0].content.parts[0].text||'';
-              if(evt.candidates&&evt.candidates[0]&&evt.candidates[0].finishReason)finishReason=evt.candidates[0].finishReason;
+              // Bentuk SSE Groq (OpenAI-compatible) beda dari Gemini:
+              // potongan teksnya ada di choices[0].delta.content, dan
+              // alasan berhenti (kalau ada) di choices[0].finish_reason.
+              let delta=evt.choices&&evt.choices[0]&&evt.choices[0].delta&&evt.choices[0].delta.content||'';
+              if(evt.choices&&evt.choices[0]&&evt.choices[0].finish_reason)finishReason=evt.choices[0].finish_reason;
               if(delta){
                 textBuf+=delta;
                 if(typeof onPartial==='function'){
@@ -10371,21 +10423,37 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
 // hasilnya TETAP gagal (resp.ok false), baru dicoba SEKALI LAGI dari nol
 // pakai GEMINI_MODEL_FALLBACK. bodyObj sama persis dipakai di percobaan
 // manapun — cuma model & url di endpoint yang beda.
+// bodyObj yang masuk ke sini masih bentuk Gemini ({contents:[{parts:[...]}],
+// generationConfig:{maxOutputTokens,...}}) karena semua pemanggil fungsi
+// ini (tersebar di banyak tempat) tidak diubah. Di dalam sini bodyObj
+// diterjemahkan ke format Groq sebelum dikirim, dan HASILNYA dibungkus
+// BALIK jadi rawText berbentuk Gemini ({candidates:[{content:{parts:
+// [{text}]}}]}) sebelum dikembalikan — supaya semua pemanggil yang
+// melakukan JSON.parse(rawText) lalu baca data.candidates[0]... tetap
+// jalan tanpa perlu diubah satu-satu.
 async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
-  const urlPrimary=GEMINI_ENDPOINT+GEMINI_MODEL_PRIMARY+':generateContent';
-  let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(urlPrimary,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-    body:JSON.stringify(bodyObj)
-  },timeoutMs),maxRetries);
+  const parts=(bodyObj&&bodyObj.contents&&bodyObj.contents[0]&&bodyObj.contents[0].parts)||[];
+  const maxTokens=(bodyObj&&bodyObj.generationConfig&&bodyObj.generationConfig.maxOutputTokens)||2048;
+  const groqMessages=[{role:'user',content:_vbGeminiPartsToGroqContent(parts)}];
+  async function callGroq(model){
+    let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(GROQ_ENDPOINT,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+VAI.apiKey},
+      body:JSON.stringify({model:model,max_tokens:maxTokens,messages:groqMessages})
+    },timeoutMs),maxRetries);
+    if(r.resp.ok){
+      try{
+        let g=JSON.parse(r.rawText);
+        let msg=g.choices&&g.choices[0]&&g.choices[0].message;
+        r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(msg&&msg.content)||''}]},finishReason:(g.choices&&g.choices[0]&&g.choices[0].finish_reason)||''}]});
+      }catch(e){/* bentuk balasan di luar dugaan — dibiarkan apa adanya */}
+    }
+    return r;
+  }
+  let r=await callGroq(GEMINI_MODEL_PRIMARY);
   if(r.resp.ok)return r;
   console.log('[_vbFetchWithGeminiFallback] '+GEMINI_MODEL_PRIMARY+' gagal (status '+r.resp.status+'), coba '+GEMINI_MODEL_FALLBACK);
-  const urlFallback=GEMINI_ENDPOINT+GEMINI_MODEL_FALLBACK+':generateContent';
-  return await _vbFetchWithRetry(()=>_vbFetchWithTimeout(urlFallback,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-goog-api-key':VAI.apiKey},
-    body:JSON.stringify(bodyObj)
-  },timeoutMs),maxRetries);
+  return await callGroq(GEMINI_MODEL_FALLBACK);
 }
 
 // ── SANITIZER CTA — jaring pengaman KODE untuk frasa yang dilarang di
@@ -10655,9 +10723,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal — bukan lagi
     // setelah 3x percobaan singkat seperti dulu, jadi pesannya diubah biar
     // jujur soal kemungkinan penyebabnya.
-    if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
-    if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
-    if(resp.status===0)throw new Error('Gagal terhubung ke server AI Google'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Google yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+    if(resp.status===503)throw new Error('Server AI Groq masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Groq lagi padat, bukan masalah dari tools.');
+    if(resp.status===429)throw new Error('Masih kena rate limit dari Groq walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+    if(resp.status===0)throw new Error('Gagal terhubung ke server AI Groq'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Groq yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
   }
   // FIX KONSISTENSI PENANGANAN ERROR: sebelumnya JSON.parse(rawText) di sini
@@ -10671,9 +10739,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // pesan yang konsisten dengan gaya error lain di bawah.
   let data;
   try{data=JSON.parse(rawText);}catch(eParse){
-    throw new Error('Respons dari server AI Google tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+    throw new Error('Respons dari server AI Groq tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
   }
-  if(data.error)throw new Error(data.error.message||'Gemini API error');
+  if(data.error)throw new Error(data.error.message||'Groq API error');
   let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
   let finishReason=data.candidates?.[0]?.finishReason||'';
   if(!text)throw new Error('Respons AI kosong (finishReason: '+(finishReason||'unknown')+'). Coba lagi.');
@@ -10683,7 +10751,10 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     let s=text.indexOf('['),en=text.lastIndexOf(']');
     if(s!==-1&&en!==-1&&en>s){try{arr=JSON.parse(text.substring(s,en+1));}catch(e2){arr=null;}}
     if(!arr){
-      if(finishReason==='MAX_TOKENS')throw new Error('Respons AI terpotong sebelum selesai (kehabisan token) — coba tap ulang.');
+      // FIX MIGRASI GROQ: finishReason 'MAX_TOKENS' itu penamaan Gemini — Groq (OpenAI-compatible)
+      // membalas 'length' untuk kasus kehabisan token, jadi cek lama TIDAK PERNAH match sejak
+      // pindah provider dan pesan spesifik ini gak pernah muncul (jatuh ke pesan generik di bawah).
+      if(finishReason==='length'||finishReason==='MAX_TOKENS')throw new Error('Respons AI terpotong sebelum selesai (kehabisan token) — coba tap ulang.');
       throw new Error('Gagal baca hasil AI: '+text.substring(0,150));
     }
   }
@@ -10801,11 +10872,20 @@ async function vbBulkResumeAI(){
   let ctx=VB_BULK_LAST_CONTEXT;
   if(!ctx){showToast('Tidak ada proses yang bisa dilanjutkan — generate dari awal ya.','error');return;}
   if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
-  let doneNames={};
-  ctx.allResults.forEach(function(r){doneNames[(r.produk||'').trim().toLowerCase()]=true;});
+  // FIX (lihat komentar lengkap di _vbRunBulkGenerate, dekat pemberian
+  // _idx): dulu produk "sudah selesai" dicek CUMA lewat teks field "produk"
+  // (nama yang AI tulis ulang sendiri, gampang beda dari p.nama asli) — jadi
+  // produk yang sebenarnya sudah beres bisa ikut dikirim ULANG ke AI di
+  // sini. Sekarang diutamakan idx GLOBAL yang pasti benar (doneIdx); nama
+  // (doneNames) cuma fallback utk hasil langka yang tidak kebagian _idx.
+  let doneIdx={},doneNames={};
+  ctx.allResults.forEach(function(r){
+    if(r._idx!=null)doneIdx[r._idx]=true;
+    else doneNames[(r.produk||'').trim().toLowerCase()]=true;
+  });
   let toProcess=ctx.produkList
     .map(function(p,idx){return{p:p,idx:idx};})
-    .filter(function(x){return !doneNames[(x.p.nama||'').trim().toLowerCase()];});
+    .filter(function(x){return !doneIdx[x.idx]&&!doneNames[(x.p.nama||'').trim().toLowerCase()];});
   if(toProcess.length===0){
     showToast('Semua produk sudah berhasil dibuat, tidak ada yang perlu dilanjutkan.','success');
     VB_BULK_LAST_CONTEXT=null;
@@ -10858,10 +10938,18 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   // potongan jawaban AI datang. Di akhir (setelah SEMUA batch di sesi ini
   // selesai), _vbRenderBulkOutput dipanggil lagi untuk merender versi
   // FINAL yang sudah bersih — otomatis menimpa kartu live ini.
-  let priorByName={};
-  priorResults.forEach(function(r){priorByName[(r.produk||'').trim().toLowerCase()]=r;});
-  let initialDisplay=produkList.map(function(p){
-    let found=priorByName[(p.nama||'').trim().toLowerCase()];
+  // FIX (lihat komentar lengkap di atas, dekat pemberian _idx): utamakan
+  // pencocokan lewat idx GLOBAL yang sudah pasti benar (tidak bergantung
+  // sama apa pun yang AI tulis di field "produk"). priorByName cuma dipakai
+  // sebagai fallback untuk hasil langka yang tidak kebagian _idx (batch-nya
+  // kena drop AI, jumlah hasil tidak sama dengan yang diminta).
+  let priorByIdx={},priorByName={};
+  priorResults.forEach(function(r){
+    if(r._idx!=null)priorByIdx[r._idx]=r;
+    else priorByName[(r.produk||'').trim().toLowerCase()]=r;
+  });
+  let initialDisplay=produkList.map(function(p,idx){
+    let found=priorByIdx[idx]||priorByName[(p.nama||'').trim().toLowerCase()];
     return found||{produk:p.nama,hook:'',story:'',cta:''};
   });
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
@@ -10915,6 +11003,33 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // (lihat komentar lengkap di sana) — sekarang sudah aman dari
       // masalah salah-tempel nama saat ada produk yang di-drop di tengah
       // batch, dan sudah jalan SEBELUM perbaikan jumlah kata dijalankan.
+      //
+      // FIX BUG (deteksi "produk sudah selesai" salah gara-gara nama tidak
+      // cocok persis): dulu priorByName (di bawah) & doneNames (di
+      // vbBulkResumeAI) mencocokkan produk yang SUDAH beres cuma lewat teks
+      // field "produk" — yaitu nama yang AI TULIS ULANG sendiri di JSON
+      // balasannya, bukan disalin otomatis dari input. Prompt di atas malah
+      // MELARANG AI menyalin nama produk apa adanya ("bukan teks yang wajib
+      // disalin persis apa adanya... tulis ulang dengan bahasa natural
+      // sendiri") — jadi field "produk" ini SERING beda kapital/spasi/kata
+      // dari p.nama asli yang diketik user. Begitu satu saja tidak match
+      // persis: (1) initialDisplay di bawah salah anggap produk itu "belum
+      // ada hasilnya" dan merender kartunya KOSONG walau sebenarnya sudah
+      // jadi, dan (2) vbBulkResumeAI ikut mengirim ulang produk itu ke AI
+      // padahal sudah pernah berhasil. Sekarang tiap hasil batch ditandai
+      // dengan idx GLOBAL aslinya (batchItems[j].idx — posisi produk itu di
+      // produkList, BUKAN apa pun yang ditulis AI) begitu batch ini balik
+      // dengan jumlah PERSIS SAMA seperti yang diminta (satu-satunya kondisi
+      // idx hasil dijamin lurus dengan idx yang dikirim — persis logika yang
+      // sudah dipakai di PENGAMAN WAJIB update kartu live di bawah). Kalau
+      // batch ini kena drop (jumlah tidak sama), idx tidak bisa dipastikan
+      // aman utk SEMUA item sisa batch itu (posisi ikut geser), jadi
+      // dibiarkan tanpa _idx — priorByName/doneNames di bawah otomatis balik
+      // pakai fallback nama (fuzzy) SEKEDAR untuk baris-baris langka ini,
+      // sama seperti perilaku lama.
+      if(batchArr.length===batchItems.length){
+        for(let j=0;j<batchArr.length;j++)batchArr[j]._idx=batchItems[j].idx;
+      }
       allResults=allResults.concat(batchArr);
       // FIX SCRIPT YANG SUDAH JADI TAPI KOLOMNYA MASIH KOSONG: sebelumnya di
       // sini TIDAK ADA update UI sama sekali begitu satu batch selesai —
@@ -11056,7 +11171,15 @@ function _vbBuildProductMetaLookup(produkListMeta){
     // tidak pernah lagi ikut terkirim ke AI walau tombol Revisi/Generate
     // Ulang Semua diklik, padahal secara visual foto masih kelihatan
     // terupload di baris inputnya. Sekarang foto ikut disimpan di lookup.
-    if(key)map[key]={nama:x.nama||'',keunggulan:x.keunggulan||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};
+    // FIX BUG (ditemukan saat audit mendalam khusus builder video, lanjutan
+    // dari fix foto di atas): "topik" (Arah Pembahasan per produk) dulu TIDAK
+    // ikut disimpan di lookup ini — sama persis akar masalahnya dengan bug
+    // foto yang sudah ditambal di atas, tapi khusus field ini terlewat.
+    // Akibatnya arahan topik yang user isi di form Bulk cuma kepakai di
+    // generate PERTAMA, lalu hilang permanen dari VB_BULK_PRODUCTS begitu
+    // _vbRenderBulkOutput() jalan — Revisi 1 Produk & Generate Ulang Semua
+    // jadi tidak pernah tahu topik itu lagi. Disamakan dengan foto: ikut dibawa.
+    if(key)map[key]={nama:x.nama||'',keunggulan:x.keunggulan||'',topik:x.topik||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};
   });
   return map;
 }
@@ -11091,7 +11214,11 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
     // data itu. Sekarang foto ikut dibawa supaya VB_BULK_PRODUCTS[prodIdx]
     // yang dipakai vbRevisiProdukAI & vbRegenerateAllBulk tetap punya foto
     // yang sama seperti yang diupload user di awal.
-    return meta?{nama:meta.nama,keunggulan:meta.keunggulan,fotoBase64:meta.fotoBase64||'',fotoMime:meta.fotoMime||''}:{nama:p.produk||'',keunggulan:'',fotoBase64:'',fotoMime:''};
+    // FIX BUG (pasangan fix di _vbBuildProductMetaLookup di atas): topik
+    // ikut dibawa di sini juga, sama seperti foto — supaya VB_BULK_PRODUCTS
+    // yang dipakai vbRevisiProdukAI & vbRegenerateAllBulk tetap punya arahan
+    // topik yang sama seperti yang diisi user di form Bulk.
+    return meta?{nama:meta.nama,keunggulan:meta.keunggulan,topik:meta.topik||'',fotoBase64:meta.fotoBase64||'',fotoMime:meta.fotoMime||''}:{nama:p.produk||'',keunggulan:'',topik:'',fotoBase64:'',fotoMime:''};
   });
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -11453,7 +11580,15 @@ async function vbRevisiProdukAI(prodIdx){
     // VB_BULK_PRODUCTS seperti biasa (revisi tetap "melihat" foto yang sama).
     let existingFoto=VB_BULK_PRODUCTS[prodIdx]||{};
     let effectiveFoto=VB_REVISI_FOTO_OVERRIDE.hasOwnProperty(prodIdx)?VB_REVISI_FOTO_OVERRIDE[prodIdx]:existingFoto;
-    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
+    // FIX BUG (ditemukan saat audit mendalam khusus builder video): "topik"
+    // (Arah Pembahasan) produk ini dulu TIDAK ikut dikirim ulang ke AI saat
+    // revisi 1 produk — panel revisi ini memang tidak punya kotak topik
+    // sendiri, jadi satu-satunya sumbernya adalah topik lama yang tersimpan
+    // di VB_BULK_PRODUCTS[prodIdx] (lihat fix di _vbBuildProductMetaLookup/
+    // _vbRenderBulkOutput). Dipertahankan di sini supaya arahan topik yang
+    // user isi di awal tidak hilang begitu saja tiap kali revisi 1 produk.
+    let existingTopik=existingFoto.topik||'';
+    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,topik:existingTopik,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
       let alasan=_vbWaitReasonLabel(status);
@@ -11466,7 +11601,7 @@ async function vbRevisiProdukAI(prodIdx){
     // Foto yang barusan dipakai (lama ATAU hasil ganti di panel ini)
     // dipermanenkan di sini, supaya revisi/generate-ulang BERIKUTNYA ikut
     // memakai foto terbaru ini juga.
-    VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
+    VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan,topik:existingTopik,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
     // FITUR BARU: thumbnail foto di header grup ikut disinkronkan ke foto
     // TERBARU ini (ganti/hapus lewat panel revisi) — tanpa ini thumbnail
     // akan basi, tetap nampilin foto lama walau datanya sudah berubah.
@@ -11781,7 +11916,12 @@ async function vbRegenerateAllBulk(newSettings){
   VAI._isGenerating=true;
   _vbAcquireWakeLock();
   const BATCH_SIZE=3;
-  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
+  // FIX BUG (ditemukan saat audit mendalam khusus builder video): "topik"
+  // (Arah Pembahasan per produk) dulu TIDAK ikut dibawa di sini — akibatnya
+  // "Generate Ulang Semua" lewat panel Ubah Suara/Target Audience diam-diam
+  // mengirim ulang ke AI TANPA arahan topik yang sudah user isi sebelumnya
+  // di form Bulk, walau produk itu sebenarnya masih punya topik tersimpan.
+  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,topik:x.topik||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
   let batches=[];
   for(let bi=0;bi<produkList.length;bi+=BATCH_SIZE)batches.push(produkList.slice(bi,bi+BATCH_SIZE));
   // FIX: sebelumnya tidak ada indikator loading sama sekali selama proses ini
@@ -12103,9 +12243,9 @@ async function vbGenerate3AI(){
       // FIX RETRY TANPA BATAS: pesan di bawah ini sekarang cuma muncul kalau
       // sudah dicoba ulang TERUS-MENERUS selama ~3 menit (jaring pengaman
       // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal.
-      if(resp.status===503)throw new Error('Server AI Google masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Google lagi padat, bukan masalah dari tools.');
-      if(resp.status===429)throw new Error('Masih kena rate limit dari Google walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN (RPD) yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
-      if(resp.status===0)throw new Error('Gagal terhubung ke server AI Google'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Google yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+      if(resp.status===503)throw new Error('Server AI Groq masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Groq lagi padat, bukan masalah dari tools.');
+      if(resp.status===429)throw new Error('Masih kena rate limit dari Groq walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+      if(resp.status===0)throw new Error('Gagal terhubung ke server AI Groq'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Groq yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
       throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
     }
     // FIX KONSISTENSI PENANGANAN ERROR (sama seperti _vbCallBulkBatch): kalau
@@ -12113,9 +12253,9 @@ async function vbGenerate3AI(){
     // dikasih pesan ramah bahasa Indonesia — bukan error mentah JS.
     let data;
     try{data=JSON.parse(rawText);}catch(eParse){
-      throw new Error('Respons dari server AI Google tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+      throw new Error('Respons dari server AI Groq tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
     }
-    if(data.error)throw new Error(data.error.message||'Gemini API error');
+    if(data.error)throw new Error(data.error.message||'Groq API error');
     let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
     let finishReason=data.candidates?.[0]?.finishReason||'';
     if(!text){
@@ -12129,7 +12269,9 @@ async function vbGenerate3AI(){
         try{arr=JSON.parse(text.substring(s,en+1));}catch(e2){arr=null;}
       }
       if(!arr){
-        if(finishReason==='MAX_TOKENS'){
+        // FIX MIGRASI GROQ: sama seperti di _vbCallBulkBatch — Groq membalas finishReason
+        // 'length' (bukan Gemini's 'MAX_TOKENS') saat kehabisan token.
+        if(finishReason==='length'||finishReason==='MAX_TOKENS'){
           throw new Error('Respons AI terpotong sebelum selesai (kehabisan token). Coba tap tombolnya sekali lagi.');
         }
         throw new Error('Gagal baca hasil AI: '+text.substring(0,150));
