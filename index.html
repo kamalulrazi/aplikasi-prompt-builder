@@ -1447,8 +1447,16 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
    total banner "Cek HP dulu" & chip "Objek" (bukan cuma dikunci) biar
    user cuma lihat Karakter Sheet (dulu "Wajah"), Produk, dan Isi Outfit
    Karakter. Dipasang di pbGoStep6(), dilepas lagi di pbTourResetF1Ui().
+   FIX (dilaporkan user — banner masih kelihatan selama tur): elemen
+   #f1-cekhp-banner punya inline style="display:flex..." di HTML-nya,
+   dan inline style SELALU menang atas rule CSS manapun (termasuk yang
+   di bawah ini, walau pakai ID selector) kecuali dipaksa !important.
+   Makanya rule CSS ini dulu tidak pernah benar-benar nyembunyikan
+   banner-nya. Sekarang disembunyikan langsung lewat JS (persis pola
+   f1-tour-hint di sebelahnya) di pbGoStep6()/pbTourResetF1Ui() —
+   rule CSS ini dibiarkan sebagai jaga-jaga tambahan saja.
    ─────────────────────────────────────────────────────────────────── */
-#f1.pb-tour-f1-simple #f1-cekhp-banner{display:none;}
+#f1.pb-tour-f1-simple #f1-cekhp-banner{display:none!important;}
 /* FITUR BARU (permintaan user): tombol "Simpan yang kamu isi supaya bisa
    dipakai berulang" (fitur csSave) disembunyikan SELAMA seluruh sesi tur
    panduan berlangsung (Langkah 5 dst — dari Subjek Foto sampai step
@@ -1499,6 +1507,22 @@ body.pb-tour-final-blur #f-import-toggle-wrap{
 body.pb-tour-final-blur #f-gen-btn{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
   z-index:10001;width:min(86vw,360px);box-shadow:var(--shadow-lg);
+}
+/* FITUR BARU (permintaan user): begitu tombol Generate BENERAN ditekan
+   selama sesi tur (dulu cuma diburamkan lewat pb-tour-final-blur di atas,
+   lalu langsung dibuka lagi normal), sekarang area Ringkasan/Karakter
+   Sheet/Punya Prompt Lama/Generate Variasi malah disembunyikan TOTAL
+   (bukan cuma buram) supaya pemula fokus cuma ke hasil prompt-nya saja
+   dan tidak bingung. Dipasang di fGenerate() (menggantikan
+   pb-tour-final-blur), dilepas lagi begitu user menekan "Mengerti" pada
+   notifikasi sesudah "Salin JSON" — lihat pbShowSaveJsonNotif(). */
+body.pb-tour-result-simple .summary-card,
+body.pb-tour-result-simple #f-multishot-card,
+body.pb-tour-result-simple .sec-title,
+body.pb-tour-result-simple .sec-desc,
+body.pb-tour-result-simple #cs-entry-btn,
+body.pb-tour-result-simple #f-import-toggle-wrap{
+  display:none!important;
 }
 @media(min-width:769px){
   #pb-tour-card{width:min(30vw,340px);}
@@ -3337,7 +3361,7 @@ body.pb-tour-final-blur #f-gen-btn{
          (contoh: v3.6 → v3.7). Jangan pernah edit aplikasi tanpa menaikkan
          versi ini — kalau lupa/terlewat di update sebelumnya, naikkan
          sekarang untuk menutup selisihnya. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v4.4 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v4.5 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -6476,9 +6500,19 @@ function fUpdateProgress(cardNum,stepName){
 // GENERATE FOTO
 function fGenerate(){
   // FITUR BARU (permintaan user): lepas blur akhir tur (pbTourFinishExt())
-  // begitu tombol Generate benar-benar ditekan, supaya hasil generate bisa
-  // terlihat normal (tidak buram lagi).
+  // begitu tombol Generate benar-benar ditekan. DULU ini langsung membuka
+  // semuanya normal lagi — SEKARANG, kalau generate ini memang bagian dari
+  // sesi tur (ditandai class pb-tour-final-blur masih menyala persis
+  // sebelum baris ini), area Ringkasan/Karakter Sheet/Punya Prompt
+  // Lama/Generate Variasi malah disembunyikan TOTAL (pb-tour-result-simple)
+  // supaya user pemula cuma lihat hasil prompt-nya saja, tidak dibuat
+  // bingung — lihat pbTourAfterGenActive & pbShowSaveJsonNotif() di bawah.
+  let pbWasTourFinalBlur=document.body.classList.contains('pb-tour-final-blur');
   document.body.classList.remove('pb-tour-final-blur');
+  if(pbWasTourFinalBlur){
+    document.body.classList.add('pb-tour-result-simple');
+    if(typeof pbTourAfterGenActive!=='undefined') pbTourAfterGenActive=true;
+  }
   if(FS.subjek==='produk'){
     if(!FS.lokasi||!FS.cahaya||!FS.angle||!FS.mood){showToast('Lengkapi semua step dulu!','error');return;}
   } else {
@@ -13374,6 +13408,13 @@ function pbDisarmDoneWait(){ pbWaitDoneId=null; pbWaitDoneCb=null; }
       pbWaitingCopyClick=false;
       setTimeout(function(){ pbEndTour(); },250);
     }
+    // FITUR BARU (permintaan user): kalau hasil prompt yang baru disalin
+    // ini datang dari generate selama sesi tur (pbTourAfterGenActive),
+    // tampilkan notifikasi "simpan baik-baik prompt-nya" sesudah salin.
+    if(typeof pbTourAfterGenActive!=='undefined' && pbTourAfterGenActive){
+      pbTourAfterGenActive=false;
+      setTimeout(function(){ pbShowSaveJsonNotif(); },300);
+    }
   };
 })();
 
@@ -13475,6 +13516,12 @@ function pbHideOverlay(){
   // diagram Langkah 2 lagi kebuka.
   let lbEl=document.getElementById('pb-flow-lightbox');
   if(lbEl) lbEl.classList.remove('show');
+  // Jaga-jaga: kalau tur ditutup/di-skip persis waktu blur/hide akhir
+  // (pb-tour-final-blur / pb-tour-result-simple, dari pbTourFinishExt()/
+  // fGenerate()) masih menyala, pastikan selalu dilepas juga.
+  document.body.classList.remove('pb-tour-final-blur');
+  document.body.classList.remove('pb-tour-result-simple');
+  if(typeof pbTourAfterGenActive!=='undefined') pbTourAfterGenActive=false;
   window.removeEventListener('resize',pbRepositionCurrent);
   let shell=document.getElementById('app-shell');
   if(shell) shell.removeEventListener('scroll',pbRepositionCurrent);
@@ -13957,6 +14004,13 @@ var pbTourStep56Active=false;
 // (Cara Tampil Produk s.d. Mood & Tone). Blur latar (pb-tour-blur-context)
 // tetap menyala selama flag ini true — lihat pbTourFinishExt().
 var pbTourExtActive=false;
+// FITUR BARU (permintaan user): true begitu tombol Generate ditekan
+// SELAMA sesi tur (lihat fGenerate()) sampai user menekan "Mengerti"
+// pada notifikasi "simpan baik-baik prompt-nya" yang muncul sesudah
+// dia menekan "Salin JSON" — lihat pbShowSaveJsonNotif() & wrapper
+// fCopy() di bawah. Selama flag ini true, area Ringkasan/Karakter
+// Sheet/dll disembunyikan lewat class pb-tour-result-simple di body.
+var pbTourAfterGenActive=false;
 function pbGoStep5(){
   pbDisarmDoneWait();
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
@@ -14027,6 +14081,12 @@ function pbGoStep6(){
   pbTourOutfitHintShown=false;
   let f1=document.getElementById('f1');
   if(f1) f1.classList.add('pb-tour-f1-simple');
+  // FIX (dilaporkan user — banner "Cek HP dulu" masih kelihatan selama
+  // tur): elemen ini punya inline style="display:flex...", jadi rule
+  // CSS #f1.pb-tour-f1-simple #f1-cekhp-banner{display:none} tidak
+  // pernah menang. Disembunyikan paksa lewat JS di sini.
+  let cekhpBanner=document.getElementById('f1-cekhp-banner');
+  if(cekhpBanner) cekhpBanner.style.display='none';
   let wajahLabel=document.getElementById('ftb-wajah-label');
   if(wajahLabel) wajahLabel.textContent='Karakter Sheet';
   let objekChip=document.getElementById('ftb-objek');
@@ -14072,6 +14132,32 @@ function pbShowOutfitHintNotif(){
   document.body.appendChild(overlay);
   okBtn.onclick=function(){overlay.remove();};
 }
+// FITUR BARU (permintaan user): notifikasi tengah layar yang muncul PERSIS
+// SEKALI begitu user menekan "Salin JSON" pada hasil prompt yang di-generate
+// selama sesi tur (lihat pbTourAfterGenActive & wrapper fCopy() di bawah).
+// Mengingatkan user supaya menyimpan prompt yang baru disalin, karena akan
+// dipakai di aplikasi Google Flow. Begitu "Mengerti" ditekan, area
+// Ringkasan/Karakter Sheet/dll yang tadi disembunyikan (pb-tour-result-simple)
+// dikembalikan normal. Pola sama seperti pbShowOutfitHintNotif() (1 tombol
+// "Mengerti", bukan Ya/Batal).
+function pbShowSaveJsonNotif(){
+  let overlay=document.createElement('div');
+  overlay.className='confirm-overlay';
+  let box=document.createElement('div');box.className='confirm-box';
+  let p=document.createElement('p');
+  p.style.cssText='color:var(--text);font-size:var(--fs-sm);line-height:1.6;margin-bottom:16px;';
+  p.innerHTML='Simpan baik-baik "prompt" yang kakak salin. Karna sekarang kita akan pakai di aplikasi Google Flow.';
+  let okBtn=document.createElement('button');
+  okBtn.textContent='Mengerti';
+  okBtn.style.cssText="width:100%;background:var(--accent);color:var(--bg);border:none;padding:11px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;";
+  box.appendChild(p);box.appendChild(okBtn);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  okBtn.onclick=function(){
+    overlay.remove();
+    document.body.classList.remove('pb-tour-result-simple');
+  };
+}
 // Kembalikan tampilan f1 seperti semula DAN lepas blur latar (yang
 // dipasang sejak f0 tadi) — dipanggil begitu foto referensi selesai &
 // tur berakhir, ATAU dari pbHideOverlay() kalau tur di-skip persis
@@ -14086,6 +14172,9 @@ function pbTourResetF1Ui(keepBlur){
   pbTourF1Active=false;
   let f1=document.getElementById('f1');
   if(f1) f1.classList.remove('pb-tour-f1-simple');
+  // Kembalikan banner "Cek HP dulu" yang disembunyikan paksa di pbGoStep6().
+  let cekhpBanner=document.getElementById('f1-cekhp-banner');
+  if(cekhpBanner) cekhpBanner.style.display='flex';
   let wajahLabel=document.getElementById('ftb-wajah-label');
   if(wajahLabel) wajahLabel.textContent='Wajah';
   let objekChip=document.getElementById('ftb-objek');
