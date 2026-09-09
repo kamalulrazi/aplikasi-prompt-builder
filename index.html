@@ -1418,6 +1418,10 @@ body input, body textarea, body [contenteditable="true"]{
 .pb-tour-skip:active{opacity:0.7;}
 .pb-tour-next{font-size:var(--fs-sm);font-weight:700;color:var(--bg);background:var(--accent);border:none;border-radius:var(--radius-pill);padding:8px 16px;cursor:pointer;}
 .pb-tour-next:active{opacity:0.85;}
+/* Badge "sedang membuat prompt" pojok kiri atas — lihat #f0-tour-process-badge,
+   dipasang/dilepas di pbGoStep5()/pbTourResetF0Ui(). Titik kuning berkedip
+   pelan supaya kesannya ada proses yang sedang berjalan. */
+@keyframes pbProcessPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.35;transform:scale(0.8);}}
 /* ── TOUR — Langkah 5 (Subjek Foto), versi baru: TIDAK ADA lagi kartu
    instruksi maupun kotak sorot (spotlight) kuning di langkah ini —
    satu-satunya penanda "fokus di sini" adalah blur pada elemen lain di
@@ -1452,6 +1456,40 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
   border-radius:var(--radius-sm);cursor:pointer;
 }
 #pb-tour-replay-btn:active{background:var(--surface3);}
+/* FITUR BARU (permintaan user): deskripsi di bawah judul opsi pada step
+   Sudut Kamera (f8) & Mood/Tone (f9) disembunyikan dulu — baru muncul
+   begitu opsi itu ditap (dapat class .sel, sama seperti punya fPickAngle/
+   fPickMood), dan otomatis tertutup lagi begitu user tap opsi lain karena
+   fPickAngle/fPickMood selalu melepas .sel dari opsi sebelumnya sebelum
+   menambahkannya ke opsi baru. */
+#f8 .chip-wide .text-hint,
+#f9 .chip-wide .text-hint{display:none;}
+#f8 .chip-wide.sel .text-hint,
+#f9 .chip-wide.sel .text-hint{display:block;}
+/* FITUR BARU (permintaan user): tombol "Konfirmasi →" milik kolom "isi
+   sendiri" (data-role="mt12-confirm") disembunyikan dulu secara default —
+   baru ditampilkan lewat JS (fCountInp/vbCountInpV2) begitu user benar-benar
+   sudah mengetik sesuatu di kolomnya. Ini berlaku generik untuk semua step
+   yang pakai pola chip + isi sendiri (f3, f4, f5×2, f7, f8, f9, v3, v4, dst). */
+[data-role="mt12-confirm"]{display:none;}
+/* FITUR BARU (permintaan user): begitu step 9 (Mood & Tone) dikonfirmasi
+   di akhir sesi tur yang diperpanjang (lihat pbTourFinishExt()), seluruh
+   area Ringkasan/Karakter Sheet/Punya Prompt Lama/Generate Variasi diburamkan
+   dan tombol "Generate Prompt Foto" dipindah ke tengah layar supaya user
+   pemula fokus menekan satu tombol itu saja. Dilepas lagi begitu tombol
+   Generate ditekan (lihat awal fGenerate()). */
+body.pb-tour-final-blur .summary-card,
+body.pb-tour-final-blur #f-multishot-card,
+body.pb-tour-final-blur .sec-title,
+body.pb-tour-final-blur .sec-desc,
+body.pb-tour-final-blur #cs-entry-btn,
+body.pb-tour-final-blur #f-import-toggle-wrap{
+  filter:blur(5px);pointer-events:none;user-select:none;
+}
+body.pb-tour-final-blur #f-gen-btn{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  z-index:10001;width:min(86vw,360px);box-shadow:var(--shadow-lg);
+}
 @media(min-width:769px){
   #pb-tour-card{width:min(30vw,340px);}
 }
@@ -2218,9 +2256,6 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
       <div class="wanswer" id="fa0"></div>
     </div>
     <div class="wbody">
-      <div id="f0-tour-process-hint" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:var(--fs-xs2);color:var(--muted);line-height:1.4;">
-        <svg class="icon" style="width:12px;height:12px;vertical-align:-1px;color:var(--accent);"><use href="#ic-sparkle"></use></svg> Kita sedang membuat "prompt" untuk foto AI...
-      </div>
       <p class="desc-block" id="f0-desc-text">
         Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.
       </p>
@@ -2467,6 +2502,7 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
       <div class="wanswer" id="fa4"></div>
     </div>
     <div class="wbody">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.6;">Kaka ingin pose karakter seperti apa?</p>
       <div class="chips" id="f4-chips"></div>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
@@ -2520,7 +2556,6 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
             <input class="inp" id="f5-custom" maxlength="300" placeholder="Contoh: marble surface with gold ring props, soft pink gradient backdrop..." oninput="fCountInp(this,'f5-counter')" />
             <div class="inp-counter" id="f5-counter">0 / 300</div>
           </div>
-          <p class="text-hint-mt">Tulis dalam Bahasa Inggris untuk hasil terbaik.</p>
           <button class="btn sm" data-role="mt12-confirm" onclick="fPickLokasiCustom()">Konfirmasi →</button>
           <div class="row-inline-mt"><button onclick="csSave('f5')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f5" class="chip-row-hidden"></div>
@@ -2564,7 +2599,6 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
             <input class="inp" id="f5-custom-karakter" maxlength="300" placeholder="Contoh: Taman Nasional Komodo, Pantai Ora Maluku..." oninput="fCountInp(this,'f5-counter-karakter')" />
             <div class="inp-counter" id="f5-counter-karakter">0 / 300</div>
           </div>
-          <p class="text-hint-mt">Tulis dalam Bahasa Inggris untuk hasil terbaik. Contoh: <em>rice terrace Bali misty morning</em></p>
           <button class="btn sm" data-role="mt12-confirm" onclick="fPickLokasiCustomKarakter()">Konfirmasi →</button>
           <div class="row-inline-mt"><button onclick="csSave('f5k')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f5k" class="chip-row-hidden"></div>
@@ -3293,7 +3327,7 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
          (contoh: v3.6 → v3.7). Jangan pernah edit aplikasi tanpa menaikkan
          versi ini — kalau lupa/terlewat di update sebelumnya, naikkan
          sekarang untuk menutup selisihnya. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v4.2 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v4.3 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -3622,6 +3656,21 @@ function fCountInp(el,counterId){
     fRestoreCustomBlock(card);
     if(len>0)card.querySelectorAll('.chips .chip.sel, .chips .sel').forEach(c=>c.classList.remove('sel'));
   }
+  fSyncMt12ConfirmBtn(el,len);
+}
+// FITUR BARU (permintaan user): tombol "Konfirmasi →" kolom "isi sendiri"
+// baru muncul begitu user sudah mengetik sesuatu (len>0) — sebelum itu
+// tetap disembunyikan (default disembunyikan lewat CSS, lihat
+// [data-role="mt12-confirm"]). Dipakai bareng oleh fCountInp & vbCountInpV2
+// supaya perilakunya konsisten di semua step yang punya kolom "isi sendiri".
+function fSyncMt12ConfirmBtn(el,len){
+  let mt12=el.closest('.mt12');
+  let mtBtn=mt12?mt12.querySelector('[data-role="mt12-confirm"]'):null;
+  if(mtBtn && !mtBtn.dataset.hiddenByConfirm){
+    mtBtn.style.display = len>0 ? '' : 'none';
+  }
+  let card=el.closest('.wcard');
+  if(card && typeof fSyncCardEditDoneBtn==='function') fSyncCardEditDoneBtn(card.id);
 }
 
 // FIX BUG #6 (V2): sama seperti fCountInp, dipakai khusus untuk kolom
@@ -3650,6 +3699,7 @@ function vbCountInpV2(el,counterId){
       if(ageChips)ageChips.querySelectorAll('.chip.sel').forEach(c=>c.classList.remove('sel'));
     }
   }
+  fSyncMt12ConfirmBtn(el,len);
 }
 
 function showToast(msg,type){
@@ -4902,6 +4952,19 @@ function _fSubjekAdvance(val){
   fToggleF1Panel(isProdukSaja);
   fUpdateProgress(1,'Foto Referensi');
   showCard('f1');
+  // FIX (dilaporkan user): dulu transisi ke tampilan f1 versi tur
+  // (Langkah 6) cuma jalan lewat pbArmDoneWait('f0',...) yang sekali
+  // pakai — jadi tidak pernah terpanggil ulang kalau subjek dikonfirmasi
+  // ulang setelah user pencet "← Kembali" (fBack1). Sekarang, selama
+  // sesi Langkah 5+6 masih berjalan (pbTourStep56Active), setup tur f0→f1
+  // ini SELALU dijalankan ulang di sini — baik untuk konfirmasi pertama
+  // maupun konfirmasi ulang sesudah "← Kembali" — supaya tampilannya
+  // selalu konsisten (badge "+" Outfit, chip Objek disembunyikan, label
+  // "Karakter Sheet", dst.) dan tidak "berubah lagi" secara tidak terduga.
+  if(pbTourStep56Active){
+    pbTourResetF0Ui();
+    pbGoStep6();
+  }
 }
 
 // FIX (permintaan user): dulu fBack1() memanggil fResetFrom(0) yang
@@ -6203,6 +6266,7 @@ function fPickMood(val,el,label){
 
     fRunAIConflictCheck(_aiConflictCache!==null);
     setTimeout(()=>document.getElementById('f-gen-area').scrollIntoView({behavior:'smooth',block:'nearest'}),200);
+    if(typeof pbTourExtActive!=='undefined' && pbTourExtActive) pbTourFinishExt();
   });
 }
 function fPickMoodCustom(){
@@ -6222,6 +6286,7 @@ function fPickMoodCustom(){
   
   fRunAIConflictCheck(_aiConflictCache!==null);
   setTimeout(()=>document.getElementById('f-gen-area').scrollIntoView({behavior:'smooth',block:'nearest'}),200);
+  if(typeof pbTourExtActive!=='undefined' && pbTourExtActive) pbTourFinishExt();
 }
 function fBack9(){
   fBackTo(9,8);
@@ -6374,6 +6439,10 @@ function fUpdateProgress(cardNum,stepName){
 
 // GENERATE FOTO
 function fGenerate(){
+  // FITUR BARU (permintaan user): lepas blur akhir tur (pbTourFinishExt())
+  // begitu tombol Generate benar-benar ditekan, supaya hasil generate bisa
+  // terlihat normal (tidak buram lagi).
+  document.body.classList.remove('pb-tour-final-blur');
   if(FS.subjek==='produk'){
     if(!FS.lokasi||!FS.cahaya||!FS.angle||!FS.mood){showToast('Lengkapi semua step dulu!','error');return;}
   } else {
@@ -12331,19 +12400,10 @@ function fApplyCahayaContext(){
 
   if(ctx === 'neutral') return;
 
-  // Buat hint card
-  let hintData = {
-    indoor:  { icon:'', text:'Lokasi indoor dipilih — pilihan cahaya <strong>indoor</strong> paling relevan.', cls:'indoor',  label:'INDOOR' },
-    outdoor: { icon:'', text:'Lokasi outdoor dipilih — pilihan cahaya <strong>outdoor</strong> paling cocok.',  cls:'outdoor', label:'OUTDOOR' },
-    studio:  { icon:'', text:'Lokasi studio/backdrop — gunakan <strong>studio light</strong> untuk hasil terbaik.', cls:'studio',  label:'STUDIO' }
-  };
-  let h = hintData[ctx] || hintData.indoor;
-  let hint = document.createElement('div');
-  hint.className = 'cahaya-context-hint ' + h.cls;
-  hint.innerHTML = `<span class="cahaya-context-hint-icon">${h.icon}</span>
-    <span>${h.text}</span>
-    <span class="cahaya-context-recom">${h.label}</span>`;
-  normalPanel.insertBefore(hint, normalPanel.firstChild);
+  // FITUR DIHAPUS (permintaan user): pemberitahuan/banner "Lokasi indoor
+  // dipilih..." / "Lokasi outdoor dipilih..." tidak lagi ditampilkan.
+  // Reorder & highlight chip yang relevan tetap jalan seperti biasa di
+  // bawah ini, cuma kartu pemberitahuannya saja yang dihapus.
 
   // Reorder chip sections: pindahkan section yang relevan ke atas
   let chips = normalPanel.querySelector('.chips');
@@ -13049,6 +13109,15 @@ window.addEventListener('beforeunload', function(e){
      .app-shell (sama seperti nav) supaya position:fixed-nya tidak kena bug
      WebView Android yang sama seperti nav. -->
 <!-- ONBOARDING TOUR OVERLAY -->
+<!-- Badge status "sedang membuat prompt" — pojok kiri atas, fixed, TERPISAH
+     dari kartu f0 (permintaan user: jangan menumpuk di dalam kartu Subjek
+     Foto). Dipasang di pbGoStep5(), dilepas lagi di pbTourResetF0Ui(). Titik
+     kuning berkedip (pbProcessPulse) biar kesannya memang lagi ada proses
+     berjalan, bukan cuma label statis. -->
+<div id="f0-tour-process-badge" style="display:none;position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:12px;z-index:9998;align-items:center;gap:7px;background:var(--surface3);border:1px solid var(--border-hi);border-radius:var(--radius-pill);padding:6px 12px 6px 10px;box-shadow:var(--shadow-lg);">
+  <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;animation:pbProcessPulse 1.3s ease-in-out infinite;"></span>
+  <span style="font-size:var(--fs-2xs);color:var(--text);font-weight:600;letter-spacing:0.1px;">Sedang membuat "prompt" untuk foto AI...</span>
+</div>
 <div id="pb-tour-backdrop"></div>
 <div id="pb-tour-spot"></div>
 <div id="pb-tour-card">
@@ -13827,6 +13896,31 @@ function pbFlowLightboxClose(){
 // direvert lagi di pbTourResetF0Ui(). "Produk Saja" TETAP dibekukan
 // selama f0 (cuma Perempuan/Laki-laki yang relevan buat alur onboarding
 // karakter sheet).
+// FIX (dilaporkan user — "Produk Saja" & tampilan f1 balik ke normal
+// begitu user tap "← Kembali" dari Foto Referensi lalu konfirmasi ulang
+// Subjek Foto): dulu transisi f0→f1 di sini SEPENUHNYA bergantung pada
+// pbArmDoneWait('f0',...) yang cuma "sekali pakai" — begitu doneCard('f0')
+// pertama kali terpanggil (via fPickSubjek), wait itu langsung dikonsumsi
+// & dibersihkan (lihat wrapper doneCard di atas). Kalau sesudahnya user
+// pencet "← Kembali" (fBack1) dan konfirmasi ulang Subjek Foto yang sama
+// (lihat fBack1 → _fSubjekAdvance), doneCard('f0') terpanggil LAGI tapi
+// wait-nya sudah kosong — jadi pbTourResetF0Ui()/pbGoStep6() TIDAK
+// terpanggil ulang. Akibatnya kunci "Produk Saja" (unlock-nya dulu ada di
+// pbTourResetF0Ui) & penyederhanaan f1 (badge "+" Outfit, chip Objek,
+// label "Karakter Sheet") jadi tidak konsisten begitu bolak-balik.
+// Sekarang dipakai flag pbTourStep56Active yang menyala selama SELURUH
+// sesi Langkah 5+6 (dimatikan di pbTourResetF1Ui, bukan pbTourResetF0Ui)
+// — _fSubjekAdvance() mengecek flag ini & selalu memanggil ulang
+// pbTourResetF0Ui()/pbGoStep6() langsung tiap kali subjek dikonfirmasi
+// selama sesi tur ini berjalan, terlepas dari itu konfirmasi pertama
+// ataupun hasil "← Kembali". pbArmDoneWait('f0',...) tidak dipakai lagi
+// untuk transisi ini (supaya tidak terpanggil dobel).
+var pbTourStep56Active=false;
+// FITUR BARU (permintaan user): true selama sesi tur "diperpanjang" dari
+// begitu foto referensi (f1) selesai sampai user menyelesaikan step 3–9
+// (Cara Tampil Produk s.d. Mood & Tone). Blur latar (pb-tour-blur-context)
+// tetap menyala selama flag ini true — lihat pbTourFinishExt().
+var pbTourExtActive=false;
 function pbGoStep5(){
   pbDisarmDoneWait();
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
@@ -13838,21 +13932,18 @@ function pbGoStep5(){
   document.getElementById('pb-tour-spot').classList.remove('show','pb-airy');
   document.getElementById('pb-tour-card').classList.remove('show');
   document.body.classList.add('pb-tour-blur-context');
+  pbTourStep56Active=true;
   pbLockChip('#sk-produk');
   let f0=document.getElementById('f0');
   if(f0) f0.classList.add('pb-tour-f0-simple');
   let f0Desc=document.getElementById('f0-desc-text');
   if(f0Desc) f0Desc.textContent='Jenis kelamin foto karakter sheet kakak apa?';
-  // FITUR BARU (permintaan user): kasih tulisan yang terasa seperti proses
-  // pembuatan sedang berjalan, biar pemula ngerti kenapa mereka ditanya-
-  // tanya begini — dipasang di sini (Langkah 5), dilepas lagi di
-  // pbTourResetF0Ui() begitu subjek dipilih atau tur di-skip.
-  let f0ProcessHint=document.getElementById('f0-tour-process-hint');
-  if(f0ProcessHint) f0ProcessHint.style.display='block';
-  pbArmDoneWait('f0',function(){
-    pbTourResetF0Ui();
-    pbGoStep6();
-  });
+  // FITUR BARU (permintaan user): badge status "sedang membuat prompt" di
+  // pojok kiri atas layar (fixed, terpisah dari kartu f0) — biar pemula
+  // ngerti kenapa mereka ditanya-tanya begini. Dipasang di sini (Langkah 5),
+  // dilepas lagi di pbTourResetF0Ui() begitu subjek dipilih atau tur di-skip.
+  let f0ProcessBadge=document.getElementById('f0-tour-process-badge');
+  if(f0ProcessBadge) f0ProcessBadge.style.display='flex';
 }
 // Kembalikan chip "Produk Saja" + tampilan kartu Subjek Foto seperti
 // semula (dipanggil begitu subjek dipilih & alur lanjut ke foto
@@ -13860,13 +13951,21 @@ function pbGoStep5(){
 // masih aktif). Blur latar SENGAJA TIDAK dilepas di sini — tetap menyala
 // sampai foto referensi (f1) juga selesai, lihat pbTourResetF1Ui().
 function pbTourResetF0Ui(){
-  pbUnlockChip('#sk-produk');
+  // FIX (dilaporkan user): "Produk Saja" TIDAK lagi di-unlock di sini.
+  // Dulu unlock terjadi begitu subjek dikonfirmasi & lanjut ke f1 —
+  // padahal sesi tur (Langkah 5+6) masih berjalan sampai f1 juga selesai.
+  // Kalau user sempat "← Kembali" ke Subjek Foto di tengah sesi itu, kartu
+  // "Produk Saja" jadi kelihatan TIDAK dibekukan lagi (kunci sudah kepakai
+  // di awal). Sekarang unlock-nya dipindah ke pbTourResetF1Ui() — jadi
+  // "Produk Saja" tetap dibekukan SELAMA seluruh sesi Langkah 5+6, apa pun
+  // berapa kali user maju-mundur di dalamnya, dan baru dilepas begitu sesi
+  // itu benar-benar berakhir (foto referensi selesai ATAU tur di-skip).
   let f0=document.getElementById('f0');
   if(f0) f0.classList.remove('pb-tour-f0-simple');
   let f0Desc=document.getElementById('f0-desc-text');
   if(f0Desc) f0Desc.textContent='Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.';
-  let f0ProcessHint=document.getElementById('f0-tour-process-hint');
-  if(f0ProcessHint) f0ProcessHint.style.display='none';
+  let f0ProcessBadge=document.getElementById('f0-tour-process-badge');
+  if(f0ProcessBadge) f0ProcessBadge.style.display='none';
 }
 // ── LANJUTAN LANGKAH 5 — foto referensi & outfit (f1), VERSI SEDERHANA,
 // masih bagian dari alur yang sama (TANPA kartu/label/spotlight
@@ -13907,8 +14006,13 @@ function pbGoStep6(){
   // yang harus tap chip-nya (juga chip Produk), masing-masing cuma
   // boleh 1x (lihat wrapper fAddRef di bawah).
   pbArmDoneWait('f1',function(){
-    pbTourResetF1Ui();
-    pbEndTour();
+    // FITUR BARU (permintaan user): dulu tur langsung berakhir (blur latar
+    // dilepas & pbEndTour() dipanggil) persis begitu foto referensi (f1)
+    // selesai. Sekarang sesi tur DILANJUTKAN (blur latar TETAP menyala)
+    // sampai user juga menyelesaikan step 3–9 (Cara Tampil Produk s.d.
+    // Mood & Tone) — lihat pbTourExtActive & pbTourFinishExt() di bawah.
+    pbTourResetF1Ui(true);
+    pbTourExtActive=true;
   });
 }
 // Notifikasi tengah layar, tampil PERSIS SEKALI begitu user sudah tap
@@ -13936,8 +14040,13 @@ function pbShowOutfitHintNotif(){
 // dipasang sejak f0 tadi) — dipanggil begitu foto referensi selesai &
 // tur berakhir, ATAU dari pbHideOverlay() kalau tur di-skip persis
 // waktu f0/f1 masih aktif.
-function pbTourResetF1Ui(){
-  document.body.classList.remove('pb-tour-blur-context');
+function pbTourResetF1Ui(keepBlur){
+  if(!keepBlur) document.body.classList.remove('pb-tour-blur-context');
+  // Sesi Langkah 5+6 sudah benar-benar berakhir di sini (foto referensi
+  // selesai ATAU tur di-skip) — baru sekarang "Produk Saja" dilepas
+  // kuncinya (lihat catatan di pbTourResetF0Ui) & flag sesi dimatikan.
+  pbUnlockChip('#sk-produk');
+  if(!keepBlur) pbTourStep56Active=false;
   pbTourF1Active=false;
   let f1=document.getElementById('f1');
   if(f1) f1.classList.remove('pb-tour-f1-simple');
@@ -13955,6 +14064,23 @@ function pbTourResetF1Ui(){
   if(orDesc) orDesc.textContent='Deskripsikan outfit yang kamu inginkan — AI yang generate.';
   let orFoot=document.getElementById('outfit-random-footnote');
   if(orFoot) orFoot.textContent='Semakin detail, hasil AI semakin akurat.';
+}
+// FITUR BARU (permintaan user): dipanggil begitu step 9 (Mood & Tone)
+// dikonfirmasi SELAMA sesi tur diperpanjang (pbTourExtActive) masih
+// berjalan — menutup sesi tur beneran (blur latar dilepas, nav
+// dimunculkan lagi lewat pbEndTour()) lalu menampilkan blur akhir di atas
+// Ringkasan/Karakter Sheet/Punya Prompt Lama/Generate Variasi dengan
+// tombol "Generate Prompt Foto" dipindah ke tengah layar. Blur akhir ini
+// baru dilepas lagi begitu user benar-benar menekan tombol Generate
+// (lihat awal fGenerate()).
+function pbTourFinishExt(){
+  pbTourExtActive=false;
+  document.body.classList.remove('pb-tour-blur-context');
+  pbTourStep56Active=false;
+  if(typeof pbEndTour==='function') pbEndTour();
+  setTimeout(function(){
+    document.body.classList.add('pb-tour-final-blur');
+  },250);
 }
 function pbLockChip(sel){
   let el=document.querySelector(sel);
