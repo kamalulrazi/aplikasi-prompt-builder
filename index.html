@@ -797,6 +797,32 @@ body input, body textarea, body [contenteditable="true"]{
 .progress-wrap:active{background:var(--surface2);}
 .progress-jump-hint{display:flex;align-items:center;gap:4px;}
 .progress-jump-hint svg{width:10px;height:10px;color:var(--muted2);transition:transform 0.15s;}
+/* ── TOMBOL SIMPAN HALAMAN — ikon kecil di kanan baris step, di bawah
+   garis progress kuning. Terpisah dari .progress-jump-hint (yang membuka
+   modal lompat step) supaya klik ikon ini tidak ikut membuka modal itu —
+   event-nya di-stopPropagation() di JS. ────────────────────────────── */
+.step-save-btn{
+  display:flex;align-items:center;justify-content:center;
+  width:26px;height:26px;margin-left:8px;flex-shrink:0;
+  border-radius:var(--radius-2xs);
+  background:var(--surface3);border:1px solid var(--border);
+  color:var(--muted2);cursor:pointer;transition:all 0.15s;position:relative;
+}
+.step-save-btn svg{width:13px;height:13px;}
+.step-save-btn:active{transform:scale(0.92);}
+.step-save-btn.armed{background:var(--accent-dim-bg);border-color:var(--accent-dim);color:var(--accent);}
+.step-save-btn.saved-flash{background:var(--green-dim);border-color:var(--green);color:var(--green);}
+.step-save-tip{
+  position:absolute;top:calc(100% + 8px);right:0;z-index:60;
+  width:210px;max-width:64vw;
+  background:var(--surface3);border:1px solid var(--border-hi);
+  border-radius:var(--radius-xs);box-shadow:var(--shadow-md);
+  padding:10px 12px;font-size:var(--fs-xs2);line-height:1.5;color:var(--text);
+  opacity:0;transform:translateY(-4px);pointer-events:none;
+  transition:opacity 0.15s,transform 0.15s;
+}
+.step-save-tip.show{opacity:1;transform:translateY(0);}
+.step-save-tip b{color:var(--accent-2);}
 
 /* BOTTOM SHEET — daftar step yang sudah diisi, dipicu tap di progress bar */
 #step-jump-overlay{
@@ -1770,6 +1796,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     <symbol id="ic-edit" viewBox="0 0 16 16"><path d="M10.6 2.3L13.7 5.4L5.4 13.7H2.3V10.6L10.6 2.3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
     <symbol id="ic-refresh" viewBox="0 0 16 16"><path d="M13.2 8A5.2 5.2 0 1 1 11.3 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M11.3 1.3V4.3H14.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="ic-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8V8.2L10.4 9.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-save" viewBox="0 0 16 16"><path d="M4 2h6.5L13 4.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5.5 2v3.2h4.2V2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5.3 9.2h5.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5.3 11.4h5.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
     <!-- FIX: tombol show/hide API key (vaiToggleKeyVisibility) sebelumnya
          kosong total di semua state — ikutan migrasi emoji→SVG di atas tapi
          kelewat, jadi textContent-nya diset ke string kosong di kedua cabang.
@@ -2176,7 +2203,13 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     <div class="progress-bar-track"><div class="progress-bar-fill" id="f-progress-fill" style="width:0%"></div></div>
     <div class="progress-steps">
       <div class="progress-label" id="f-progress-label">Step <span>1</span> dari <span>7</span></div>
-      <div class="progress-jump-hint"><div class="progress-label" id="f-progress-title" style="color:var(--text);">Subjek Foto</div><svg class="icon"><use href="#ic-chevron-down"></use></svg></div>
+      <div style="display:flex;align-items:center;">
+        <div class="progress-jump-hint"><div class="progress-label" id="f-progress-title" style="color:var(--text);">Subjek Foto</div><svg class="icon"><use href="#ic-chevron-down"></use></svg></div>
+        <div class="step-save-btn" id="f-save-btn" onclick="event.stopPropagation();pbSaveIconClick('foto',this,event)" title="Simpan halaman ini ke Riwayat">
+          <svg class="icon"><use href="#ic-save"></use></svg>
+          <div class="step-save-tip" id="f-save-tip"><b>Simpan halaman.</b> Skrip/prompt yang sudah jadi bisa disimpan ke Riwayat — tap sekali lagi ikon ini untuk menyimpan.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3031,7 +3064,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 
   <!-- HISTORI MINI (khusus desktop) -->
   <div id="f-history-mini-wrap" class="desktop-only-preview" style="text-align:left;padding:14px 16px;">
-    <div style="font-size:var(--fs-sm);font-weight:700;margin-bottom:10px;">Histori Terakhir</div>
+    <div style="font-size:var(--fs-sm);font-weight:700;margin-bottom:10px;">Halaman Tersimpan</div>
     <div id="f-history-mini"></div>
   </div>
   </div><!-- end f-right-col -->
@@ -3050,7 +3083,13 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     <div class="progress-bar-track"><div class="progress-bar-fill" id="vb-progress-fill" style="width:0%"></div></div>
     <div class="progress-steps">
       <div class="progress-label" id="vb-progress-label">Step <span>1</span> dari <span>4</span></div>
-      <div class="progress-jump-hint"><div class="progress-label" id="vb-progress-title" style="color:var(--text);">Referensi Foto</div><svg class="icon"><use href="#ic-chevron-down"></use></svg></div>
+      <div style="display:flex;align-items:center;">
+        <div class="progress-jump-hint"><div class="progress-label" id="vb-progress-title" style="color:var(--text);">Referensi Foto</div><svg class="icon"><use href="#ic-chevron-down"></use></svg></div>
+        <div class="step-save-btn" id="vb-save-btn" onclick="event.stopPropagation();pbSaveIconClick('video',this,event)" title="Simpan halaman ini ke Riwayat">
+          <svg class="icon"><use href="#ic-save"></use></svg>
+          <div class="step-save-tip" id="vb-save-tip"><b>Simpan halaman.</b> Skrip video yang sudah jadi (termasuk mode bulk) bisa disimpan ke Riwayat — tap sekali lagi ikon ini untuk menyimpan.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3389,10 +3428,10 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 <!-- ============================================================ -->
 <div id="riwayat" class="page">
 <div class="wrap">
-  <div class="sec-title">Riwayat Prompt</div>
-  <p class="sec-desc" style="margin-bottom:12px;">5 prompt terakhir yang kamu generate (foto & video). Tersimpan di browser — tidak hilang saat refresh (kecuali mode incognito).</p>
-  <div id="history-list"><p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada prompt tersimpan. Generate prompt foto atau video untuk melihat histori.</p></div>
-  <button onclick="showConfirm('Hapus semua histori prompt?',historyClearAll,null,'Ya, Hapus Semua')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Geist',sans-serif;margin-top:4px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Histori</button>
+  <div class="sec-title">Halaman Tersimpan</div>
+  <p class="sec-desc" style="margin-bottom:12px;">Halaman foto/video yang kamu simpan manual (lengkap dengan skrip yang sudah dibuat AI) — tap ikon <svg class="icon" style="vertical-align:-0.15em;"><use href="#ic-save"></use></svg> di bawah garis step untuk menyimpan. Tersimpan di browser — tidak hilang saat aplikasi ditutup (kecuali mode incognito).</p>
+  <div id="history-list"><p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada halaman tersimpan. Generate prompt foto/video, lalu simpan halamannya lewat ikon di bawah garis step.</p></div>
+  <button onclick="showConfirm('Hapus semua halaman tersimpan?',pbSavedClearAll,null,'Ya, Hapus Semua')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Geist',sans-serif;margin-top:4px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Halaman Tersimpan</button>
 </div>
 </div>
 <div id="toast"></div>
@@ -6651,7 +6690,9 @@ function _fDoGenerate(){
 
   // Simpan ke histori
   let fullText = document.getElementById('f-prompt-full') ? document.getElementById('f-prompt-full').textContent : '';
-  historyAdd('foto','Foto '+built.subjekLabel+(FS.produkNama?' — '+FS.produkNama:''),fullText);
+  // historyAdd(...) auto-save prompt DIMATIKAN — Riwayat sekarang isinya
+  // "halaman tersimpan" manual lewat ikon simpan (lihat pbSaveCurrentPage),
+  // bukan lagi teks prompt otomatis tiap generate.
 } // end _fDoGenerate
 
 // ── Membangun 1 objek JSON prompt. `ov` (opsional) berisi override
@@ -7924,7 +7965,7 @@ function _fDoGenerateMultiShot(checkedEls){
       multiWrap.appendChild(card);
 
       // Simpan tiap shot ke histori
-      historyAdd('foto', r.label+(FS.produkNama?' — '+FS.produkNama:''), jsonText);
+      // historyAdd(...) auto-save prompt DIMATIKAN — lihat catatan di fGenerate().
     });
     let resetBtn=document.createElement('button');
     resetBtn.className='reset-btn';
@@ -8708,12 +8749,233 @@ function historyRender(){
   _historyRenderInto(document.getElementById('f-history-mini'));
 }
 
+// ============================================================
+// HALAMAN TERSIMPAN — simpan SELURUH halaman (bukan cuma teks prompt),
+// dipicu manual oleh user lewat ikon simpan di bawah garis step
+// (.step-save-btn, lihat progress-wrap Foto & Video). Beda dari sistem
+// "HISTORY PROMPT" lama di atas (yang auto-tersimpan tiap generate) —
+// sistem lama sekarang TIDAK dipanggil lagi (lihat 3 titik historyAdd()
+// yang sudah di-nonaktifkan di fGenerate/multi-foto/multi-video), tapi
+// fungsinya dibiarkan menganggur (tidak dihapus) supaya tidak berisiko
+// merusak bagian lain yang mungkin masih menyentuhnya.
+//
+// Yang disimpan per halaman: HTML hasil (kartu skrip/prompt yang sudah
+// jadi, termasuk mode bulk banyak produk) + snapshot state FS/VB, supaya
+// begitu dibuka lagi besoknya, skrip yang sudah dibuat AI masih utuh
+// kelihatan & bisa disalin — bukan cuma judul/label kosong.
+// ============================================================
+const PB_SAVED_KEY='pb_saved_pages_v1';
+const PB_SAVED_MAX=10; // dibatasi (bukan 5 seperti histori prompt lama)
+                        // karena tiap entri sekarang membawa HTML hasil
+                        // lengkap + state, jauh lebih besar dari teks polos.
+
+function pbSavedGet(){
+  try{return JSON.parse(localStorage.getItem(PB_SAVED_KEY)||'[]');}
+  catch(e){return[];}
+}
+function pbSavedSetAll(arr){
+  localStorage.setItem(PB_SAVED_KEY,JSON.stringify(arr)); // biar caller yang try/catch (kuota penuh dsb)
+}
+
+// ── Tap 1: tampilkan tooltip singkat. Tap 2 (selagi "armed"): simpan. ──
+function pbSaveIconClick(type,btnEl){
+  if(!btnEl)return;
+  let tip=btnEl.querySelector('.step-save-tip');
+  if(!btnEl.classList.contains('armed')){
+    btnEl.classList.add('armed');
+    if(tip)tip.classList.add('show');
+    clearTimeout(btnEl._pbArmTimer);
+    btnEl._pbArmTimer=setTimeout(function(){
+      btnEl.classList.remove('armed');
+      if(tip)tip.classList.remove('show');
+    },4500);
+    return;
+  }
+  // Tap ke-2 — eksekusi simpan
+  clearTimeout(btnEl._pbArmTimer);
+  btnEl.classList.remove('armed');
+  if(tip)tip.classList.remove('show');
+  pbSaveCurrentPage(type,btnEl);
+}
+
+// Ambil elemen output yang sedang terlihat untuk tipe halaman tsb. Untuk
+// Foto ada 2 kemungkinan wadah (single/f-json-output vs multi-produk/
+// f-multi-output); Video selalu lewat vb-multi-output. HTML-nya di-KLON
+// dulu lalu dibersihkan dari atribut id & onclick sebelum disimpan — kalau
+// disimpan mentah, id-nya akan BENTROK dengan elemen asli di halaman saat
+// nanti ditampilkan lagi (dua elemen id sama), dan onclick-nya memanggil
+// fungsi yang mengandalkan state global (mis. index kartu) yang sudah
+// tidak relevan lagi begitu halaman dibuka ulang besoknya — bisa salah
+// pencet/salah salin. Makanya tombol interaktif (Salin/Edit/dst) di versi
+// tersimpan disembunyikan, diganti SATU tombol "Salin Semua Teks" yang
+// aman (dibuat sendiri dari teks polos, lihat pbOpenSavedPage).
+function _pbCollectResult(type){
+  let sourceEls=[];
+  if(type==='foto'){
+    let multi=document.getElementById('f-multi-output');
+    if(multi && multi.style.display!=='none' && multi.innerHTML.trim())sourceEls.push(multi);
+    let jsonBlock=document.getElementById('f-json-output');
+    if(jsonBlock && jsonBlock.style.display!=='none' && jsonBlock.innerHTML.trim())sourceEls.push(jsonBlock);
+  } else {
+    let multi=document.getElementById('vb-multi-output');
+    if(multi && multi.innerHTML.trim())sourceEls.push(multi);
+  }
+  if(!sourceEls.length)return null;
+  let htmlParts=[],textParts=[];
+  sourceEls.forEach(function(el){
+    let clone=el.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach(function(n){n.removeAttribute('id');});
+    clone.querySelectorAll('[onclick]').forEach(function(n){n.removeAttribute('onclick');});
+    clone.querySelectorAll('button,.copy-btn,.reset-btn').forEach(function(n){n.style.display='none';});
+    htmlParts.push(clone.innerHTML);
+    textParts.push((el.innerText||el.textContent||'').trim());
+  });
+  return {html:htmlParts.join('\n'),text:textParts.join('\n\n---\n\n')};
+}
+
+function pbSaveCurrentPage(type,btnEl){
+  let result=_pbCollectResult(type);
+  if(!result){
+    showToast('Belum ada skrip/prompt yang di-generate di halaman ini','error');
+    return;
+  }
+  let html=result.html;
+  let label,stateJSON;
+  try{
+    if(type==='foto'){
+      label='Foto'+(FS.produkNama?' — '+FS.produkNama:(FS.subjekLabel?' — '+FS.subjekLabel:''));
+      stateJSON=JSON.stringify(FS);
+    } else {
+      let jumlahProduk=(typeof VB_BULK_ITEMS!=='undefined' && Array.isArray(VB_BULK_ITEMS) && VB_BULK_ITEMS.length)?VB_BULK_ITEMS.length:null;
+      label='Video'+(jumlahProduk?' — '+jumlahProduk+' produk (bulk)':(VB.mode3Produk?' — '+VB.mode3Produk:''));
+      stateJSON=JSON.stringify(VB);
+    }
+  }catch(e){
+    label=(type==='foto'?'Foto':'Video')+' tersimpan';
+    stateJSON='{}';
+  }
+  let entry={
+    id:'sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    type:type,
+    label:label,
+    ts:Date.now(),
+    html:html,
+    text:result.text,
+    state:stateJSON
+  };
+  let arr=pbSavedGet();
+  arr.unshift(entry);
+  if(arr.length>PB_SAVED_MAX)arr=arr.slice(0,PB_SAVED_MAX);
+  try{
+    pbSavedSetAll(arr);
+  }catch(e){
+    // Kemungkinan besar kuota localStorage penuh (entri berisi HTML+base64
+    // foto bisa besar) — coba sekali lagi tanpa entri paling lama.
+    try{
+      arr=arr.slice(0,Math.max(1,arr.length-2));
+      pbSavedSetAll(arr);
+    }catch(e2){
+      showToast('Gagal simpan — penyimpanan browser penuh. Hapus beberapa halaman tersimpan dulu.','error');
+      return;
+    }
+  }
+  if(btnEl){
+    btnEl.classList.add('saved-flash');
+    setTimeout(function(){btnEl.classList.remove('saved-flash');},1200);
+  }
+  showToast('Halaman disimpan ke Riwayat!','success');
+  pbSavedRender();
+}
+
+function pbSavedDelete(id){
+  let arr=pbSavedGet().filter(function(x){return x.id!==id;});
+  pbSavedSetAll(arr);
+  pbSavedRender();
+}
+function pbSavedClearAll(){
+  try{localStorage.removeItem(PB_SAVED_KEY);}catch(e){}
+  pbSavedRender();
+}
+
+function _pbSavedRenderInto(wrap){
+  if(!wrap)return;
+  let arr=pbSavedGet();
+  if(!arr.length){wrap.innerHTML='<p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada halaman tersimpan. Generate prompt foto/video, lalu simpan halamannya lewat ikon di bawah garis step.</p>';return;}
+  wrap.innerHTML='';
+  arr.forEach(function(item){
+    let d=new Date(item.ts);
+    let tstr=d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    let row=document.createElement('div');
+    row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;';
+    let head=document.createElement('div');head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px;';
+    let badge=document.createElement('span');badge.style.cssText='font-size:var(--fs-xs);font-weight:700;font-family:"Geist Mono",monospace;padding:2px 8px;border-radius:var(--radius-2xs);background:'+(item.type==='foto'?'var(--surface3)':'rgba(76,175,125,0.15)')+';color:'+(item.type==='foto'?'var(--accent)':'var(--green)')+';';badge.textContent=item.type==='foto'?'FOTO':'VIDEO';
+    let lbl=document.createElement('span');lbl.style.cssText='font-size:var(--fs-sm);font-weight:600;flex:1;';lbl.textContent=item.label;
+    let ts=document.createElement('span');ts.style.cssText='font-size:var(--fs-xs);color:var(--muted);font-family:"Geist Mono",monospace;';ts.textContent=tstr;
+    head.appendChild(badge);head.appendChild(lbl);head.appendChild(ts);
+    let btns=document.createElement('div');btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+    let openBtn=document.createElement('button');openBtn.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:600;padding:5px 12px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';openBtn.innerHTML='<svg class="icon"><use href="#ic-eye"></use></svg> Buka';
+    openBtn.onclick=(function(id){return function(){pbOpenSavedPage(id);};})(item.id);
+    let delBtn=document.createElement('button');delBtn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:5px 10px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';delBtn.innerHTML='<svg class="icon"><use href="#ic-close"></use></svg> Hapus';
+    delBtn.onclick=(function(id){return function(){pbSavedDelete(id);};})(item.id);
+    btns.appendChild(openBtn);btns.appendChild(delBtn);
+    row.appendChild(head);row.appendChild(btns);
+    wrap.appendChild(row);
+  });
+}
+function pbSavedRender(){
+  _pbSavedRenderInto(document.getElementById('history-list'));
+  _pbSavedRenderInto(document.getElementById('f-history-mini'));
+}
+
+// Buka kembali halaman tersimpan: pindah ke tab Foto/Video, kembalikan
+// state FS/VB sebisanya, lalu tampilkan ulang HTML skrip/prompt yang sudah
+// jadi persis seperti saat disimpan. Catatan: field input di wizard (step
+// 1-7/1-4) TIDAK ditata ulang otomatis satu-per-satu — fokus fitur ini
+// memastikan SKRIP/PROMPT hasil generate tetap utuh & bisa disalin lagi,
+// sesuai permintaan awal fitur ini.
+function pbOpenSavedPage(id){
+  let item=pbSavedGet().find(function(x){return x.id===id;});
+  if(!item){showToast('Halaman tersimpan tidak ditemukan','error');return;}
+  let navBtn=document.querySelector('.ntab[onclick*="switchPage(\''+item.type+'\'"]');
+  if(navBtn)switchPage(item.type,navBtn);
+  try{
+    let savedState=JSON.parse(item.state||'{}');
+    if(item.type==='foto' && typeof FS!=='undefined')Object.assign(FS,savedState);
+    if(item.type==='video' && typeof VB!=='undefined')Object.assign(VB,savedState);
+  }catch(e){/* state korup/lama — lanjut tanpa restore state, HTML hasil tetap ditampilkan */}
+  let targetId=item.type==='foto'?'f-multi-output':'vb-multi-output';
+  let target=document.getElementById(targetId);
+  if(target){
+    let copyAllHTML='<div style="background:var(--accent-dim-bg);border:1px solid var(--accent-dim);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">'
+      +'<span style="font-size:var(--fs-xs2);color:var(--accent-2);flex:1;">Halaman tersimpan — dibuka dari Riwayat</span>'
+      +'<button class="copy-btn" id="pb-saved-copyall-btn">Salin Semua Teks</button>'
+      +'</div>';
+    target.innerHTML=copyAllHTML+item.html;
+    target.style.display='flex';
+    if(item.type==='foto'){
+      let wrap=document.getElementById('f-output-wrap');
+      let jsonBlock=document.getElementById('f-json-output');
+      if(wrap)wrap.style.display='block';
+      if(jsonBlock)jsonBlock.style.display='none'; // isinya sudah ikut ke dalam target.innerHTML kalau ada
+    }
+    let copyAllBtn=document.getElementById('pb-saved-copyall-btn');
+    if(copyAllBtn)copyAllBtn.onclick=function(){
+      _copyTextRobust(item.text,function(){showToast('Semua teks tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+    };
+  }
+  setTimeout(function(){
+    if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+  },80);
+  showToast('Halaman berhasil dibuka','success');
+}
+
 // Render histori saat halaman Riwayat dibuka (via switchPage)
 (function(){
   let origSwitch=window.switchPage;
   window.switchPage=function(id,btn){
     origSwitch(id,btn);
-    if(id==='riwayat')setTimeout(historyRender,50);
+    if(id==='riwayat')setTimeout(pbSavedRender,50);
   };
 })();
 
@@ -12081,7 +12343,7 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
     let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
     return '// '+plainLabel+(item.produk?' — '+item.produk:'')+'\n'+jsonText;
   });
-  historyAdd('video',sessionLabel,blocks.join('\n\n---\n\n'));
+  // historyAdd(...) auto-save prompt DIMATIKAN — lihat catatan di fGenerate().
 }
 
 // Bangun 3 kartu KOSONG (Hook/Story/CTA) di #vb-multi-output SEBELUM AI
