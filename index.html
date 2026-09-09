@@ -3853,15 +3853,23 @@ function vbCountInpV2(el,counterId){
 
 function showToast(msg,type){
   let t=document.getElementById('toast');
-  t.style.borderColor=type==='success'?'var(--green)':'var(--red)';
-  t.style.color=type==='success'?'var(--green)':'var(--red)';
-  t.innerHTML=(type==='success'?'<svg class="icon"><use href="#ic-check"></use></svg> ':'<svg class="icon"><use href="#ic-close"></use></svg> ')+esc(msg);
+  // FIX: sebelumnya kondisinya type==='success' (jadi SELAIN 'success'
+  // dianggap error/merah) — akibatnya showToast(...,'info') (dipakai di
+  // csDelete & csRenderList untuk pesan netral seperti "Sudah tersimpan
+  // sebelumnya"/"Kembali ke pilihan sebelumnya") ikut tampil merah dengan
+  // ikon ✕ seolah ada yang gagal, padahal tidak ada masalah apapun.
+  // Sekarang HANYA type==='error' yang dapat styling merah/ikon ✕ — semua
+  // tipe lain (termasuk 'info') dianggap netral/baik, sama seperti 'success'.
+  let isError=type==='error';
+  t.style.borderColor=isError?'var(--red)':'var(--green)';
+  t.style.color=isError?'var(--red)':'var(--green)';
+  t.innerHTML=(isError?'<svg class="icon"><use href="#ic-close"></use></svg> ':'<svg class="icon"><use href="#ic-check"></use></svg> ')+esc(msg);
   t.style.transform='translateX(-50%) translateY(0)';
   t.style.opacity='1';
   clearTimeout(t._t);
   // FIX TOAST: error tampil 4000ms agar user mobile sempat baca pesan error API
-  // success tetap 2500ms karena tidak perlu dibaca lama
-  let dur=type==='success'?2500:4000;
+  // success/info tetap 2500ms karena tidak perlu dibaca lama
+  let dur=isError?4000:2500;
   t._t=setTimeout(()=>{t.style.transform='translateX(-50%) translateY(80px)';t.style.opacity='0';},dur);
 }
 
@@ -4435,19 +4443,23 @@ function fConfirmOutfitRandom(){
 
 // SINKRONISASI DEFAULT AMBIL/ABAIKAN UNTUK FOTO WAJAH (KARAKTER SHEET):
 // Kalau user BELUM isi "Isi Outfit Karakter" (tidak ada ref bertipe
-// outfit_random), foto wajah TIDAK BOLEH cuma fokus wajah — otomatis
+// outfit_random) DAN belum upload foto Outfit asli (tidak ada ref
+// bertipe outfit), foto wajah TIDAK BOLEH cuma fokus wajah — otomatis
 // diubah supaya AI ambil wajah SEKALIGUS outfit yang dipakai di foto
 // tersebut (abaikan dikosongkan, karena tidak ada lagi yang perlu
-// diabaikan). Begitu user isi outfit karakter (ref outfit_random ada),
-// dikembalikan ke default aslinya (fokus wajah saja, abaikan outfit).
+// diabaikan). Begitu outfit sudah tercover oleh salah satu dari
+// keduanya (ref outfit_random ATAU ref outfit), dikembalikan ke
+// default aslinya (fokus wajah saja, abaikan outfit).
 // r.autoSyncOutfit (default true, di-set false begitu user MENGEDIT
 // manual textarea ambil/abaikan di kartu foto wajah — lihat fUpdateRef/
 // fClearRefField) mencegah fungsi ini menimpa balik hasil edit manual.
 function fSyncWajahOutfitDefault(){
   let hasOutfitRandom=FS.refs.some(function(r){return r.type==='outfit_random';});
+  let hasOutfitFoto=FS.refs.some(function(r){return r.type==='outfit';});
+  let outfitCovered=hasOutfitRandom||hasOutfitFoto;
   FS.refs.forEach(function(r){
     if(r.type!=='wajah'||r.autoSyncOutfit===false)return;
-    if(hasOutfitRandom){
+    if(outfitCovered){
       r.extractCustom=FTYPE.wajah.extract;
       r.ignoreCustom=FTYPE.wajah.ignore;
     } else {
@@ -5185,7 +5197,17 @@ function fAddRefSilent(typeKey){
   FS.refCounter++;
   let id='fr'+FS.refCounter;
   let def=FTYPE[typeKey];
-  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:''});
+  // FIX KONSISTENSI: fAddRef() (versi non-silent) selalu mengisi
+  // autoSyncOutfit:true di ref baru — field ini dipakai fSyncWajahOutfitDefault()
+  // untuk tahu apakah kartu Wajah boleh ditimpa otomatis atau tidak (lihat
+  // guard r.autoSyncOutfit===false di sana). Sebelumnya fungsi ini (dipakai
+  // khusus alur "Produk Saja") tidak mengisinya sama sekali — saat ini aman
+  // karena cuma pernah dipanggil dengan typeKey='produk' (tidak diperiksa
+  // fSyncWajahOutfitDefault), tapi kalau suatu saat dipanggil dengan
+  // typeKey='wajah', field yang undefined ini bisa bikin sinkronisasi
+  // Wajah/Outfit gagal jalan. Ditambahkan sekarang biar konsisten & aman
+  // ke depannya, bukan cuma karena kebetulan tidak pernah kepakai untuk 'wajah'.
+  FS.refs.push({id,type:typeKey,focus:'',extractCustom:def.extract,ignoreCustom:def.ignore,ukuran:'',autoSyncOutfit:true});
   if(typeKey==='produk')FS.hasProdukFoto=true;
 }
 // ── TOGGLE PANEL f1 sesuai mode ──────────────────────────────────────────
@@ -5393,7 +5415,14 @@ function fKonfirmRef(){
   } else {
     // Tidak ada foto produk — skip f2 & f3, set produkMode='tidak', langsung pose
     FS.produkMode='tidak';FS.produkNama='';FS.holdKey='';FS.hold='';
-    doneCard('f2','fa2','Tidak ada produk');
+    // STEP 2 (PRODUK) DIHAPUS TOTAL DARI FLOW: sebelumnya di sini dipanggil
+    // doneCard('f2','fa2','Tidak ada produk') — itu bikin f2 kecatat 'done'
+    // sehingga nongol sebagai entri "Step 2: Tidak ada produk" di daftar
+    // "Lompat ke Step" & Ringkasan, padahal Pose di bawah ini JUGA memakai
+    // nomor slot 2 (lihat fUpdateProgress(2,'Pose')) — bikin dobel/bentrok
+    // dan membingungkan. Sekarang f2 sengaja TIDAK PERNAH ditandai 'done'
+    // sama sekali kalau user tidak upload foto produk, jadi tidak pernah
+    // muncul di mana pun lagi. FS.produkMode di atas tetap otomatis 'tidak'.
     // FIX NOMOR STEP GANDA ("3" muncul dobel di F3 & Pose): F3 tidak
     // relevan sama sekali saat "tidak ada produk" — Pose otomatis jadi
     // step ke-3 (lihat fCardToStep). Sebelumnya F3 cuma ditandai 'done'
@@ -10631,7 +10660,19 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(resp.status===0)throw new Error('Gagal terhubung ke server AI Google'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Google yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
   }
-  let data=JSON.parse(rawText);
+  // FIX KONSISTENSI PENANGANAN ERROR: sebelumnya JSON.parse(rawText) di sini
+  // TIDAK dibungkus try/catch lokal — beda dengan hampir semua JSON.parse
+  // lain di file ini yang selalu punya fallback/pesan spesifik. Kalau Google
+  // pernah membalas status 200 (resp.ok true) tapi body-nya BUKAN JSON valid
+  // (jarang, tapi bisa terjadi kalau ada proxy/jaringan yang memotong
+  // respons), sebelumnya error mentah JS ("Unexpected token...") yang
+  // muncul ke user lewat catch di pemanggil — bukan pesan ramah bahasa
+  // Indonesia seperti kasus error lain di fungsi ini. Sekarang dikasih
+  // pesan yang konsisten dengan gaya error lain di bawah.
+  let data;
+  try{data=JSON.parse(rawText);}catch(eParse){
+    throw new Error('Respons dari server AI Google tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+  }
   if(data.error)throw new Error(data.error.message||'Gemini API error');
   let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
   let finishReason=data.candidates?.[0]?.finishReason||'';
@@ -12067,7 +12108,13 @@ async function vbGenerate3AI(){
       if(resp.status===0)throw new Error('Gagal terhubung ke server AI Google'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Google yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
       throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
     }
-    let data=JSON.parse(rawText);
+    // FIX KONSISTENSI PENANGANAN ERROR (sama seperti _vbCallBulkBatch): kalau
+    // Google membalas status 200 tapi body-nya bukan JSON valid, sekarang
+    // dikasih pesan ramah bahasa Indonesia — bukan error mentah JS.
+    let data;
+    try{data=JSON.parse(rawText);}catch(eParse){
+      throw new Error('Respons dari server AI Google tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+    }
     if(data.error)throw new Error(data.error.message||'Gemini API error');
     let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
     let finishReason=data.candidates?.[0]?.finishReason||'';
@@ -13250,7 +13297,17 @@ function fRenderSummary() {
     // (kartu foto referensi). Sebelumnya selalu diarahkan ke Card 2 tanpa
     // syarat, jadi tombol Edit malah nampilin layar "belum pilih foto
     // produk" yang salah & bikin bingung padahal fotonya sudah dipilih.
-    items.push({ key: 'Produk', val: produkVal, editCard: (FS.produkMode === 'foto' ? 1 : 2) });
+    // STEP 2 DIHAPUS DARI FLOW: baris "Produk" di Ringkasan sekarang cuma
+    // ditampilkan kalau memang ada info produk nyata (mis. 'foto' — auto
+    // terdeteksi dari foto produk yang di-upload, atau 'dipakai'/'pegang'
+    // dari data lama hasil impor/autosave). Kalau produkMode masih default
+    // 'tidak'/kosong (kondisi normal sekarang: user tidak upload foto
+    // produk), baris ini disembunyikan total — tidak ada lagi tombol Edit
+    // yang bisa membuka lagi Card 2 (pilihan ada/tidak produk) yang sudah
+    // dihapus dari flow aktif.
+    if (FS.produkMode && FS.produkMode !== 'tidak') {
+      items.push({ key: 'Produk', val: produkVal, editCard: (FS.produkMode === 'foto' ? 1 : 2) });
+    }
     // JARING PENGAMAN TAMBAHAN pasca-impor: kalau ada foto bertipe 'produk'
     // di Step 1 tapi namanya belum diisi (mis. baru saja ditambah), kasih
     // tahu di sini juga — bukan cuma nunggu diblok pas tombol Generate
