@@ -3165,6 +3165,16 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 
       <!-- MODE 4: kotak hasil siap-salin — tidak ada step lanjutan -->
       <div id="vb-mode4-area" class="hidden" style="margin-bottom:14px;">
+        <!-- FITUR BARU (permintaan user): "Atur Detail" → Teks Overlay, sama
+             seperti di Mode 1/2/3, walau Mode 4 tidak punya Hook/Story/CTA —
+             ditempelkan ke satu-satunya prompt Mode 4 ini. Lihat
+             vbToggleMode4Overlay/vbMode4OverlayInput. -->
+        <button type="button" id="vb-mode4-overlay-toggle" onclick="vbToggleMode4Overlay()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-bottom:8px;">+ Atur Detail (opsional)</button>
+        <div id="vb-mode4-overlay-box" class="hidden" style="margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Teks Overlay</label>
+          <div class="inp-wrap"><input class="inp" id="vb-mode4-overlay-input" maxlength="60" placeholder="Contoh: Diskon 50% Hari Ini!" oninput="vbMode4OverlayInput()" /></div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt: muncul di detik 0–2 video (2 detik lalu menghilang), ukuran teks 10px. Kosongkan kalau tidak perlu teks overlay.</p>
+        </div>
         <div class="out-card">
           <div class="out-head">
             <div class="out-label">Prompt — Ikuti Gerakan Video</div>
@@ -4003,6 +4013,7 @@ function doneCard(id,ansId,text){
               VB_CARD_TAMPIL={};
               VB_CARD_LOKASI={};
               VB_PRODUCT_FOTOCOUNT={};
+              VB_HOOK_OVERLAY={};
               _doOpenEdit();
             },null,'Ya, Ubah & Hapus Hasil');
           }else{
@@ -9198,8 +9209,46 @@ const VB_REF_MODE_DESC={
 // tampilkan kotak "Salin" di sini, dan sembunyikan tombol "Lanjut →"
 // (V2 dst tidak relevan buat mode ini).
 const VB_MODE4_PROMPT_TEXT='Aku ingin kamu membuat foto yang dilampirkan mengikuti setiap gerakan yang ada di dalam video yang dilampirkan, termasuk transisi di dalam video. Pastikan lokasi, lighting, outfit, dan mood wajib persis dengan foto yang dilampirkan.';
+// FITUR BARU (permintaan user): "Atur Detail" → Teks Overlay khusus Mode 4 —
+// Mode 4 cuma punya SATU prompt statis (tidak ada Hook/Story/CTA seperti
+// Mode 1-3), jadi teks overlay ditempelkan langsung ke prompt itu. Direset
+// juga di vbReset().
+let VB_MODE4_OVERLAY_TEXT='';
+// Bangun teks final Mode 4 (prompt dasar + overlay kalau diisi) — dipakai
+// bareng oleh preview <pre> (live) dan tombol Salin, supaya keduanya SELALU
+// sama persis.
+function _vbMode4BuildText(){
+  let txt=VB_MODE4_PROMPT_TEXT;
+  if(VB_MODE4_OVERLAY_TEXT){
+    txt+='. Tulis :"'+VB_MODE4_OVERLAY_TEXT+'" muncul pada detik 0 sampai detik 2 (2 detik) lalu menghilang, dengan ukuran teks 10px.';
+  }
+  return txt;
+}
 function vbCopyMode4Prompt(){
-  _copyTextRobust(VB_MODE4_PROMPT_TEXT,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+  let txt=_vbMode4BuildText();
+  _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+}
+// Buka/tutup panel "Atur Detail" (Teks Overlay) khusus Mode 4.
+function vbToggleMode4Overlay(){
+  let box=document.getElementById('vb-mode4-overlay-box');
+  let btn=document.getElementById('vb-mode4-overlay-toggle');
+  if(!box)return;
+  let opening=box.classList.contains('hidden');
+  box.classList.toggle('hidden');
+  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
+  if(opening){
+    let inp=document.getElementById('vb-mode4-overlay-input');
+    if(inp)inp.focus();
+  }
+}
+// Dipanggil tiap user ngetik di kotak Teks Overlay Mode 4 — simpan ke state
+// & refresh preview <pre> secara realtime (sama pola-nya seperti
+// vbHookOverlayInput/vbBulkUpdateJson di Mode 1-3).
+function vbMode4OverlayInput(){
+  let inp=document.getElementById('vb-mode4-overlay-input');
+  VB_MODE4_OVERLAY_TEXT=inp?inp.value.trim():'';
+  let pre=document.getElementById('vb-mode4-prompt-text');
+  if(pre)pre.textContent=_vbMode4BuildText();
 }
 function vbPickRefMode(mode){
   // FIX BUG #7 (ditemukan saat audit mendalam): sebelumnya baris terakhir
@@ -9592,6 +9641,23 @@ function _vbFotoCountVal(idx){
   let prodIdx=Math.floor(idx/3);
   return VB_PRODUCT_FOTOCOUNT[prodIdx]||0;
 }
+
+// FITUR BARU (permintaan user): "Atur Detail" → Teks Overlay di kartu Hook,
+// tampil di ATAS kartu Hook di SEMUA mode referensi foto (Mode 1/2/3) dan di
+// mode single maupun Bulk — beda dari _vbBuildProductFotoCountRow/VB_CARD_LOKASI
+// dkk yang cuma khusus Mode 3. Key = prodIdx (setiap produk selalu tepat 3
+// kartu Hook/Story/CTA — prodIdx=Math.floor(idx/3), prodIdx 0 untuk mode
+// single). Kosong/tidak ada key = user belum isi apa-apa, tidak ada tambahan
+// apapun ke prompt. Direset bareng di semua titik reset sesi yang sama
+// (lihat VB_CARD_TAMPIL dkk).
+let VB_HOOK_OVERLAY={};
+// Helper kecil: ambil teks overlay Hook untuk kartu ke-idx. HANYA dipakai
+// oleh _vbBuildFlowText kalau kartu ini benar-benar Hook (idx%3===0) — kartu
+// Story/CTA tidak pernah dapat tambahan ini walau prodIdx sama.
+function _vbHookOverlayText(idx){
+  let prodIdx=Math.floor(idx/3);
+  return (VB_HOOK_OVERLAY[prodIdx]||'').trim();
+}
 // Bangun baris UI "Jumlah Foto Produk" untuk produk ke-prodIdx — chip angka
 // 1-5 + "Ikuti foto asli", dengan ikon kamera KUNING (var(--accent)) di
 // labelnya. Dipakai di 2 tempat: atas kartu Hook mode single-produk
@@ -9638,6 +9704,83 @@ function vbPickFotoCountProduct(prodIdx,count){
     if(document.getElementById('vb-bulk-script-'+idx))vbBulkUpdateJson(idx);
   });
 }
+
+// FITUR BARU (permintaan user): toggle "+ Atur Detail" + panel teks overlay,
+// ditampilkan di ATAS kartu Hook untuk produk ke-prodIdx — di SEMUA mode
+// referensi foto (1/2/3), baik mode single-produk (_vbRenderMultiOutput,
+// selalu prodIdx 0) maupun tiap grup produk di mode Bulk (_vbRenderBulkOutput,
+// prodIdx 0,1,2,...). Tersembunyi & kosong secara default — teks overlay
+// HANYA ditambahkan ke prompt Hook (lihat _vbBuildFlowText) kalau user
+// benar-benar mengisi kotak ini.
+function _vbBuildHookOverlayRow(prodIdx){
+  let wrap=document.createElement('div');
+  wrap.id='vb-hookoverlay-wrap-'+prodIdx;
+  wrap.style.cssText='margin-bottom:8px;';
+
+  let btn=document.createElement('button');
+  btn.type='button';
+  btn.id='vb-hookoverlay-toggle-'+prodIdx;
+  btn.style.cssText='background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;';
+  btn.textContent='+ Atur Detail (opsional)';
+  btn.onclick=(function(pi){return function(){vbToggleHookOverlay(pi);};})(prodIdx);
+  wrap.appendChild(btn);
+
+  let box=document.createElement('div');
+  box.id='vb-hookoverlay-box-'+prodIdx;
+  box.className='hidden';
+  box.style.cssText='margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;';
+
+  let label=document.createElement('label');
+  label.className='inplabel';
+  label.style.cssText='font-size:var(--fs-2xs);';
+  label.textContent='Teks Overlay di Hook';
+  box.appendChild(label);
+
+  let inpWrap=document.createElement('div');
+  inpWrap.className='inp-wrap';
+  let inp=document.createElement('input');
+  inp.className='inp';
+  inp.id='vb-hookoverlay-input-'+prodIdx;
+  inp.maxLength=60;
+  inp.placeholder='Contoh: Diskon 50% Hari Ini!';
+  inp.value=VB_HOOK_OVERLAY[prodIdx]||'';
+  inp.oninput=(function(pi){return function(){vbHookOverlayInput(pi);};})(prodIdx);
+  inpWrap.appendChild(inp);
+  box.appendChild(inpWrap);
+
+  let hint=document.createElement('p');
+  hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;';
+  hint.textContent='Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt Hook: muncul di detik 0–2 video (2 detik lalu menghilang), ukuran teks 10px. Kosongkan kalau tidak perlu teks overlay.';
+  box.appendChild(hint);
+
+  wrap.appendChild(box);
+  return wrap;
+}
+// Buka/tutup panel "Atur Detail" (Teks Overlay Hook) milik produk ke-prodIdx.
+function vbToggleHookOverlay(prodIdx){
+  let box=document.getElementById('vb-hookoverlay-box-'+prodIdx);
+  let btn=document.getElementById('vb-hookoverlay-toggle-'+prodIdx);
+  if(!box)return;
+  let opening=box.classList.contains('hidden');
+  box.classList.toggle('hidden');
+  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
+  if(opening){
+    let inp=document.getElementById('vb-hookoverlay-input-'+prodIdx);
+    if(inp)inp.focus();
+  }
+}
+// Dipanggil tiap user ngetik di kotak Teks Overlay — simpan ke state &
+// rebuild JSON kartu Hook produk ini SAJA (idx=prodIdx*3), realtime, sama
+// pola-nya seperti vbPickTampilProduk/vbPickLokasiCard.
+function vbHookOverlayInput(prodIdx){
+  let inp=document.getElementById('vb-hookoverlay-input-'+prodIdx);
+  let val=inp?inp.value.trim():'';
+  if(val)VB_HOOK_OVERLAY[prodIdx]=val;
+  else delete VB_HOOK_OVERLAY[prodIdx];
+  let hookIdx=prodIdx*3;
+  if(document.getElementById('vb-bulk-script-'+hookIdx))vbBulkUpdateJson(hookIdx);
+}
+
 let VB_BULK_PRODUCTS=[]; // {nama, keunggulan, fotoBase64, fotoMime} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
 
 // Override foto SEMENTARA khusus panel Revisi 1 produk, keyed by prodIdx —
@@ -10873,6 +11016,7 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   VB_CARD_TAMPIL={};
   VB_CARD_LOKASI={};
   VB_PRODUCT_FOTOCOUNT={};
+  VB_HOOK_OVERLAY={};
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   // Panel revisi dibangun ULANG dari nol di bawah (prodIdx bisa menunjuk ke
   // produk yang berbeda dari sebelumnya kalau ada yang di-drop AI) — buang
@@ -10967,6 +11111,11 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
 
     let groupBody=document.createElement('div');
     groupBody.style.cssText='padding:8px;display:flex;flex-direction:column;gap:6px;';
+
+    // FITUR BARU: "Atur Detail" → Teks Overlay Hook (permintaan user) —
+    // tampil di SEMUA mode referensi foto (1/2/3), per produk (grup) di mode
+    // Bulk, diletakkan di atas kartu Hook produk ini.
+    groupBody.appendChild(_vbBuildHookOverlayRow(prodIdx));
 
     // FITUR BARU: "Jumlah Foto Produk" per PRODUK (prodIdx grup ini), khusus
     // Mode 3 — lihat _vbBuildProductFotoCountRow. Diletakkan di atas kartu
@@ -11127,7 +11276,7 @@ function _vbUpdateProductCards(prodIdx,p){
     let scriptText=_vbTruncate25Words(p[roleKey]||'');
     if(ta)ta.value=scriptText;
     if(VB_BULK_ITEMS[idx]){VB_BULK_ITEMS[idx].script=scriptText;VB_BULK_ITEMS[idx].produk=p.produk||VB_BULK_ITEMS[idx].produk;}
-    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''),_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
+    if(jsonBox)jsonBox.textContent=_vbBuildFlowText(scriptText,p.produk||(VB_BULK_ITEMS[idx]?VB_BULK_ITEMS[idx].produk:''),_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
     if(wcLabel){let wc=scriptText.trim().split(/\s+/).filter(Boolean).length;wcLabel.textContent=wc+'/25 kata';wcLabel.style.color=wc===25?'var(--green)':'var(--muted2)';}
   });
   let nameLabel=document.getElementById('vb-prodname-'+prodIdx);
@@ -11568,7 +11717,7 @@ function vbApplyMetadataOnly(s){
     let ta=document.getElementById('vb-bulk-script-'+idx);
     let jsonBox=document.getElementById('vb-bulk-json-'+idx);
     if(!ta||!jsonBox)continue;
-    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
+    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
   }
   // FIX BUG#20b (sama akar masalahnya dengan BUG#20 di vbRevisiProdukAI):
   // update metadata (suara/target audience) di sini mengubah JSON yang
@@ -11724,7 +11873,7 @@ function vbBulkUpdateJson(i){
   }
   if(VB_BULK_ITEMS[i])VB_BULK_ITEMS[i].script=ta.value;
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
-  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i),_vbFotoCountVal(i));
+  jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i),_vbFotoCountVal(i),i);
   if(wcLabel){wcLabel.textContent=words.length+'/25 kata';wcLabel.style.color=words.length===25?'var(--green)':'var(--muted2)';}
 }
 
@@ -12102,7 +12251,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   // displayScript = apa yang tampil di textarea/JSON/counter SAAT kartu
   // pertama dibangun. Kosong kalau mau dianimasikan ketik, penuh kalau tidak.
   let displayScript=skipInitialFill?'':initialScript;
-  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
+  let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
   let card=document.createElement('div');
   card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;';
 
@@ -12377,7 +12526,7 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
   let blocks=VB_BULK_ITEMS.map(function(item,idx){
     let plainLabel=String(item.roleLabel||'').replace(/<[^>]*>/g,'').trim();
-    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx));
+    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
     return '// '+plainLabel+(item.produk?' — '+item.produk:'')+'\n'+jsonText;
   });
   // historyAdd(...) auto-save prompt DIMATIKAN — lihat catatan di fGenerate().
@@ -12396,6 +12545,7 @@ function _vbRenderMultiOutputLive(produkNamaForHistory){
   VB_CARD_TAMPIL={};
   VB_CARD_LOKASI={};
   VB_PRODUCT_FOTOCOUNT={};
+  VB_HOOK_OVERLAY={};
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -12427,6 +12577,7 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate){
   VB_CARD_TAMPIL={};
   VB_CARD_LOKASI={};
   VB_PRODUCT_FOTOCOUNT={};
+  VB_HOOK_OVERLAY={};
   VB_SINGLE_REVISI_BACKUP=null; // sesi generate baru — backup revisi lama sudah tidak relevan
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   let multiWrap=document.getElementById('vb-multi-output');
@@ -12445,6 +12596,11 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate){
       +'<span style="font-size:var(--fs-2xs);color:var(--muted);">Foto referensi produk</span>';
     multiWrap.appendChild(fotoRow);
   }
+
+  // FITUR BARU: "Atur Detail" → Teks Overlay Hook (permintaan user) — tampil
+  // di SEMUA mode referensi foto (1/2/3), diletakkan di atas kartu Hook,
+  // sebelum baris "Jumlah Foto Produk" (yang cuma khusus Mode 3) di bawah.
+  multiWrap.appendChild(_vbBuildHookOverlayRow(0));
 
   // FITUR BARU: "Jumlah Foto Produk" per PRODUK (mode single = selalu
   // prodIdx 0), khusus Mode 3 — lihat _vbBuildProductFotoCountRow. Diletakkan
@@ -12552,7 +12708,7 @@ function _vbEsc(s){
     .replace(/\t/g,'\\t')
     .replace(/[\u0000-\u001F]/g,function(ch){return '\\u'+ch.charCodeAt(0).toString(16).padStart(4,'0');});
 }
-function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride,fotoCountOverride){
+function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride,fotoCountOverride,idx){
   let accentFull='Natural Indonesian intonation, '+VB.accent;
   let instructionText;
   if(VB.refMode==='kp'){
@@ -12602,7 +12758,22 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // "instruction:...dialogue:voice_character:age:...,pitch:...,accent:...,script:"...""
   // — tidak perlu escaping JSON karena tidak ada JSON.parse yang membaca
   // hasil fungsi ini di bagian lain app (hanya ditampilkan & disalin).
-  return instructionText+'dialogue:voice_character:age:'+ageFull+',pitch:'+VB.pitch+',accent:'+accentFull+',script:"'+scriptText+'"';
+  let flowText=instructionText+'dialogue:voice_character:age:'+ageFull+',pitch:'+VB.pitch+',accent:'+accentFull+',script:"'+scriptText+'"';
+  // FITUR BARU (permintaan user): "Atur Detail" → Teks Overlay Hook —
+  // ditambahkan PALING AKHIR prompt (setelah bagian dialogue/script), dan
+  // HANYA untuk kartu Hook (idx%3===0 — kartu pertama tiap produk, Story/CTA
+  // tidak pernah kena). idx dikirim SAMA oleh semua pemanggil _vbBuildFlowText
+  // (index flat kartu, konsisten hook=0,story=1,cta=2 per produk baik mode
+  // single maupun Bulk — lihat VB_3SCRIPT_ROLES). Kosong kalau user belum isi
+  // apa-apa di panel "Atur Detail" (lihat _vbBuildHookOverlayRow).
+  let isHookCard=(typeof idx==='number')&&(idx%3===0);
+  if(isHookCard){
+    let overlayTxt=_vbHookOverlayText(idx);
+    if(overlayTxt){
+      flowText+='. Tulis :"'+overlayTxt+'" muncul pada detik 0 sampai detik 2 (2 detik) lalu menghilang, dengan ukuran teks 10px.';
+    }
+  }
+  return flowText;
 }
 
 function vbReset(){
@@ -12654,6 +12825,11 @@ function vbReset(){
     let vbTopikInp=document.getElementById('vb-topik-input'); if(vbTopikInp)vbTopikInp.value='';
     let vbTopikBox=document.getElementById('vb-topik-box'); if(vbTopikBox)vbTopikBox.classList.add('hidden');
     let vbTopikToggle=document.getElementById('vb-topik-toggle'); if(vbTopikToggle)vbTopikToggle.textContent='+ Atur detail (opsional)';
+    VB_MODE4_OVERLAY_TEXT='';
+    let vbM4OvInp=document.getElementById('vb-mode4-overlay-input'); if(vbM4OvInp)vbM4OvInp.value='';
+    let vbM4OvBox=document.getElementById('vb-mode4-overlay-box'); if(vbM4OvBox)vbM4OvBox.classList.add('hidden');
+    let vbM4OvToggle=document.getElementById('vb-mode4-overlay-toggle'); if(vbM4OvToggle)vbM4OvToggle.textContent='+ Atur Detail (opsional)';
+    let vbM4Pre=document.getElementById('vb-mode4-prompt-text'); if(vbM4Pre)vbM4Pre.textContent=VB_MODE4_PROMPT_TEXT;
     document.querySelectorAll('#vb-hook-chips .chip').forEach(c=>c.classList.remove('sel'));
     let vbHookCustomBox=document.getElementById('vb-hook-custom-box'); if(vbHookCustomBox)vbHookCustomBox.classList.add('hidden');
     let vbHookCustomInp=document.getElementById('vb-hook-custom-input'); if(vbHookCustomInp)vbHookCustomInp.value='';
@@ -12679,6 +12855,7 @@ function vbReset(){
     VB_CARD_TAMPIL={};
     VB_CARD_LOKASI={};
     VB_PRODUCT_FOTOCOUNT={};
+    VB_HOOK_OVERLAY={};
     vbUpdateProgress(1,'Mode Referensi Foto');
     // FIX BUG#1: sama seperti saat init — vbUpdateProgress(1,...) hitung 20%,
     // override balik ke 0% karena user baru saja reset (belum isi apa-apa).
