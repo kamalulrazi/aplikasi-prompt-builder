@@ -2218,6 +2218,9 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
       <div class="wanswer" id="fa0"></div>
     </div>
     <div class="wbody">
+      <div id="f0-tour-process-hint" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:var(--fs-xs2);color:var(--muted);line-height:1.4;">
+        <svg class="icon" style="width:12px;height:12px;vertical-align:-1px;color:var(--accent);"><use href="#ic-sparkle"></use></svg> Kita sedang membuat "prompt" untuk foto AI...
+      </div>
       <p class="desc-block" id="f0-desc-text">
         Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.
       </p>
@@ -2336,7 +2339,7 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
             <svg class="icon" style="font-size:var(--fs-base);flex-shrink:0;"><use href="#ic-shuffle"></use></svg>
             <div class="col-tight">
               <span>Isi Outfit Karakter</span>
-              <span style="font-size:var(--fs-2xs);color:var(--muted2);font-weight:400;line-height:1;">isi sendiri</span>
+              <span style="font-size:var(--fs-2xs);color:var(--muted2);font-weight:400;line-height:1;">(boleh diabaikan)</span>
             </div>
             <span class="f1chip-badge" id="ftc-outfit_random">+</span>
           </button>
@@ -2433,7 +2436,7 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
       <div class="wanswer" id="fa3"></div>
     </div>
     <div class="wbody">
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.6;">Pilih cara produk ditampilkan — pose akan menyesuaikan otomatis.</p>
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.6;">Kakak ingin produk yang akan ditampilkan nanti bagaimana?</p>
       <div class="chips">
         <div class="chip" onclick="fPickHold('dipakai',this,'Dipakai langsung')">Dipakai ke karakter</div>
         <div class="chip" onclick="fPickHold('hanger',this,'Pakai hanger — ke kamera')">Produk di hanger</div>
@@ -3290,7 +3293,7 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
          (contoh: v3.6 → v3.7). Jangan pernah edit aplikasi tanpa menaikkan
          versi ini — kalau lupa/terlewat di update sebelumnya, naikkan
          sekarang untuk menutup selisihnya. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v4.0 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v4.2 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -4884,25 +4887,54 @@ const SUBJEK_LABELS={hijab:'Perempuan',pria:'Laki-laki',produk:'Produk Saja'};
 function fPickSubjek(val,el){
   document.querySelectorAll('.subjek-card').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
-  fShowConfirm('f0', el, function(){
-    fSetState({subjek:val});
-    fResetFrom(1);
-    doneCard('f0','fa0',SUBJEK_LABELS[val]);
-    fSyncStepNums();
-    let isProdukSaja=(val==='produk');
-    fToggleF1Panel(isProdukSaja);
-    fUpdateProgress(1,'Foto Referensi');
-    showCard('f1');
-  });
+  fShowConfirm('f0', el, function(){ _fSubjekAdvance(val); });
 }
 
+// Lanjutkan ke step 1 (Foto Referensi) setelah subjek dikonfirmasi — dipakai
+// baik oleh pilihan baru (fPickSubjek) maupun oleh subjek yang DIPULIHKAN
+// setelah user klik "← Kembali" dari step 1 (lihat fBack1 di bawah).
+function _fSubjekAdvance(val){
+  fSetState({subjek:val});
+  fResetFrom(1);
+  doneCard('f0','fa0',SUBJEK_LABELS[val]);
+  fSyncStepNums();
+  let isProdukSaja=(val==='produk');
+  fToggleF1Panel(isProdukSaja);
+  fUpdateProgress(1,'Foto Referensi');
+  showCard('f1');
+}
+
+// FIX (permintaan user): dulu fBack1() memanggil fResetFrom(0) yang
+// menghapus TOTAL pilihan Subjek Foto (FS.subjek jadi kosong, highlight
+// kartu Perempuan/Laki-laki/Produk Saja ikut lepas begitu user klik
+// "← Kembali" dari step Foto Referensi) — pemula yang cuma mau lihat-lihat
+// lagi jadi dipaksa pilih ulang dari nol, dan kalau sebelumnya sempat pilih
+// "Produk Saja", tampilan panelnya bisa nyangkut/membingungkan karena tidak
+// ada apa-apa yang di-highlight lagi. Sekarang: simpan pilihan sebelumnya
+// DULU sebelum reset, lalu begitu f0 dibuka lagi, kartu yang tadi dipilih
+// langsung di-highlight ulang + tombol "Konfirmasi & Lanjut" langsung
+// tersedia (fShowConfirm) — user tinggal tap itu kalau memang tidak mau
+// ganti pilihan, atau tap kartu lain kalau mau ganti (jalur fPickSubjek
+// normal tetap jalan seperti biasa dan akan menimpa ini).
 function fBack1(){
+  let prevSubjek=FS.subjek;
   fResetFrom(0);
   let f0=document.getElementById('f0');
   if(f0)f0.classList.remove('done','hidden','pending');
   fUpdateProgress(1,'Subjek Foto');
+  let selMap={hijab:'sk-hijab',pria:'sk-pria',produk:'sk-produk'};
+  let selId=selMap[prevSubjek];
+  let selEl=selId?document.getElementById(selId):null;
+  // Jangan pulihkan kalau kartunya lagi dikunci (mis. "Produk Saja" selama
+  // tur panduan) — biarkan f0 polos tanpa highlight, sama seperti sebelum
+  // fix ini, daripada memaksa pilihan yang memang tidak boleh dipakai saat ini.
+  if(selEl && !selEl.classList.contains('pb-locked')){
+    selEl.classList.add('sel');
+    fShowConfirm('f0', selEl, function(){ _fSubjekAdvance(prevSubjek); });
+  }
   setTimeout(()=>f0&&f0.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
+
 
 // ── MODE PRODUK SAJA: counter jumlah foto ────────────────────────────────
 let _fProdukSajaCount=1;
@@ -7119,6 +7151,19 @@ function _fBuildPromptJSON(ov){
   // foto nyata    = semua tipe selain outfit_random (ada foto fisik yang di-upload)
   let realRefs   = FS.refs.filter(r => r.type !== 'outfit_random');
   let randomRefs = FS.refs.filter(r => r.type === 'outfit_random');
+  // FITUR BARU (permintaan user): Karakter Sheet (tipe 'wajah') SELALU jadi
+  // foto referensi PERTAMA di JSON — apapun urutan chip yang ditap user di
+  // Step 1 (mis. tap "Produk" duluan, baru "Karakter Sheet" belakangan).
+  // Foto referensi 1 biasanya jadi acuan utama wajah/karakter buat AI image
+  // generator, jadi urutannya penting supaya hasil konsisten. Array.sort JS
+  // stabil (ES2015+) — tipe selain 'wajah' tetap sesuai urutan asli user
+  // menambahkannya, cuma 'wajah' yang dipindah ke depan. Notifikasi "Urutan
+  // Foto" (fBuildUploadNotice) otomatis ikut benar karena dipanggil dengan
+  // realRefs yang sudah diurutkan ulang ini (lihat _fDoGenerate).
+  realRefs = realRefs.slice().sort(function(a,b){
+    let aw=a.type==='wajah'?0:1, bw=b.type==='wajah'?0:1;
+    return aw-bw;
+  });
 
   // Build reference_photos — HANYA dari foto nyata, renumber 1..N
   let photoCounter = 0;
@@ -13798,6 +13843,12 @@ function pbGoStep5(){
   if(f0) f0.classList.add('pb-tour-f0-simple');
   let f0Desc=document.getElementById('f0-desc-text');
   if(f0Desc) f0Desc.textContent='Jenis kelamin foto karakter sheet kakak apa?';
+  // FITUR BARU (permintaan user): kasih tulisan yang terasa seperti proses
+  // pembuatan sedang berjalan, biar pemula ngerti kenapa mereka ditanya-
+  // tanya begini — dipasang di sini (Langkah 5), dilepas lagi di
+  // pbTourResetF0Ui() begitu subjek dipilih atau tur di-skip.
+  let f0ProcessHint=document.getElementById('f0-tour-process-hint');
+  if(f0ProcessHint) f0ProcessHint.style.display='block';
   pbArmDoneWait('f0',function(){
     pbTourResetF0Ui();
     pbGoStep6();
@@ -13814,6 +13865,8 @@ function pbTourResetF0Ui(){
   if(f0) f0.classList.remove('pb-tour-f0-simple');
   let f0Desc=document.getElementById('f0-desc-text');
   if(f0Desc) f0Desc.textContent='Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.';
+  let f0ProcessHint=document.getElementById('f0-tour-process-hint');
+  if(f0ProcessHint) f0ProcessHint.style.display='none';
 }
 // ── LANJUTAN LANGKAH 5 — foto referensi & outfit (f1), VERSI SEDERHANA,
 // masih bagian dari alur yang sama (TANPA kartu/label/spotlight
