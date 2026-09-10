@@ -344,6 +344,12 @@ body input, body textarea, body [contenteditable="true"]{
   box-shadow:var(--shadow-sm);
 }
 .wcard.done{border-color:rgba(52,211,153,0.22);}
+/* PERMINTAAN USER (Sept 2026): teks "Tingkat kesulitan" di header kartu Mode
+   Referensi Foto cuma relevan SELAMA kartu masih terbuka — begitu user
+   menekan "Lanjut" (kartu jadi .done, wanswer sudah menampilkan ringkasan
+   mode yang dipilih), teks ini tidak perlu tampil lagi supaya tidak dobel
+   dengan wanswer. */
+.wcard.done #vb-mode-difficulty{display:none!important;}
 .wcard.hidden{display:none;}
 @keyframes notifSlideDown{from{opacity:0;transform:translateX(-50%) translateY(-16px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
 @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
@@ -3140,7 +3146,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 
   <!-- V1: REFERENSI FOTO -->
   <div class="wcard" id="v1">
-    <div class="whead"><div class="wnum">1</div><div class="wtitle">Mode Referensi Foto</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va1"></div></div>
+    <div class="whead"><div class="wnum">1</div><div class="wtitle">Mode Referensi Foto</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va1"></div><span id="vb-mode-difficulty" style="display:none;font-size:var(--fs-2xs);color:var(--muted);text-align:right;line-height:1.35;max-width:150px;">Tingkat kesulitan: sedang<br>Hasil bagus mengikuti foto AI</span></div>
     <div class="wbody">
       <label class="inplabel">Pilih Frame Asset aja ya kak, cocok untuk pemula dengan kualitas bagus.</label>
       <!-- Pengganti kartu instruksi tur + spotlight KHUSUS step "kunci
@@ -3151,7 +3157,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
            pbGoStep7VideoOpen() & disembunyikan lagi di pbStep7VideoDone()
            atau saat tur di-skip (pbHideOverlay). -->
       <div id="vb-tour-mode-hint" style="display:none;padding:8px 10px;margin-bottom:10px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.4;">
-        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya — udah otomatis kepilih. Frame Asset, Raw Asset, dan Motion Control kita kunci sementara.
+        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya. Frame Asset, Raw Asset, dan Motion Control kita kunci sementara.
       </div>
       <div class="chips" style="margin-bottom:6px;">
         <div class="chip sel" id="vb-mode-satu" onclick="vbPickRefMode('satu')">Start Frame</div>
@@ -3246,12 +3252,21 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   <div class="wcard pending" id="v2">
     <div class="whead"><div class="wnum">2</div><div class="wtitle">Jenis Kelamin & Usia</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va2"></div></div>
     <div class="wbody">
-      <label class="inplabel">Jenis Kelamin <span style="color:var(--red);">*wajib</span></label>
-      <div class="chips" id="vb-gender-chips" style="margin-bottom:14px;">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih aja sesuai dengan foto AI kakak punya.</p>
+      <label class="inplabel">Jenis Kelamin</label>
+      <div class="chips" id="vb-gender-chips" style="margin-bottom:8px;">
         <div class="chip" id="vb-gender-male" onclick="vbPickGender('male','Laki-laki')">Laki-laki</div>
         <div class="chip" id="vb-gender-female" onclick="vbPickGender('female','Perempuan')">Perempuan</div>
       </div>
-      <label class="inplabel">Usia Karakter <span style="color:var(--red);">*wajib</span></label>
+      <div class="mt12" style="margin-bottom:14px;">
+        <label class="inplabel">Atau isi sendiri</label>
+        <div class="inp-wrap">
+          <input class="inp" id="v2-gender-custom" maxlength="60" placeholder="Contoh: non-biner" oninput="fCountInp(this,'v2-gender-counter')" />
+          <div class="inp-counter" id="v2-gender-counter">0 / 60</div>
+        </div>
+        <button class="btn sm" data-role="mt12-confirm" onclick="vbPickGenderCustom()">Konfirmasi →</button>
+      </div>
+      <label class="inplabel">Usia Karakter</label>
       <div class="chips" id="vb-age-chips">
         <div class="chip" onclick="vbPickAge('child, approximately 5-10 years old',this,'Anak-anak')">Anak-anak <span style="opacity:0.6;">5–10 th</span></div>
         <div class="chip" onclick="vbPickAge('teenager, approximately 15-20 years old',this,'Remaja')">Remaja <span style="opacity:0.6;">15–20 th</span></div>
@@ -3260,14 +3275,12 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <div class="chip" onclick="vbPickAge('middle-aged adult, approximately 45-60 years old',this,'Paruh Baya')">Paruh Baya <span style="opacity:0.6;">45–60 th</span></div>
       </div>
       <div class="mt12">
-        <label class="inplabel">Atau tulis usia sendiri</label>
+        <label class="inplabel">Atau isi sendiri</label>
         <div class="inp-wrap">
           <input class="inp" id="v2-custom" maxlength="120" placeholder="Contoh: elderly woman, around 65 years old" oninput="vbCountInpV2(this,'v2-counter')" />
           <div class="inp-counter" id="v2-counter">0 / 120</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAgeCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('v2')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
-          <div id="cs-list-v2" class="chip-row-hidden"></div>
       </div>
     </div>
   </div>
@@ -3293,8 +3306,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <div class="inp-counter" id="v3-counter">0 / 80</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickPitchCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('v3')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
-          <div id="cs-list-v3" class="chip-row-hidden"></div>
       </div>
     </div>
   </div>
@@ -3305,7 +3316,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   <div class="wcard pending" id="v4">
     <div class="whead"><div class="wnum">4</div><div class="wtitle">Aksen</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va4"></div></div>
     <div class="wbody">
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Seberapa baku atau santai bahasanya — bukan logat daerah (logat Jawa/Sunda/dll tidak tersedia).</p>
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Seberapa baku atau santai bahasanya.</p>
       <div class="chips">
         <div class="chip" onclick="vbPickAccent('standard neutral Indonesian accent, no regional dialect',this,'Netral')">Netral</div>
         <div class="chip" onclick="vbPickAccent('formal and polite tone',this,'Formal')">Formal</div>
@@ -3319,10 +3330,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <div class="inp-counter" id="v4-counter">0 / 120</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAccentCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('v4')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
-          <div id="cs-list-v4" class="chip-row-hidden"></div>
       </div>
-      <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:8px;">Semua pilihan otomatis digabung dengan "Natural Indonesian intonation".</p>
     </div>
   </div>
 
@@ -3332,12 +3340,23 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     <div class="wbody">
       <label class="inplabel">Mau bikin script gimana?</label>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <div class="chip" id="vb-mode-ai" onclick="vbSelectScriptMode('ai')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Skrip dibantu AI</div>
+        <div class="chip" id="vb-mode-ai" onclick="vbSelectScriptMode('ai')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Kami Bantu Isi</div>
         <div class="chip" id="vb-mode-manual" onclick="vbSelectScriptMode('manual')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Tulis Manual Sendiri</div>
-        <div class="chip" id="vb-mode-bulk" onclick="vbSelectScriptMode('bulk')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Banyak Produk Sekaligus (maks 10)</div>
       </div>
 
       <div id="vb-mode-ai-area" class="hidden" style="margin-top:14px;">
+        <!-- FITUR BARU (permintaan user, Sept 2026): "Banyak Produk Sekaligus"
+             dulu chip terpisah di level atas, sekarang jadi toggle di DALAM
+             "Kami Bantu Isi" — begitu dicentang, form 1 produk (di bawah)
+             disembunyikan dan diganti form bulk (#vb-bulk-area, dipindah ke
+             sini dari posisi lama). Logic generate AI/bulk sendiri (tombol
+             & fungsi vbGenerate3AI/vbGenerateBulkAI) TIDAK diubah — cuma
+             pintu masuknya yang digabung. Lihat vbToggleAiBulk(). -->
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:var(--fs-sm);color:var(--text);">
+          <input type="checkbox" id="vb-ai-bulk-toggle" onchange="vbToggleAiBulk(this.checked)" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;" />
+          Banyak produk sekaligus (maks 10)
+        </label>
+        <div id="vb-ai-single-fields">
         <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;">
           <div style="flex:1;min-width:0;">
             <label class="inplabel">Nama Produk <span style="color:var(--red);">*wajib</span></label>
@@ -3392,6 +3411,22 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Buatkan 3 Script + JSON dengan AI</button>
         <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">AI otomatis buat 3 script sekaligus (Hook, Cerita Produk, CTA) — masing-masing 25 kata, langsung jadi 3 prompt JSON siap pakai.</p>
         <div id="vb-ai-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
+        </div>
+        <div id="vb-bulk-area" class="hidden" style="margin-top:0;">
+          <label class="inplabel">Mau generate berapa produk?</label>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <input type="number" id="vb-bulk-count" min="1" max="30" value="3" class="inp" style="width:70px;flex:none;text-align:center;" />
+            <button class="btn sm" onclick="vbBulkSetCount()" style="flex:1;">Tentukan Jumlah →</button>
+          </div>
+          <div id="vb-bulk-rows"></div>
+          <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span> <span style="font-weight:400;color:var(--muted);">(sama untuk semua produk)</span></label>
+          <div class="inp-wrap" style="margin-bottom:12px;">
+            <input class="inp" id="vb-bulk-target" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang suka belanja online" />
+          </div>
+          <button id="vb-bulk-btn" class="btn" onclick="vbGenerateBulkAI()" style="font-size:var(--fs-md);padding:13px;">Generate Semua Produk Sekaligus</button>
+          <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">Tiap produk otomatis dapat 3 script (Hook, Cerita, CTA). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
+          <div id="vb-bulk-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
+        </div>
       </div>
 
       <div id="vb-manual-script-area" class="hidden" style="margin-top:14px;">
@@ -3429,22 +3464,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <p class="text-hint-mt">Idealnya masing-masing sekitar 25 kata, natural kayak orang ngomong beneran — bukan bahasa iklan formal.</p>
         <button class="btn sm" onclick="vbGenerate3Manual()" style="margin-top:10px;">Buat 3 JSON dari Script Ini →</button>
       </div>
-
-      <div id="vb-bulk-area" class="hidden" style="margin-top:14px;">
-        <label class="inplabel">Mau generate berapa produk?</label>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <input type="number" id="vb-bulk-count" min="1" max="30" value="3" class="inp" style="width:70px;flex:none;text-align:center;" />
-          <button class="btn sm" onclick="vbBulkSetCount()" style="flex:1;">Tentukan Jumlah →</button>
-        </div>
-        <div id="vb-bulk-rows"></div>
-        <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span> <span style="font-weight:400;color:var(--muted);">(sama untuk semua produk)</span></label>
-        <div class="inp-wrap" style="margin-bottom:12px;">
-          <input class="inp" id="vb-bulk-target" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang suka belanja online" />
-        </div>
-        <button id="vb-bulk-btn" class="btn" onclick="vbGenerateBulkAI()" style="font-size:var(--fs-md);padding:13px;">Generate Semua Produk Sekaligus</button>
-        <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">Tiap produk otomatis dapat 3 script (Hook, Cerita, CTA). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
-        <div id="vb-bulk-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
-      </div>
     </div>
   </div>
 
@@ -3469,7 +3488,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   <div class="sec-title sec-title-sub">Cara Pakai — Tab Video</div>
   <div class="guide-item"><div class="guide-n">1</div><div><h4>Pilih Mode Referensi Foto</h4><p>Mode 1 = satu foto dipakai untuk karakter, outfit, dan lokasi sekaligus. Mode 2 = pakai aset frame awal. Mode 3 = karakter, produk, dan lokasi diatur terpisah (paling detail).</p></div></div>
   <div class="guide-item"><div class="guide-n">2</div><div><h4>Atur Suara Karakter</h4><p>Isi jenis kelamin & usia, nada bicara, lalu aksen — ini menentukan gaya suara di voice_character pada JSON hasil akhir.</p></div></div>
-  <div class="guide-item"><div class="guide-n">3</div><div><h4>Pilih Cara Bikin Script</h4><p><strong>Dibantu AI</strong> — isi nama produk & target audience, AI buatkan 3 script (Hook/Cerita/CTA) otomatis. <strong>Tulis Manual</strong> — kamu ketik sendiri ketiganya. <strong>Banyak Produk Sekaligus</strong> — generate sampai 30 produk (90 script) dalam satu proses, cocok kalau kamu jualan banyak SKU.</p></div></div>
+  <div class="guide-item"><div class="guide-n">3</div><div><h4>Pilih Cara Bikin Script</h4><p><strong>Kami Bantu Isi</strong> — isi nama produk & target audience, AI buatkan 3 script (Hook/Cerita/CTA) otomatis. Aktifkan toggle "Banyak produk sekaligus" di dalamnya kalau mau generate sampai 30 produk (90 script) dalam satu proses. <strong>Tulis Manual</strong> — kamu ketik sendiri ketiganya.</p></div></div>
   <div class="guide-item"><div class="guide-n">4</div><div><h4>Edit & Salin JSON</h4><p>Tiap script bisa diedit langsung di kartu hasil — JSON di bawahnya ikut update otomatis tiap kamu ketik. Salin, paste ke Veo 3 / Google Flow.</p></div></div>
   <div class="rule"></div>
   <div class="sec-title sec-title-sub">Tips Penting</div>
@@ -3494,7 +3513,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.20 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.22 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9492,7 +9511,14 @@ function _vbCompressImageFile(file){
         }
       };
       img.onload=function(){
-        let MAX=1024;
+        // FIX (audit 413 — request kebesaran ke Groq): dulu MAX=1024px +
+        // quality 0.8 menghasilkan base64 yang lumayan berat buat model
+        // vision (foto itu MAHAL secara token). Diturunkan ke 640px +
+        // quality 0.7 supaya foto referensi tetap cukup jelas dibaca AI
+        // untuk kenali jenis/warna/motif produk, tapi jauh lebih hemat
+        // token per foto — mengurangi risiko 1 request nembus limit
+        // token/menit Groq waktu ada foto ikut dilampirkan.
+        let MAX=640;
         let w=img.width,h=img.height;
         if(w>MAX||h>MAX){
           if(w>h){h=Math.round(h*(MAX/w));w=MAX;}
@@ -9503,7 +9529,7 @@ function _vbCompressImageFile(file){
         let ctx=canvas.getContext('2d');
         ctx.drawImage(img,0,0,w,h);
         let dataUrl;
-        try{dataUrl=canvas.toDataURL('image/jpeg',0.8);}catch(e){reject(new Error('Gagal memproses gambar (mungkin file rusak)'));return;}
+        try{dataUrl=canvas.toDataURL('image/jpeg',0.7);}catch(e){reject(new Error('Gagal memproses gambar (mungkin file rusak)'));return;}
         let base64=dataUrl.split(',')[1]||'';
         if(!base64){reject(new Error('Gagal memproses gambar'));return;}
         resolve({base64:base64,mime:'image/jpeg'});
@@ -9698,6 +9724,12 @@ function vbPickRefMode(mode){
   let justSwitchedToKp=(mode==='kp'&&VB.refMode!=='kp');
   VB.refMode=mode;
   document.getElementById('vb-mode-satu').classList.toggle('sel',mode==='satu');
+  // PERMINTAAN USER (Sept 2026): begitu Start Frame diklik, tampilkan info
+  // tingkat kesulitan di kanan header kartu — hilang lagi kalau mode lain
+  // yang dipilih (lihat juga CSS .wcard.done #vb-mode-difficulty di bawah,
+  // supaya otomatis hilang begitu kartu ini sudah dikonfirmasi/selesai).
+  let diffHint=document.getElementById('vb-mode-difficulty');
+  if(diffHint) diffHint.style.display=(mode==='satu')?'block':'none';
   document.getElementById('vb-mode-aset').classList.toggle('sel',mode==='aset');
   document.getElementById('vb-mode-kp').classList.toggle('sel',mode==='kp');
   let mode4Chip=document.getElementById('vb-mode-ikuti');
@@ -9896,6 +9928,19 @@ function vbCheckV2Done(){
     vbUpdateProgress(3,'Nada Bicara');
   });
 }
+// FITUR BARU (permintaan user, Sept 2026): kolom "Atau isi sendiri" khusus
+// Jenis Kelamin — dulu cuma Usia yang punya opsi isi sendiri, sekarang
+// Jenis Kelamin juga punya, terpisah dari kolom Usia. Nilai custom disimpan
+// APA ADANYA di VB.gender (bukan cuma 'male'/'female') — lihat penyesuaian
+// genderPrefix di _vbBuildFlowText supaya nilai custom ini tetap kebawa ke
+// output JSON, bukan cuma dibuang jadi string kosong.
+function vbPickGenderCustom(){
+  let val=document.getElementById('v2-gender-custom').value.trim();
+  if(!val){showToast('Isi dulu ya','error');return;}
+  document.querySelectorAll('#vb-gender-chips .chip').forEach(c=>c.classList.remove('sel'));
+  VB.gender=val;VB.genderLabel=val.length>24?val.substring(0,24)+'...':val;
+  vbCheckV2Done();
+}
 function vbPickAge(val,el,label){
   document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
@@ -9963,10 +10008,8 @@ function vbPickAccentCustom(){
 function vbSelectScriptMode(mode){
   document.getElementById('vb-mode-ai').classList.toggle('sel',mode==='ai');
   document.getElementById('vb-mode-manual').classList.toggle('sel',mode==='manual');
-  document.getElementById('vb-mode-bulk').classList.toggle('sel',mode==='bulk');
   document.getElementById('vb-mode-ai-area').classList.toggle('hidden',mode!=='ai');
   document.getElementById('vb-manual-script-area').classList.toggle('hidden',mode!=='manual');
-  document.getElementById('vb-bulk-area').classList.toggle('hidden',mode!=='bulk');
   // FIX BUG#18 (ditemukan saat audit mendalam khusus builder video):
   // vbGenerate3Manual() fallback membaca isi kotak "Nama Produk" milik mode
   // AI (id="vb-produk-nama") untuk label Riwayat kalau refMode bukan Mode 3.
@@ -9975,19 +10018,40 @@ function vbSelectScriptMode(mode){
   // lalu pindah ke Manual tanpa reset, nama lama itu "menempel" secara tidak
   // sengaja ke entri Riwayat mode Manual. Kosongkan kotaknya begitu user
   // pindah keluar dari mode AI supaya tidak ada data nyasar lintas mode.
-  if(mode!=='ai'){let aiNama=document.getElementById('vb-produk-nama');if(aiNama)aiNama.value='';}
+  if(mode!=='ai'){
+    let aiNama=document.getElementById('vb-produk-nama');if(aiNama)aiNama.value='';
+    // PERMINTAAN USER (Sept 2026): "Banyak Produk Sekaligus" sekarang toggle
+    // di dalam "Kami Bantu Isi" — begitu user pindah ke Manual, pastikan
+    // toggle-nya balik ke keadaan awal (form 1 produk), biar tidak nyangkut
+    // kalau nanti balik lagi ke "Kami Bantu Isi".
+    let bulkToggle=document.getElementById('vb-ai-bulk-toggle');
+    if(bulkToggle&&bulkToggle.checked){bulkToggle.checked=false;vbToggleAiBulk(false);}
+  }
   // Mode 3 (karakter+produk) butuh nama produk buat teks referensi — AI &
   // bulk sudah nanya sendiri, manual belum punya kotaknya jadi ditambahin di sini
   let m3produkWrap=document.getElementById('vb-manual-mode3-produk-wrap');
   if(m3produkWrap)m3produkWrap.classList.toggle('hidden',!(mode==='manual'&&VB.refMode==='kp'));
   _vbRenderProdukFotoMulti();
-  if(mode==='bulk'&&!document.getElementById('vb-bulk-rows').children.length)vbBulkSetCount();
-  // FIX TOMBOL GENERATE KETUTUP: kalau baris produk bulk SUDAH ada dari
-  // sebelumnya (user sempat pindah ke mode lain lalu balik lagi ke "Banyak
-  // Produk Sekaligus"), vbBulkSetCount() di atas tidak dipanggil ulang —
-  // jadi perlu jaga-jaga sesuaikan lagi tinggi card di sini juga.
-  if(mode==='bulk')fFitWbody(document.getElementById('vb-bulk-rows'));
-  setTimeout(()=>document.getElementById(mode==='ai'?'vb-mode-ai-area':mode==='manual'?'vb-manual-script-area':'vb-bulk-area').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  setTimeout(()=>document.getElementById(mode==='ai'?'vb-mode-ai-area':'vb-manual-script-area').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+}
+// FITUR BARU (permintaan user, Sept 2026): toggle "Banyak produk sekaligus"
+// DI DALAM chip "Kami Bantu Isi" — menggantikan chip terpisah "Banyak Produk
+// Sekaligus" yang lama. Cuma tukar tampilan form 1 produk vs form bulk;
+// logic generate-nya sendiri (vbGenerate3AI/vbGenerateBulkAI) tidak disentuh.
+function vbToggleAiBulk(isBulk){
+  let single=document.getElementById('vb-ai-single-fields');
+  let bulk=document.getElementById('vb-bulk-area');
+  if(single)single.classList.toggle('hidden',isBulk);
+  if(bulk)bulk.classList.toggle('hidden',!isBulk);
+  if(isBulk){
+    if(!document.getElementById('vb-bulk-rows').children.length)vbBulkSetCount();
+    // FIX TOMBOL GENERATE KETUTUP: kalau baris produk bulk SUDAH ada dari
+    // sebelumnya (user sempat matikan toggle lalu nyalakan lagi),
+    // vbBulkSetCount() di atas tidak dipanggil ulang — jadi perlu jaga-jaga
+    // sesuaikan lagi tinggi card di sini juga.
+    fFitWbody(document.getElementById('vb-bulk-rows'));
+    setTimeout(()=>bulk.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  }
 }
 function vbCountWords(el,counterId){
   let words=el.value.split(/\s+/).filter(Boolean);
@@ -11088,6 +11152,26 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal — bukan lagi
     // setelah 3x percobaan singkat seperti dulu, jadi pesannya diubah biar
     // jujur soal kemungkinan penyebabnya.
+    // FIX (audit 413 — "Request Entity Too Large"): status ini artinya
+    // SATU request ke Groq melebihi limit token/menit organisasi (bukan
+    // error yang bisa hilang sendiri dengan nunggu/retry biasa seperti
+    // 429/503 — request ini memang KEBESARAN, jadi mengulang persis sama
+    // pasti gagal lagi). Kalau batch ini isinya lebih dari 1 produk,
+    // otomatis dipecah jadi 2 batch lebih kecil dan masing-masing dicoba
+    // ulang sendiri-sendiri (rekursif, sampai akhirnya batch isi 1 kalau
+    // memang masih kebesaran) — hasilnya digabung lagi supaya pemanggil
+    // tidak perlu tahu ada pemecahan otomatis ini sama sekali.
+    if(resp.status===413){
+      if(batch.length>1){
+        let mid=Math.ceil(batch.length/2);
+        let firstHalf=batch.slice(0,mid),secondHalf=batch.slice(mid);
+        console.warn('[_vbCallBulkBatch] status 413 (request kebesaran) dengan '+batch.length+' produk sekaligus — otomatis dipecah jadi 2 batch lebih kecil ('+firstHalf.length+' + '+secondHalf.length+' produk) dan dicoba ulang.');
+        let r1=await _vbCallBulkBatch(firstHalf,targetAudience,extraNote,onWait,onPartial,usedHooks);
+        let r2=await _vbCallBulkBatch(secondHalf,targetAudience,extraNote,onWait,onPartial,usedHooks);
+        return r1.concat(r2);
+      }
+      throw new Error('Request ke AI kebesaran (413) walau cuma 1 produk yang dikirim — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
+    }
     if(resp.status===503)throw new Error('Server AI Groq masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Groq lagi padat, bukan masalah dari tools.');
     if(resp.status===429)throw new Error('Masih kena rate limit dari Groq walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
     if(resp.status===0)throw new Error('Gagal terhubung ke server AI Groq'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Groq yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
@@ -11169,6 +11253,32 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     prod.cta=_vbSanitizeForbiddenPhrases(fixed.cta);
   }
   return arr;
+}
+
+// FIX (audit 413 — request kebesaran karena foto ikut dikirim per-batch):
+// dulu BATCH_SIZE tetap sama (3) apa pun isi batch-nya, walau ada sampai
+// 2-3 foto referensi (base64 gambar) dilampirkan SEKALIGUS di 1 request —
+// gambar itu mahal secara token buat model vision, jadi kombinasi 2-3 foto
+// + instruksi teks yang sudah panjang gampang menembus limit token/menit
+// Groq (413). Sekarang produk yang PUNYA foto referensi dipaksa jadi batch
+// isi 1 sendiri (foto tidak pernah digabung dengan produk lain dalam 1
+// request), sementara produk TANPA foto tetap digabung sampai maxSize per
+// batch seperti biasa (supaya bulk generate teks-saja tetap seefisien
+// sebelumnya, tidak ikut diperlambat).
+function _vbBuildPhotoAwareBatches(items,maxSize,hasFoto){
+  let batches=[],current=[];
+  for(let i=0;i<items.length;i++){
+    let it=items[i];
+    if(hasFoto(it)){
+      if(current.length){batches.push(current);current=[];}
+      batches.push([it]);
+      continue;
+    }
+    current.push(it);
+    if(current.length>=maxSize){batches.push(current);current=[];}
+  }
+  if(current.length)batches.push(current);
+  return batches;
 }
 
 async function vbGenerateBulkAI(){
@@ -11287,8 +11397,10 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   // Sekarang dipecah jadi batch kecil (3 produk/panggilan) yang sudah
   // terbukti reliable, dikirim berurutan.
   const BATCH_SIZE=3;
-  let batches=[];
-  for(let i=0;i<toProcess.length;i+=BATCH_SIZE)batches.push(toProcess.slice(i,i+BATCH_SIZE));
+  // FIX 413 (lihat komentar lengkap di _vbBuildPhotoAwareBatches): produk
+  // yang punya foto referensi dipaksa jadi batch sendiri isi 1, produk
+  // tanpa foto tetap digabung sampai BATCH_SIZE seperti sebelumnya.
+  let batches=_vbBuildPhotoAwareBatches(toProcess,BATCH_SIZE,function(x){return!!(x.p&&x.p.fotoBase64);});
 
   VAI._isGenerating=true;
   _vbAcquireWakeLock();
@@ -11321,13 +11433,18 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   _vbRenderBulkOutput(initialDisplay,produkList,true);
 
   let allResults=priorResults.slice();
+  // FIX (label progress): dulu label "(X/total)" dihitung dari b*BATCH_SIZE
+  // yang cuma benar kalau semua batch ukurannya sama persis — sejak batch
+  // berisi foto dipaksa jadi ukuran 1 (lihat _vbBuildPhotoAwareBatches),
+  // batch-batch bisa punya ukuran campuran, jadi dihitung kumulatif beneran.
+  let doneCount=0;
   try{
     for(let b=0;b<batches.length;b++){
       let dlCheck=dlCheckBeforeCall();
       if(!dlCheck.ok){
         throw new Error(dlCheck.message+(allResults.length?' ('+allResults.length+' produk sudah berhasil dibuat.)':''));
       }
-      let batchLabelBase=(isResume?'Lanjutan — ':'')+'Batch '+(b+1)+'/'+batches.length+' ('+(b*BATCH_SIZE)+'/'+toProcess.length+')...';
+      let batchLabelBase=(isResume?'Lanjutan — ':'')+'Batch '+(b+1)+'/'+batches.length+' ('+doneCount+'/'+toProcess.length+')...';
       updateGenLogoLabel(genLogoState,batchLabelBase);
       // batches[b] = array {p,idx} — idx-nya sudah GLOBAL (posisi asli di
       // produkList), jadi aman dipakai langsung buat update kartu live,
@@ -11354,13 +11471,21 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // berhasil dibuat di batch-batch sebelumnya (termasuk dari sesi
       // Lanjutkan lewat priorResults) dan kirim sebagai daftar larangan ke
       // batch berikutnya, supaya AI tidak mengulang pola pembuka yang sama.
-      let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean);
+      // FIX (audit 413 — request makin berat di batch belakangan): dulu
+      // SEMUA hook dari sesi bulk ini dikirim ulang tiap batch, jadi makin
+      // banyak produk yang sudah digenerate, makin panjang daftar "hook
+      // yang sudah dipakai" ini disisipkan ke prompt — menambah beban token
+      // per request tanpa batas. Sekarang cuma 5 hook TERAKHIR yang dikirim
+      // (cukup untuk menjaga variasi hook terasa segar lintas batch,
+      // tanpa bikin prompt terus membengkak di batch-batch belakangan).
+      let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean).slice(-5);
       let batchArr=await _vbCallBulkBatch(batchProducts,targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
       },onPartialThisBatch,usedHooksSoFar);
       dlIncrement();
+      doneCount+=batchItems.length;
       if(batchArr.length<batchItems.length){
         console.warn('[_vbRunBulkGenerate] batch '+b+' cuma balikin '+batchArr.length+' dari '+batchItems.length+' produk diminta');
       }
@@ -12300,8 +12425,11 @@ async function vbRegenerateAllBulk(newSettings){
   // mengirim ulang ke AI TANPA arahan topik yang sudah user isi sebelumnya
   // di form Bulk, walau produk itu sebenarnya masih punya topik tersimpan.
   let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,topik:x.topik||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
-  let batches=[];
-  for(let bi=0;bi<produkList.length;bi+=BATCH_SIZE)batches.push(produkList.slice(bi,bi+BATCH_SIZE));
+  // FIX 413 (sama seperti di _vbRunBulkGenerate — lihat komentar lengkap di
+  // _vbBuildPhotoAwareBatches): produk yang punya foto referensi dipaksa
+  // jadi batch sendiri isi 1, produk tanpa foto tetap digabung sampai
+  // BATCH_SIZE seperti sebelumnya.
+  let batches=_vbBuildPhotoAwareBatches(produkList,BATCH_SIZE,function(p){return!!p.fotoBase64;});
   // FIX: sebelumnya tidak ada indikator loading sama sekali selama proses ini
   // berjalan (bisa berlangsung lama untuk banyak produk) — cuma 1 toast di
   // awal lalu sunyi total, terkesan macet. Sekarang pakai animasi logo yang
@@ -12309,6 +12437,12 @@ async function vbRegenerateAllBulk(newSettings){
   let btn=document.getElementById('vb-settings-btn');
   let genLogoState=startGenLogoBtn(btn,'Generate Ulang Semua...');
   let allResults=[];
+  // FIX (indeks kartu produk): dulu index global kartu dihitung dari
+  // b*BATCH_SIZE, yang cuma benar kalau semua batch seragam ukurannya —
+  // sejak batch berisi foto dipaksa jadi ukuran 1 (lihat
+  // _vbBuildPhotoAwareBatches), batch-batch bisa campuran ukuran, jadi
+  // offset-nya dihitung kumulatif beneran per batch yang sudah lewat.
+  let idxOffset=0;
   try{
     for(let b=0;b<batches.length;b++){
       let dc=dlCheckBeforeCall();
@@ -12321,7 +12455,10 @@ async function vbRegenerateAllBulk(newSettings){
       // persis seperti bug yang sudah diperbaiki di vbGenerateBulkAI.
       // FIX (variasi hook lintas batch, sama seperti vbGenerateBulkAI): kirim
       // HOOK yang sudah dipakai di batch sebelumnya sebagai larangan eksplisit.
-      let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean);
+      // FIX (audit 413 — sama seperti di _vbRunBulkGenerate): cuma kirim 5
+      // hook TERAKHIR, bukan semua hook dari sesi ini, supaya prompt tidak
+      // terus membengkak di batch-batch belakangan.
+      let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean).slice(-5);
       let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
@@ -12347,9 +12484,10 @@ async function vbRegenerateAllBulk(newSettings){
       // benar.
       if(batchArr.length===batches[b].length){
         for(let j=0;j<batchArr.length;j++){
-          _vbUpdateProductCardsLive(b*BATCH_SIZE+j,batchArr[j]);
+          _vbUpdateProductCardsLive(idxOffset+j,batchArr[j]);
         }
       }
+      idxOffset+=batches[b].length;
       if(b<batches.length-1)await new Promise(function(r){setTimeout(r,1500);});
     }
     if(allResults.length===0)throw new Error('Hasil AI kosong, coba lagi.');
@@ -13317,7 +13455,11 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   }else{
     instructionText=VB_REF_MODE_TEXT[VB.refMode]||VB_REF_MODE_TEXT.satu;
   }
-  let genderPrefix=VB.gender==='male'?'Male, ':VB.gender==='female'?'Female, ':'';
+  // FIX (menyusul fitur "isi sendiri" Jenis Kelamin): dulu kalau VB.gender
+  // bukan persis 'male'/'female', prefix-nya jadi string kosong — nilai
+  // custom yang diketik user hilang dari output. Sekarang nilai custom
+  // (apa pun isinya) tetap dipakai apa adanya sebagai prefix.
+  let genderPrefix=VB.gender==='male'?'Male, ':VB.gender==='female'?'Female, ':(VB.gender?VB.gender+', ':'');
   let ageFull=genderPrefix+VB.age;
   // FORMAT OUTPUT (permintaan user, menggantikan format JSON lama): bukan JSON valid,
   // "instruction:...dialogue:voice_character:age:...,pitch:...,accent:...,script:"...""
@@ -13412,7 +13554,9 @@ function vbReset(){
     let eb=document.getElementById('vb-ai-error'); if(eb){eb.classList.add('hidden');eb.textContent='';}
     let manualArea=document.getElementById('vb-manual-script-area'); if(manualArea)manualArea.classList.add('hidden');
     let aiArea=document.getElementById('vb-mode-ai-area'); if(aiArea)aiArea.classList.add('hidden');
-    document.querySelectorAll('#vb-mode-ai,#vb-mode-manual,#vb-mode-bulk').forEach(c=>c.classList.remove('sel'));
+    document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
+    let bulkToggleReset=document.getElementById('vb-ai-bulk-toggle'); if(bulkToggleReset)bulkToggleReset.checked=false;
+    let aiSingleReset=document.getElementById('vb-ai-single-fields'); if(aiSingleReset)aiSingleReset.classList.remove('hidden');
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
     VB_BULK_ROW_CACHE=[]; // FIX BUG#15: cache baris bulk juga wajib ikut bersih saat reset, biar tidak bocor ke sesi generate berikutnya
     VB_REVISI_FOTO_OVERRIDE={}; // override foto panel Revisi juga wajib ikut bersih, biar tidak bocor ke sesi berikutnya
@@ -14770,7 +14914,13 @@ function pbGoStep7VideoOpen(){
   document.getElementById('pb-tour-card').classList.remove('show');
   let videoBtn=document.getElementById('ntab-video');
   if(videoBtn) switchPage('video',videoBtn);
-  vbPickRefMode('satu');
+  // PERMINTAAN USER (Sept 2026): dulu Start Frame langsung di-auto-klik lewat
+  // vbPickRefMode('satu') di sini, jadi user belum apa-apa udah lihat chip-nya
+  // kepilih (kuning) sendiri. Sekarang TIDAK di-auto-klik lagi — chip dipaksa
+  // balik ke keadaan belum terpilih, biar user yang benar-benar tap sendiri.
+  // VB.refMode default-nya sudah 'satu' (lihat deklarasi objek VB), jadi data
+  // di baliknya tidak berubah — ini murni soal tampilan chip belum "nyala".
+  document.getElementById('vb-mode-satu').classList.remove('sel');
   pbLockChip('#vb-mode-aset');
   pbLockChip('#vb-mode-kp');
   pbLockChip('#vb-mode-ikuti');
