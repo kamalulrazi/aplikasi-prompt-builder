@@ -2229,6 +2229,21 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <svg class="icon"><use href="#ic-save"></use></svg>
           <div class="step-save-tip" id="f-save-tip"><b>Simpan halaman.</b> Skrip/prompt yang sudah jadi bisa disimpan ke Riwayat — tap sekali lagi ikon ini untuk menyimpan.</div>
         </div>
+        <!-- Chip "lagi lanjutin entri Riwayat" — SENGAJA ditaruh di header
+             progress-wrap ini (bukan di dalam f-multi-output) karena area
+             output itu berkali-kali di-innerHTML='' habis tiap kali user
+             generate ulang (lihat fGenerate dkk). Kalau tombol Tutup cuma
+             ada di banner dalam f-multi-output, begitu user generate ulang
+             banner+tombolnya ikut lenyap padahal PB_ACTIVE_SAVED_ID masih
+             terkunci — user jadi kejebak tanpa cara keluar dari mode
+             "menimpa" ini. Chip di sini AMAN karena progress-wrap tidak
+             pernah di-wipe oleh proses generate manapun. Disembunyikan
+             default (class hidden), disinkronkan oleh pbSyncContinueChips()
+             yang dipanggil dari pbSavedRender().-->
+        <div id="f-continue-chip" class="hidden" onclick="event.stopPropagation();" style="display:flex;align-items:center;gap:5px;background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);padding:3px 6px 3px 10px;border-radius:var(--radius-2xs);margin-left:6px;white-space:nowrap;">
+          <span>Lanjut Riwayat</span>
+          <button onclick="pbCloseActiveSavedPage()" style="background:none;border:none;color:inherit;cursor:pointer;padding:2px 4px;font-weight:700;line-height:1;font-size:var(--fs-xs2);" title="Tutup — Simpan berikutnya jadi halaman baru">✕</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3109,6 +3124,12 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <svg class="icon"><use href="#ic-save"></use></svg>
           <div class="step-save-tip" id="vb-save-tip"><b>Simpan halaman.</b> Skrip video yang sudah jadi (termasuk mode bulk) bisa disimpan ke Riwayat — tap sekali lagi ikon ini untuk menyimpan.</div>
         </div>
+        <!-- Sama seperti f-continue-chip di halaman Foto — lihat komentar di
+             sana untuk alasan kenapa ini WAJIB di luar vb-multi-output. -->
+        <div id="vb-continue-chip" class="hidden" onclick="event.stopPropagation();" style="display:flex;align-items:center;gap:5px;background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);padding:3px 6px 3px 10px;border-radius:var(--radius-2xs);margin-left:6px;white-space:nowrap;">
+          <span>Lanjut Riwayat</span>
+          <button onclick="pbCloseActiveSavedPage()" style="background:none;border:none;color:inherit;cursor:pointer;padding:2px 4px;font-weight:700;line-height:1;font-size:var(--fs-xs2);" title="Tutup — Simpan berikutnya jadi halaman baru">✕</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3468,7 +3489,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.5 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.12 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -8901,10 +8922,15 @@ function pbSaveIconClick(type,btnEl){
     btnEl.classList.add('armed');
     if(tip){
       tip.classList.add('show');
-      // Kalau lagi melanjutkan entri yang dibuka dari Riwayat (id & tipe
-      // cocok), kasih tau user bahwa Simpan berikutnya akan MENIMPA entri
-      // itu — bukan bikin baru — supaya gak kaget.
-      let continuing=PB_ACTIVE_SAVED_ID && pbSavedGet().some(function(x){return x.id===PB_ACTIVE_SAVED_ID && x.type===type;});
+      // BUG FIX: dulu dicocokkan id DAN type — kalau user sedang melanjutkan
+      // entri Riwayat tipe 'video' lalu pindah ke halaman Foto dan menekan
+      // Simpan (type='foto'), pengecekan lama gagal cocok (type beda) jadi
+      // status "continuing" dianggap TIDAK aktif walau sebenarnya masih
+      // dalam mode melanjutkan entri yang sama. Karena satu entri sekarang
+      // selalu membawa data KEDUA builder (lihat pbSaveCurrentPage), cukup
+      // cocokkan lewat id saja — type entri cuma penanda halaman mana yang
+      // otomatis tampil pas dibuka, bukan pemisah data lagi.
+      let continuing=PB_ACTIVE_SAVED_ID && pbSavedGet().some(function(x){return x.id===PB_ACTIVE_SAVED_ID;});
       if(continuing){
         tip.innerHTML='<b>Simpan perubahan.</b> Halaman ini sedang melanjutkan entri dari Riwayat — tap sekali lagi untuk menimpa (update) entri tersebut. Mau simpan sebagai halaman baru? Tutup dulu Riwayat yang sedang dibuka.';
       } else {
@@ -9007,6 +9033,53 @@ function _pbCollectResult(type){
   return {html:htmlParts.join('\n'),text:textParts.join('\n\n---\n\n')};
 }
 
+// FIX (permintaan user): "Simpan halaman" dulu cuma menangkap state builder
+// yang lagi AKTIF (Foto ATAU Video, bukan dua-duanya). Kalau user lagi di
+// step 5 Foto, pindah ke Video (bulk 10 produk, baru 3 dapat skrip), lalu
+// tekan Simpan di halaman Video — progress Foto step 5 ikut hilang kalau
+// nanti tab ditutup, karena tidak pernah disimpan. Sekarang state Video
+// dipaketkan lewat _vbPackState() (termasuk VB_BULK_ITEMS/VB_BULK_PRODUCTS/
+// VB_BULK_LAST_CONTEXT — sebelumnya TIDAK ikut ke-JSON.stringify(VB) sama
+// sekali, jadi data 10 produk bulk-nya tidak benar-benar tersimpan).
+//
+// BUG FIX (audit susulan): 4 objek override PER-KARTU — VB_CARD_TAMPIL
+// ("Cara Tampil Produk"), VB_CARD_LOKASI (lokasi custom per Hook/Story/CTA),
+// VB_PRODUCT_FOTOCOUNT (jumlah foto override per produk), VB_HOOK_OVERLAY
+// (teks overlay Hook per produk) — SEMPAT TIDAK ikut dipaketkan sama sekali.
+// Akibatnya kalau user sudah atur salah satu dari ini sebelum Simpan, lalu
+// entri dibuka lagi dari Riwayat: (1) pengaturannya hilang, dan (2) kalau
+// bulk-nya di-render ULANG secara hidup buat lanjut generate, isinya jadi
+// beda dari yang user atur — bisa salah lokasi/foto/overlay di skrip yang
+// dilanjutkan. Sekarang keempatnya ikut dipaketkan & dipulihkan.
+function _vbPackState(){
+  try{
+    return JSON.stringify({
+      VB:VB,
+      VB_BULK_ITEMS:(typeof VB_BULK_ITEMS!=='undefined'?VB_BULK_ITEMS:[]),
+      VB_BULK_PRODUCTS:(typeof VB_BULK_PRODUCTS!=='undefined'?VB_BULK_PRODUCTS:[]),
+      VB_BULK_LAST_CONTEXT:(typeof VB_BULK_LAST_CONTEXT!=='undefined'?VB_BULK_LAST_CONTEXT:null),
+      VB_CARD_TAMPIL:(typeof VB_CARD_TAMPIL!=='undefined'?VB_CARD_TAMPIL:{}),
+      VB_CARD_LOKASI:(typeof VB_CARD_LOKASI!=='undefined'?VB_CARD_LOKASI:{}),
+      VB_PRODUCT_FOTOCOUNT:(typeof VB_PRODUCT_FOTOCOUNT!=='undefined'?VB_PRODUCT_FOTOCOUNT:{}),
+      VB_HOOK_OVERLAY:(typeof VB_HOOK_OVERLAY!=='undefined'?VB_HOOK_OVERLAY:{})
+    });
+  }catch(e){return '{}';}
+}
+function _vbUnpackState(json){
+  try{
+    let obj=JSON.parse(json||'{}');
+    if(obj.VB && typeof VB!=='undefined')Object.assign(VB,obj.VB);
+    if(typeof VB_BULK_ITEMS!=='undefined')VB_BULK_ITEMS=obj.VB_BULK_ITEMS||[];
+    if(typeof VB_BULK_PRODUCTS!=='undefined')VB_BULK_PRODUCTS=obj.VB_BULK_PRODUCTS||[];
+    if(typeof VB_BULK_LAST_CONTEXT!=='undefined')VB_BULK_LAST_CONTEXT=obj.VB_BULK_LAST_CONTEXT||null;
+    if(typeof VB_CARD_TAMPIL!=='undefined')VB_CARD_TAMPIL=obj.VB_CARD_TAMPIL||{};
+    if(typeof VB_CARD_LOKASI!=='undefined')VB_CARD_LOKASI=obj.VB_CARD_LOKASI||{};
+    if(typeof VB_PRODUCT_FOTOCOUNT!=='undefined')VB_PRODUCT_FOTOCOUNT=obj.VB_PRODUCT_FOTOCOUNT||{};
+    if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=obj.VB_HOOK_OVERLAY||{};
+  }catch(e){}
+}
+
+
 function pbSaveCurrentPage(type,btnEl){
   // Dulu: kalau belum ada skrip/prompt yang di-generate, save ditolak total
   // (_pbCollectResult return null → langsung berhenti). Sekarang TIDAK —
@@ -9014,38 +9087,55 @@ function pbSaveCurrentPage(type,btnEl){
   // stelan aplikasi (state FS/VB: foto yang sudah diupload, pilihan yang
   // sudah dipilih, dst), bukan cuma skrip jadi. Jadi kalau belum ada hasil
   // generate, html/text-nya kosong tapi state tetap disimpan penuh.
-  let result=_pbCollectResult(type)||{html:'',text:''};
-  let html=result.html;
-  let label,stateJSON;
+  //
+  // FIX: ambil snapshot KEDUA builder (Foto & Video) setiap kali tombol
+  // Simpan ditekan, TERLEPAS dari halaman mana tombolnya ditekan. `type`
+  // cuma menentukan halaman mana yang otomatis ditampilkan lagi saat entri
+  // ini dibuka dari Riwayat — datanya sendiri (fotoState/videoState/
+  // fotoHtml/videoHtml) selalu lengkap dua-duanya, supaya progress builder
+  // yang lagi "ditinggal" (tidak sedang dilihat) tidak ikut hilang.
+  let resultFoto=_pbCollectResult('foto')||{html:'',text:''};
+  let resultVideo=_pbCollectResult('video')||{html:'',text:''};
+  let labelFoto,labelVideo,stateFoto,stateVideo;
   try{
-    if(type==='foto'){
-      label='Foto'+(FS.produkNama?' — '+FS.produkNama:(FS.subjekLabel?' — '+FS.subjekLabel:''));
-      stateJSON=JSON.stringify(FS);
-    } else {
-      let jumlahProduk=(typeof VB_BULK_ITEMS!=='undefined' && Array.isArray(VB_BULK_ITEMS) && VB_BULK_ITEMS.length)?VB_BULK_ITEMS.length:null;
-      label='Video'+(jumlahProduk?' — '+jumlahProduk+' produk (bulk)':(VB.mode3Produk?' — '+VB.mode3Produk:''));
-      stateJSON=JSON.stringify(VB);
-    }
-  }catch(e){
-    label=(type==='foto'?'Foto':'Video')+' tersimpan';
-    stateJSON='{}';
-  }
+    labelFoto='Foto'+(FS.produkNama?' — '+FS.produkNama:(FS.subjekLabel?' — '+FS.subjekLabel:''));
+    stateFoto=JSON.stringify(FS);
+  }catch(e){labelFoto='Foto tersimpan';stateFoto='{}';}
+  try{
+    let jumlahProduk=(typeof VB_BULK_ITEMS!=='undefined' && Array.isArray(VB_BULK_ITEMS) && VB_BULK_ITEMS.length)?VB_BULK_ITEMS.length:null;
+    labelVideo='Video'+(jumlahProduk?' — '+jumlahProduk+' produk (bulk)':(VB.mode3Produk?' — '+VB.mode3Produk:''));
+    stateVideo=_vbPackState();
+  }catch(e){labelVideo='Video tersimpan';stateVideo='{}';}
+  let label=(type==='foto')?labelFoto:labelVideo;
+  let html=(type==='foto')?resultFoto.html:resultVideo.html;
   let arr=pbSavedGet();
-  // Kalau lagi melanjutkan entri yang dibuka dari Riwayat (PB_ACTIVE_SAVED_ID
-  // terisi & entrinya masih ada & tipenya cocok dengan halaman yang lagi
-  // di-save) → TIMPA entri itu (id sama, posisi di daftar sama), JANGAN
-  // bikin entri baru. Kalau bukan (save biasa dari halaman kosong/baru) →
-  // tetap bikin entri baru seperti sebelumnya.
-  let activeIdx=PB_ACTIVE_SAVED_ID?arr.findIndex(function(x){return x.id===PB_ACTIVE_SAVED_ID && x.type===type;}):-1;
+  // BUG FIX: sebelumnya dicocokkan id+type, jadi kalau user membuka entri
+  // Riwayat tipe 'video' lalu pindah ke halaman Foto dan menekan Simpan di
+  // sana (type='foto'), tidak ketemu match (type beda) → dikira save biasa,
+  // bikin ENTRI BARU terpisah alih-alih menimpa entri yang sedang
+  // dilanjutkan. Padahal karena satu entri sekarang menyimpan data KEDUA
+  // builder sekaligus, seharusnya tetap menimpa entri yang sama siapa pun
+  // yang menyimpan (Foto atau Video) — cukup cocokkan lewat id.
+  let activeIdx=PB_ACTIVE_SAVED_ID?arr.findIndex(function(x){return x.id===PB_ACTIVE_SAVED_ID;}):-1;
   let isUpdate=activeIdx>=0;
   let entry={
     id:isUpdate?PB_ACTIVE_SAVED_ID:('sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)),
     type:type,
     label:label,
     ts:Date.now(),
+    // Kompat lama: field ini tetap ada (dipakai kode lain yang mungkin
+    // masih baca item.html/item.text/item.state langsung).
     html:html,
-    text:result.text,
-    state:stateJSON
+    text:(type==='foto'?resultFoto.text:resultVideo.text),
+    state:(type==='foto'?stateFoto:stateVideo),
+    // BARU: snapshot gabungan dua builder, dipakai pbOpenSavedPage supaya
+    // builder yang tidak sedang dilihat saat Simpan ditekan tetap ikut balik.
+    fotoHtml:resultFoto.html,
+    fotoText:resultFoto.text,
+    fotoState:stateFoto,
+    videoHtml:resultVideo.html,
+    videoText:resultVideo.text,
+    videoState:stateVideo
   };
   if(isUpdate){
     arr[activeIdx]=entry;
@@ -9079,10 +9169,19 @@ function pbSaveCurrentPage(type,btnEl){
 function pbSavedDelete(id){
   let arr=pbSavedGet().filter(function(x){return x.id!==id;});
   pbSavedSetAll(arr);
+  // Kalau entri yang dihapus itu yang lagi "dikunci" (sedang dibuka/
+  // dilanjutkan), lepas kuncinya & bersihkan banner-nya — kalau tidak,
+  // banner "Tutup Riwayat" tetap nongol menunjuk ke entri yang udah gak ada.
+  if(id===PB_ACTIVE_SAVED_ID){
+    PB_ACTIVE_SAVED_ID=null;
+    pbRemoveSavedBanners();
+  }
   pbSavedRender();
 }
 function pbSavedClearAll(){
   try{localStorage.removeItem(PB_SAVED_KEY);}catch(e){}
+  PB_ACTIVE_SAVED_ID=null;
+  pbRemoveSavedBanners();
   pbSavedRender();
 }
 
@@ -9128,6 +9227,21 @@ function _pbSavedRenderInto(wrap){
 function pbSavedRender(){
   _pbSavedRenderInto(document.getElementById('history-list'));
   _pbSavedRenderInto(document.getElementById('f-history-mini'));
+  pbSyncContinueChips();
+}
+
+// Tampilkan/sembunyikan chip persisten "Lanjut Riwayat" (lihat komentar di
+// f-continue-chip/vb-continue-chip di HTML) sesuai PB_ACTIVE_SAVED_ID saat
+// ini. Dipanggil dari pbSavedRender() supaya SATU titik ini otomatis
+// nyambung ke semua aksi yang bisa mengubah status kunci (buka, tutup,
+// hapus entri aktif, hapus semua, update-save) — tidak perlu manggil ini
+// manual di banyak tempat & rawan kelewat.
+function pbSyncContinueChips(){
+  let activeItem=PB_ACTIVE_SAVED_ID?pbSavedGet().find(function(x){return x.id===PB_ACTIVE_SAVED_ID;}):null;
+  let fChip=document.getElementById('f-continue-chip');
+  let vbChip=document.getElementById('vb-continue-chip');
+  if(fChip)fChip.classList.toggle('hidden',!(activeItem&&activeItem.type==='foto'));
+  if(vbChip)vbChip.classList.toggle('hidden',!(activeItem&&activeItem.type==='video'));
 }
 
 // Buka kembali halaman tersimpan: pindah ke tab Foto/Video, kembalikan
@@ -9136,6 +9250,19 @@ function pbSavedRender(){
 // 1-7/1-4) TIDAK ditata ulang otomatis satu-per-satu — fokus fitur ini
 // memastikan SKRIP/PROMPT hasil generate tetap utuh & bisa disalin lagi,
 // sesuai permintaan awal fitur ini.
+// Hapus SEMUA banner "halaman tersimpan" yang mungkin masih nongol di
+// f-multi-output MAUPUN vb-multi-output. Perlu ini karena tab Foto/Video
+// tidak pernah dihapus dari DOM (switchPage cuma toggle class .active),
+// jadi kalau user buka entri Foto dari Riwayat lalu (tanpa Tutup) buka
+// entri Video juga, dua elemen id="pb-saved-banner" bisa nangkring
+// BARENGAN di DOM — melanggar aturan id unik & bikin getElementById()
+// salah ambil elemen (bisa ke banner yang lama, bukan yang baru dibuka).
+// Dipanggil sebelum bikin banner baru, dan saat entri aktif ditutup/
+// dihapus, supaya cuma ada MAKSIMAL 1 banner nongol kapan pun.
+function pbRemoveSavedBanners(){
+  document.querySelectorAll('#pb-saved-banner').forEach(function(el){el.remove();});
+}
+
 function pbOpenSavedPage(id){
   let item=pbSavedGet().find(function(x){return x.id===id;});
   if(!item){showToast('Halaman tersimpan tidak ditemukan','error');return;}
@@ -9144,52 +9271,161 @@ function pbOpenSavedPage(id){
   // entri id ini, bukan bikin entri baru. Lihat PB_ACTIVE_SAVED_ID &
   // pbSaveCurrentPage().
   PB_ACTIVE_SAVED_ID=item.id;
+  // Bersihkan dulu banner lama (kalau ada, mis. dari entri tipe lain yang
+  // sempat dibuka sebelumnya tanpa ditutup) sebelum pasang yang baru.
+  pbRemoveSavedBanners();
   let navBtn=document.querySelector('.ntab[onclick*="switchPage(\''+item.type+'\'"]');
   if(navBtn)switchPage(item.type,navBtn);
+  // FIX: restore KEDUA builder, bukan cuma yang type-nya cocok dengan
+  // halaman yang mau ditampilkan. Entri LAMA (dibuat sebelum fix ini) tidak
+  // punya fotoState/videoState — fallback ke item.state (skema lama, cuma
+  // punya salah satu) supaya tetap kompatibel.
   try{
-    let savedState=JSON.parse(item.state||'{}');
-    if(item.type==='foto' && typeof FS!=='undefined')Object.assign(FS,savedState);
-    if(item.type==='video' && typeof VB!=='undefined')Object.assign(VB,savedState);
-  }catch(e){/* state korup/lama — lanjut tanpa restore state, HTML hasil tetap ditampilkan */}
-  let targetId=item.type==='foto'?'f-multi-output':'vb-multi-output';
-  let target=document.getElementById(targetId);
-  if(target){
-    let copyAllHTML='<div id="pb-saved-banner" style="background:var(--accent-dim-bg);border:1px solid var(--accent-dim);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-      +'<span style="font-size:var(--fs-xs2);color:var(--accent-2);flex:1;">Halaman tersimpan — dibuka dari Riwayat. Otak-atik apapun di sini, Simpan berikutnya akan menimpa halaman ini.</span>'
-      +(item.text?'<button class="copy-btn" id="pb-saved-copyall-btn">Salin Semua Teks</button>':'')
-      +'<button id="pb-saved-close-btn" style="background:none;border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:600;padding:5px 12px;border-radius:var(--radius-2xs);cursor:pointer;font-family:\'Geist\',sans-serif;">Tutup Riwayat</button>'
-      +'</div>';
-    target.innerHTML=copyAllHTML+item.html;
-    target.style.display='flex';
-    if(item.type==='foto'){
-      let wrap=document.getElementById('f-output-wrap');
-      let jsonBlock=document.getElementById('f-json-output');
-      if(wrap)wrap.style.display='block';
-      if(jsonBlock)jsonBlock.style.display='none'; // isinya sudah ikut ke dalam target.innerHTML kalau ada
-    }
-    let copyAllBtn=document.getElementById('pb-saved-copyall-btn');
-    if(copyAllBtn)copyAllBtn.onclick=function(){
-      _copyTextRobust(item.text,function(){showToast('Semua teks tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
-    };
-    let closeBtn=document.getElementById('pb-saved-close-btn');
-    if(closeBtn)closeBtn.onclick=function(){pbCloseActiveSavedPage(item.type);};
+    let fotoState=(item.fotoState!=null)?item.fotoState:(item.type==='foto'?item.state:null);
+    if(fotoState!=null && typeof FS!=='undefined')Object.assign(FS,JSON.parse(fotoState||'{}'));
+  }catch(e){/* state foto korup — lanjut tanpa restore, HTML hasil tetap ditampilkan */}
+  try{
+    let videoState=(item.videoState!=null)?item.videoState:(item.type==='video'?item.state:null);
+    if(videoState!=null)_vbUnpackState(videoState);
+  }catch(e){/* state video korup — lanjut tanpa restore */}
+
+  // FIX (audit susulan): dulu render HIDUP (bisa lanjut generate lewat
+  // "Lanjutkan") cuma dicoba untuk builder yang KEBETULAN jadi item.type
+  // (halaman yang aktif pas Simpan terakhir ditekan). Kalau entri yang
+  // sama disimpan dari halaman Foto padahal yang punya bulk belum selesai
+  // itu Video, sisi Video-nya dulu cuma dipulihkan sebagai HTML BEKU
+  // (baca-saja) — walau datanya (VB_BULK_LAST_CONTEXT) sebenarnya lengkap
+  // dan bisa dilanjutkan. Sekarang pemulihan primer & sekunder pakai
+  // helper yang SAMA (_pbRenderBuilderInto), jadi builder mana pun yang
+  // masih ada sisa bulk selalu dicoba di-render hidup, apa pun item.type.
+  let primaryTargetId=item.type==='foto'?'f-multi-output':'vb-multi-output';
+  let primaryTarget=document.getElementById(primaryTargetId);
+  let primaryLive=_pbRenderBuilderInto(item.type,primaryTarget,item.html,item.text,true);
+
+  let otherType=item.type==='foto'?'video':'foto';
+  let otherHtml=item.type==='foto'?item.videoHtml:item.fotoHtml;
+  let otherText=item.type==='foto'?item.videoText:item.fotoText;
+  if(otherHtml!=null){ // null = entri lama (sebelum fix dual-builder), tidak ada apa-apa buat dipulihkan di sisi ini
+    let otherTargetId=otherType==='foto'?'f-multi-output':'vb-multi-output';
+    let otherTarget=document.getElementById(otherTargetId);
+    _pbRenderBuilderInto(otherType,otherTarget,otherHtml,otherText,false);
   }
+
   setTimeout(function(){
-    if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+    if(primaryTarget)primaryTarget.scrollIntoView({behavior:'smooth',block:'start'});
   },80);
+  pbSavedRender();
   showToast('Halaman berhasil dibuka','success');
 }
+
+// Render ulang SATU builder (Foto atau Video) ke dalam elemen output-nya
+// setelah dibuka dari Riwayat. isPrimary=true → builder yang sedang
+// ditampilkan (dapat banner lengkap dgn tombol "Tutup Riwayat"); false →
+// builder yang lagi tidak dilihat (dapat banner ringkas "ikut dipulihkan").
+// Untuk Video dengan bulk yang masih ada sisa (VB_BULK_LAST_CONTEXT),
+// dibangun HIDUP/interaktif via _vbRenderBulkOutput (bukan HTML beku) —
+// berlaku SAMA baik primer maupun sekunder, supaya tombol "Lanjutkan"
+// selalu tersedia begitu user pindah ke tab itu, tidak peduli halaman mana
+// yang aktif saat Simpan terakhir ditekan. Return true kalau berhasil
+// dipulihkan hidup (dipakai pemanggil kalau perlu tahu).
+function _pbRenderBuilderInto(type,target,frozenHtml,frozenText,isPrimary){
+  if(!target)return false;
+  let live=false;
+  if(type==='video' && typeof VB_BULK_LAST_CONTEXT!=='undefined' && VB_BULK_LAST_CONTEXT
+     && VB_BULK_LAST_CONTEXT.produkList && VB_BULK_LAST_CONTEXT.allResults
+     && VB_BULK_LAST_CONTEXT.allResults.length<VB_BULK_LAST_CONTEXT.produkList.length){
+    // BUG FIX: _vbRenderBulkOutput me-RESET VB_CARD_TAMPIL/VB_CARD_LOKASI/
+    // VB_PRODUCT_FOTOCOUNT/VB_HOOK_OVERLAY ke objek {} BARU di awal
+    // fungsinya. Kalau dibiarkan, override per-kartu yang baru saja
+    // dipulihkan oleh _vbUnpackState() (lokasi custom, teks overlay Hook,
+    // dst) langsung hilang lagi begitu render ini jalan. Simpan dulu
+    // REFERENSI objek lama di sini (reassignment global TIDAK mengubah
+    // objek yang sudah direferensikan variabel lokal ini — semantik
+    // reference JS biasa), lalu pasang balik setelah render selesai.
+    let keepTampil=VB_CARD_TAMPIL,keepLokasi=VB_CARD_LOKASI,keepFotoCount=VB_PRODUCT_FOTOCOUNT,keepOverlay=VB_HOOK_OVERLAY;
+    try{
+      _vbRenderBulkOutput(VB_BULK_LAST_CONTEXT.allResults,VB_BULK_LAST_CONTEXT.produkList,true,false);
+      VB_CARD_TAMPIL=keepTampil;VB_CARD_LOKASI=keepLokasi;VB_PRODUCT_FOTOCOUNT=keepFotoCount;VB_HOOK_OVERLAY=keepOverlay;
+      let errBox=document.getElementById('vb-bulk-error');
+      if(errBox)_vbShowBulkResumeUI(errBox,VB_BULK_LAST_CONTEXT.produkList.length-VB_BULK_LAST_CONTEXT.allResults.length);
+      live=true;
+    }catch(e){live=false;}
+  }
+  if(!live){
+    target.innerHTML='';
+    if(frozenHtml){
+      let contentWrap=document.createElement('div');
+      contentWrap.innerHTML=frozenHtml;
+      target.appendChild(contentWrap);
+    }
+  }
+  // Banner: primer dapat versi lengkap (Salin Semua Teks + Tutup Riwayat),
+  // sekunder dapat versi ringkas — dipasang di DEPAN konten (baik yang
+  // baru di-render hidup maupun yang beku), jadi tidak pernah menimpanya.
+  if(isPrimary){
+    let banner=document.createElement('div');
+    banner.id='pb-saved-banner';
+    banner.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    let span=document.createElement('span');
+    span.style.cssText='font-size:var(--fs-xs2);color:var(--accent-2);flex:1;';
+    span.textContent='Halaman tersimpan — dibuka dari Riwayat. Otak-atik apapun di sini, Simpan berikutnya akan menimpa halaman ini.';
+    banner.appendChild(span);
+    if(frozenText){
+      let copyBtn=document.createElement('button');
+      copyBtn.className='copy-btn';
+      copyBtn.textContent='Salin Semua Teks';
+      copyBtn.onclick=function(){_copyTextRobust(frozenText,function(){showToast('Semua teks tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});};
+      banner.appendChild(copyBtn);
+    }
+    let closeBtn=document.createElement('button');
+    closeBtn.style.cssText='background:none;border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:600;padding:5px 12px;border-radius:var(--radius-2xs);cursor:pointer;font-family:\'Geist\',sans-serif;';
+    closeBtn.textContent='Tutup Riwayat';
+    closeBtn.onclick=function(){pbCloseActiveSavedPage();};
+    banner.appendChild(closeBtn);
+    target.insertBefore(banner,target.firstChild);
+  } else if(live || frozenHtml){
+    // Sekunder cuma dikasih banner kalau memang ada sesuatu buat dipulihkan
+    // (live=true, atau frozenHtml berisi — builder yang MASIH KOSONG saat
+    // disimpan, frozenHtml='', tidak perlu banner apa-apa).
+    let banner=document.createElement('div');
+    banner.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;font-size:var(--fs-xs2);color:var(--accent-2);display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+    let span=document.createElement('span');
+    span.style.flex='1';
+    span.textContent='Ikut dipulihkan dari halaman tersimpan yang sama — progres builder ini saat itu.';
+    banner.appendChild(span);
+    if(frozenText){
+      let copyBtn=document.createElement('button');
+      copyBtn.className='copy-btn';
+      copyBtn.textContent='Salin Semua Teks';
+      copyBtn.onclick=function(){_copyTextRobust(frozenText,function(){showToast('Semua teks tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});};
+      banner.appendChild(copyBtn);
+    }
+    target.insertBefore(banner,target.firstChild);
+  }
+  target.style.display='flex';
+  if(type==='foto'){
+    let wrap=document.getElementById('f-output-wrap');
+    let jsonBlock=document.getElementById('f-json-output');
+    if(wrap)wrap.style.display='block';
+    if(jsonBlock)jsonBlock.style.display='none'; // isinya sudah ikut ke dalam target.innerHTML kalau ada
+  }
+  return live;
+}
+
 
 // Lepas "kunci" mode melanjutkan entri Riwayat (lihat pbOpenSavedPage).
 // Setelah ini, Simpan berikutnya balik jadi bikin entri BARU seperti
 // biasa. Hanya melepas kuncinya & banner-nya — isi FS/VB/tampilan yang
 // sudah kepulihkan/tampil tetap dibiarkan apa adanya, biar user tidak
 // kehilangan apa yang sedang dia kerjakan.
-function pbCloseActiveSavedPage(type){
+function pbCloseActiveSavedPage(){
   PB_ACTIVE_SAVED_ID=null;
-  let banner=document.getElementById('pb-saved-banner');
-  if(banner)banner.remove();
+  pbRemoveSavedBanners();
   showToast('Riwayat ditutup — Simpan berikutnya akan jadi halaman baru','success');
+  // Sinkronkan badge "SEDANG DIBUKA" di daftar Riwayat/mini-history —
+  // tanpa ini, badge itu nempel sampai ada aksi lain (save/hapus) yang
+  // kebetulan memicu render ulang.
+  pbSavedRender();
 }
 
 // Render histori saat halaman Riwayat dibuka (via switchPage)
@@ -11155,6 +11391,19 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
         for(let j=0;j<batchArr.length;j++)batchArr[j]._idx=batchItems[j].idx;
       }
       allResults=allResults.concat(batchArr);
+      // FIX (permintaan user): dulu VB_BULK_LAST_CONTEXT cuma di-set SETELAH
+      // seluruh proses bulk berhenti (baik selesai penuh, gagal, maupun kena
+      // limit) — lihat blok "if(allResults.length<produkList.length)" di
+      // akhir try/catch di bawah. Artinya kalau user menekan Simpan Halaman
+      // DI TENGAH proses (mis. baru 3 dari 10 produk beres, batch ke-4 masih
+      // jalan), VB_BULK_LAST_CONTEXT masih null — hasil Simpan itu cuma jadi
+      // snapshot BEKU (baca-saja), tombol "Lanjutkan" tidak akan muncul lagi
+      // saat entri itu dibuka dari Riwayat nanti. Sekarang di-update SETIAP
+      // batch selesai, supaya progres "sejauh ini" selalu siap dipakai kapan
+      // pun Simpan ditekan — termasuk pas AI masih aktif generate.
+      if(allResults.length<produkList.length){
+        VB_BULK_LAST_CONTEXT={produkList:produkList,targetAudience:targetAudience,allResults:allResults.slice()};
+      }
       // FIX SCRIPT YANG SUDAH JADI TAPI KOLOMNYA MASIH KOSONG: sebelumnya di
       // sini TIDAK ADA update UI sama sekali begitu satu batch selesai —
       // kartu Hook/Story/CTA punya produk di batch ini DIBIARKAN kosong
@@ -14353,6 +14602,17 @@ function pbHideOverlay(){
   document.body.classList.remove('pb-tour-final-blur');
   document.body.classList.remove('pb-tour-result-simple');
   if(typeof pbTourAfterGenActive!=='undefined') pbTourAfterGenActive=false;
+  // FIX (ditemukan saat audit): pbTourExtActive DULU tidak pernah direset
+  // di sini. Kalau tur di-skip ("Lewati") persis di antara foto referensi
+  // (f1) selesai dan step Mood/Tone (step 9) selesai, flag ini nyangkut
+  // true SELAMANYA (untuk sisa sesi halaman itu) — akibatnya begitu user
+  // yang SAMA nanti bikin prompt Foto/Video secara NORMAL (bukan tur) dan
+  // sampai ke step Mood/Tone, fPickMood()/fPickMoodCustom() salah kira dia
+  // masih di dalam tur lalu memanggil pbTourFinishExt() tanpa diminta —
+  // tampilan Ringkasan/Generate tiba-tiba diburamkan & dipindah ke tengah
+  // layar padahal bukan sesi tur. Direset di sini supaya skip di titik
+  // manapun selalu membersihkan flag ini juga.
+  if(typeof pbTourExtActive!=='undefined') pbTourExtActive=false;
   window.removeEventListener('resize',pbRepositionCurrent);
   let shell=document.getElementById('app-shell');
   if(shell) shell.removeEventListener('scroll',pbRepositionCurrent);
@@ -14431,11 +14691,21 @@ var pbKsFotoDataUrl=null;
 // "Mengerti", tur lanjut ke Langkah 4 (lihat csCopyPrompt→csShowSavedNotif).
 // Kalau KEDUA bahan (produk + karakter sheet) sudah lengkap, tur
 // dilanjutkan ke Langkah 5 (versi sederhana dari step "Subjek Foto" f0
-// asli) — lihat pbGoStep5() di bawah.
+// asli) — lihat pbGoStep5() di bawah — supaya "prompt" Foto AI-nya
+// BENERAN dibuat dulu lewat wizard.
+// FIX (dilaporkan user): sebelumnya di sini LANGSUNG panggil pbGoStep6Ext()
+// (tutorial "cara pakai Google Flow" yang butir ke-6-nya minta user
+// nempel "prompt") padahal prompt Foto AI itu SENDIRI belum pernah
+// dibuat — wizard f0/f1/step3-9/Generate/Salin JSON yang bikin prompt
+// itu baru jalan BELAKANGAN lewat pbGoStep5(). Urutannya kebalik. Sekarang
+// dibetulkan: begitu kedua bahan siap, tur masuk dulu ke wizard
+// (pbGoStep5) untuk membuat & menyalin prompt-nya. Tutorial pbGoStep6Ext
+// baru ditampilkan SETELAH prompt itu benar-benar disalin — dipanggil
+// dari dalam pbShowSaveJsonNotif() (lihat komentar di sana).
 function pbGoStep2Next(){
   if(!pbProdukFotoUploaded){ pbGoStep2b(); }
   else if(!pbKsFotoUploaded){ pbOpenCharacterSheetFromTour(); }
-  else { pbGoStep6Ext(); }
+  else { pbGoStep5(); }
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
@@ -14670,8 +14940,13 @@ var PB_STEP6EXT_ITEMS=[
     alt:'Pilih dan unduh 1 foto hasil generate'
   }
 ];
-// Dipanggil dari pbGoStep2Next() begitu KEDUA bahan (produk + karakter
-// sheet) sudah lengkap — GANTI dari yang sebelumnya langsung pbGoStep5().
+// FIX (dilaporkan user): DULU dipanggil dari pbGoStep2Next() begitu KEDUA
+// bahan (produk + karakter sheet) sudah lengkap — tapi itu SALAH URUTAN
+// karena butir ke-6 tutorial ini minta user nempel "prompt" Foto AI yang
+// waktu itu belum pernah dibuat. SEKARANG dipanggil belakangan, dari
+// dalam pbShowSaveJsonNotif() — persis setelah user benar-benar sudah
+// menyalin prompt Foto AI hasil wizard (Salin JSON), jadi butir "tempel
+// prompt di bawahnya" itu baru masuk akal.
 function pbGoStep6Ext(){
   pbStep6ExtIndex=0;
   pbRenderStep6Ext();
@@ -14707,10 +14982,13 @@ function pbStep6ExtBack(){
     pbRenderStep6Ext();
   }
 }
-// Butir terakhir (no.10) selesai — lanjutkan tur ke Langkah 5 (Subjek
-// Foto), sama seperti alur lama sebelum Langkah 6 ini ditambahkan.
+// Butir terakhir (no.10) selesai — INI SEKARANG BENERAN PENUTUP TUR
+// (dulu malah lanjut lagi ke pbGoStep5(), balik ke wizard — sisa dari
+// waktu urutannya masih kebalik, lihat komentar FIX di pbGoStep6Ext()
+// di atas). Wizard (Subjek Foto dst.) sudah selesai duluan sebelum
+// tutorial ini tampil, jadi di sini tinggal tutup tur seutuhnya.
 function pbStep6ExtFinish(){
-  pbGoStep5();
+  pbEndTour();
 }
 
 // ── LANGKAH 4 — upload foto hasil Karakter Sheet dari Google Flow ──
@@ -15088,6 +15366,12 @@ function pbShowOutfitHintNotif(){
 // Ringkasan/Karakter Sheet/dll yang tadi disembunyikan (pb-tour-result-simple)
 // dikembalikan normal. Pola sama seperti pbShowOutfitHintNotif() (1 tombol
 // "Mengerti", bukan Ya/Batal).
+// FIX (dilaporkan user): begitu "Mengerti" ditekan di sini, prompt Foto AI
+// SUDAH BENERAN ada & sudah disalin — jadi ini titik yang tepat untuk
+// lanjut menampilkan tutorial "cara pakai Google Flow" (pbGoStep6Ext,
+// 10 butir, termasuk butir "tempel prompt di bawahnya"). Dulu tutorial
+// itu ditampilkan lebih dulu (dari pbGoStep2Next()), SEBELUM prompt ini
+// sempat dibuat — sekarang urutannya dibetulkan supaya sesuai konteks.
 function pbShowSaveJsonNotif(){
   let overlay=document.createElement('div');
   overlay.className='confirm-overlay';
@@ -15104,6 +15388,7 @@ function pbShowSaveJsonNotif(){
   okBtn.onclick=function(){
     overlay.remove();
     document.body.classList.remove('pb-tour-result-simple');
+    setTimeout(function(){ pbGoStep6Ext(); },250);
   };
 }
 // Kembalikan tampilan f1 seperti semula DAN lepas blur latar (yang
