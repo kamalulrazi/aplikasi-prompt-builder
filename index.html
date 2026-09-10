@@ -3409,7 +3409,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Tentukan gaya HOOK pembuka — kosongkan (jangan pilih apapun) kalau mau AI bebas nentukan sendiri.</p>
         </div>
         <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Buatkan 3 Script + JSON dengan AI</button>
-        <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">AI otomatis buat 3 script sekaligus (Hook, Cerita Produk, CTA) — masing-masing 25 kata, langsung jadi 3 prompt JSON siap pakai.</p>
+        <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">AI otomatis buat 3 script sekaligus (Hook, Cerita Produk, CTA) — jumlah kata disesuaikan otomatis dengan Nada Bicara yang kamu pilih (nada tenang lebih sedikit kata, nada heboh lebih banyak), langsung jadi 3 prompt JSON siap pakai.</p>
         <div id="vb-ai-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
         </div>
         <div id="vb-bulk-area" class="hidden" style="margin-top:0;">
@@ -3461,7 +3461,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <textarea id="vb-script-cta" rows="2" class="inp textarea-base"  maxlength="300" oninput="vbCountWords(this,'vb-wc-cta')" placeholder="Contoh: Jangan kelamaan mikir, langsung aja cek keranjang di bawah sebelum kehabisan stoknya ya..."></textarea>
           <div class="inp-counter" id="vb-wc-cta">0 kata</div>
         </div>
-        <p class="text-hint-mt">Idealnya masing-masing sekitar 25 kata, natural kayak orang ngomong beneran — bukan bahasa iklan formal.</p>
+        <p class="text-hint-mt">Idealnya jumlah kata mengikuti rentang Nada Bicara yang kamu pilih (lihat angka di bawah tiap kotak), natural kayak orang ngomong beneran — bukan bahasa iklan formal.</p>
         <button class="btn sm" onclick="vbGenerate3Manual()" style="margin-top:10px;">Buat 3 JSON dari Script Ini →</button>
       </div>
     </div>
@@ -3498,7 +3498,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Step produk</strong> otomatis muncul jika kamu tidak pilih foto produk<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Nama produk spesifik</strong> = hasil AI lebih akurat dan konsisten<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Compact JSON</strong> kadang lebih baik jika foto referensi banyak<br>
-      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Tab Video</strong> — script AI otomatis dibatasi 25 kata biar pas untuk durasi video, tapi tetap bisa diedit manual di kartu hasil
+      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Tab Video</strong> — script AI otomatis dibatasi sesuai rentang kata yang pas untuk video 8 detik (rentangnya mengikuti Nada Bicara yang dipilih), tapi tetap bisa diedit manual di kartu hasil
     </p>
   </div>
 
@@ -3513,7 +3513,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.25 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.26 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9465,6 +9465,28 @@ function pbCloseActiveSavedPage(){
 // VIDEO BUILDER — Reference + Dialogue (voice_character)
 // ============================================================
 let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',produkFotoExtra:[],hookType:'',hookTypeLabel:''};
+// FITUR BARU (permintaan user): app ini khusus video 8 detik, dan jumlah
+// kata ideal untuk 8 detik beda-beda tergantung KECEPATAN BICARA nada yang
+// dipilih user (nada tenang bicara lebih lambat dari nada heboh). Sebelumnya
+// semua nada dipatok WAJIB TEPAT 25 kata — sekarang tiap nada (VB.pitch)
+// punya rentang kata sendiri, dihitung dari estimasi kata/detik nada
+// tersebut kalau diucapkan natural selama 8 detik. "target" dipakai sebagai
+// angka tengah yang diarahkan ke AI, "min"/"max" dipakai untuk validasi &
+// tampilan counter. Nada custom (user ketik sendiri) atau belum dipilih
+// jatuh ke rentang default (mendekati nada "Santai/Ceria").
+const VB_PITCH_WORD_RANGE={
+  tenang:{min:14,max:18,target:16},
+  lembut:{min:14,max:18,target:16},
+  serius:{min:15,max:19,target:17},
+  ceria:{min:19,max:23,target:21},
+  bercanda:{min:19,max:23,target:21},
+  bersemangat:{min:21,max:25,target:23},
+  heboh:{min:24,max:28,target:26}
+};
+const VB_DEFAULT_WORD_RANGE={min:18,max:24,target:21};
+function vbGetWordRange(){
+  return VB_PITCH_WORD_RANGE[VB.pitch]||VB_DEFAULT_WORD_RANGE;
+}
 
 // ── FOTO REFERENSI PRODUK (untuk bantu AI bikin script sesuai produk asli) ──
 // Foto kamera HP sering beberapa MB — kalau dikirim mentah ke Gemini bisa
@@ -10054,17 +10076,18 @@ function vbToggleAiBulk(isBulk){
   }
 }
 function vbCountWords(el,counterId){
+  let range=vbGetWordRange();
   let words=el.value.split(/\s+/).filter(Boolean);
-  if(words.length>25){
+  if(words.length>range.max){
     let pos=el.selectionStart;
-    el.value=words.slice(0,25).join(' ');
+    el.value=words.slice(0,range.max).join(' ');
     let newPos=Math.min(pos,el.value.length);
     try{el.setSelectionRange(newPos,newPos);}catch(e){}
     words=el.value.split(/\s+/).filter(Boolean);
   }
   let wc=words.length;
   let c=document.getElementById(counterId);
-  if(c){c.textContent=wc+' kata';c.style.color=wc===25?'var(--green)':'var(--muted2)';}
+  if(c){c.textContent=wc+'/'+range.min+'-'+range.max+' kata';c.style.color=(wc>=range.min&&wc<=range.max)?'var(--green)':'var(--muted2)';}
 }
 const VB_3SCRIPT_ROLES=[
   {key:'hook',label:'<span class="step-num-inline">1</span> Hook'},
@@ -10983,16 +11006,18 @@ async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
   // ditambah dari 2x jadi 3x supaya ada kesempatan lebih kalau percobaan
   // pertama masih meleset dikit.
   const MAX_FIX_ATTEMPTS=3;
+  let range=vbGetWordRange();
   for(let attempt=0;attempt<MAX_FIX_ATTEMPTS;attempt++){
     let wc=current.split(/\s+/).filter(Boolean).length;
-    if(wc===25||!current)return current;
+    if((wc>=range.min&&wc<=range.max)||!current)return current;
     let dlCheck=dlCheckBeforeCall();
     if(!dlCheck.ok){console.warn('[_vbFixWordCountIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);return current;}
-    let selisih=25-wc;
+    let selisih=range.target-wc;
     let arahInstruksi=selisih>0
-      ?'Script ini KURANG '+selisih+' kata dari target. TAMBAH tepat '+selisih+' kata lagi (boleh nambah detail/deskripsi kecil yang natural, jangan cuma ulang kata yang sudah ada).'
-      :'Script ini KELEBIHAN '+Math.abs(selisih)+' kata dari target. KURANGI tepat '+Math.abs(selisih)+' kata (potong bagian yang paling tidak penting, jangan sampai kalimatnya jadi ganjil/terpotong maknanya).';
-    let fixPrompt='Perbaiki script berikut supaya TEPAT 25 kata (hitung tiap kata dipisah spasi, bukan karakter). '
+      ?'Script ini KURANG kata (saat ini '+wc+', target rentang '+range.min+'-'+range.max+' kata). TAMBAH sekitar '+selisih+' kata lagi (boleh nambah detail/deskripsi kecil yang natural, jangan cuma ulang kata yang sudah ada).'
+      :selisih<0?'Script ini KELEBIHAN kata (saat ini '+wc+', target rentang '+range.min+'-'+range.max+' kata). KURANGI sekitar '+Math.abs(selisih)+' kata (potong bagian yang paling tidak penting, jangan sampai kalimatnya jadi ganjil/terpotong maknanya).'
+      :'Sesuaikan supaya jumlah katanya masuk rentang '+range.min+'-'+range.max+' kata.';
+    let fixPrompt='Perbaiki script berikut supaya jumlah katanya masuk rentang '+range.min+'-'+range.max+' kata, idealnya sekitar '+range.target+' kata (hitung tiap kata dipisah spasi, bukan karakter). '
       +'Ini bagian "'+roleLabelPlain+'"'+(produkNama?' untuk produk "'+produkNama+'"':'')+'. '
       +arahInstruksi+' '
       // FIX (audit "nada/aksen jadi datar"): dulu instruksi di sini cuma
@@ -11008,7 +11033,7 @@ async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
       +'Pertahankan makna, topik, DAN terutama nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'" serta aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai di teks aslinya — JANGAN diratakan jadi kalimat netral/formal, ciri khas nada & aksen itu (kata seru, istilah gaul, tingkat energi, dll) WAJIB tetap kerasa di hasil perbaikan. Jangan ganti topik. '
       +'TIDAK boleh pakai emoji, TIDAK boleh pakai tanda kutip.\n\n'
       +'Script saat ini ('+wc+' kata): '+current+'\n\n'
-      +'Balas HANYA dengan teks script hasil perbaikan (hitung ulang sendiri sampai persis 25 kata sebelum menjawab), tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
+      +'Balas HANYA dengan teks script hasil perbaikan (hitung ulang sendiri sampai masuk rentang '+range.min+'-'+range.max+' kata sebelum menjawab), tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
     try{
       let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
       if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
@@ -11046,23 +11071,24 @@ async function _vbFixWordCountBatchIfNeeded(prod){
   // percobaan berikutnya.
   const MAX_FIX_ATTEMPTS=3;
   const ROLE_LABEL={hook:'Hook',story:'Cerita Produk (Story)',cta:'CTA Keranjang'};
+  let range=vbGetWordRange();
   let current={hook:(prod.hook||'').trim(),story:(prod.story||'').trim(),cta:(prod.cta||'').trim()};
   for(let attempt=0;attempt<MAX_FIX_ATTEMPTS;attempt++){
     let needFix=['hook','story','cta'].filter(function(key){
       if(!current[key])return false;
       let wc=current[key].split(/\s+/).filter(Boolean).length;
-      return wc!==25;
+      return wc<range.min||wc>range.max;
     });
     if(needFix.length===0)return current;
     let dlCheck=dlCheckBeforeCall();
     if(!dlCheck.ok){console.warn('[_vbFixWordCountBatchIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);return current;}
     let listText=needFix.map(function(key){
       let wc=current[key].split(/\s+/).filter(Boolean).length;
-      let selisih=25-wc;
-      let arah=selisih>0?'kurang '+selisih+' kata, TAMBAH tepat '+selisih+' kata':'kelebihan '+Math.abs(selisih)+' kata, KURANGI tepat '+Math.abs(selisih)+' kata';
+      let selisih=range.target-wc;
+      let arah=selisih>0?'kurang dari target (rentang '+range.min+'-'+range.max+' kata), TAMBAH sekitar '+selisih+' kata':selisih<0?'lebih dari target (rentang '+range.min+'-'+range.max+' kata), KURANGI sekitar '+Math.abs(selisih)+' kata':'sesuaikan supaya masuk rentang '+range.min+'-'+range.max+' kata';
       return '- "'+key+'" ('+ROLE_LABEL[key]+', saat ini '+wc+' kata — '+arah+'): '+current[key];
     }).join('\n');
-    let fixPrompt='Perbaiki script-script berikut supaya masing-masing TEPAT 25 kata (hitung tiap kata dipisah spasi, bukan karakter). Tiap item sudah dikasih tahu arah perbaikannya (tambah/kurangi berapa kata) — ikuti persis. '
+    let fixPrompt='Perbaiki script-script berikut supaya masing-masing jumlah katanya masuk rentang '+range.min+'-'+range.max+' kata, idealnya sekitar '+range.target+' kata (hitung tiap kata dipisah spasi, bukan karakter). Tiap item sudah dikasih tahu arah perbaikannya (tambah/kurangi berapa kata) — ikuti sebagai panduan. '
       +(prod.produk?'Ini untuk produk "'+prod.produk+'". ':'')
       // FIX (sama seperti _vbFixWordCountIfNeeded single — lihat komentar
       // lengkap di sana): sebut eksplisit nada & aksen pilihan user supaya
@@ -11070,7 +11096,7 @@ async function _vbFixWordCountBatchIfNeeded(prod){
       +'Pertahankan makna, topik, DAN terutama nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'" serta aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai di masing-masing teks aslinya — JANGAN diratakan jadi kalimat netral/formal, ciri khas nada & aksen itu (kata seru, istilah gaul, tingkat energi, dll) WAJIB tetap kerasa di hasil perbaikan. Jangan ganti topik. '
       +'TIDAK boleh pakai emoji, TIDAK boleh pakai tanda kutip.\n\n'
       +'Script yang perlu diperbaiki:\n'+listText+'\n\n'
-      +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (hitung ulang sendiri sampai persis 25 kata tiap-tiap sebelum menjawab), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
+      +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (hitung ulang sendiri sampai masuk rentang '+range.min+'-'+range.max+' kata tiap-tiap sebelum menjawab), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
     try{
       let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}},30000,1);
       if(!resp.ok){console.warn('[_vbFixWordCountBatchIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
@@ -11115,6 +11141,7 @@ function _vbDetectSapaan(targetAudience){
   return 'kalian';
 }
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks){
+  let range=vbGetWordRange();
   // Tandai produk yang punya foto referensi dengan nomor urut gambar
   // (Gambar 1, Gambar 2, dst — cuma dihitung dari produk yang benar-benar
   // punya foto, urut sesuai posisinya di batch ini) supaya AI tahu foto
@@ -11153,12 +11180,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     +'4. KONSISTENSI SAPAAN (WAJIB): sapaan ke audiens SUDAH DITENTUKAN di atas (lihat baris "Sapaan ke audiens") — PAKAI SAMA PERSIS kata itu terus dari HOOK sampai CTA, jangan pilih atau ganti ke kata lain. JANGAN PERNAH ganti sapaan di tengah jalan (misal mulai dengan "bunda-bunda" di HOOK terus tiba-tiba jadi "kalian" di STORY) — itu bikin kedengaran seperti 2 orang beda yang lagi ngomong, bukan 1 karakter yang sama.\n'
     +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
     +'6. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
-    +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik merujuk ke JENIS produknya masing-masing (jangan generik/tertukar antar produk), TAPI dengan kata-kata natural buatanmu sendiri — bukan menyalin persis teks nama produk yang diberikan di daftar atas apa adanya.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di batch ini satu sama lain, DAN bandingkan juga dengan daftar "HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA" (kalau ada) — kalau ada yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama) baik sesama produk di batch ini maupun dengan hook dari batch sebelumnya, tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
+    +'ATURAN WAJIB tiap script: JUMLAH KATA HARUS masuk rentang '+range.min+'-'+range.max+' kata (idealnya sekitar '+range.target+' kata) — hitung per kata dipisah spasi, bukan karakter. Rentang ini dihitung khusus untuk video 8 detik dengan nada bicara "'+(VB.pitchLabel||VB.pitch||'santai')+'" (semakin heboh/cepat nadanya, semakin banyak kata yang muat dalam 8 detik). Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik merujuk ke JENIS produknya masing-masing (jangan generik/tertukar antar produk), TAPI dengan kata-kata natural buatanmu sendiri — bukan menyalin persis teks nama produk yang diberikan di daftar atas apa adanya.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di batch ini satu sama lain, DAN bandingkan juga dengan daftar "HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA" (kalau ada) — kalau ada yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama) baik sesama produk di batch ini maupun dengan hook dari batch sebelumnya, tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
     // FIX (permintaan user, sama seperti mode single — lihat komentar
     // lengkap di prompt single): minta AI verifikasi hitungan kata sendiri
     // SEBELUM menjawab, bukan cuma dikasih tahu aturannya doang.
-    +'PROSES WAJIB sebelum menjawab (lakukan di kepala kamu, JANGAN ditulis ke output): untuk SETIAP script dari SETIAP produk, susun draftnya dulu, hitung jumlah katanya kata per kata, kalau belum PERSIS 25 kata revisi draftnya (tambah/kurangi kata TANPA mengubah makna atau bikin kalimatnya jadi janggal/dipaksakan) lalu hitung ulang — ulangi sampai semua script dari semua produk PERSIS 25 kata, BARU tulis jawaban akhir. Prioritaskan skrip yang tetap enak dibaca & natural walau harus revisi jumlah kata.\n\n'
+    +'PROSES WAJIB sebelum menjawab (lakukan di kepala kamu, JANGAN ditulis ke output): untuk SETIAP script dari SETIAP produk, susun draftnya dulu, hitung jumlah katanya kata per kata, kalau belum masuk rentang '+range.min+'-'+range.max+' kata revisi draftnya (tambah/kurangi kata TANPA mengubah makna atau bikin kalimatnya jadi janggal/dipaksakan) lalu hitung ulang — ulangi sampai semua script dari semua produk masuk rentang '+range.min+'-'+range.max+' kata (idealnya mendekati '+range.target+'), BARU tulis jawaban akhir. Prioritaskan skrip yang tetap enak dibaca & natural walau harus revisi jumlah kata.\n\n'
     +'PENTING: kamu WAJIB balikin TEPAT '+batch.length+' object dalam array — SATU untuk SETIAP produk di daftar, jangan ada yang dilewati/digabung/dikurangi.\n\n'
     +'Balas HANYA dengan JSON array berisi TEPAT '+batch.length+' object (satu per produk, urutan SAMA seperti daftar di atas), tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk 1","hook":"...","story":"...","cta":"..."}, {"produk":"nama produk 2","hook":"...","story":"...","cta":"..."}]';
 
@@ -12571,27 +12598,30 @@ function _vbShowRegenChoice(msg,onAI,onMetaOnly,onCancel){
   document.addEventListener('keydown',_escH);
 }
 
-// Potong teks jadi maksimal 25 kata (dipisah spasi) — dipakai buat "menahan"
-// input user supaya tidak bisa ketik lebih dari 25 kata di kotak script manapun
+// Potong teks jadi maksimal N kata sesuai rentang nada bicara yang dipilih
+// (dipisah spasi) — dipakai buat "menahan" input user supaya tidak bisa
+// ketik lebih dari batas atas di kotak script manapun
 function _vbTruncate25Words(text){
+  let range=vbGetWordRange();
   let words=(text||'').split(/\s+/).filter(Boolean);
-  if(words.length<=25)return text||'';
-  // Pertahankan spasi/whitespace asli sebisa mungkin: potong di kata ke-25
-  let trimmed=words.slice(0,25).join(' ');
+  if(words.length<=range.max)return text||'';
+  // Pertahankan spasi/whitespace asli sebisa mungkin: potong di kata terakhir yang masih diizinkan
+  let trimmed=words.slice(0,range.max).join(' ');
   return trimmed;
 }
 
 // Dipanggil tiap user ngetik di textarea script bulk — update JSON-nya realtime
-// + tahan supaya tidak bisa lebih dari 25 kata
+// + tahan supaya tidak bisa lebih dari batas atas rentang kata
 function vbBulkUpdateJson(i){
+  let range=vbGetWordRange();
   let ta=document.getElementById('vb-bulk-script-'+i);
   let jsonBox=document.getElementById('vb-bulk-json-'+i);
   let wcLabel=document.getElementById('vb-bulk-wc-'+i);
   if(!ta||!jsonBox)return;
   let words=ta.value.split(/\s+/).filter(Boolean);
-  if(words.length>25){
+  if(words.length>range.max){
     let pos=ta.selectionStart;
-    ta.value=words.slice(0,25).join(' ');
+    ta.value=words.slice(0,range.max).join(' ');
     // Kalau kursor sempat lewat batas, taruh di akhir teks yang tersisa
     let newPos=Math.min(pos,ta.value.length);
     try{ta.setSelectionRange(newPos,newPos);}catch(e){}
@@ -12600,7 +12630,7 @@ function vbBulkUpdateJson(i){
   if(VB_BULK_ITEMS[i])VB_BULK_ITEMS[i].script=ta.value;
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
   jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i),_vbFotoCountVal(i),i);
-  if(wcLabel){wcLabel.textContent=words.length+'/25 kata';wcLabel.style.color=words.length===25?'var(--green)':'var(--muted2)';}
+  if(wcLabel){wcLabel.textContent=words.length+'/'+range.min+'-'+range.max+' kata';wcLabel.style.color=(words.length>=range.min&&words.length<=range.max)?'var(--green)':'var(--muted2)';}
 }
 
 function vbGenerate3Manual(){
@@ -12654,6 +12684,7 @@ async function vbGenerate3AI(){
     showToast('Lengkapi dulu step Jenis Kelamin, Usia, Nada Bicara, dan Aksen ya','error');
     return;
   }
+  let range=vbGetWordRange();
   let produkNama=document.getElementById('vb-produk-nama').value.trim();
   let targetAudience=document.getElementById('vb-target-audience').value.trim();
   let topikArah=(document.getElementById('vb-topik-input').value||'').trim();
@@ -12733,9 +12764,9 @@ async function vbGenerate3AI(){
     +'4. KONSISTENSI SAPAAN (WAJIB): sapaan ke audiens SUDAH DITENTUKAN di atas (lihat baris "Sapaan ke audiens") — PAKAI SAMA PERSIS kata itu terus dari HOOK sampai CTA, jangan pilih atau ganti ke kata lain. JANGAN PERNAH ganti sapaan di tengah jalan (misal mulai dengan "bunda-bunda" di HOOK terus tiba-tiba jadi "kalian" di STORY) — itu bikin kedengaran seperti 2 orang beda yang lagi ngomong, bukan 1 karakter yang sama.\n'
     +'5. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
     +'6. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
-    +'ATURAN WAJIB tiap script: HARUS tepat 25 kata (hitung per kata dipisah spasi, bukan karakter). Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan 25 kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
-    // FIX (permintaan user: skrip beneran pas 25 kata TANPA mengorbankan
+    +'ATURAN WAJIB tiap script: JUMLAH KATA HARUS masuk rentang '+range.min+'-'+range.max+' kata (idealnya sekitar '+range.target+' kata) — hitung per kata dipisah spasi, bukan karakter. Rentang ini dihitung khusus untuk video 8 detik dengan nada bicara "'+(VB.pitchLabel||VB.pitch||'santai')+'" (semakin heboh/cepat nadanya, semakin banyak kata yang muat dalam 8 detik). Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. WAJIB CEK KHUSUS: apakah kata sapaan ke audiens (kalian/kamu/bunda-bunda/sis/dll) SAMA PERSIS di HOOK, STORY, dan CTA? Kalau ada yang beda (misal HOOK pakai "bunda-bunda" tapi STORY/CTA pakai "kalian"), WAJIB revisi dulu supaya satu sapaan yang sama dipakai di ketiganya sebelum menjawab — ini pengecekan wajib, jangan dilewati. Kalau aksen Gaul/Kekinian dipakai, cek juga: apakah istilah gaulnya kedengaran seperti tempelan kata kunci yang dipaksa masuk? Kalau iya, kurangi jumlahnya atau ganti supaya kalimatnya kembali kedengaran natural. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
+    // FIX (permintaan user: skrip beneran pas rentang target TANPA mengorbankan
     // kualitas): sebelumnya AI cuma diminta "HARUS tepat 25 kata" tanpa
     // diminta verifikasi hitungannya sendiri sebelum menjawab — jadi kalau
     // meleset, baru ketauan belakangan lewat proses potong/tulis-ulang
@@ -12745,7 +12776,7 @@ async function vbGenerate3AI(){
     // hasil pertama sudah lebih sering pas 25 kata secara alami (bukan
     // hasil tempelan/potongan), dan proses potong/tulis-ulang di app cuma
     // jadi jaring pengaman kalau masih ada yang meleset dikit.
-    +'PROSES WAJIB sebelum menjawab (lakukan di kepala kamu, JANGAN ditulis ke output): untuk tiap script, susun draftnya dulu, hitung jumlah katanya kata per kata, kalau belum PERSIS 25 kata revisi draftnya (tambah/kurangi kata TANPA mengubah makna atau bikin kalimatnya jadi janggal/dipaksakan) lalu hitung ulang — ulangi sampai benar-benar PERSIS 25 kata untuk ketiga script, BARU tulis jawaban akhir. Prioritaskan skrip yang tetap enak dibaca & natural walau harus revisi jumlah kata — jangan sampai proses ngepasin kata bikin kalimatnya jadi aneh.\n\n'
+    +'PROSES WAJIB sebelum menjawab (lakukan di kepala kamu, JANGAN ditulis ke output): untuk tiap script, susun draftnya dulu, hitung jumlah katanya kata per kata, kalau belum masuk rentang '+range.min+'-'+range.max+' kata revisi draftnya (tambah/kurangi kata TANPA mengubah makna atau bikin kalimatnya jadi janggal/dipaksakan) lalu hitung ulang — ulangi sampai benar-benar masuk rentang '+range.min+'-'+range.max+' kata (idealnya mendekati '+range.target+') untuk ketiga script, BARU tulis jawaban akhir. Prioritaskan skrip yang tetap enak dibaca & natural walau harus revisi jumlah kata — jangan sampai proses ngepasin kata bikin kalimatnya jadi aneh.\n\n'
     +'Balas HANYA dengan JSON array berisi TEPAT 3 object, tanpa teks lain, tanpa markdown. Format: [{"role":"hook","script":"..."},{"role":"story","script":"..."},{"role":"cta","script":"..."}]';
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini) —
   // hanya disertakan kalau user memang upload foto referensi produk.
@@ -12925,10 +12956,10 @@ async function vbGenerate3AI(){
       // (fixed===scripts[si]), jadi blok if di atas dilewati — tapi teksnya
       // tetap belum 25 kata dan user tetap wajib diberi tahu.
       let _finalWc=fixed.trim().split(/\s+/).filter(Boolean).length;
-      if(_finalWc!==25){
+      if(_finalWc<range.min||_finalWc>range.max){
         let wcLabelFinal=document.getElementById('vb-bulk-wc-'+si);
         if(wcLabelFinal){
-          wcLabelFinal.textContent=_finalWc+'/25 kata — AI belum pas 25 kata setelah beberapa kali dicoba, cek/edit lagi manual';
+          wcLabelFinal.textContent=_finalWc+'/'+range.min+'-'+range.max+' kata — AI belum pas rentang target setelah beberapa kali dicoba, cek/edit lagi manual';
           wcLabelFinal.style.color='#e0a05c';
         }
       }
@@ -12976,9 +13007,10 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   // apa pun, padahal sama-sama hasil kegagalan _vbFixWordCountIfNeeded.
   // Sekarang kedua arah (kelebihan MAUPUN kekurangan kata) sama-sama ditandai
   // oranye dengan pesan yang sesuai arahnya.
+  let _cardRange=vbGetWordRange();
   let _origWc=(initialScript||'').trim().split(/\s+/).filter(Boolean).length;
-  let _wasAutoTruncated=_origWc>25;
-  let _wasStillShort=_origWc>0&&_origWc<25;
+  let _wasAutoTruncated=_origWc>_cardRange.max;
+  let _wasStillShort=_origWc>0&&_origWc<_cardRange.min;
   initialScript=_vbTruncate25Words(initialScript);
   VB_BULK_ITEMS[idx]={produk:produkNamaForHistory||'',roleLabel:label,script:initialScript};
 
@@ -13093,10 +13125,10 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   wcLabel.id='vb-bulk-wc-'+idx;
   let wc0=displayScript.trim().split(/\s+/).filter(Boolean).length;
   let _wcWarnText=(!skipInitialFill&&_wasAutoTruncated)?' — dipotong otomatis dari '+_origWc+' kata, cek/edit lagi manual'
-    :(!skipInitialFill&&_wasStillShort)?' — AI cuma dapet '+_origWc+' kata (belum pas 25), cek/edit lagi manual'
+    :(!skipInitialFill&&_wasStillShort)?' — AI cuma dapet '+_origWc+' kata (belum masuk rentang), cek/edit lagi manual'
     :'';
-  wcLabel.textContent=wc0+'/25 kata'+_wcWarnText;
-  wcLabel.style.cssText='font-size:var(--fs-2xs);color:'+(_wcWarnText?'#e0a05c':(wc0===25?'var(--green)':'var(--muted2)'))+';margin-bottom:4px;';
+  wcLabel.textContent=wc0+'/'+_cardRange.min+'-'+_cardRange.max+' kata'+_wcWarnText;
+  wcLabel.style.cssText='font-size:var(--fs-2xs);color:'+(_wcWarnText?'#e0a05c':((wc0>=_cardRange.min&&wc0<=_cardRange.max)?'var(--green)':'var(--muted2)'))+';margin-bottom:4px;';
 
   let jsonBox=document.createElement('pre');
   jsonBox.id='vb-bulk-json-'+idx;
