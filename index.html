@@ -60,6 +60,173 @@
 <!-- GOOGLE SIGN-IN — dipakai buat gerbang login sebelum masuk ke app.
      Lihat blok #login-gate di <body> untuk logic-nya. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<!-- FIREBASE — dipakai HANYA sebagai database cloud (Firestore) untuk
+     SINKRONISASI DATA ANTAR PERANGKAT (riwayat, halaman tersimpan, preset
+     karakter, habit tracker, API key) yang terhubung ke akun Gmail yang
+     sama. Login Google tetap pakai Google Identity Services (GIS) seperti
+     sebelumnya — Firebase TIDAK menggantikan sistem login yang sudah ada,
+     cuma dipakai buat nyimpen datanya di cloud. Lihat blok konfigurasi +
+     engine sinkronisasi di bawah ini untuk instruksi setup. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+  // ── GANTI INI dengan config Firebase project kamu sendiri (gratis). ─────
+  // Cara dapatnya (±5 menit):
+  // 1) Buka console.firebase.google.com → "Add project" (boleh pakai
+  //    project Google Cloud yang sama dengan punya GOOGLE_CLIENT_ID di
+  //    bawah nanti, atau project baru — bebas, tidak wajib sama).
+  // 2) Di dashboard project: klik ikon "</>" (Add app → Web) → kasih nama
+  //    bebas → Firebase akan menampilkan object firebaseConfig.
+  // 3) Copy semua isi object itu, paste ganti PB_FIREBASE_CONFIG di bawah.
+  // 4) Sidebar kiri → Build → Firestore Database → Create database →
+  //    pilih lokasi terdekat (mis. asia-southeast2) → mode "Production".
+  // 5) Firestore Database → tab "Rules" → ganti isinya jadi PERSIS ini,
+  //    lalu klik "Publish" (ini yang bikin data tiap user cuma bisa
+  //    dibaca/ditulis oleh akun Google pemiliknya sendiri):
+  //      rules_version = '2';
+  //      service cloud.firestore {
+  //        match /databases/{database}/documents {
+  //          match /users/{uid} {
+  //            allow read, write: if request.auth != null && request.auth.uid == uid;
+  //          }
+  //        }
+  //      }
+  // 6) Sidebar kiri → Build → Authentication → Get started → tab
+  //    "Sign-in method" → aktifkan provider "Google" (pilih project
+  //    support email-nya, lalu Save).
+  // Selama PB_FIREBASE_CONFIG di bawah masih placeholder, app TETAP JALAN
+  // NORMAL seperti sebelumnya — cuma datanya tetap lokal per perangkat
+  // (tidak error, tidak ke-block, fitur sinkron aja yang belum aktif).
+  var PB_FIREBASE_CONFIG = {
+    apiKey: "GANTI_DENGAN_API_KEY_FIREBASE_ANDA",
+    authDomain: "GANTI.firebaseapp.com",
+    projectId: "GANTI_PROJECT_ID",
+    storageBucket: "GANTI.appspot.com",
+    messagingSenderId: "GANTI",
+    appId: "GANTI"
+  };
+
+  // Kunci-kunci localStorage yang disinkron ke Firestore. SENGAJA TIDAK
+  // termasuk: pb_auth_user (sesi login lokal, dibentuk ulang tiap login),
+  // pb_enc_salt_v1 (salt enkripsi, MEMANG harus unik per perangkat).
+  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_habits_v1','pb_tour_done'];
+
+  var _fbReady = false;
+  window.pbCloudUid = null;
+  var _timers = {};
+
+  function _configured(){
+    return PB_FIREBASE_CONFIG.apiKey.indexOf('GANTI_') !== 0;
+  }
+  if(_configured()){
+    try{ firebase.initializeApp(PB_FIREBASE_CONFIG); _fbReady = true; }
+    catch(e){ console.warn('Firebase gagal diinisialisasi:', e); }
+  }
+
+  function _docRef(){
+    if(!_fbReady || !window.pbCloudUid) return null;
+    return firebase.firestore().collection('users').doc(window.pbCloudUid);
+  }
+
+  // Dipanggil tiap kali salah satu data yang disinkron berubah (dari
+  // csSaveAll/historyAdd/pbSavedSetAll/habitSave/tour-done, dst). Debounce
+  // 800ms per key biar tidak nembak Firestore tiap ketikan/klik beruntun.
+  window.pbCloudQueue = function(key){
+    if(!_fbReady || !window.pbCloudUid) return;
+    clearTimeout(_timers[key]);
+    _timers[key] = setTimeout(function(){
+      var ref = _docRef();
+      if(!ref) return;
+      var val = null;
+      try{ val = localStorage.getItem(key); }catch(e){}
+      if(val == null) return;
+      var patch = {}; patch[key] = val; patch._updatedAt = Date.now();
+      ref.set(patch, {merge:true}).catch(function(e){ console.warn('Sync gagal ('+key+'):', e); });
+    }, 800);
+  };
+
+  // Khusus API key Groq: yang disinkron PLAINTEXT-nya, bukan ciphertext
+  // lokal (ciphertext dienkripsi pakai salt unik per perangkat — tidak
+  // bisa dibaca ulang di perangkat lain). Firestore-nya sendiri sudah
+  // dibatasi per-uid lewat security rules di langkah 5 atas.
+  window.pbCloudPushApiKeyPlain = function(plainKey){
+    if(!_fbReady || !window.pbCloudUid) return;
+    var ref = _docRef(); if(!ref) return;
+    ref.set({pb_api_key_plain: plainKey, _updatedAt: Date.now()}, {merge:true})
+      .catch(function(e){ console.warn('Sync API key gagal:', e); });
+  };
+
+  async function _pullAll(){
+    var ref = _docRef(); if(!ref) return;
+    try{
+      var snap = await ref.get();
+      if(!snap.exists) return;
+      var data = snap.data() || {};
+      PB_SYNC_KEYS.forEach(function(k){
+        if(typeof data[k] === 'string'){ try{ localStorage.setItem(k, data[k]); }catch(e){} }
+      });
+      if(typeof data.pb_api_key_plain === 'string' && data.pb_api_key_plain && typeof _vaiEncKey === 'function'){
+        try{
+          var enc = await _vaiEncKey(data.pb_api_key_plain);
+          if(enc) localStorage.setItem('pb_vai_k', enc);
+          if(typeof VAI !== 'undefined') VAI.apiKey = data.pb_api_key_plain;
+        }catch(e){}
+      }
+    }catch(e){ console.warn('Ambil data cloud gagal:', e); }
+    // Segarkan tampilan yang mungkin sudah kadung dirender sebelum data
+    // cloud ini turun (mis. riwayat/halaman tersimpan render kosong dulu
+    // sebelum login selesai).
+    try{ if(typeof historyRender === 'function') historyRender(); }catch(e){}
+    try{ if(typeof pbSavedRender === 'function') pbSavedRender(); }catch(e){}
+    try{ if(typeof csRenderAll === 'function') csRenderAll(); }catch(e){}
+    try{ if(typeof dlRenderBar === 'function') dlRenderBar(); }catch(e){}
+  }
+
+  // Dipanggil setelah login sukses (GIS, native dengan idToken, atau sesi
+  // tersimpan yang login-nya sudah dilakukan sebelumnya). idToken boleh
+  // null — kalau null, dicoba pakai sesi Firebase Auth yang sudah persist
+  // sebelumnya (Firebase menyimpan sesinya sendiri di IndexedDB, terpisah
+  // dari localStorage STORAGE_KEY punya app ini).
+  window.pbCloudInit = async function(user, idToken){
+    if(!_fbReady) return; // belum disetel di langkah 1-6 atas → tetap lokal
+    try{
+      if(idToken){
+        var cred = firebase.auth.GoogleAuthProvider.credential(idToken);
+        var res = await firebase.auth().signInWithCredential(cred);
+        window.pbCloudUid = res.user.uid;
+      } else {
+        await new Promise(function(resolve){
+          var unsub = firebase.auth().onAuthStateChanged(function(fbUser){
+            unsub();
+            if(fbUser && (!user || !user.email || fbUser.email === user.email)){
+              window.pbCloudUid = fbUser.uid;
+            }
+            resolve();
+          });
+        });
+      }
+      if(!window.pbCloudUid){
+        // Tidak ada idToken & tidak ada sesi Firebase yang cocok — ini
+        // bisa kejadian di app native SELAMA plugin Kotlin GoogleAuthNative
+        // belum ikut mengirim idToken ke pbNativeLoginSuccess (lihat
+        // komentar di dekat window.pbNativeLoginSuccess). App tetap jalan
+        // normal, cuma sinkron antar-perangkat belum aktif utk sesi ini.
+        console.info('Sinkron cloud belum aktif untuk sesi ini (tidak ada idToken/sesi Firebase yang cocok).');
+        return;
+      }
+      await _pullAll();
+    }catch(e){ console.warn('pbCloudInit gagal:', e); }
+  };
+
+  window.pbCloudSignOut = function(){
+    window.pbCloudUid = null;
+    if(_fbReady){ try{ firebase.auth().signOut(); }catch(e){} }
+  };
+})();
+</script>
 <style>
 /* KUNCI ZOOM: cegah pinch-zoom & double-tap zoom di HP, biar kerasa kayak
    app native, bukan halaman web biasa. */
@@ -2036,7 +2203,14 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       return;
     }
     plugin.login().then(function(result){
-      window.pbNativeLoginSuccess(result && result.email, result && result.name, result && result.photoUrl);
+      // FITUR SINKRON CLOUD: idToken dipakai buat login Firebase juga,
+      // supaya data bisa disinkron antar perangkat. Kalau plugin Kotlin
+      // kamu BELUM mengirim idToken di object result, tambahkan field itu
+      // di sisi native (biasanya sudah tersedia dari GoogleSignInAccount
+      // .getIdToken() / hasil authentication.idToken) — tanpa itu, login
+      // native tetap jalan normal, cuma sinkron cloud-nya belum aktif.
+      var _idTok = result && (result.idToken || (result.authentication && result.authentication.idToken));
+      window.pbNativeLoginSuccess(result && result.email, result && result.name, result && result.photoUrl, _idTok);
     }).catch(function(err){
       window.pbNativeLoginError((err && err.message) || 'Login dibatalkan atau gagal.');
     });
@@ -2044,11 +2218,12 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 
   // Dipanggil otomatis lewat Promise dari plugin di atas setelah user
   // sukses login Google secara native.
-  window.pbNativeLoginSuccess = function(email, name, picture){
+  window.pbNativeLoginSuccess = function(email, name, picture, idToken){
     if(!email){ pbShowLoginError('Login Google gagal, coba lagi.'); return; }
     var user = { email: email, name: name || email, picture: picture || '', ts: Date.now() };
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(user)); }catch(e){}
     pbShowApp(user);
+    if(typeof pbCloudInit === 'function') pbCloudInit(user, idToken);
   };
 
   // Dipanggil OLEH KOTLIN kalau user membatalkan/login gagal, supaya
@@ -2073,12 +2248,16 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     };
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(user)); }catch(e){}
     pbShowApp(user);
+    // response.credential = idToken JWT dari Google — dipakai lagi buat
+    // login Firebase supaya data user ini bisa disinkron antar perangkat.
+    if(typeof pbCloudInit === 'function') pbCloudInit(user, response.credential);
   };
 
   // Tombol logout kecil di header (h-pill "pb-user-pill") manggil ini.
   window.pbLogout = function(){
     if(!confirm('Keluar dari akun ini?')) return;
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    if(typeof pbCloudSignOut === 'function') pbCloudSignOut();
     if(pbIsInsideNativeApp()){
       var plugin = pbNativePlugin();
       try{ if(plugin && typeof plugin.logout === 'function') plugin.logout(); }catch(e){}
@@ -2099,6 +2278,9 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     try{ saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }catch(e){}
     if(saved && saved.email){
       pbShowApp(saved);
+      // Tidak ada idToken segar di sini (sesi lama) — pbCloudInit akan
+      // coba pakai sesi Firebase Auth yang sudah persist sebelumnya.
+      if(typeof pbCloudInit === 'function') pbCloudInit(saved, null);
       return;
     }
 
@@ -3513,7 +3695,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.28 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.30 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -3784,7 +3966,7 @@ const CS_FIELDS={
   vm3light:{input:'vb-mode3-lighting-custom',confirm:'vbPickMode3LightingCustom'}
 };
 function csGetAll(){try{return JSON.parse(localStorage.getItem(CS_KEY)||'{}');}catch(e){return{};}}
-function csSaveAll(all){try{localStorage.setItem(CS_KEY,JSON.stringify(all));}catch(e){}}
+function csSaveAll(all){try{localStorage.setItem(CS_KEY,JSON.stringify(all));if(typeof pbCloudQueue==='function')pbCloudQueue(CS_KEY);}catch(e){}}
 function csGetList(fk){let all=csGetAll();return all[fk]||[];}
 function csSave(fk){
   let cfg=CS_FIELDS[fk];if(!cfg)return;
@@ -8730,6 +8912,7 @@ async function vaiSaveKey(){
   try{
     let enc=await _vaiEncKey(key);
     if(enc) localStorage.setItem('pb_vai_k',enc);
+    if(typeof pbCloudPushApiKeyPlain==='function')pbCloudPushApiKeyPlain(key);
   }catch(e){/* incognito / SubtleCrypto tidak tersedia — key hanya di memory sesi ini */}
   // Hapus key lama plain text jika masih ada
   try{localStorage.removeItem('pb_gemini_api_key');localStorage.removeItem('gemini_api_key');localStorage.removeItem('_vai_k');}catch(e){}
@@ -8845,6 +9028,7 @@ function historyAdd(type,label,promptText){
     arr.unshift({type:type,label:label,text:promptText,ts:Date.now()});
     if(arr.length>HISTORY_MAX)arr=arr.slice(0,HISTORY_MAX);
     localStorage.setItem(HISTORY_KEY,JSON.stringify(arr));
+    if(typeof pbCloudQueue==='function')pbCloudQueue(HISTORY_KEY);
     historyRender();
   }catch(e){/* localStorage tidak tersedia (incognito) — skip saja */}
 }
@@ -8858,12 +9042,13 @@ function historyClearItem(idx){
   try{
     let arr=historyGet();arr.splice(idx,1);
     localStorage.setItem(HISTORY_KEY,JSON.stringify(arr));
+    if(typeof pbCloudQueue==='function')pbCloudQueue(HISTORY_KEY);
     historyRender();
   }catch(e){}
 }
 
 function historyClearAll(){
-  try{localStorage.removeItem(HISTORY_KEY);historyRender();}catch(e){}
+  try{localStorage.removeItem(HISTORY_KEY);if(typeof pbCloudQueue==='function')pbCloudQueue(HISTORY_KEY);historyRender();}catch(e){}
 }
 
 function _historyRenderInto(wrap){
@@ -8936,6 +9121,7 @@ function pbSavedGet(){
 }
 function pbSavedSetAll(arr){
   localStorage.setItem(PB_SAVED_KEY,JSON.stringify(arr)); // biar caller yang try/catch (kuota penuh dsb)
+  if(typeof pbCloudQueue==='function')pbCloudQueue(PB_SAVED_KEY);
 }
 
 // ── Tap 1: tampilkan tooltip singkat. Tap 2 (selagi "armed"): simpan. ──
@@ -9203,7 +9389,7 @@ function pbSavedDelete(id){
   pbSavedRender();
 }
 function pbSavedClearAll(){
-  try{localStorage.removeItem(PB_SAVED_KEY);}catch(e){}
+  try{localStorage.removeItem(PB_SAVED_KEY);if(typeof pbCloudQueue==='function')pbCloudQueue(PB_SAVED_KEY);}catch(e){}
   PB_ACTIVE_SAVED_ID=null;
   pbRemoveSavedBanners();
   pbSavedRender();
@@ -13543,6 +13729,14 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
       flowText+='. Tulis :"'+overlayTxt+'" muncul pada detik 0 sampai detik 2 (2 detik) lalu menghilang, dengan ukuran teks 10px.';
     }
   }
+  // FITUR BARU (permintaan user): khusus mode Raw Asset (VB.refMode==='kp')
+  // DAN khusus kartu CTA (idx%3===2 — kartu ketiga tiap produk, hook=0/
+  // story=1/cta=2 seperti komentar di atas), tambahkan instruksi ini PALING
+  // AKHIR prompt supaya AI video tidak memunculkan icon apapun pas bagian CTA.
+  let isCtaCard=(typeof idx==='number')&&(idx%3===2);
+  if(VB.refMode==='kp'&&isCtaCard){
+    flowText+='. Pastikan tidak ada icon apapun yang muncul ketika CTA.';
+  }
   return flowText;
 }
 
@@ -13807,7 +14001,7 @@ function habitLoad(){
 }
 
 function habitSave(data){
-  try { localStorage.setItem(HABIT_KEY, JSON.stringify(data)); } catch(e){}
+  try { localStorage.setItem(HABIT_KEY, JSON.stringify(data)); if(typeof pbCloudQueue==='function')pbCloudQueue(HABIT_KEY); } catch(e){}
 }
 
 function habitRecord(){
@@ -14637,7 +14831,7 @@ function pbShouldAutoStart(){
   try{ return !localStorage.getItem(PB_TOUR_KEY); }catch(e){ return false; }
 }
 function pbMarkTourDone(){
-  try{ localStorage.setItem(PB_TOUR_KEY,'1'); }catch(e){}
+  try{ localStorage.setItem(PB_TOUR_KEY,'1'); if(typeof pbCloudQueue==='function')pbCloudQueue(PB_TOUR_KEY); }catch(e){}
 }
 
 // ── Wrapper doneCard(): dipasang SEKALI di sini, membungkus fungsi
