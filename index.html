@@ -3468,7 +3468,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.2 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.5 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -8876,6 +8876,15 @@ const PB_SAVED_MAX=10; // dibatasi (bukan 5 seperti histori prompt lama)
                         // karena tiap entri sekarang membawa HTML hasil
                         // lengkap + state, jauh lebih besar dari teks polos.
 
+// ID entri Riwayat yang lagi "dibuka"/dilanjutkan (null = tidak ada).
+// Begitu user "Buka" salah satu halaman tersimpan lewat pbOpenSavedPage(),
+// variabel ini diisi id-nya — SELAMA masih terisi, setiap klik tombol
+// Simpan (pbSaveCurrentPage) akan MENIMPA entri ini (bukan bikin entri
+// baru), walau user udah otak-atik apa aja di halamannya. Cuma direset
+// (jadi null lagi) kalau user eksplisit klik tombol "Tutup" di banner
+// halaman tersimpan — lihat pbCloseActiveSavedPage().
+let PB_ACTIVE_SAVED_ID=null;
+
 function pbSavedGet(){
   try{return JSON.parse(localStorage.getItem(PB_SAVED_KEY)||'[]');}
   catch(e){return[];}
@@ -8890,7 +8899,20 @@ function pbSaveIconClick(type,btnEl){
   let tip=btnEl.querySelector('.step-save-tip');
   if(!btnEl.classList.contains('armed')){
     btnEl.classList.add('armed');
-    if(tip)tip.classList.add('show');
+    if(tip){
+      tip.classList.add('show');
+      // Kalau lagi melanjutkan entri yang dibuka dari Riwayat (id & tipe
+      // cocok), kasih tau user bahwa Simpan berikutnya akan MENIMPA entri
+      // itu — bukan bikin baru — supaya gak kaget.
+      let continuing=PB_ACTIVE_SAVED_ID && pbSavedGet().some(function(x){return x.id===PB_ACTIVE_SAVED_ID && x.type===type;});
+      if(continuing){
+        tip.innerHTML='<b>Simpan perubahan.</b> Halaman ini sedang melanjutkan entri dari Riwayat — tap sekali lagi untuk menimpa (update) entri tersebut. Mau simpan sebagai halaman baru? Tutup dulu Riwayat yang sedang dibuka.';
+      } else {
+        tip.innerHTML=(type==='foto')
+          ?'<b>Simpan halaman.</b> Skrip/prompt yang sudah jadi bisa disimpan ke Riwayat — tap sekali lagi ikon ini untuk menyimpan.'
+          :'<b>Simpan halaman.</b> Skrip video yang sudah jadi (termasuk mode bulk) bisa disimpan ke Riwayat — tap sekali lagi ikon ini untuk menyimpan.';
+      }
+    }
     clearTimeout(btnEl._pbArmTimer);
     btnEl._pbArmTimer=setTimeout(function(){
       btnEl.classList.remove('armed');
@@ -8931,22 +8953,68 @@ function _pbCollectResult(type){
   let htmlParts=[],textParts=[];
   sourceEls.forEach(function(el){
     let clone=el.cloneNode(true);
+    // BUG FIX (ditemukan saat audit fitur Riwayat): beberapa field di dalam
+    // kartu output Video diisi lewat properti .value=... (bukan lewat isi
+    // HTML/textContent) — ini termasuk kotak script Hook/Story/CTA
+    // (<textarea>, lihat vbBulkUpdateJson), input "Teks Overlay di Hook"
+    // (vb-hookoverlay-input-N), dan input "Lokasi custom" per-kartu
+    // (vb-lokasi-custom-N). cloneNode()+.innerHTML cuma menyalin isi HTML
+    // ASLI elemen, TIDAK ikut membawa .value yang lagi aktif — jadi kalau
+    // tidak disinkronkan manual, field-field ini akan tampil KOSONG begitu
+    // halaman dibuka lagi dari Riwayat, walau saat disimpan isinya jelas
+    // ada/kelihatan di layar. Tujuan fitur "Simpan halaman" adalah
+    // menangkap PERSIS apa yang sedang terlihat saat tombol Simpan
+    // ditekan — jadi SEMUA <textarea> dan <input> di dalam area yang
+    // disimpan disinkronkan di sini secara generik (bukan cuma yang sudah
+    // ketahuan), supaya field baru yang mungkin ditambah nanti otomatis
+    // aman juga dari bug yang sama.
+    let origFields=el.querySelectorAll('textarea,input');
+    let cloneFields=clone.querySelectorAll('textarea,input');
+    origFields.forEach(function(f,i){
+      let cf=cloneFields[i];
+      if(!cf)return;
+      if(f.type==='checkbox'||f.type==='radio'){
+        if(f.checked)cf.setAttribute('checked','checked');
+        else cf.removeAttribute('checked');
+        cf.disabled=true;
+        return;
+      }
+      // Textarea & input teks/angka biasa: ganti jadi elemen statis berisi
+      // nilai yang benar-benar sedang tampil — sekalian bikin versi
+      // tersimpan tidak terlihat seperti kotak edit yang aktif (oninput-nya
+      // sudah tidak nyambung ke apapun begitu id dilepas).
+      let frozen=document.createElement('div');
+      frozen.textContent=f.value;
+      frozen.className=cf.className||'';
+      frozen.style.cssText=(cf.getAttribute('style')||'')+';white-space:pre-wrap;';
+      cf.replaceWith(frozen);
+    });
     clone.removeAttribute('id');
     clone.querySelectorAll('[id]').forEach(function(n){n.removeAttribute('id');});
-    clone.querySelectorAll('[onclick]').forEach(function(n){n.removeAttribute('onclick');});
-    clone.querySelectorAll('button,.copy-btn,.reset-btn').forEach(function(n){n.style.display='none';});
+    // Lepas SEMUA atribut event inline (onclick, oninput, onchange, dst) —
+    // sebelumnya cuma onclick yang dilepas, padahal kartu Video juga pakai
+    // oninput (vbBulkUpdateJson) yang percuma/berisiko nyasar kalau sampai
+    // sempat "terpicu" di versi tersimpan.
+    clone.querySelectorAll('*').forEach(function(n){
+      Array.from(n.attributes||[]).forEach(function(a){
+        if(/^on/i.test(a.name))n.removeAttribute(a.name);
+      });
+    });
+    clone.querySelectorAll('button,.copy-btn,.reset-btn').forEach(function(n){n.remove();});
     htmlParts.push(clone.innerHTML);
-    textParts.push((el.innerText||el.textContent||'').trim());
+    textParts.push((clone.innerText||clone.textContent||'').trim());
   });
   return {html:htmlParts.join('\n'),text:textParts.join('\n\n---\n\n')};
 }
 
 function pbSaveCurrentPage(type,btnEl){
-  let result=_pbCollectResult(type);
-  if(!result){
-    showToast('Belum ada skrip/prompt yang di-generate di halaman ini','error');
-    return;
-  }
+  // Dulu: kalau belum ada skrip/prompt yang di-generate, save ditolak total
+  // (_pbCollectResult return null → langsung berhenti). Sekarang TIDAK —
+  // fitur "Simpan halaman" dimaksudkan buat menangkap SELURUH tampilan/
+  // stelan aplikasi (state FS/VB: foto yang sudah diupload, pilihan yang
+  // sudah dipilih, dst), bukan cuma skrip jadi. Jadi kalau belum ada hasil
+  // generate, html/text-nya kosong tapi state tetap disimpan penuh.
+  let result=_pbCollectResult(type)||{html:'',text:''};
   let html=result.html;
   let label,stateJSON;
   try{
@@ -8962,8 +9030,16 @@ function pbSaveCurrentPage(type,btnEl){
     label=(type==='foto'?'Foto':'Video')+' tersimpan';
     stateJSON='{}';
   }
+  let arr=pbSavedGet();
+  // Kalau lagi melanjutkan entri yang dibuka dari Riwayat (PB_ACTIVE_SAVED_ID
+  // terisi & entrinya masih ada & tipenya cocok dengan halaman yang lagi
+  // di-save) → TIMPA entri itu (id sama, posisi di daftar sama), JANGAN
+  // bikin entri baru. Kalau bukan (save biasa dari halaman kosong/baru) →
+  // tetap bikin entri baru seperti sebelumnya.
+  let activeIdx=PB_ACTIVE_SAVED_ID?arr.findIndex(function(x){return x.id===PB_ACTIVE_SAVED_ID && x.type===type;}):-1;
+  let isUpdate=activeIdx>=0;
   let entry={
-    id:'sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    id:isUpdate?PB_ACTIVE_SAVED_ID:('sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)),
     type:type,
     label:label,
     ts:Date.now(),
@@ -8971,16 +9047,21 @@ function pbSaveCurrentPage(type,btnEl){
     text:result.text,
     state:stateJSON
   };
-  let arr=pbSavedGet();
-  arr.unshift(entry);
-  if(arr.length>PB_SAVED_MAX)arr=arr.slice(0,PB_SAVED_MAX);
+  if(isUpdate){
+    arr[activeIdx]=entry;
+  } else {
+    arr.unshift(entry);
+    if(arr.length>PB_SAVED_MAX)arr=arr.slice(0,PB_SAVED_MAX);
+  }
   try{
     pbSavedSetAll(arr);
   }catch(e){
     // Kemungkinan besar kuota localStorage penuh (entri berisi HTML+base64
-    // foto bisa besar) — coba sekali lagi tanpa entri paling lama.
+    // foto bisa besar) — coba sekali lagi tanpa entri paling lama (cuma
+    // relevan buat kasus entri baru; kasus update ukurannya gak nambah
+    // jumlah entri jadi jarang kena ini).
     try{
-      arr=arr.slice(0,Math.max(1,arr.length-2));
+      if(!isUpdate)arr=arr.slice(0,Math.max(1,arr.length-2));
       pbSavedSetAll(arr);
     }catch(e2){
       showToast('Gagal simpan — penyimpanan browser penuh. Hapus beberapa halaman tersimpan dulu.','error');
@@ -8991,7 +9072,7 @@ function pbSaveCurrentPage(type,btnEl){
     btnEl.classList.add('saved-flash');
     setTimeout(function(){btnEl.classList.remove('saved-flash');},1200);
   }
-  showToast('Halaman disimpan ke Riwayat!','success');
+  showToast(isUpdate?'Perubahan disimpan (menimpa halaman di Riwayat)!':'Halaman disimpan ke Riwayat!','success');
   pbSavedRender();
 }
 
@@ -9018,8 +9099,22 @@ function _pbSavedRenderInto(wrap){
     let head=document.createElement('div');head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px;';
     let badge=document.createElement('span');badge.style.cssText='font-size:var(--fs-xs);font-weight:700;font-family:"Geist Mono",monospace;padding:2px 8px;border-radius:var(--radius-2xs);background:'+(item.type==='foto'?'var(--surface3)':'rgba(76,175,125,0.15)')+';color:'+(item.type==='foto'?'var(--accent)':'var(--green)')+';';badge.textContent=item.type==='foto'?'FOTO':'VIDEO';
     let lbl=document.createElement('span');lbl.style.cssText='font-size:var(--fs-sm);font-weight:600;flex:1;';lbl.textContent=item.label;
+    head.appendChild(badge);head.appendChild(lbl);
+    // Entri yang belum punya hasil generate (baru sekadar stelan/foto yang
+    // diupload lalu disimpan) dikasih label "Draft" biar user gak kira ini
+    // skrip yang sudah jadi.
+    if(!item.text){
+      let draft=document.createElement('span');draft.style.cssText='font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--radius-2xs);background:var(--surface3);color:var(--muted);';draft.textContent='DRAFT';
+      head.appendChild(draft);
+    }
+    // Entri yang lagi "dikunci" (sedang dilanjutkan dari Riwayat — Simpan
+    // berikutnya akan menimpa entri ini) ditandai juga.
+    if(item.id===PB_ACTIVE_SAVED_ID){
+      let active=document.createElement('span');active.style.cssText='font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--radius-2xs);background:var(--accent-dim-bg);color:var(--accent-2);';active.textContent='SEDANG DIBUKA';
+      head.appendChild(active);
+    }
     let ts=document.createElement('span');ts.style.cssText='font-size:var(--fs-xs);color:var(--muted);font-family:"Geist Mono",monospace;';ts.textContent=tstr;
-    head.appendChild(badge);head.appendChild(lbl);head.appendChild(ts);
+    head.appendChild(ts);
     let btns=document.createElement('div');btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
     let openBtn=document.createElement('button');openBtn.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:600;padding:5px 12px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';openBtn.innerHTML='<svg class="icon"><use href="#ic-eye"></use></svg> Buka';
     openBtn.onclick=(function(id){return function(){pbOpenSavedPage(id);};})(item.id);
@@ -9044,6 +9139,11 @@ function pbSavedRender(){
 function pbOpenSavedPage(id){
   let item=pbSavedGet().find(function(x){return x.id===id;});
   if(!item){showToast('Halaman tersimpan tidak ditemukan','error');return;}
+  // Kunci mode "melanjutkan" ke entri ini — selama belum ditutup lewat
+  // tombol "Tutup" di banner, tiap klik Simpan berikutnya akan MENIMPA
+  // entri id ini, bukan bikin entri baru. Lihat PB_ACTIVE_SAVED_ID &
+  // pbSaveCurrentPage().
+  PB_ACTIVE_SAVED_ID=item.id;
   let navBtn=document.querySelector('.ntab[onclick*="switchPage(\''+item.type+'\'"]');
   if(navBtn)switchPage(item.type,navBtn);
   try{
@@ -9054,9 +9154,10 @@ function pbOpenSavedPage(id){
   let targetId=item.type==='foto'?'f-multi-output':'vb-multi-output';
   let target=document.getElementById(targetId);
   if(target){
-    let copyAllHTML='<div style="background:var(--accent-dim-bg);border:1px solid var(--accent-dim);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">'
-      +'<span style="font-size:var(--fs-xs2);color:var(--accent-2);flex:1;">Halaman tersimpan — dibuka dari Riwayat</span>'
-      +'<button class="copy-btn" id="pb-saved-copyall-btn">Salin Semua Teks</button>'
+    let copyAllHTML='<div id="pb-saved-banner" style="background:var(--accent-dim-bg);border:1px solid var(--accent-dim);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+      +'<span style="font-size:var(--fs-xs2);color:var(--accent-2);flex:1;">Halaman tersimpan — dibuka dari Riwayat. Otak-atik apapun di sini, Simpan berikutnya akan menimpa halaman ini.</span>'
+      +(item.text?'<button class="copy-btn" id="pb-saved-copyall-btn">Salin Semua Teks</button>':'')
+      +'<button id="pb-saved-close-btn" style="background:none;border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:600;padding:5px 12px;border-radius:var(--radius-2xs);cursor:pointer;font-family:\'Geist\',sans-serif;">Tutup Riwayat</button>'
       +'</div>';
     target.innerHTML=copyAllHTML+item.html;
     target.style.display='flex';
@@ -9070,11 +9171,25 @@ function pbOpenSavedPage(id){
     if(copyAllBtn)copyAllBtn.onclick=function(){
       _copyTextRobust(item.text,function(){showToast('Semua teks tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
     };
+    let closeBtn=document.getElementById('pb-saved-close-btn');
+    if(closeBtn)closeBtn.onclick=function(){pbCloseActiveSavedPage(item.type);};
   }
   setTimeout(function(){
     if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
   },80);
   showToast('Halaman berhasil dibuka','success');
+}
+
+// Lepas "kunci" mode melanjutkan entri Riwayat (lihat pbOpenSavedPage).
+// Setelah ini, Simpan berikutnya balik jadi bikin entri BARU seperti
+// biasa. Hanya melepas kuncinya & banner-nya — isi FS/VB/tampilan yang
+// sudah kepulihkan/tampil tetap dibiarkan apa adanya, biar user tidak
+// kehilangan apa yang sedang dia kerjakan.
+function pbCloseActiveSavedPage(type){
+  PB_ACTIVE_SAVED_ID=null;
+  let banner=document.getElementById('pb-saved-banner');
+  if(banner)banner.remove();
+  showToast('Riwayat ditutup — Simpan berikutnya akan jadi halaman baru','success');
 }
 
 // Render histori saat halaman Riwayat dibuka (via switchPage)
