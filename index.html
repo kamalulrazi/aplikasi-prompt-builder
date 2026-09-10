@@ -3489,7 +3489,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.12 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.14 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -14637,8 +14637,12 @@ function pbGoStep2(){
     +   '<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh 1 bahan</span></div>'
     +   '<div class="pb-flow-row">'
     +     '<div class="pb-flow-box">'
-    +       '<div class="pb-flow-thumb" data-label="Foto AI" data-explain="Untuk menghasilkan foto AI dibutuhkan 2 bahan" data-sub1-src="'+PB_IMG_FLOW_KARAKTERSHEET+'" data-sub1-label="Foto Karakter Sheet" data-sub2-src="'+PB_IMG_FLOW_PRODUK+'" data-sub2-label="Foto Produk" onclick="pbFlowLightboxOpen(this)"><img src="'+PB_IMG_FLOW_FOTOAI+'" alt="Foto AI"></div>'
+    +       '<div style="position:relative;display:inline-block;">'
+    +         '<div class="pb-flow-thumb" id="pb-flow-fotoai-thumb" data-label="Foto AI" data-explain="Untuk menghasilkan foto AI dibutuhkan 2 bahan" data-sub1-src="'+PB_IMG_FLOW_KARAKTERSHEET+'" data-sub1-label="Foto Karakter Sheet" data-sub2-src="'+PB_IMG_FLOW_PRODUK+'" data-sub2-label="Foto Produk" onclick="pbFlowLightboxOpen(this)"><img src="'+(pbFotoAiUploaded?pbFotoAiDataUrl:PB_IMG_FLOW_FOTOAI)+'" alt="Foto AI"></div>'
+    +         (pbFotoAiUploaded?'<div style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--surface2);"><svg class="icon" style="width:12px;height:12px;color:#08080A;"><use href="#ic-check"></use></svg></div>':'')
+    +       '</div>'
     +       '<div class="pb-flow-label">Foto AI</div>'
+    +       '<div class="pb-flow-sub'+(pbFotoAiUploaded?' pb-flow-sub-ai':'')+'">'+(pbFotoAiUploaded?'sudah dibuat':'akan kita buat bersama')+'</div>'
     +     '</div>'
     +   '</div>'
     +   '<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh 2 bahan</span></div>'
@@ -14662,8 +14666,8 @@ function pbGoStep2(){
     +   '</div>'
     + '</div>'
     + '<hr class="pb-flow-divider">'
-    + '<p style="margin-top:0;">'+(pbProdukFotoUploaded&&pbKsFotoUploaded?'Oke, Sekarang kita udah punya 2 bahannya nih. Saatnya kita bikin FOTO AI.......':(pbProdukFotoUploaded?'Oke, sekarang kita bakalan bikin foto karakter sheet buat kakak. Silahkan klik "Lanjut".':'Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.'))+'</p>';
-  pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep2Next);
+    + '<p style="margin-top:0;">'+(pbFotoAiUploaded?'Mantap, semua bahan udah lengkap sampai Foto AI-nya! Video AI-nya tinggal kakak lanjutkan sendiri di Google Flow ya.':(pbProdukFotoUploaded&&pbKsFotoUploaded?'Oke, Sekarang kita udah punya 2 bahannya nih. Saatnya kita bikin FOTO AI.......':(pbProdukFotoUploaded?'Oke, sekarang kita bakalan bikin foto karakter sheet buat kakak. Silahkan klik "Lanjut".':'Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.')))+'</p>';
+  pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,pbFotoAiUploaded?'Selesai':'Lanjut',pbGoStep2Next);
 }
 // ── State: apakah foto produk sudah "disiapkan" lewat Langkah 3 baru
 // (siapkan foto produk) di bawah ini. Begitu true, thumbnail Foto Produk
@@ -14705,7 +14709,8 @@ var pbKsFotoDataUrl=null;
 function pbGoStep2Next(){
   if(!pbProdukFotoUploaded){ pbGoStep2b(); }
   else if(!pbKsFotoUploaded){ pbOpenCharacterSheetFromTour(); }
-  else { pbGoStep5(); }
+  else if(!pbFotoAiUploaded){ pbGoStep5(); }
+  else { pbEndTour(); }
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
@@ -14880,7 +14885,7 @@ var pbStep6ExtIndex=0;
 var PB_STEP6EXT_ITEMS=[
   {
     title:'Yuk, bikin foto AI-nya',
-    body:'<p style="margin-top:0;">Sekarang kita akan bikin foto AI, karena kakak udah punya 2 bahan. Sekarang kakak buka aplikasi Google Flow dan klik "+ Baru".</p>',
+    body:'<p style="margin-top:0;">Sekarang kita akan bikin foto AI, karena kakak udah punya 2 bahan beserta prompt-nya. Sekarang kakak buka aplikasi Google Flow dan klik "+ Baru".</p>',
     img:PB_IMG_S1,
     alt:'Buka Google Flow lalu klik + Baru'
   },
@@ -14982,14 +14987,98 @@ function pbStep6ExtBack(){
     pbRenderStep6Ext();
   }
 }
-// Butir terakhir (no.10) selesai — INI SEKARANG BENERAN PENUTUP TUR
-// (dulu malah lanjut lagi ke pbGoStep5(), balik ke wizard — sisa dari
-// waktu urutannya masih kebalik, lihat komentar FIX di pbGoStep6Ext()
-// di atas). Wizard (Subjek Foto dst.) sudah selesai duluan sebelum
-// tutorial ini tampil, jadi di sini tinggal tutup tur seutuhnya.
+// Butir terakhir (no.10) selesai — FIX (permintaan user): dulu di sini
+// langsung tutup tur (pbEndTour()) tanpa minta user upload hasil Foto
+// AI-nya sama sekali. Sekarang minta upload dulu (pola sama seperti
+// Langkah 4 upload Karakter Sheet) — lihat pbGoStep6ExtUpload() di bawah.
+// Tur BENERAN ditutup nanti kalau user klik "Lanjut" lagi di Langkah 2
+// begitu Foto AI sudah lengkap (lihat pbGoStep2Next()).
 function pbStep6ExtFinish(){
-  pbEndTour();
+  pbGoStep6ExtUpload();
 }
+// ── Upload hasil Foto AI dari Google Flow — pola SAMA PERSIS seperti
+// pbGoStep4() (upload Karakter Sheet): icon kamera → animasi logo P
+// nyatu → kartu disembunyikan → notifikasi premium (pbStep6ExtShowSuccessNotif)
+// muncul. Tap "Lanjut" pada notifikasi itu SENGAJA memakai ulang
+// pbStep4NotifTap() yang sudah ada (bukan fungsi baru) — perilakunya
+// persis yang dibutuhkan di sini juga: sembunyikan notif & balik ke
+// Langkah 2 (pbGoStep2()), supaya thumbnail Foto AI di diagram Langkah 2
+// sudah tergantikan foto asli + centang hijau.
+function pbGoStep6ExtUpload(){
+  let desc = '<p style="margin-top:0;">Foto AI yang telah kakak unduh dari Google Flow, coba upload disini, aku pengen lihat.</p>'
+    + '<input type="file" accept="image/*" id="pb-step6ext-photo-input" style="display:none;" onchange="pbStep6ExtPhotoPicked(this)">'
+    + '<div style="display:flex;justify-content:center;margin:18px 0 4px;">'
+    + '<div style="position:relative;width:64px;height:64px;">'
+    + '<div onclick="document.getElementById(\'pb-step6ext-photo-input\').click()" id="pb-step6ext-photo-btn" style="position:absolute;inset:0;border-radius:50%;background:var(--surface2);border:1px solid var(--border-hi);display:flex;align-items:center;justify-content:center;cursor:pointer;">'
+    + '<svg class="icon" style="width:28px;height:28px;color:var(--accent);"><use href="#ic-camera"></use></svg>'
+    + '</div>'
+    + '<div class="gen-logo-wrap hidden" id="pb-step6ext-logo-wrap" style="position:absolute;inset:0;width:auto;padding:0;">'
+    + '<div class="gen-logo-box" style="width:64px;height:64px;">'
+    + '<svg class="gen-logo-svg" viewBox="0 0 642 635" style="width:34px;height:34px;" xmlns="http://www.w3.org/2000/svg">'
+    + '<defs><linearGradient id="pbStep6ExtPGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D9A0"/><stop offset="100%" stop-color="#B8965F"/></linearGradient></defs>'
+    + '<path class="p-layer p-layer-back" fill="url(#pbStep6ExtPGrad)" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>'
+    + '<path class="p-layer p-layer-front" fill="url(#pbStep6ExtPGrad)" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>'
+    + '</svg>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+  pbShowModal(6,'',desc,'Lanjut',pbGoStep2);
+  let nextBtn=document.getElementById('pb-tour-next-btn');
+  if(nextBtn) nextBtn.style.display='none';
+}
+// Dipanggil begitu user pilih foto hasil Foto AI dari galeri lewat icon
+// kamera di atas. Sama seperti pbStep4PhotoPicked() — fotonya BENERAN
+// dipakai (dibaca jadi data URL) buat menggantikan thumbnail "Foto AI"
+// di Langkah 2.
+function pbStep6ExtPhotoPicked(input){
+  let file=input.files&&input.files[0];
+  if(!file)return;
+  input.value='';
+  let reader=new FileReader();
+  reader.onload=function(e){
+    pbFotoAiDataUrl=e.target.result;
+    pbFotoAiUploaded=true;
+  };
+  reader.readAsDataURL(file);
+  let camBtn=document.getElementById('pb-step6ext-photo-btn');
+  if(camBtn) camBtn.classList.add('hidden');
+  let logoWrap=document.getElementById('pb-step6ext-logo-wrap');
+  if(logoWrap){
+    logoWrap.classList.remove('hidden');
+    logoWrap.classList.remove('merged');
+    void logoWrap.offsetWidth;
+    setTimeout(function(){ logoWrap.classList.add('merged'); },300);
+  }
+  setTimeout(function(){
+    pbStep6ExtShowSuccessNotif();
+  },1400);
+}
+// Sama persis pola & elemen dengan pbStep4ShowSuccessNotif() (cuma beda
+// pesannya) — tombol CTA notifikasi ini SUDAH terpasang lewat HTML
+// (onclick="pbStep4NotifTap()"), jadi tap-nya otomatis balik ke Langkah 2
+// tanpa perlu fungsi tap baru.
+function pbStep6ExtShowSuccessNotif(){
+  document.getElementById('pb-tour-card').classList.remove('show');
+  document.getElementById('pb-tour-backdrop').classList.remove('pb-passive');
+  document.getElementById('pb-tour-backdrop').classList.add('show');
+  document.getElementById('pb-tour-spot').classList.remove('show','pb-airy');
+  window.removeEventListener('resize',pbRepositionCurrent);
+  let shellEl=document.getElementById('app-shell');
+  if(shellEl) shellEl.removeEventListener('scroll',pbRepositionCurrent);
+  let notif=document.getElementById('pb-premium-notif');
+  if(!notif) return;
+  document.getElementById('pb-pn-msg').textContent='Yeyyy Foto AI-nya jadi kak, simpan baik-baik karna ini yang bakal kita pakai buat bikin Video AI-nya nanti';
+  let timeEl=document.getElementById('pb-pn-time');
+  if(timeEl) timeEl.textContent='sekarang';
+  notif.classList.add('show');
+}
+// ── State: apakah foto hasil Foto AI (dari Google Flow, sesudah tutorial
+// Langkah 6) sudah diupload lewat pbGoStep6ExtUpload() di atas. Begitu
+// true, thumbnail "Foto AI" di Langkah 2 diganti foto asli + centang
+// hijau, dan tombol "Lanjut" di Langkah 2 tidak lagi masuk ke wizard
+// (pbGoStep5) lagi — melainkan menutup tur (lihat pbGoStep2Next()). ──
+var pbFotoAiUploaded=false;
+var pbFotoAiDataUrl=null;
 
 // ── LANGKAH 4 — upload foto hasil Karakter Sheet dari Google Flow ──
 function pbGoStep4(){
@@ -15250,7 +15339,11 @@ function pbGoStep5(){
   let f0=document.getElementById('f0');
   if(f0) f0.classList.add('pb-tour-f0-simple');
   let f0Desc=document.getElementById('f0-desc-text');
-  if(f0Desc) f0Desc.textContent='Jenis kelamin foto karakter sheet kakak apa?';
+  // FIX (permintaan user): tambah 1 kalimat penjelas DI ATAS teks tanya
+  // "Jenis kelamin..." yang sudah ada — supaya user paham KENAPA dia
+  // ditanya-tanya begini (karena untuk bikin karakter memegang/memakai
+  // produk, dibutuhkan "prompt", jadi harus diselesaikan dulu wizard-nya).
+  if(f0Desc) f0Desc.innerHTML='untuk membuat si karakter memegang/memakai produk kita butuh "prompt" jadi selesaikan aja pembuatan prompt-nya ya.<br><br>Jenis kelamin foto karakter sheet kakak apa?';
   // FITUR BARU (permintaan user): badge status "sedang membuat prompt" di
   // pojok kiri atas layar (fixed, terpisah dari kartu f0) — biar pemula
   // ngerti kenapa mereka ditanya-tanya begini. Dipasang di sini (Langkah 5),
