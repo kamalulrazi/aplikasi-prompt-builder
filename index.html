@@ -3513,7 +3513,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.24 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.25 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10995,7 +10995,17 @@ async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
     let fixPrompt='Perbaiki script berikut supaya TEPAT 25 kata (hitung tiap kata dipisah spasi, bukan karakter). '
       +'Ini bagian "'+roleLabelPlain+'"'+(produkNama?' untuk produk "'+produkNama+'"':'')+'. '
       +arahInstruksi+' '
-      +'Pertahankan makna, topik, dan gaya bahasa casual sehari-harinya — jangan ganti topik atau bikin jadi formal. '
+      // FIX (audit "nada/aksen jadi datar"): dulu instruksi di sini cuma
+      // "pertahankan gaya bahasa casual sehari-hari" generik — tidak
+      // menyebut nada bicara & aksen PILIHAN USER sama sekali (Heboh,
+      // Gaul/Kekinian, dll). Akibatnya kalau script hasil generate awal
+      // meleset jumlah kata (sering terjadi karena target PERSIS 25 kata
+      // itu ketat) dan lewat perbaikan ini, nada/aksen khasnya (kata seru
+      // "wah"/"gokil", istilah gaul dsb) gampang hilang/diratakan jadi
+      // kalimat netral oleh rewrite ini. Sekarang nada & aksen yang
+      // sedang dipakai disebut eksplisit supaya WAJIB dipertahankan, bukan
+      // cuma "casual" generik.
+      +'Pertahankan makna, topik, DAN terutama nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'" serta aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai di teks aslinya — JANGAN diratakan jadi kalimat netral/formal, ciri khas nada & aksen itu (kata seru, istilah gaul, tingkat energi, dll) WAJIB tetap kerasa di hasil perbaikan. Jangan ganti topik. '
       +'TIDAK boleh pakai emoji, TIDAK boleh pakai tanda kutip.\n\n'
       +'Script saat ini ('+wc+' kata): '+current+'\n\n'
       +'Balas HANYA dengan teks script hasil perbaikan (hitung ulang sendiri sampai persis 25 kata sebelum menjawab), tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
@@ -11054,7 +11064,10 @@ async function _vbFixWordCountBatchIfNeeded(prod){
     }).join('\n');
     let fixPrompt='Perbaiki script-script berikut supaya masing-masing TEPAT 25 kata (hitung tiap kata dipisah spasi, bukan karakter). Tiap item sudah dikasih tahu arah perbaikannya (tambah/kurangi berapa kata) — ikuti persis. '
       +(prod.produk?'Ini untuk produk "'+prod.produk+'". ':'')
-      +'Pertahankan makna, topik, dan gaya bahasa casual sehari-hari masing-masing — jangan ganti topik atau bikin jadi formal. '
+      // FIX (sama seperti _vbFixWordCountIfNeeded single — lihat komentar
+      // lengkap di sana): sebut eksplisit nada & aksen pilihan user supaya
+      // tidak ikut hilang/diratakan pas rewrite jumlah kata ini.
+      +'Pertahankan makna, topik, DAN terutama nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'" serta aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai di masing-masing teks aslinya — JANGAN diratakan jadi kalimat netral/formal, ciri khas nada & aksen itu (kata seru, istilah gaul, tingkat energi, dll) WAJIB tetap kerasa di hasil perbaikan. Jangan ganti topik. '
       +'TIDAK boleh pakai emoji, TIDAK boleh pakai tanda kutip.\n\n'
       +'Script yang perlu diperbaiki:\n'+listText+'\n\n'
       +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (hitung ulang sendiri sampai persis 25 kata tiap-tiap sebelum menjawab), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
