@@ -3513,7 +3513,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.23 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.24 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10598,7 +10598,22 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
     // sejak pindah ke Groq — dibiarkan sebagai variabel kosong supaya baris
     // di bawah yang mengecek 'thinkingConfig' di pesan error tetap aman
     // (tidak pernah match, tidak pernah dipakai untuk apa-apa).
-    let cfg={maxOutputTokens:4096};
+    // FIX (audit "Respons AI terpotong / kehabisan token"): model qwen3 di
+    // Groq punya mode "thinking" (reasoning panjang sebelum jawab) yang
+    // TIDAK dimatikan sebelumnya — parameter reasoning_effort tidak pernah
+    // dikirim, jadi model qwen3.6-27b (GEMINI_MODEL_PRIMARY) jalan pakai
+    // mode default-nya yang kemungkinan besar "thinking ON". Prompt di
+    // fungsi pemanggil juga secara eksplisit minta model "hitung kata di
+    // kepala, revisi sampai pas" — buat model reasoning ini malah jadi
+    // pemicu mikir makin panjang. Karena proses "mikir" itu ikut kehitung
+    // dalam max_tokens (4096), jawaban JSON akhirnya sering kepotong
+    // sebelum sempat ditulis lengkap (finishReason 'length'). Sekarang
+    // reasoning_effort dipaksa 'none' (didukung kedua model qwen3.6-27b &
+    // qwen3.8-27b) supaya model langsung jawab tanpa mikir panjang duluan
+    // — seluruh jatah token dipakai buat jawaban asli, bukan buat proses
+    // mikirnya. Batas token juga dinaikkan sedikit (4096→6144) sebagai
+    // jaring pengaman tambahan kalau responsnya tetap butuh ruang lebih.
+    let cfg={maxOutputTokens:6144};
     const url=GROQ_ENDPOINT;
     let controller=new AbortController();
     let timedOut=false;
@@ -10619,7 +10634,7 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       resp=await fetch(url,{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+VAI.apiKey},
-        body:JSON.stringify({model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToGroqContent(promptParts)}]}),
+        body:JSON.stringify({model:model,stream:true,max_tokens:cfg.maxOutputTokens,reasoning_effort:'none',messages:[{role:'user',content:_vbGeminiPartsToGroqContent(promptParts)}]}),
         signal:controller.signal
       });
       if(resp.ok&&resp.body&&typeof resp.body.getReader==='function'){
@@ -10865,10 +10880,13 @@ async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
   const maxTokens=(bodyObj&&bodyObj.generationConfig&&bodyObj.generationConfig.maxOutputTokens)||2048;
   const groqMessages=[{role:'user',content:_vbGeminiPartsToGroqContent(parts)}];
   async function callGroq(model){
+    // FIX (sama seperti _vbStreamGeminiJSONWithRetryModel): matikan mode
+    // thinking supaya panggilan fix-up singkat ini (rapikan jumlah kata)
+    // tidak ikut kehabisan token gara-gara model "mikir" duluan.
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(GROQ_ENDPOINT,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+VAI.apiKey},
-      body:JSON.stringify({model:model,max_tokens:maxTokens,messages:groqMessages})
+      body:JSON.stringify({model:model,max_tokens:maxTokens,reasoning_effort:'none',messages:groqMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
       try{
