@@ -1124,7 +1124,7 @@ body input, body textarea, body [contenteditable="true"]{
    diblok, biar user tidak bingung kenapa tidak merespons). Dilepas lagi
    otomatis begitu langkah 4 selesai / tur di-skip (lihat pbLockChip/
    pbUnlockChip & pbHideOverlay). */
-.f1chip.pb-locked{opacity:0.35;pointer-events:none;filter:grayscale(0.6);}
+.f1chip.pb-locked,.chip.pb-locked{opacity:0.35;pointer-events:none;filter:grayscale(0.6);}
 /* Reuse tanda "dikunci" yang sama di atas untuk kartu Subjek Foto (f0) —
    dipakai tur Langkah 5 buat "membekukan" kartu Produk Saja sementara,
    lihat pbGoStep5()/pbTourResetF0Ui(). */
@@ -3489,7 +3489,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.14 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.16 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -14235,7 +14235,7 @@ window.addEventListener('beforeunload', function(e){
      gak perlu berubah karena masih dicari lewat class .ntab / .nav global. -->
 <nav class="nav">
   <button class="ntab active" onclick="switchPage('foto',this)">Foto</button>
-  <button class="ntab" onclick="switchPage('video',this)">Video</button>
+  <button class="ntab" id="ntab-video" onclick="switchPage('video',this)">Video</button>
   <button class="ntab" onclick="switchPage('riwayat',this)">Riwayat</button>
   <button class="ntab" onclick="switchPage('panduan',this)">Panduan</button>
 </nav>
@@ -14578,6 +14578,14 @@ function pbHideOverlay(){
   // jangan sampai nyangkut terkunci walau tur sudah tidak tampil.
   pbUnlockChip('#ftb-outfit');
   pbUnlockChip('#ftb-objek');
+  // Jaga-jaga: kalau tur ditutup/di-skip persis waktu step "kunci Mode
+  // 2/3/4" (video) masih aktif, pastikan kuncinya selalu ikut lepas.
+  if(typeof pbTourVideoModeActive!=='undefined' && pbTourVideoModeActive){
+    pbTourVideoModeActive=false;
+    pbUnlockChip('#vb-mode-aset');
+    pbUnlockChip('#vb-mode-kp');
+    pbUnlockChip('#vb-mode-ikuti');
+  }
   // Jaga-jaga: kalau tur ditutup/di-skip persis waktu Langkah 5 atau 6
   // (versi sederhana f0/f1) masih aktif, pastikan tampilannya selalu
   // kembali normal — jangan sampai nyangkut buram/tersembunyi walau
@@ -14667,7 +14675,12 @@ function pbGoStep2(){
     + '</div>'
     + '<hr class="pb-flow-divider">'
     + '<p style="margin-top:0;">'+(pbFotoAiUploaded?'Mantap, semua bahan udah lengkap sampai Foto AI-nya! Video AI-nya tinggal kakak lanjutkan sendiri di Google Flow ya.':(pbProdukFotoUploaded&&pbKsFotoUploaded?'Oke, Sekarang kita udah punya 2 bahannya nih. Saatnya kita bikin FOTO AI.......':(pbProdukFotoUploaded?'Oke, sekarang kita bakalan bikin foto karakter sheet buat kakak. Silahkan klik "Lanjut".':'Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.')))+'</p>';
-  pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,pbFotoAiUploaded?'Selesai':'Lanjut',pbGoStep2Next);
+  // FITUR BARU (permintaan user): dulu tombol ini jadi 'Selesai' begitu
+  // pbFotoAiUploaded true (langsung pbEndTour() dari pbGoStep2Next di bawah).
+  // Sekarang SELALU 'Lanjut' — begitu Foto AI sudah lengkap, tur tidak
+  // berhenti di sini, tapi lanjut ke langkah baru "bikin prompt video"
+  // (lihat pbGoStep7VideoIntro).
+  pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep2Next);
 }
 // ── State: apakah foto produk sudah "disiapkan" lewat Langkah 3 baru
 // (siapkan foto produk) di bawah ini. Begitu true, thumbnail Foto Produk
@@ -14710,7 +14723,52 @@ function pbGoStep2Next(){
   if(!pbProdukFotoUploaded){ pbGoStep2b(); }
   else if(!pbKsFotoUploaded){ pbOpenCharacterSheetFromTour(); }
   else if(!pbFotoAiUploaded){ pbGoStep5(); }
-  else { pbEndTour(); }
+  else { pbGoStep7VideoIntro(); }
+}
+// ── LANGKAH BARU — pengenalan: Foto AI sudah lengkap, sekarang bikin
+// prompt VIDEO-nya dulu sebelum lanjut ke Google Flow/Veo. Modal biasa
+// (bukan interaktif) — tombolnya "Buat", bukan "Lanjut"/"Selesai". ──
+function pbGoStep7VideoIntro(){
+  pbShowModal(3,'Bikin Prompt Video Dulu, Yuk',
+    '<p style="margin-top:0;">Sebelum membuat foto AI menjadi video AI, kita butuh prompt nih kak. Yuk kita buat.</p>',
+    'Buat',pbGoStep7VideoOpen);
+}
+// State: apakah step "kunci mode 2/3/4" ini lagi aktif — dipakai
+// pbHideOverlay() supaya kalau tur ditutup/di-skip PERSIS di step ini,
+// chip Mode 2/3/4 selalu ikut kebuka kuncinya lagi (jangan sampai
+// nyangkut terkunci walau tur sudah tidak tampil).
+var pbTourVideoModeActive=false;
+// Dipanggil dari tombol "Buat" di atas — pindah ke tab Video, pastikan
+// Mode 1 yang aktif, kunci Mode 2/3/4 (user cuma boleh pakai Mode 1
+// selama masih di tur ini), lalu tempelkan banner tur interaktif di
+// atas kartu "Mode Referensi Foto" (bukan modal terpisah — tampilannya
+// sengaja beda dari tampilan asli/non-tur, biar jelas ini bagian tur).
+function pbGoStep7VideoOpen(){
+  let videoBtn=document.getElementById('ntab-video');
+  if(videoBtn) switchPage('video',videoBtn);
+  vbPickRefMode('satu');
+  pbLockChip('#vb-mode-aset');
+  pbLockChip('#vb-mode-kp');
+  pbLockChip('#vb-mode-ikuti');
+  pbTourVideoModeActive=true;
+  setTimeout(function(){
+    pbShowInteractive(4,'Pilih Mode Referensi Foto',
+      '<p style="margin-top:0;">Karena masih tahap belajar, kita pakai <strong>Mode 1 — 1 foto untuk semua</strong> dulu ya — udah otomatis kepilih. Mode 2, 3, dan 4 kita kunci sementara.</p><p>Kalau sudah paham, tinggal tekan tombol "Lanjut →" di bawah.</p>',
+      '#v1');
+    pbArmDoneWait('v1',pbStep7VideoDone);
+  },100);
+}
+// Dipanggil otomatis (lewat pbArmDoneWait) begitu user menekan tombol
+// "Lanjut →" asli di kartu Mode Referensi Foto (vbConfirmRef→doneCard('v1')).
+// Buka kunci Mode 2/3/4 lagi & tutup tur — wizard Video selanjutnya
+// (Jenis Kelamin & Usia, dst.) dilanjutkan user sendiri seperti biasa,
+// tanpa overlay tur.
+function pbStep7VideoDone(){
+  pbTourVideoModeActive=false;
+  pbUnlockChip('#vb-mode-aset');
+  pbUnlockChip('#vb-mode-kp');
+  pbUnlockChip('#vb-mode-ikuti');
+  pbEndTour();
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
