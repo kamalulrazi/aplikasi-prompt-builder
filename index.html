@@ -3494,7 +3494,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.19 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.20 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -14756,6 +14756,18 @@ var pbTourVideoModeActive=false;
 // Referensi Foto sendiri (#vb-tour-mode-hint, pola sama seperti
 // f1-tour-hint). Dipanggil dari tombol "Buat" di pbGoStep7VideoIntro().
 function pbGoStep7VideoOpen(){
+  // FIX (dilaporkan user — tombol "Buat" kayak mati): overlay tur
+  // (backdrop gelap + kartu "Langkah 3 dari 10") dulu tidak pernah
+  // disembunyikan di sini, jadi walau tab Video di baliknya sudah
+  // benar-benar pindah, layar tetap ketutup backdrop lama. Step ini kan
+  // memang didesain TANPA kartu/spotlight (lihat komentar di atas), jadi
+  // overlay-nya harus dilepas total dulu — sama seperti pola di pbGoStep5().
+  window.removeEventListener('resize',pbRepositionCurrent);
+  let shellEl=document.getElementById('app-shell');
+  if(shellEl) shellEl.removeEventListener('scroll',pbRepositionCurrent);
+  document.getElementById('pb-tour-backdrop').classList.remove('show','pb-passive');
+  document.getElementById('pb-tour-spot').classList.remove('show','pb-airy');
+  document.getElementById('pb-tour-card').classList.remove('show');
   let videoBtn=document.getElementById('ntab-video');
   if(videoBtn) switchPage('video',videoBtn);
   vbPickRefMode('satu');
