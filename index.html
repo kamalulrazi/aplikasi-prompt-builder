@@ -2166,7 +2166,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.40</div>
+  <div class="splash-version" id="splash-version">v5.42</div>
 </div>
 <script>
   (function(){
@@ -3715,12 +3715,23 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
              sini dari posisi lama). Logic generate AI/bulk sendiri (tombol
              & fungsi vbGenerate3AI/vbGenerateBulkAI) TIDAK diubah — cuma
              pintu masuknya yang digabung. Lihat vbToggleAiBulk(). -->
-        <!-- PERMINTAAN USER: selama tur panduan pemula, opsi "Banyak produk
-             sekaligus" disembunyikan biar pemula tidak bingung dengan mode
-             bulk — checkbox-nya tetap ada di DOM (id="vb-ai-bulk-toggle",
-             logic vbToggleAiBulk tidak diubah), cuma disembunyikan lewat
-             class hidden. -->
-        <label class="hidden" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:var(--fs-sm);color:var(--text);">
+        <!-- BUGFIX + FITUR BARU (permintaan user): toggle "Banyak produk
+             sekaligus" ini SEHARUSNYA cuma disembunyikan SELAMA tur panduan
+             pemula berlangsung, tapi sebelumnya dikasih class="hidden"
+             STATIS langsung di HTML — bukan lewat toggle class yang
+             mengikuti status tur — jadi malah hilang TERUS buat semua user
+             (tur atau mode biasa). Sekarang label diberi id
+             (id="vb-bulk-toggle-label") supaya visibilitasnya bisa
+             dikontrol dinamis lewat JS: disembunyikan lagi begitu tur
+             sampai di step ini (lihat pbStep7VideoDone — tur sekarang lanjut
+             "silent" sampai wizard Video ini, bukan berhenti di Mode
+             Referensi Foto lagi) dan ditampilkan lagi otomatis begitu tur
+             benar-benar selesai/di-skip (lihat wrapper copyBtn.onclick di
+             _vbBuildEditableCard() & jaga-jaga di pbHideOverlay()). Default
+             di HTML (tanpa class hidden) = selalu KELIHATAN untuk mode
+             biasa. checkbox-nya sendiri (id="vb-ai-bulk-toggle") & logic
+             vbToggleAiBulk tidak diubah. -->
+        <label id="vb-bulk-toggle-label" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:var(--fs-sm);color:var(--text);">
           <input type="checkbox" id="vb-ai-bulk-toggle" onchange="vbToggleAiBulk(this.checked)" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;" />
           Banyak produk sekaligus (maks 10)
         </label>
@@ -3882,7 +3893,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.40 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.42 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13126,7 +13137,19 @@ function vbCloseScriptReadyNotif(){
 function vbScriptReadyNext(){
   vbCloseScriptReadyNotif();
   pbTourProgressShow(4);
-  setTimeout(function(){ vbShowVideoGuide(); },250);
+  setTimeout(function(){
+    vbShowVideoGuide();
+    // FITUR BARU (permintaan user): kalau notifikasi ini muncul karena
+    // sesi tur "silent" di wizard Video (lihat wrapper copyBtn.onclick di
+    // _vbBuildEditableCard), begitu kartu "Panduan Video AI" (kosong) ini
+    // kelihatan, tur dianggap SELESAI TOTAL persis di sini — user bebas
+    // pakai app seperti biasa sesudahnya (nav bawah kembali muncul lewat
+    // pbEndTour()).
+    if(typeof pbTourWaitingVideoGuideEnd!=='undefined' && pbTourWaitingVideoGuideEnd){
+      pbTourWaitingVideoGuideEnd=false;
+      pbEndTour();
+    }
+  },250);
 }
 // ── KOLOM BARU "PANDUAN VIDEO AI" — array item disiapkan dari sekarang
 // (pola sama seperti PB_STEP6EXT_ITEMS: {title,body,img,alt}), SENGAJA
@@ -13410,7 +13433,16 @@ async function vbGenerate3AI(){
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     showToast('3 script + JSON berhasil dibuat!','success');
     stopGenLogoBtn(btn,genLogoState);
-    vbShowScriptReadyNotif();
+    // BUGFIX (dilaporkan user): vbShowScriptReadyNotif() DULU dipanggil
+    // otomatis persis di sini, begitu generate selesai — jadi notifikasi
+    // "Prompt Video Siap" + kartu "Panduan Video AI" (kosong) muncul buat
+    // SEMUA user (tur maupun mode biasa), padahal mestinya ini bagian dari
+    // tur panduan pemula saja dan seharusnya baru muncul SETELAH user
+    // beneran menekan tombol "Salin" di salah satu kartu Hook/Story/CTA —
+    // bukan otomatis begitu script selesai dibuat. Pemanggilannya dipindah
+    // ke wrapper copyBtn.onclick di _vbBuildEditableCard() (dan hanya
+    // jalan kalau pbTourVideoScriptActive sedang true). Di mode biasa,
+    // klik "Salin" sekarang tidak memicu apa-apa selain menyalin teksnya.
 
     // ── Rapikan jumlah kata di BACKGROUND (senyap), SETELAH animasi ketik
     // selesai (lihat await di atas) — supaya tidak ada perubahan mendadak
@@ -13550,6 +13582,19 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
       // Ingatkan lagi urutan foto tepat saat user menyalin (mau upload ke
       // Google Flow) — khusus Mode 3 yang butuh 2 foto berurutan.
       if(VB.refMode==='kp')vbShowMode3PhotoOrderNotice();
+      // FITUR BARU (permintaan user): kalau ini klik Salin PERTAMA selama
+      // sesi tur "silent" di wizard Video (pbTourVideoScriptActive, lihat
+      // pbStep7VideoDone), baru sekarang notifikasi "Prompt Video Siap"
+      // dimunculkan — bukan otomatis begitu script selesai digenerate.
+      // Di luar sesi tur (mode biasa), klik Salin TIDAK memicu apa-apa
+      // di sini selain menyalin teksnya seperti biasa.
+      if(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive){
+        pbTourVideoScriptActive=false;
+        pbTourWaitingVideoGuideEnd=true;
+        let bulkLabel=document.getElementById('vb-bulk-toggle-label');
+        if(bulkLabel) bulkLabel.classList.remove('hidden');
+        setTimeout(function(){ vbShowScriptReadyNotif(); },300);
+      }
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
   };})(idx,copyBtn,doneLabel);
   let copyWrap=document.createElement('div');
@@ -15195,12 +15240,18 @@ window.addEventListener('beforeunload', function(e){
   </div>
 </div>
 
-<!-- NOTIFIKASI "PROMPT VIDEO SIAP" — muncul begitu 3 script (Kami Bantu
-     Isi, 1 produk) selesai dibuat AI & sudah lengkap tampil di kartu
-     hasil (lihat vbShowScriptReadyNotif(), dipanggil dari vbGenerate3AI).
-     Jelasin kenapa dikasih 3 prompt (aturan durasi TikTok) + diagram
-     mini gaya sama seperti diagram alur Langkah 2. Tombol "Lanjut" cuma
-     menutup notifikasi ini (skrip di baliknya sudah siap dipakai). -->
+<!-- NOTIFIKASI "PROMPT VIDEO SIAP" — KHUSUS sesi tur panduan pemula
+     (pbTourVideoScriptActive). Dulu ini dipanggil OTOMATIS dari
+     vbGenerate3AI begitu 3 script selesai dibuat AI — tampil buat SEMUA
+     user (tur maupun mode biasa). Sekarang cuma dipanggil dari wrapper
+     copyBtn.onclick di _vbBuildEditableCard(), dan HANYA kalau tur
+     sedang aktif — persis begitu user beneran menekan "Salin" di salah
+     satu kartu Hook/Story/CTA (lihat pbStep7VideoDone & vbScriptReadyNext
+     untuk alur lengkapnya). Di mode biasa, klik Salin tidak memicu
+     notifikasi ini sama sekali. Jelasin kenapa dikasih 3 prompt (aturan
+     durasi TikTok) + diagram mini gaya sama seperti diagram alur Langkah
+     2. Tombol "Lanjut" cuma menutup notifikasi ini (skrip di baliknya
+     sudah siap dipakai). -->
 <div id="vb-scriptready-overlay" class="vb-scriptready-overlay">
   <div class="vb-scriptready-card">
     <div class="vb-scriptready-msg">Prompt vidio Ai udah siap nih kak, nah sekarang aku akan jelasin dulu ya.</div>
@@ -15592,6 +15643,27 @@ function pbHideOverlay(){
   // layar padahal bukan sesi tur. Direset di sini supaya skip di titik
   // manapun selalu membersihkan flag ini juga.
   if(typeof pbTourExtActive!=='undefined') pbTourExtActive=false;
+  // Jaga-jaga: kalau tur ditutup/di-skip persis waktu sesi "silent" wizard
+  // Video (pbTourVideoScriptActive — user lagi isi Jenis Kelamin/Usia/Nada
+  // Bicara/Aksen/Script sendiri tanpa overlay tur, lihat pbStep7VideoDone)
+  // masih aktif, pastikan toggle "Banyak produk sekaligus" yang tadi
+  // disembunyikan selalu kelihatan lagi — jangan sampai nyangkut
+  // tersembunyi walau tur sudah tidak berjalan.
+  if(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive){
+    pbTourVideoScriptActive=false;
+    let bulkLabel=document.getElementById('vb-bulk-toggle-label');
+    if(bulkLabel) bulkLabel.classList.remove('hidden');
+  }
+  // Jaga-jaga juga: kalau tur ditutup/di-skip persis di rentang antara
+  // klik "Salin" (notifikasi "Prompt Video Siap" muncul) dan kartu
+  // "Panduan Video AI" ditampilkan, pastikan flag penantiannya ikut
+  // direset DAN kedua overlay itu (kalau kebetulan masih kelihatan)
+  // ditutup juga.
+  if(typeof pbTourWaitingVideoGuideEnd!=='undefined') pbTourWaitingVideoGuideEnd=false;
+  let srEl=document.getElementById('vb-scriptready-overlay');
+  if(srEl) srEl.classList.remove('show');
+  let vgEl=document.getElementById('vb-videoguide-overlay');
+  if(vgEl) vgEl.classList.remove('show');
   window.removeEventListener('resize',pbRepositionCurrent);
   let shell=document.getElementById('app-shell');
   if(shell) shell.removeEventListener('scroll',pbRepositionCurrent);
@@ -15715,6 +15787,17 @@ function pbGoStep7VideoIntro(){
 // chip Mode 2/3/4 & hint-nya selalu ikut kebuka/kesembunyikan lagi
 // (jangan sampai nyangkut walau tur sudah tidak tampil).
 var pbTourVideoModeActive=false;
+// FITUR BARU (permintaan user): dua flag baru untuk sesi tur "silent" di
+// wizard Video sesudah Mode Referensi Foto dikonfirmasi (lihat
+// pbStep7VideoDone). pbTourVideoScriptActive true selama user isi bebas
+// Jenis Kelamin/Usia/Nada Bicara/Aksen/Script TANPA overlay tur kelihatan,
+// sampai dia beneran menekan "Salin" di salah satu kartu Hook/Story/CTA.
+// pbTourWaitingVideoGuideEnd true persis di rentang antara notifikasi
+// "Prompt Video Siap" muncul (dari klik Salin tsb) sampai kartu "Panduan
+// Video AI" (kosong) ditampilkan — dipakai wrapper vbScriptReadyNext() di
+// bawah untuk tahu kapan harus benar-benar memanggil pbEndTour().
+var pbTourVideoScriptActive=false;
+var pbTourWaitingVideoGuideEnd=false;
 // FITUR BARU (permintaan user — disamakan dengan pola proses pembuatan
 // prompt Foto AI/pbGoStep5): step ini TIDAK PAKAI lagi kartu instruksi
 // tur ("Langkah n dari 10") maupun kotak sorot (spotlight) kuning.
@@ -15757,9 +15840,22 @@ function pbGoStep7VideoOpen(){
 }
 // Dipanggil otomatis (lewat pbArmDoneWait) begitu user menekan tombol
 // "Lanjut →" asli di kartu Mode Referensi Foto (vbConfirmRef→doneCard('v1')).
-// Buka kunci Mode 2/3/4 lagi, sembunyikan hint & lepas blur, lalu tutup
-// tur — wizard Video selanjutnya (Jenis Kelamin & Usia, dst.) dilanjutkan
-// user sendiri seperti biasa, tanpa overlay tur.
+// Buka kunci Mode 2/3/4 lagi, sembunyikan hint & lepas blur.
+// FITUR BARU (permintaan user): tur TIDAK langsung ditutup di sini lagi.
+// Overlay/spotlight tur memang dilepas total (sama seperti Langkah 8 di
+// alur Foto) — user isi sendiri Jenis Kelamin & Usia (v2), Nada Bicara
+// (v3), Aksen (v4), sampai Script/Dialog (v5) TANPA ditunjuk-tunjuk lagi.
+// Tapi sesi tur masih dianggap "aktif" (pbTourVideoScriptActive=true; nav
+// bawah tetap tersembunyi) sampai user beneran menekan tombol "Salin" di
+// salah satu kartu Hook/Story/CTA hasil generate — baru dari situ
+// notifikasi "Prompt Video Siap" muncul, lalu begitu user tekan "Lanjut"
+// di notifikasi itu, kartu "Panduan Video AI" (masih kosong) muncul, dan
+// tur BENERAN ditutup persis di situ (lihat wrapper copyBtn di
+// _vbBuildEditableCard() & wrapper vbScriptReadyNext() di bawah).
+// Selama pbTourVideoScriptActive true, toggle "Banyak produk sekaligus"
+// di step Script/Dialog disembunyikan dulu biar pemula tidak bingung
+// dengan mode bulk — otomatis kelihatan lagi begitu tur beneran selesai
+// (atau kalau tur di-skip di tengah jalan, lihat pbHideOverlay()).
 function pbStep7VideoDone(){
   pbTourVideoModeActive=false;
   pbUnlockChip('#vb-mode-aset');
@@ -15769,7 +15865,9 @@ function pbStep7VideoDone(){
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='none';
   document.body.classList.remove('pb-tour-blur-context');
-  pbEndTour();
+  pbTourVideoScriptActive=true;
+  let bulkLabel=document.getElementById('vb-bulk-toggle-label');
+  if(bulkLabel) bulkLabel.classList.add('hidden');
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
