@@ -868,6 +868,34 @@ body input, body textarea, body [contenteditable="true"]{
 .gen-logo-wrap.looping .p-layer-back{animation:pLoopBack 4.4s infinite;}
 .gen-logo-wrap.looping .p-layer-front{animation:pLoopFront 4.4s infinite;}
 
+/* ── MINI LOGO P DI DALAM KOTAK SKRIP (permintaan user) ───────────────────
+   Selama satu kartu Hook/Story/CTA MASIH KOSONG/BELUM SELESAI diketik
+   (baik nunggu AI jawab, lagi retry kena limit Groq, MAUPUN sedang dalam
+   proses animasi ketik kata-per-kata), teksnya diblur dulu (samar) dan di
+   pojok kartu muncul logo P kecil yang terus pecah-menyatu (pakai ANIMASI
+   YANG SAMA — @keyframes pLoopBack/pLoopFront — bukan animasi baru), jadi
+   user tetap tahu "masih proses" meski kartunya kosong/setengah jadi.
+   Begitu kartu itu selesai diketik penuh, class "vb-ta-loading" dicopot
+   (lihat _vbCardSetLoading di JS) → blur hilang & logo P disembunyikan.
+   Dipasang lewat wrapper .vb-ta-wrap yang membungkus textarea skrip. ── */
+.vb-ta-wrap{position:relative;}
+.vb-ta-wrap textarea{transition:filter 0.35s ease;}
+.vb-ta-wrap.vb-ta-loading textarea{filter:blur(4px);}
+.vb-ta-loading-badge{
+  position:absolute;top:8px;right:10px;width:26px;height:26px;
+  display:none;align-items:center;justify-content:center;
+  background:var(--surface3);border:1px solid var(--border-hi);border-radius:50%;
+  box-shadow:0 2px 6px rgba(0,0,0,0.25);pointer-events:none;z-index:2;overflow:visible;
+}
+.vb-ta-wrap.vb-ta-loading .vb-ta-loading-badge{display:flex;}
+.vb-ta-loading-badge svg{width:16px;height:16px;overflow:visible;}
+/* Logo P di badge ini SELALU animasi pecah-menyatu selagi ada di DOM (tidak
+   butuh class "looping" tambahan seperti tombol Generate) — badge-nya
+   sendiri yang disembunyikan/ditampilkan lewat display:none di atas, jadi
+   cukup 1 aturan animation langsung di sini. */
+.vb-ta-loading-badge .p-layer-back{animation:pLoopBack 4.4s infinite;}
+.vb-ta-loading-badge .p-layer-front{animation:pLoopFront 4.4s infinite;}
+
 /* ── SPLASH SCREEN — tampilan awal sebelum masuk app: logo P (sama seperti
    loading generate) menyatu, lalu muncul tulisan "Prompt Builder" ── */
 .splash-screen{
@@ -3524,6 +3552,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
         <div class="chip" id="vb-mode-ai" onclick="vbSelectScriptMode('ai')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Kami Bantu Isi</div>
         <div class="chip" id="vb-mode-manual" onclick="vbSelectScriptMode('manual')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Tulis Manual Sendiri</div>
+        <div class="chip" id="vb-mode-mirrorselfie" onclick="vbSelectScriptMode('mirrorselfie')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Mirror Selfie (Tanpa Bicara)</div>
       </div>
 
       <div id="vb-mode-ai-area" class="hidden" style="margin-top:14px;">
@@ -3646,6 +3675,37 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <p class="text-hint-mt">Idealnya jumlah kata mengikuti rentang Nada Bicara yang kamu pilih (lihat angka di bawah tiap kotak), natural kayak orang ngomong beneran — bukan bahasa iklan formal.</p>
         <button class="btn sm" onclick="vbGenerate3Manual()" style="margin-top:10px;">Buat 3 JSON dari Script Ini →</button>
       </div>
+
+      <!-- MODE BARU (permintaan user): "Mirror Selfie (Tanpa Bicara)" — beda
+           total dari 2 mode di atas, karakter TIDAK ngomong sama sekali,
+           jadi TIDAK butuh dialogue/voice_character (Nada Bicara & Aksen
+           yang diisi di step 3/4 sengaja tidak dipakai di sini). Hasilnya
+           cuma SATU prompt/JSON (bukan 3 kartu Hook/Story/CTA) berisi
+           instruksi gerakan halus saja. Lihat vbGenerateMirrorSelfie(). -->
+      <div id="vb-mirrorselfie-area" class="hidden" style="margin-top:14px;">
+        <div id="vb-mirrorselfie-mode3-produk-wrap" class="hidden" style="margin-bottom:12px;">
+          <label class="inplabel">Nama Produk (di foto referensi 2) <span style="font-weight:400;color:var(--muted);">opsional</span></label>
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <div class="inp-wrap" style="flex:1;min-width:0;">
+              <input class="inp" id="vb-mirrorselfie-mode3-produk" maxlength="80" placeholder="Contoh: jam tangan" />
+            </div>
+            <button type="button" onclick="vbToggleProdukFotoPanel('mirrorselfie')" style="flex-shrink:0;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);background:none;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;">
+              <svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg>
+              <span id="vb-mirrorselfie-fotobadge" style="font-size:8px;line-height:1;"></span>
+            </button>
+          </div>
+          <div id="vb-mirrorselfie-fotopanel" class="hidden" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
+            <p style="font-size:var(--fs-2xs);color:var(--muted);margin:0 0 8px;">Tambah 2–5 foto produk (foto referensi 1 = karakter, sisanya produk) — JSON otomatis menyebut nomor foto referensi yang sesuai.</p>
+            <div id="vb-mirrorselfie-fotopanel-list"></div>
+          </div>
+        </div>
+        <label class="inplabel">Gerakan / Pose Karakter</label>
+        <div class="inp-wrap">
+          <textarea id="vb-mirrorselfie-action" rows="4" class="inp textarea-base" maxlength="500">Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.</textarea>
+        </div>
+        <p class="text-hint-mt">Karakter tidak bicara sama sekali di mode ini — cuma gerakan halus & natural. Teks di atas bisa diedit bebas sebelum generate.</p>
+        <button class="btn sm" onclick="vbGenerateMirrorSelfie()" style="margin-top:10px;">Buat Prompt Mirror Selfie →</button>
+      </div>
     </div>
   </div>
 
@@ -3695,7 +3755,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.30 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.35 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -6120,6 +6180,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, product clearly worn, hijab visible, eyes wide and enthusiastic, warm engaging energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product clearly worn, hijab visible, eyes wide and enthusiastic, warm engaging energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     hanger:[
       ['Standing naturally, holding hanger toward camera, product on hanger facing lens, bright natural smile, hijab clearly visible','Berdiri'],
@@ -6127,6 +6188,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, eyes wide and enthusiastic','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, eyes wide and enthusiastic','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     tangan:[
       ['Standing naturally, holding product with both hands directed toward camera, product faces lens squarely, hijab visible, warm smile','Berdiri'],
@@ -6134,6 +6196,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     custom:[
       ['Standing naturally, product displayed as instructed, hijab visible, warm candid expression','Berdiri'],
@@ -6141,6 +6204,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic engaging energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic engaging energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
   },
   pria:{
@@ -6150,6 +6214,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, engaging masculine energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, engaging masculine energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     hanger:[
       ['Standing confidently, holding hanger toward camera, product on hanger facing lens, strong natural posture, relaxed smile','Berdiri'],
@@ -6157,6 +6222,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, enthusiastic energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding hanger extended, product sharp and prominent, enthusiastic energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     tangan:[
       ['Standing confidently, holding product with both hands directed toward camera, product faces lens squarely, strong relaxed posture','Berdiri'],
@@ -6164,6 +6230,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide and enthusiastic, product sharp','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     custom:[
       ['Standing naturally, product displayed as instructed, relaxed masculine posture, candid expression','Berdiri'],
@@ -6171,6 +6238,7 @@ const POSES_WITH_PRODUK={
       ['Standing, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic masculine energy','Berdiri condong ke kamera'],
       ['Sitting, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic masculine energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
   },
   anak:{
@@ -6180,6 +6248,7 @@ const POSES_WITH_PRODUK={
       ['Child standing, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, joyful energy','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, product clearly worn, eyes wide and enthusiastic, joyful energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     hanger:[
       ['Child standing, holding hanger toward camera, bright cheerful smile, product on hanger clearly visible','Berdiri'],
@@ -6187,6 +6256,7 @@ const POSES_WITH_PRODUK={
       ['Child standing, leaning forward toward camera with excited expression, holding hanger extended, product sharp, big cheerful smile','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, holding hanger extended, product sharp, big cheerful smile','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     tangan:[
       ['Child standing, holding product with both hands directed toward camera, product faces lens clearly, bright cheerful smile','Berdiri'],
@@ -6194,6 +6264,7 @@ const POSES_WITH_PRODUK={
       ['Child standing, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide, joyful energy','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, holding product extended toward lens, eyes wide, joyful energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
     custom:[
       ['Child standing naturally, product displayed as instructed, cheerful candid expression','Berdiri'],
@@ -6201,6 +6272,7 @@ const POSES_WITH_PRODUK={
       ['Child standing, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic playful energy','Berdiri condong ke kamera'],
       ['Child sitting, leaning forward toward camera with excited expression, product displayed as instructed, enthusiastic playful energy','Duduk condong ke kamera'],
       ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+      ['mirror selfie berdiri','Mirror Selfie Berdiri'],
     ],
   },
 };
@@ -6212,6 +6284,7 @@ const POSES_NO_PRODUK={
     ['Standing, leaning forward toward camera with excited expression, eyes wide and enthusiastic, hijab visible, warm engaging energy','Berdiri condong ke kamera'],
     ['Sitting, leaning forward toward camera with excited expression, eyes wide and enthusiastic, hijab visible, warm engaging energy','Duduk condong ke kamera'],
     ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+    ['mirror selfie berdiri','Mirror Selfie Berdiri'],
   ],
   pria:[
     ['Standing naturally, arms relaxed at sides, confident expression, direct eye contact with camera','Berdiri'],
@@ -6219,6 +6292,7 @@ const POSES_NO_PRODUK={
     ['Standing, leaning forward toward camera with excited expression, eyes wide and enthusiastic, engaging masculine energy','Berdiri condong ke kamera'],
     ['Sitting, leaning forward toward camera with excited expression, eyes wide and enthusiastic, engaging masculine energy','Duduk condong ke kamera'],
     ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+    ['mirror selfie berdiri','Mirror Selfie Berdiri'],
   ],
   anak:[
     ['Child standing naturally, hands at sides, bright innocent smile, looking at camera','Berdiri'],
@@ -6226,6 +6300,7 @@ const POSES_NO_PRODUK={
     ['Child standing, leaning forward toward camera with excited expression, eyes wide and enthusiastic, joyful playful energy','Berdiri condong ke kamera'],
     ['Child sitting, leaning forward toward camera with excited expression, eyes wide and enthusiastic, joyful playful energy','Duduk condong ke kamera'],
     ['close-up selfie angle, phone out of frame','Selfie — pegang kamera'],
+    ['mirror selfie berdiri','Mirror Selfie Berdiri'],
   ],
 };
 
@@ -9831,8 +9906,8 @@ function vbToggleProdukFotoPanel(prefix){
   let panel=document.getElementById('vb-'+prefix+'-fotopanel');
   if(!panel)return;
   let willOpen=panel.classList.contains('hidden');
-  // tutup panel lain (ai/manual) biar tidak dobel kebuka
-  ['ai','manual'].forEach(function(p){
+  // tutup panel lain (ai/manual/mirrorselfie) biar tidak dobel kebuka
+  ['ai','manual','mirrorselfie'].forEach(function(p){
     let el=document.getElementById('vb-'+p+'-fotopanel');
     if(el&&p!==prefix)el.classList.add('hidden');
   });
@@ -9841,7 +9916,7 @@ function vbToggleProdukFotoPanel(prefix){
 }
 function _vbRenderProdukFotoMulti(){
   let list=vbProdukFotoList();
-  ['ai','manual'].forEach(function(prefix){
+  ['ai','manual','mirrorselfie'].forEach(function(prefix){
     let badge=document.getElementById('vb-'+prefix+'-fotobadge');
     if(badge)badge.textContent=list.length?(list.length+'/5 foto'):'';
     let wrap=document.getElementById('vb-'+prefix+'-fotopanel-list');
@@ -10216,8 +10291,10 @@ function vbPickAccentCustom(){
 function vbSelectScriptMode(mode){
   document.getElementById('vb-mode-ai').classList.toggle('sel',mode==='ai');
   document.getElementById('vb-mode-manual').classList.toggle('sel',mode==='manual');
+  document.getElementById('vb-mode-mirrorselfie').classList.toggle('sel',mode==='mirrorselfie');
   document.getElementById('vb-mode-ai-area').classList.toggle('hidden',mode!=='ai');
   document.getElementById('vb-manual-script-area').classList.toggle('hidden',mode!=='manual');
+  document.getElementById('vb-mirrorselfie-area').classList.toggle('hidden',mode!=='mirrorselfie');
   // FIX BUG#18 (ditemukan saat audit mendalam khusus builder video):
   // vbGenerate3Manual() fallback membaca isi kotak "Nama Produk" milik mode
   // AI (id="vb-produk-nama") untuk label Riwayat kalau refMode bukan Mode 3.
@@ -10236,11 +10313,15 @@ function vbSelectScriptMode(mode){
     if(bulkToggle&&bulkToggle.checked){bulkToggle.checked=false;vbToggleAiBulk(false);}
   }
   // Mode 3 (karakter+produk) butuh nama produk buat teks referensi — AI &
-  // bulk sudah nanya sendiri, manual belum punya kotaknya jadi ditambahin di sini
+  // bulk sudah nanya sendiri, manual dan mirror-selfie punya kotaknya sendiri
+  // (beda id per mode, ditambahkan di sini biar tidak nyangkut ke mode lain)
   let m3produkWrap=document.getElementById('vb-manual-mode3-produk-wrap');
   if(m3produkWrap)m3produkWrap.classList.toggle('hidden',!(mode==='manual'&&VB.refMode==='kp'));
+  let m3produkWrapMirror=document.getElementById('vb-mirrorselfie-mode3-produk-wrap');
+  if(m3produkWrapMirror)m3produkWrapMirror.classList.toggle('hidden',!(mode==='mirrorselfie'&&VB.refMode==='kp'));
   _vbRenderProdukFotoMulti();
-  setTimeout(()=>document.getElementById(mode==='ai'?'vb-mode-ai-area':'vb-manual-script-area').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  let scrollTargetId=mode==='ai'?'vb-mode-ai-area':(mode==='manual'?'vb-manual-script-area':'vb-mirrorselfie-area');
+  setTimeout(()=>document.getElementById(scrollTargetId).scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 // FITUR BARU (permintaan user, Sept 2026): toggle "Banyak produk sekaligus"
 // DI DALAM chip "Kami Bantu Isi" — menggantikan chip terpisah "Banyak Produk
@@ -12113,6 +12194,29 @@ function vbToggleRevisiPanel(prodIdx,forceClose){
 // (jadi tetap terasa "real-time", bukan nunggu sampai benar-benar
 // selesai baru muncul, tapi juga tidak loncat sekaligus).
 // ──────────────────────────────────────────────────────────────────
+// ── STATUS "MASIH KOSONG/BELUM SELESAI" PER KARTU (blur teks + logo P
+// kecil mini di pojok kartu, lihat CSS .vb-ta-wrap/.vb-ta-loading-badge) ──
+// idx diambil dari suffix taId ("vb-bulk-script-3" -> "3") supaya TIDAK
+// perlu ubah signature semua fungsi typewriter yang sudah ada.
+function _vbCardIdxFromTaId(taId){
+  if(!taId)return null;
+  let m=/^vb-bulk-script-(\d+)$/.exec(taId);
+  return m?m[1]:null;
+}
+function _vbCardSetLoading(idx,isLoading){
+  if(idx===null||idx===undefined)return;
+  let wrap=document.getElementById('vb-ta-wrap-'+idx);
+  if(!wrap)return; // kartu sudah diganti/dihapus, aman diabaikan
+  wrap.classList.toggle('vb-ta-loading',!!isLoading);
+}
+// Matikan blur+logo P di SEMUA kartu yang sedang tampil — dipanggil kalau
+// generate gagal/batal (lihat catch di vbGenerate3AI) supaya kartu kosong
+// bekas percobaan yang gagal tidak nyangkut blur selamanya.
+function _vbClearAllCardLoading(){
+  let wrap=document.getElementById('vb-multi-output');
+  if(!wrap)return;
+  wrap.querySelectorAll('.vb-ta-wrap.vb-ta-loading').forEach(function(el){el.classList.remove('vb-ta-loading');});
+}
 const _vbTypewriter={targets:{},timer:null};
 function _vbTypewriterReset(){
   _vbTypewriter.targets={};
@@ -12129,6 +12233,7 @@ function _vbTypewriterSetTarget(taId,fullText,onTick){
         if(!ta)continue; // kartu sudah diganti/dihapus (mis. generate baru), lewati aman
         let shown=ta.value||'';
         let target=t.text||'';
+        let cardIdx=_vbCardIdxFromTaId(taId2);
         if(shown.length<target.length){
           anyPending=true;
           // Kecepatan dasar ~2 karakter/tik (terasa seperti ngetik natural).
@@ -12138,12 +12243,20 @@ function _vbTypewriterSetTarget(taId,fullText,onTick){
           let gap=target.length-shown.length;
           let step=gap>60?Math.ceil(gap/8):(gap>20?3:2);
           ta.value=target.slice(0,shown.length+step);
+          // Masih setengah jalan -> teks tetap blur & logo P kecil tetap jalan.
+          _vbCardSetLoading(cardIdx,true);
           if(typeof t.onTick==='function')t.onTick();
         }else if(shown.length>target.length){
           // Kasus jarang: target (hasil terbaru) lebih pendek dari yang
           // sudah tampil — samakan langsung, tidak perlu animasi mundur.
           ta.value=target;
+          _vbCardSetLoading(cardIdx,target.length===0);
           if(typeof t.onTick==='function')t.onTick();
+        }else if(target.length>0){
+          // Sudah pas sama panjang & tidak kosong -> kartu ini SELESAI,
+          // matikan blur + logo P-nya (kartu lain yang masih nunggu tidak
+          // ikut kena karena ini dicek per-taId, bukan global).
+          _vbCardSetLoading(cardIdx,false);
         }
       }
       if(!anyPending){clearInterval(_vbTypewriter.timer);_vbTypewriter.timer=null;}
@@ -12177,9 +12290,14 @@ function _vbTypewriterSequentialRun(items){
       if(idx>=items.length){resolve();return;}
       let item=items[idx];
       let ta=document.getElementById(item.taId);
+      let cardIdx=_vbCardIdxFromTaId(item.taId);
       let words=(item.text||'').match(/\S+\s*/g)||[]; // per-kata (termasuk spasi setelahnya)
-      if(!ta||words.length===0){idx++;nextItem();return;}
+      if(!ta||words.length===0){_vbCardSetLoading(cardIdx,false);idx++;nextItem();return;}
       ta.value='';
+      // Giliran kartu INI mulai diketik -> pastikan blur & logo P kecil
+      // masih aktif (kartu yang belum kebagian giliran juga tetap loading
+      // dari kondisi awal saat dibangun, lihat _vbBuildEditableCard).
+      _vbCardSetLoading(cardIdx,true);
       if(typeof item.onTick==='function')item.onTick();
       let wi=0;
       _vbSeqTyper.timer=setInterval(function(){
@@ -12189,6 +12307,8 @@ function _vbTypewriterSequentialRun(items){
         if(typeof item.onTick==='function')item.onTick();
         if(wi>=words.length){
           clearInterval(_vbSeqTyper.timer);_vbSeqTyper.timer=null;
+          // Kartu ini SUDAH LENGKAP diketik -> blur & logo P kecil dimatikan.
+          _vbCardSetLoading(cardIdx,false);
           idx++;
           nextItem();
         }
@@ -13155,6 +13275,11 @@ async function vbGenerate3AI(){
     errBox.textContent=''+err.message;
     errBox.classList.remove('hidden');
     showToast('Gagal generate: '+err.message,'error');
+    // FIX: kalau gagal (mis. limit Groq abis dicoba ulang ~3 menit), 3 kartu
+    // kosong dari _vbRenderMultiOutputLive() masih nangkring di layar dalam
+    // kondisi blur+logo P loading — tanpa ini, tampilannya kelihatan
+    // "nyangkut loading selamanya" padahal prosesnya sudah berhenti.
+    _vbClearAllCardLoading();
   }finally{
     stopGenLogoBtn(btn,genLogoState);
     VAI._isGenerating=false;
@@ -13299,6 +13424,13 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
     body.appendChild(lokasiPanel);
   }
 
+  // Wrapper posisi-relatif buat textarea skrip — dipakai supaya badge logo P
+  // kecil (lihat di bawah) bisa ditempel di pojok kartu, dan supaya blur
+  // (.vb-ta-loading di CSS) cuma kena teksnya, bukan seisi kartu.
+  let taWrap=document.createElement('div');
+  taWrap.className='vb-ta-wrap';
+  taWrap.id='vb-ta-wrap-'+idx;
+
   let ta=document.createElement('textarea');
   ta.id='vb-bulk-script-'+idx;
   ta.value=displayScript;
@@ -13306,6 +13438,40 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   ta.className='inp';
   ta.style.cssText='width:100%;box-sizing:border-box;font-size:var(--fs-base);line-height:1.7;resize:vertical;margin-bottom:5px;padding:10px 12px;';
   ta.oninput=(function(ii){return function(){vbBulkUpdateJson(ii);};})(idx);
+  taWrap.appendChild(ta);
+
+  // FITUR BARU (permintaan user): selama kartu ini MASIH KOSONG/BELUM
+  // SELESAI diketik (baru dibangun kosong sambil nunggu AI, ATAU lagi
+  // dalam proses animasi ketik kata-per-kata), teksnya diblur dulu dan
+  // muncul logo P kecil yang terus pecah-menyatu di pojok kanan atas
+  // kartu — pakai SVG & animasi (@keyframes pLoopBack/pLoopFront) YANG
+  // SAMA PERSIS dengan logo P di tombol Generate, cuma diperkecil jadi
+  // badge bulat mini. Elemen badge-nya SELALU dibuat (biar bisa dipakai
+  // ulang kalau kartu ini di-loading-kan lagi nanti, mis. saat revisi),
+  // tapi cuma KELIHATAN kalau wrapper punya class "vb-ta-loading" (lihat
+  // CSS). Class itu sendiri diatur oleh _vbCardSetLoading(idx,bool), yang
+  // dipanggil dari mesin typewriter (_vbTypewriterSetTarget /
+  // _vbTypewriterSequentialRun) tiap kali kartu ini mulai/selesai diketik.
+  let loadingBadge=document.createElement('div');
+  loadingBadge.className='vb-ta-loading-badge';
+  loadingBadge.id='vb-ta-badge-'+idx;
+  loadingBadge.innerHTML='<svg viewBox="0 0 642 635" xmlns="http://www.w3.org/2000/svg">'
+    +'<defs><linearGradient id="vbTaPGrad'+idx+'" x1="0" y1="0" x2="1" y2="1">'
+      +'<stop offset="0%" stop-color="#F0D9A0"/><stop offset="100%" stop-color="#B8965F"/>'
+    +'</linearGradient></defs>'
+    +'<path class="p-layer p-layer-back" fill="url(#vbTaPGrad'+idx+')" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>'
+    +'<path class="p-layer p-layer-front" fill="url(#vbTaPGrad'+idx+')" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>'
+    +'</svg>';
+  taWrap.appendChild(loadingBadge);
+
+  // Kartu dianggap "masih loading" di awal kalau displayScript KOSONG —
+  // ini mencakup kartu Live yang sengaja dibangun kosong sambil nunggu AI
+  // (_vbRenderMultiOutputLive) MAUPUN kartu animate=true yang isinya sudah
+  // ada di memori tapi sengaja ditunda tampilnya buat diketik pelan-pelan
+  // (skipInitialFill). Kartu dari mode manual (isi sudah pasti tidak
+  // kosong sejak awal, sudah divalidasi wajib) TIDAK pernah kena kondisi
+  // ini, jadi aman tanpa perlu parameter tambahan.
+  if(!displayScript)taWrap.classList.add('vb-ta-loading');
 
   let wcLabel=document.createElement('div');
   wcLabel.id='vb-bulk-wc-'+idx;
@@ -13321,7 +13487,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   jsonBox.textContent=jsonText;
   jsonBox.style.cssText='font-family:"Geist Mono",monospace;font-size:var(--fs-2xs);line-height:1.5;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-2xs);padding:6px 8px;max-height:70px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin:0;';
 
-  body.appendChild(ta);
+  body.appendChild(taWrap);
   body.appendChild(wcLabel);
   body.appendChild(jsonBox);
   card.appendChild(head);
@@ -13740,6 +13906,108 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   return flowText;
 }
 
+// ══════════════════════════════════════════════════════════════════
+// MODE "MIRROR SELFIE (TANPA BICARA)" — permintaan user. Beda total dari
+// _vbBuildFlowText di atas: karakter TIDAK berbicara sama sekali, jadi
+// TIDAK ada blok "dialogue:voice_character:..." (Nada Bicara & Aksen dari
+// step 3/4 sengaja TIDAK dipakai di sini, meskipun user tetap mengisinya
+// karena wizard step-nya berurutan). Instruksi foto referensi (Start
+// Frame/Frame Asset/Raw Asset) SENGAJA diambil dengan logika yang SAMA
+// PERSIS seperti di _vbBuildFlowText — tapi ditulis ulang terpisah di sini
+// (bukan manggil fungsi itu) supaya tidak perlu utak-atik fungsi dialog
+// yang sudah stabil dipakai 3 jalur lain (AI/manual/bulk).
+// ══════════════════════════════════════════════════════════════════
+function _vbBuildMirrorSelfieFlowText(actionText,produkOverride){
+  let instructionText;
+  if(VB.refMode==='kp'){
+    let produkForRef=produkOverride||VB.mode3Produk||'produk tersebut';
+    let produkFotoTotal=Math.max(1,vbProdukFotoCount());
+    let produkRefNums=[];
+    for(let n=2;n<=1+produkFotoTotal;n++)produkRefNums.push(n);
+    let produkRefLabel=produkRefNums.join(',');
+    let jumlahFotoTotal=1+produkFotoTotal;
+    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi '+produkRefLabel+' adalah produk yaitu '+produkForRef+' (cukup ambil produknya saja, abaikan elemen lain yang ada di foto tersebut, pastikan kamu fokus ke produk supaya bisa 100% mirip tanpa terkecuali). Manfaatkan ke-'+jumlahFotoTotal+' foto tersebut untuk membuat sebuah video. Lokasi: '+VB.mode3Lokasi+'. Lighting: '+VB.mode3Lighting+'. Jangan pernah membuat atau menampilkan sesuatu yang tidak ditampilkan dalam foto referensi yang dilampirkan (misalnya membuka isi '+produkForRef+' kalau memang di foto tidak pernah terlihat isinya). ';
+  }else{
+    instructionText=VB_REF_MODE_TEXT[VB.refMode]||VB_REF_MODE_TEXT.satu;
+  }
+  return instructionText+' '+actionText;
+}
+
+// Render output mode Mirror Selfie — SATU kartu saja (bukan 3 seperti Hook/
+// Story/CTA, karena memang tidak ada dialog buat dipecah 3 bagian).
+function _vbRenderMirrorSelfieOutput(promptText){
+  VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};
+  let multiWrap=document.getElementById('vb-multi-output');
+  multiWrap.innerHTML='';
+  multiWrap.style.display='flex';
+
+  let card=document.createElement('div');
+  card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;';
+
+  let head=document.createElement('div');
+  head.style.cssText='background:var(--surface3);padding:5px 9px;display:flex;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid var(--border);';
+  head.innerHTML='<div style="font-size:var(--fs-2xs);font-weight:700;color:var(--muted);">Mirror Selfie</div>';
+
+  let copyBtn=document.createElement('button');
+  copyBtn.className='copy-btn';copyBtn.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+  const VB_MIRROR_COPY_LABEL='Salin';
+  copyBtn.textContent=VB_MIRROR_COPY_LABEL;
+  copyBtn.onclick=function(){
+    _copyTextRobust(promptText,function(){
+      copyBtn.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg>';
+      setTimeout(function(){copyBtn.textContent=VB_MIRROR_COPY_LABEL;},1200);
+    },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+  };
+  head.appendChild(copyBtn);
+
+  let body=document.createElement('div');
+  body.style.cssText='padding:7px 9px;';
+  let jsonBox=document.createElement('pre');
+  jsonBox.id='vb-mirrorselfie-output';
+  jsonBox.textContent=promptText;
+  jsonBox.style.cssText='font-family:"Geist Mono",monospace;font-size:var(--fs-2xs);line-height:1.5;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-2xs);padding:6px 8px;max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;margin:0;';
+  body.appendChild(jsonBox);
+
+  card.appendChild(head);card.appendChild(body);
+  multiWrap.appendChild(card);
+
+  let resetBtn=document.createElement('button');
+  resetBtn.className='reset-btn';
+  resetBtn.innerHTML='<svg class="icon"><use href="#ic-refresh"></use></svg> Buat Prompt Video Baru';
+  resetBtn.onclick=vbReset;
+  multiWrap.appendChild(resetBtn);
+}
+
+// Tombol "Buat Prompt Mirror Selfie →" — validasi minimal (cuma nama produk
+// kalau Mode 3/Raw Asset, karena tidak ada Hook/Story/CTA ataupun Nada
+// Bicara/Aksen yang perlu dicek di mode tanpa dialog ini), lalu render 1
+// kartu output.
+function vbGenerateMirrorSelfie(){
+  let produkNama='';
+  if(VB.refMode==='kp'){
+    // PERMINTAAN USER: nama produk TIDAK wajib di mode ini (beda dari mode
+    // Manual/AI) — kalau dikosongkan, _vbBuildMirrorSelfieFlowText otomatis
+    // fallback ke VB.mode3Produk (kalau sempat keisi dari mode lain
+    // sebelumnya) lalu ke 'produk tersebut' generik.
+    let produkEl=document.getElementById('vb-mirrorselfie-mode3-produk');
+    produkNama=produkEl?produkEl.value.trim():'';
+    if(produkNama)VB.mode3Produk=produkNama;
+  }
+  let actionEl=document.getElementById('vb-mirrorselfie-action');
+  let actionText=(actionEl?actionEl.value.trim():'')||'Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.';
+  // Disaring lewat sanitizer yang sama seperti jalur manual — jaring pengaman
+  // kalau user sempat edit teksnya dan tanpa sengaja menyisipkan frasa yang
+  // dilarang (mis. klaim promo/stok terbatas).
+  actionText=_vbSanitizeForbiddenPhrases(actionText);
+  let promptText=_vbBuildMirrorSelfieFlowText(actionText,produkNama);
+  _vbRenderMirrorSelfieOutput(promptText);
+  _vbBuildCombinedHistoryEntry('Mirror Selfie'+(produkNama?' — '+produkNama:''));
+  doneCard('v5','va5','Mirror Selfie (tanpa bicara)');
+  vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+  setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  showToast('Prompt Mirror Selfie berhasil dibuat!','success');
+}
+
 function vbReset(){
   showConfirm('Semua data video akan dihapus dan kamu mulai dari awal.',function(){
     // Buang juga sisa "step yang ketutup sementara karena lagi diedit" —
@@ -13811,7 +14079,15 @@ function vbReset(){
     let eb=document.getElementById('vb-ai-error'); if(eb){eb.classList.add('hidden');eb.textContent='';}
     let manualArea=document.getElementById('vb-manual-script-area'); if(manualArea)manualArea.classList.add('hidden');
     let aiArea=document.getElementById('vb-mode-ai-area'); if(aiArea)aiArea.classList.add('hidden');
-    document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
+    // FITUR BARU: reset juga mode "Mirror Selfie (Tanpa Bicara)" — sama
+    // perlakuannya dengan area AI/manual di atas, biar tidak nyangkut ke
+    // sesi generate video berikutnya.
+    let mirrorArea=document.getElementById('vb-mirrorselfie-area'); if(mirrorArea)mirrorArea.classList.add('hidden');
+    let mirrorProduk=document.getElementById('vb-mirrorselfie-mode3-produk'); if(mirrorProduk)mirrorProduk.value='';
+    let mirrorProdukWrap=document.getElementById('vb-mirrorselfie-mode3-produk-wrap'); if(mirrorProdukWrap)mirrorProdukWrap.classList.add('hidden');
+    let mirrorFotoPanel=document.getElementById('vb-mirrorselfie-fotopanel'); if(mirrorFotoPanel)mirrorFotoPanel.classList.add('hidden');
+    let mirrorAction=document.getElementById('vb-mirrorselfie-action'); if(mirrorAction)mirrorAction.value='Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.';
+    document.querySelectorAll('#vb-mode-ai,#vb-mode-manual,#vb-mode-mirrorselfie').forEach(c=>c.classList.remove('sel'));
     let bulkToggleReset=document.getElementById('vb-ai-bulk-toggle'); if(bulkToggleReset)bulkToggleReset.checked=false;
     let aiSingleReset=document.getElementById('vb-ai-single-fields'); if(aiSingleReset)aiSingleReset.classList.remove('hidden');
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
