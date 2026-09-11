@@ -1959,6 +1959,48 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   font-size:var(--fs-3xs);color:var(--muted2);text-align:center;
   line-height:1.2;max-width:66px;
 }
+
+/* ── NOTIFIKASI "PROMPT VIDEO SIAP" — muncul setelah 3 script (Kami Bantu
+   Isi, mode 1 produk) selesai digenerate AI & sudah lengkap tampil di
+   kartu hasil. Menjelaskan kenapa dikasih 3 prompt (aturan durasi TikTok)
+   pakai diagram mini gaya sama seperti diagram alur Langkah 2 (kotak
+   "goal" di atas, garis penghubung, lalu 3 kotak sejajar di bawah).
+   Overlay terpisah dari sistem tur (#pb-tour-*) — dipakai di alur normal
+   (bukan cuma saat tur pemula), makanya z-index-nya di bawah lightbox
+   diagram (10002) tapi tetap di atas konten halaman biasa. ────────────── */
+.vb-scriptready-overlay{
+  position:fixed;inset:0;z-index:10001;
+  background:rgba(4,4,6,0.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .25s ease;padding:20px;
+}
+.vb-scriptready-overlay.show{opacity:1;pointer-events:auto;}
+.vb-scriptready-card{
+  width:min(92vw,360px);
+  background:linear-gradient(180deg,rgba(24,24,28,0.97),rgba(18,18,21,0.97));
+  border:1px solid var(--border-hi);border-radius:var(--radius);
+  padding:18px;box-shadow:0 20px 52px rgba(0,0,0,0.55);
+  transform:scale(0.94);transition:transform .3s cubic-bezier(.16,1,.3,1);
+}
+.vb-scriptready-overlay.show .vb-scriptready-card{transform:scale(1);}
+.vb-scriptready-msg{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.5;margin-bottom:10px;}
+.vb-scriptready-explain{font-size:var(--fs-xs2);color:var(--muted);line-height:1.6;margin-bottom:14px;}
+.vb-fb-row{display:flex;justify-content:center;gap:8px;margin:6px 0;}
+.vb-fb{background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:8px 6px;text-align:center;flex:1;min-width:0;}
+.vb-fb .l{font-size:var(--fs-xs2);font-weight:700;color:var(--text);line-height:1.25;}
+.vb-fb .s{font-size:var(--fs-3xs);color:var(--muted2);margin-top:2px;}
+.vb-fb-hero{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-glow);flex:0 0 auto;width:150px;margin:0 auto;}
+.vb-fb-hero .s{color:var(--accent);font-weight:700;}
+/* Garis panjang penghubung 3 kotak sejajar (Hook/Cerita/CTA) di bawah
+   panah — meniru permintaan user "garis panjang menghubungkan 3 kotak". */
+.vb-fb-connector{height:10px;width:76%;margin:0 auto;border-top:1px solid var(--border-hi);}
+.vb-scriptready-actions{display:flex;justify-content:flex-end;margin-top:14px;}
+.vb-scriptready-btn{
+  font-size:var(--fs-sm);font-weight:700;color:var(--bg);
+  background:linear-gradient(180deg,var(--accent-2),var(--accent-dim));
+  border:none;border-radius:var(--radius-pill);padding:10px 22px;cursor:pointer;
+}
+.vb-scriptready-btn:active{opacity:0.88;filter:brightness(0.97);}
 }
 }
 }
@@ -3631,7 +3673,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <p style="font-size:var(--fs-2xs);color:var(--muted);margin:0 0 8px;">Khusus Mode 3 (Karakter+Produk+Lokasi): tambah 2–5 foto produk supaya JSON otomatis menyebut "foto referensi 2,3,4 adalah produk". Foto pertama sama dengan slot di atas.</p>
           <div id="vb-ai-fotopanel-list"></div>
         </div>
-        <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:-8px 0 12px;">Foto produk bantu AI biar script lebih sesuai produk asli — opsional.</p>
         <label class="inplabel">Target Audience (penonton) <span style="color:var(--red);">*wajib</span></label>
         <div class="inp-wrap" style="margin-bottom:8px;">
           <input class="inp" id="vb-target-audience" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang peduli skincare" />
@@ -9923,7 +9964,7 @@ function _vbRenderProdukFotoMulti(){
   let list=vbProdukFotoList();
   ['ai','manual','mirrorselfie'].forEach(function(prefix){
     let badge=document.getElementById('vb-'+prefix+'-fotobadge');
-    if(badge)badge.textContent=list.length?(list.length+'/5 foto'):'';
+    if(badge)badge.textContent=list.length?(list.length+' foto'):'';
     let wrap=document.getElementById('vb-'+prefix+'-fotopanel-list');
     if(!wrap)return;
     let thumbs=list.map(function(f,i){
@@ -12986,6 +13027,17 @@ function vbGenerate3Manual(){
   showToast('3 JSON berhasil dibuat dari script manual!','success');
 }
 
+// Notifikasi "Prompt Video Siap" (lihat komentar HTML-nya) — dipanggil
+// begitu 3 script dari mode "Kami Bantu Isi" (1 produk) selesai lengkap
+// tampil di kartu hasil.
+function vbShowScriptReadyNotif(){
+  let el=document.getElementById('vb-scriptready-overlay');
+  if(el)el.classList.add('show');
+}
+function vbCloseScriptReadyNotif(){
+  let el=document.getElementById('vb-scriptready-overlay');
+  if(el)el.classList.remove('show');
+}
 async function vbGenerate3AI(){
   let errBox=document.getElementById('vb-ai-error');
   errBox.classList.add('hidden');errBox.textContent='';
@@ -13226,6 +13278,7 @@ async function vbGenerate3AI(){
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     showToast('3 script + JSON berhasil dibuat!','success');
     stopGenLogoBtn(btn,genLogoState);
+    vbShowScriptReadyNotif();
 
     // ── Rapikan jumlah kata di BACKGROUND (senyap), SETELAH animasi ketik
     // selesai (lihat await di atas) — supaya tidak ada perubahan mendadak
@@ -14988,6 +15041,32 @@ window.addEventListener('beforeunload', function(e){
     <div class="pb-flow-lightbox-label" id="pb-flow-lightbox-label"></div>
     <div class="pb-flow-lightbox-explain" id="pb-flow-lightbox-explain"></div>
     <div class="pb-flow-lightbox-subwrap" id="pb-flow-lightbox-subwrap"></div>
+  </div>
+</div>
+
+<!-- NOTIFIKASI "PROMPT VIDEO SIAP" — muncul begitu 3 script (Kami Bantu
+     Isi, 1 produk) selesai dibuat AI & sudah lengkap tampil di kartu
+     hasil (lihat vbShowScriptReadyNotif(), dipanggil dari vbGenerate3AI).
+     Jelasin kenapa dikasih 3 prompt (aturan durasi TikTok) + diagram
+     mini gaya sama seperti diagram alur Langkah 2. Tombol "Lanjut" cuma
+     menutup notifikasi ini (skrip di baliknya sudah siap dipakai). -->
+<div id="vb-scriptready-overlay" class="vb-scriptready-overlay">
+  <div class="vb-scriptready-card">
+    <div class="vb-scriptready-msg">Prompt vidio Ai udah siap nih kak, nah sekarang aku akan jelasin dulu ya.</div>
+    <div class="vb-scriptready-explain">Mempromosikan produk dengan durasi video di bawah 15 detik akan dianggap tidak berkualitas oleh TikTok. Makanya aku kasih 3 prompt untuk kakak, supaya kakak bisa bikin 3 video sekaligus.</div>
+    <div class="pb-flow-wrap">
+      <div class="vb-fb-row">
+        <div class="vb-fb vb-fb-hero"><div class="l">🎬 Video AI</div><div class="s">24 detik</div></div>
+      </div>
+      <div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span></div>
+      <div class="vb-fb-connector"></div>
+      <div class="vb-fb-row" style="margin-top:6px;">
+        <div class="vb-fb"><div class="l">Hook</div><div class="s">8 detik</div></div>
+        <div class="vb-fb"><div class="l">Cerita Produk</div><div class="s">8 detik</div></div>
+        <div class="vb-fb"><div class="l">CTA</div><div class="s">8 detik</div></div>
+      </div>
+    </div>
+    <div class="vb-scriptready-actions"><button type="button" class="vb-scriptready-btn" onclick="vbCloseScriptReadyNotif()">Lanjut →</button></div>
   </div>
 </div>
 
