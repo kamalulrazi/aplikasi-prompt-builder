@@ -1662,8 +1662,70 @@ body input, body textarea, body [contenteditable="true"]{
   transform:none !important;
 }
 .pb-tour-eyebrow{font-size:var(--fs-2xs);color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;}
+/* FITUR BARU (permintaan user): teks "Langkah n dari 10" dihapus total —
+   diganti bar progres bintang (#pb-tour-progress) di bawah. pbSetLabel()
+   sekarang mengosongkan elemen ini, dan :empty menyembunyikannya total
+   supaya tidak nyisa jarak/margin kosong di kartu tur. */
+.pb-tour-eyebrow:empty{display:none;margin-bottom:0;}
 .pb-tour-title{font-size:var(--fs-md2);font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.3;}
 .pb-tour-title:empty{display:none;margin-bottom:0;}
+
+/* ── BAR PROGRES BINTANG (permintaan user, lihat foto coretan tangan) ──
+   Garis panjang di PALING ATAS layar selama sesi tur berlangsung, isinya
+   5 titik berbentuk belah ketupat ("bintang") berlabel Karakter Sheet →
+   Prompt → Foto AI → Prompt → Video AI, terhubung garis sedikit
+   bergelombang persis seperti contoh coretan tangan yang dikirim user.
+   Elemen ini SENGAJA dibuat TERPISAH dari #pb-tour-card/#pb-tour-backdrop
+   (komponen fixed sendiri, z-index paling tinggi di antara semua overlay
+   tur) supaya bisa tetap tampil KONSISTEN menyilang beberapa sistem
+   overlay berbeda sepanjang sesi (kartu tur biasa, wizard Foto AI tanpa
+   kartu, notifikasi vb-scriptready-overlay, sampai kolom panduan Video AI
+   yang baru) — lihat pbTourProgressShow()/pbTourProgressHide() di script
+   bawah untuk kapan tepatnya tiap titik menyala. Disembunyikan total
+   (display:none) sampai titik "Karakter Sheet" pertama kali dinyalakan,
+   supaya tidak nongol di Langkah 1 (Salam kenal) maupun Ringkasan Alur
+   yang pertama kali (sebelum user mulai proses Karakter Sheet). ────────── */
+#pb-tour-progress{
+  position:fixed;top:0;left:0;right:0;z-index:10050;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 12px;
+  background:linear-gradient(180deg,rgba(8,8,10,0.92),rgba(8,8,10,0.72) 70%,transparent);
+  display:none;pointer-events:none;
+}
+#pb-tour-progress.show{display:block;}
+.pb-tour-progress-track{position:relative;max-width:420px;margin:0 auto;}
+.pb-tour-progress-line{
+  position:absolute;left:4%;right:4%;top:9px;width:92%;height:14px;
+  overflow:visible;
+}
+.pb-tour-progress-line path{
+  fill:none;stroke:var(--border-hi);stroke-width:1.4;
+}
+.pb-tour-progress-nodes{
+  position:relative;display:flex;justify-content:space-between;align-items:flex-start;
+}
+.pb-tour-progress-node{
+  display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;min-width:0;
+}
+.pb-tour-progress-diamond{
+  width:13px;height:13px;flex-shrink:0;
+  background:var(--surface);border:1.6px solid var(--border-hi);
+  transform:rotate(45deg);border-radius:2px;
+  transition:background .25s ease,border-color .25s ease,box-shadow .25s ease;
+}
+.pb-tour-progress-label{
+  font-size:var(--fs-3xs);color:var(--muted2);font-weight:600;text-align:center;
+  line-height:1.25;max-width:64px;opacity:0.55;
+  transition:color .25s ease,opacity .25s ease;
+}
+.pb-tour-progress-node.pb-done .pb-tour-progress-diamond{
+  background:var(--accent-dim,var(--accent));border-color:var(--accent);
+}
+.pb-tour-progress-node.pb-done .pb-tour-progress-label{color:var(--muted);opacity:0.8;}
+.pb-tour-progress-node.active .pb-tour-progress-diamond{
+  background:var(--accent);border-color:var(--accent);
+  box-shadow:0 0 0 4px var(--accent-glow),0 0 14px var(--accent-glow);
+}
+.pb-tour-progress-node.active .pb-tour-progress-label{color:var(--text);opacity:1;}
 /* Nav bawah (Foto/Video/Riwayat/Panduan) disembunyikan selama tur
    panduan aktif — dari pbStartTour() sampai pbEndTour() — supaya user
    fokus ke tur tanpa godaan pindah tab. */
@@ -2015,10 +2077,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   border:none;border-radius:var(--radius-pill);padding:10px 22px;cursor:pointer;
 }
 .vb-scriptready-btn:active{opacity:0.88;filter:brightness(0.97);}
-}
-}
-}
-}
 </style>
 </head>
 <body>
@@ -2108,7 +2166,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.39</div>
+  <div class="splash-version" id="splash-version">v5.40</div>
 </div>
 <script>
   (function(){
@@ -3824,7 +3882,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.39 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.40 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13061,6 +13119,57 @@ function vbCloseScriptReadyNotif(){
   let el=document.getElementById('vb-scriptready-overlay');
   if(el)el.classList.remove('show');
 }
+// FITUR BARU (permintaan user): begitu "Lanjut →" ditekan di notifikasi
+// "Prompt Video Siap", bar progres bintang lanjut menyala ke titik
+// terakhir "Video AI", lalu buka "kolom baru" panduannya (lihat
+// vbShowVideoGuide() & #vb-videoguide-overlay di HTML).
+function vbScriptReadyNext(){
+  vbCloseScriptReadyNotif();
+  pbTourProgressShow(4);
+  setTimeout(function(){ vbShowVideoGuide(); },250);
+}
+// ── KOLOM BARU "PANDUAN VIDEO AI" — array item disiapkan dari sekarang
+// (pola sama seperti PB_STEP6EXT_ITEMS: {title,body,img,alt}), SENGAJA
+// MASIH KOSONG — isinya (foto & tampilan tambahan) menyusul dikirim user.
+// Selama masih kosong, vbRenderVideoGuide() menampilkan kartu kosong siap
+// pakai (judul & isi blank, tombol langsung menutup kartu).
+var PB_STEPVIDEOAI_ITEMS=[];
+var pbVideoGuideIndex=0;
+function vbShowVideoGuide(){
+  pbVideoGuideIndex=0;
+  vbRenderVideoGuide();
+  let el=document.getElementById('vb-videoguide-overlay');
+  if(el) el.classList.add('show');
+}
+function vbRenderVideoGuide(){
+  let item=PB_STEPVIDEOAI_ITEMS[pbVideoGuideIndex];
+  let titleEl=document.getElementById('vb-videoguide-title');
+  let bodyEl=document.getElementById('vb-videoguide-body');
+  let btn=document.getElementById('vb-videoguide-btn');
+  if(item){
+    let isLast=(pbVideoGuideIndex===PB_STEPVIDEOAI_ITEMS.length-1);
+    if(titleEl) titleEl.textContent=(pbVideoGuideIndex+1)+'. '+item.title;
+    if(bodyEl) bodyEl.innerHTML=item.body+(item.img?('<img src="'+item.img+'" alt="'+(item.alt||'')+'">'):'');
+    if(btn){ btn.textContent=isLast?'Selesai':'Lanjut →'; btn.onclick=isLast?vbVideoGuideFinish:vbVideoGuideNext; }
+  } else {
+    // Belum ada isinya sama sekali — kartu kosong siap dipakai.
+    if(titleEl) titleEl.textContent='';
+    if(bodyEl) bodyEl.innerHTML='';
+    if(btn){ btn.textContent='Lanjut →'; btn.onclick=vbVideoGuideFinish; }
+  }
+}
+function vbVideoGuideNext(){
+  if(pbVideoGuideIndex<PB_STEPVIDEOAI_ITEMS.length-1){
+    pbVideoGuideIndex++;
+    vbRenderVideoGuide();
+  } else {
+    vbVideoGuideFinish();
+  }
+}
+function vbVideoGuideFinish(){
+  let el=document.getElementById('vb-videoguide-overlay');
+  if(el) el.classList.remove('show');
+}
 async function vbGenerate3AI(){
   let errBox=document.getElementById('vb-ai-error');
   errBox.classList.add('hidden');errBox.textContent='';
@@ -15008,6 +15117,25 @@ window.addEventListener('beforeunload', function(e){
      Foto, tepat di bawah garis progress "Step X dari Y" (lihat #f-progress-wrap
      di atas), BUKAN lagi pojok kiri atas fixed. Elemennya sendiri ada di
      dekat #f-progress-wrap. -->
+<!-- FITUR BARU (permintaan user, lihat pbTourProgressShow()/Hide() di
+     script bawah): bar progres bintang, garis panjang paling atas layar,
+     5 titik Karakter Sheet → Prompt → Foto AI → Prompt → Video AI.
+     Terpisah dari #pb-tour-card supaya tetap tampil menyilang beberapa
+     sistem overlay berbeda di sepanjang sesi tur. -->
+<div id="pb-tour-progress">
+  <div class="pb-tour-progress-track">
+    <svg class="pb-tour-progress-line" viewBox="0 0 400 18" preserveAspectRatio="none">
+      <path d="M4,9 C50,1 78,17 116,9 C154,1 182,17 220,9 C258,1 286,17 324,9 C348,4 372,12 396,8"></path>
+    </svg>
+    <div class="pb-tour-progress-nodes">
+      <div class="pb-tour-progress-node" data-idx="0"><span class="pb-tour-progress-diamond"></span><span class="pb-tour-progress-label">Karakter Sheet</span></div>
+      <div class="pb-tour-progress-node" data-idx="1"><span class="pb-tour-progress-diamond"></span><span class="pb-tour-progress-label">Prompt</span></div>
+      <div class="pb-tour-progress-node" data-idx="2"><span class="pb-tour-progress-diamond"></span><span class="pb-tour-progress-label">Foto AI</span></div>
+      <div class="pb-tour-progress-node" data-idx="3"><span class="pb-tour-progress-diamond"></span><span class="pb-tour-progress-label">Prompt</span></div>
+      <div class="pb-tour-progress-node" data-idx="4"><span class="pb-tour-progress-diamond"></span><span class="pb-tour-progress-label">Video AI</span></div>
+    </div>
+  </div>
+</div>
 <div id="pb-tour-backdrop"></div>
 <div id="pb-tour-spot"></div>
 <div id="pb-tour-card">
@@ -15015,7 +15143,7 @@ window.addEventListener('beforeunload', function(e){
   <div class="pb-tour-title" id="pb-tour-title"></div>
   <div class="pb-tour-desc" id="pb-tour-desc"></div>
   <div class="pb-tour-footer">
-    <button class="pb-tour-skip" onclick="pbEndTour()">Lewati</button>
+    <button class="pb-tour-skip" onclick="pbTourProgressHide();pbEndTour()">Lewati</button>
     <button class="pb-tour-next" id="pb-tour-next-btn">Lanjut</button>
   </div>
 </div>
@@ -15089,7 +15217,21 @@ window.addEventListener('beforeunload', function(e){
         <div class="vb-fb"><div class="l">CTA</div><div class="s">8 detik</div></div>
       </div>
     </div>
-    <div class="vb-scriptready-actions"><button type="button" class="vb-scriptready-btn" onclick="vbCloseScriptReadyNotif()">Lanjut →</button></div>
+    <div class="vb-scriptready-actions"><button type="button" class="vb-scriptready-btn" onclick="vbScriptReadyNext()">Lanjut →</button></div>
+  </div>
+</div>
+
+<!-- FITUR BARU (permintaan user): "kolom baru" panduan Video AI — gaya
+     kartu SAMA seperti panduan bikin Foto AI di Google Flow (pbGoStep6Ext,
+     kartu bergambar bernomor), dibuka begitu user klik "Lanjut →" pada
+     notifikasi di atas. SENGAJA DIBIARKAN KOSONG dulu (isinya — foto &
+     tampilan tambahan — menyusul dikirim user, lihat PB_STEPVIDEOAI_ITEMS
+     di script bawah, saat ini masih array kosong). -->
+<div id="vb-videoguide-overlay" class="vb-scriptready-overlay">
+  <div class="vb-scriptready-card" id="vb-videoguide-card">
+    <div class="pb-tour-title" id="vb-videoguide-title"></div>
+    <div class="pb-tour-desc" id="vb-videoguide-body"></div>
+    <div class="vb-scriptready-actions"><button type="button" class="vb-scriptready-btn" id="vb-videoguide-btn" onclick="vbVideoGuideFinish()">Lanjut →</button></div>
   </div>
 </div>
 
@@ -15300,7 +15442,43 @@ function pbOpenInChrome(e,url){
   return true; // non-Android: biarkan <a> jalan normal
 }
 
-function pbSetLabel(n){ document.getElementById('pb-tour-step-label').textContent='Langkah '+n+' dari 10'; }
+// FIX (permintaan user): teks "Langkah n dari 10" dihapus total, diganti
+// bar progres bintang (#pb-tour-progress, lihat pbTourProgressShow/Hide
+// di bawah). Parameter n DIBIARKAN (banyak pemanggil lama masih mengirim
+// nomor step) supaya tidak perlu mengubah semua call site — cukup tidak
+// dipakai lagi di sini. Elemen eyebrow dikosongkan total supaya otomatis
+// hilang lewat CSS ".pb-tour-eyebrow:empty".
+function pbSetLabel(n){ document.getElementById('pb-tour-step-label').textContent=''; }
+
+// ── BAR PROGRES BINTANG — lihat komentar panjang di CSS #pb-tour-progress
+// & HTML-nya. idx: 0=Karakter Sheet, 1=Prompt (Foto AI), 2=Foto AI,
+// 3=Prompt (Video AI), 4=Video AI. Titik sebelum idx ditandai "selesai"
+// (pb-done, belah ketupat terisi warna aksen tapi tanpa glow), titik idx
+// ditandai "aktif" (menyala terang + glow), titik sesudahnya dibiarkan
+// redup default (tanpa class tambahan). ────────────────────────────────
+var PB_TOUR_STAR_STAGE=-1;
+function pbTourProgressShow(activeIdx){
+  PB_TOUR_STAR_STAGE=activeIdx;
+  let el=document.getElementById('pb-tour-progress');
+  if(!el) return;
+  el.classList.add('show');
+  let nodes=el.querySelectorAll('.pb-tour-progress-node');
+  nodes.forEach(function(node){
+    let idx=parseInt(node.getAttribute('data-idx'),10);
+    node.classList.toggle('active',idx===activeIdx);
+    node.classList.toggle('pb-done',idx<activeIdx);
+  });
+}
+// Cuma dipanggil saat tur BENERAN dimulai dari awal (pbStartTour) atau
+// di-skip lewat tombol "Lewati" — SENGAJA TIDAK dipanggil dari pbEndTour()
+// generik, karena pbEndTour() di app ini juga dipakai buat transisi
+// internal di tengah alur (mis. pbStep7VideoDone(), pbTourFinishExt())
+// yang TETAP butuh bar ini tampil lanjut ke step-step sesudahnya.
+function pbTourProgressHide(){
+  PB_TOUR_STAR_STAGE=-1;
+  let el=document.getElementById('pb-tour-progress');
+  if(el) el.classList.remove('show');
+}
 function pbSetText(title,desc){
   document.getElementById('pb-tour-title').textContent=title;
   // innerHTML (bukan textContent) supaya desc bisa berisi link <a> yang
@@ -15319,6 +15497,11 @@ function pbSetPassive(passive){
 
 function pbStartTour(force){
   if(!force && !pbShouldAutoStart()) return;
+  // FITUR BARU (permintaan user): pastikan bar progres bintang mulai dari
+  // kondisi tersembunyi tiap kali tur benar-benar dimulai dari awal
+  // (termasuk replay lewat "Lihat Tur Panduan Lagi") — baru dinyalakan
+  // lagi begitu user mencapai titik Karakter Sheet (pbOpenCharacterSheetFromTour).
+  pbTourProgressHide();
   // Tur ini fokus ke Builder Prompt Foto — pastikan tab Foto aktif dulu.
   let fotoBtn=document.querySelector('.nav .ntab');
   let fotoPage=document.getElementById('foto');
@@ -15517,6 +15700,12 @@ function pbGoStep2Next(){
 // prompt VIDEO-nya dulu sebelum lanjut ke Google Flow/Veo. Modal biasa
 // (bukan interaktif) — tombolnya "Buat", bukan "Lanjut"/"Selesai". ──
 function pbGoStep7VideoIntro(){
+  // FITUR BARU (permintaan user): Foto AI sudah lengkap, bar progres
+  // bintang lanjut menyala ke titik "Prompt" (Video AI) — titik ini
+  // TETAP menyala terus selama sisa wizard Video (Jenis Kelamin, Usia,
+  // Nada Bicara, Aksen, Script) sampai user sampai di notifikasi
+  // "Prompt Video Siap" nanti (lihat vbScriptReadyNext()).
+  pbTourProgressShow(3);
   pbShowModal(3,'Bikin Prompt Video Dulu, Yuk',
     '<p style="margin-top:0;">Sebelum membuat foto AI menjadi video AI, kita butuh prompt nih kak. Yuk kita buat.</p>',
     'Buat',pbGoStep7VideoOpen);
@@ -15667,6 +15856,9 @@ function pbBackToStep3(){
 // langsung coba bikin karakter sheet tanpa perlu keluar dulu cari
 // tombolnya sendiri di halaman. ──────────────────────────────────
 function pbOpenCharacterSheetFromTour(){
+  // FITUR BARU (permintaan user): mulai dari sini bar progres bintang
+  // ditampilkan pertama kali, menyala di titik "Karakter Sheet".
+  pbTourProgressShow(0);
   pbHideOverlay();
   csOpenModal();
   // Khusus dibuka dari Langkah 3 no.1: sembunyikan tombol "Tutup" biar
@@ -15823,6 +16015,9 @@ var PB_STEP6EXT_ITEMS=[
 // menyalin prompt Foto AI hasil wizard (Salin JSON), jadi butir "tempel
 // prompt di bawahnya" itu baru masuk akal.
 function pbGoStep6Ext(){
+  // FITUR BARU (permintaan user): prompt Foto AI sudah jadi & disalin,
+  // bar progres bintang lanjut menyala ke titik "Foto AI".
+  pbTourProgressShow(2);
   pbStep6ExtIndex=0;
   pbRenderStep6Ext();
 }
@@ -16194,6 +16389,9 @@ var pbTourExtActive=false;
 // Sheet/dll disembunyikan lewat class pb-tour-result-simple di body.
 var pbTourAfterGenActive=false;
 function pbGoStep5(){
+  // FITUR BARU (permintaan user): Karakter Sheet sudah lengkap, bar
+  // progres bintang lanjut menyala ke titik "Prompt" (Foto AI).
+  pbTourProgressShow(1);
   pbDisarmDoneWait();
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
   clearInterval(pbCopyPollTimer);pbCopyPollTimer=null;
