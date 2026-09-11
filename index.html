@@ -3367,13 +3367,14 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
            pbGoStep7VideoOpen() & disembunyikan lagi di pbStep7VideoDone()
            atau saat tur di-skip (pbHideOverlay). -->
       <div id="vb-tour-mode-hint" style="display:none;padding:8px 10px;margin-bottom:10px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.4;">
-        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya. Frame Asset, Raw Asset, dan Motion Control kita kunci sementara.
+        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya. Frame Asset, Raw Asset, Motion Control, dan Mirror Selfie kita kunci sementara.
       </div>
       <div class="chips" style="margin-bottom:6px;">
         <div class="chip sel" id="vb-mode-satu" onclick="vbPickRefMode('satu')">Start Frame</div>
         <div class="chip" id="vb-mode-aset" onclick="vbPickRefMode('aset')">Frame Asset</div>
         <div class="chip" id="vb-mode-kp" onclick="vbPickRefMode('kp')">Raw Asset</div>
         <div class="chip" id="vb-mode-ikuti" onclick="vbPickRefMode('ikuti')">Motion Control</div>
+        <div class="chip" id="vb-mode-mirrorselfie" onclick="vbPickRefMode('mirrorselfie')">Mirror Selfie</div>
       </div>
 
       <div id="vb-mode3-area" class="hidden" style="margin-bottom:14px;">
@@ -3450,6 +3451,46 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         </div>
       </div>
 
+      <!-- MODE BARU — Mirror Selfie DIPINDAH FISIK ke sini (Step 1, sebaris
+           dengan Start Frame/Frame Asset/Raw Asset/Motion Control), atas
+           permintaan user. Sebelumnya ini adalah salah satu pilihan "Mau
+           bikin script gimana?" di kartu V5 (Script/Dialog) — sekarang jadi
+           mode ke-5 yang berdiri sendiri, sama persis pola self-contained-nya
+           dengan Mode 4 (Motion Control) di atas: TIDAK lanjut ke wizard V2-V5
+           (Jenis Kelamin/Usia/Nada Bicara/Aksen/Script tidak relevan buat mode
+           tanpa dialog ini), footer "Lanjut →" normal disembunyikan, hasil
+           prompt langsung dirender di sini lewat vbGenerateMirrorSelfie().
+           Field "Nama Produk" sekarang SELALU tampil (opsional) — tidak lagi
+           bergantung ke Mode 3/Raw Asset seperti sebelumnya, karena Mirror
+           Selfie sekarang berdiri sendiri terpisah dari pilihan Start
+           Frame/Frame Asset/Raw Asset. Lihat _vbBuildMirrorSelfieFlowText()
+           yang sekarang menentukan format instruksi dari ADA/TIDAKNYA nama
+           produk diisi, bukan dari VB.refMode==='kp' lagi. -->
+      <div id="vb-mode-selfie-area" class="hidden" style="margin-bottom:14px;">
+        <div style="margin-bottom:12px;">
+          <label class="inplabel">Nama Produk (di foto referensi 2) <span style="font-weight:400;color:var(--muted);">opsional</span></label>
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <div class="inp-wrap" style="flex:1;min-width:0;">
+              <input class="inp" id="vb-mirrorselfie-mode3-produk" maxlength="80" placeholder="Contoh: jam tangan" />
+            </div>
+            <button type="button" onclick="vbToggleProdukFotoPanel('mirrorselfie')" style="flex-shrink:0;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);background:none;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;">
+              <svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg>
+              <span id="vb-mirrorselfie-fotobadge" style="font-size:8px;line-height:1;"></span>
+            </button>
+          </div>
+          <div id="vb-mirrorselfie-fotopanel" class="hidden" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
+            <p style="font-size:var(--fs-2xs);color:var(--muted);margin:0 0 8px;">Tambah 2–5 foto produk (foto referensi 1 = karakter, sisanya produk) — JSON otomatis menyebut nomor foto referensi yang sesuai.</p>
+            <div id="vb-mirrorselfie-fotopanel-list"></div>
+          </div>
+        </div>
+        <label class="inplabel">Gerakan / Pose Karakter</label>
+        <div class="inp-wrap">
+          <textarea id="vb-mirrorselfie-action" rows="4" class="inp textarea-base" maxlength="500">Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.</textarea>
+        </div>
+        <p class="text-hint-mt">Karakter tidak bicara sama sekali di mode ini — cuma gerakan halus & natural. Teks di atas bisa diedit bebas sebelum generate. Tidak perlu isi Jenis Kelamin/Usia/Nada Bicara/Aksen atau Script — langsung generate dari sini.</p>
+        <button class="btn sm" onclick="vbGenerateMirrorSelfie()" style="margin-top:10px;">Buat Prompt Mirror Selfie →</button>
+      </div>
+
       <div id="vb-mode-normal-footer">
         <div style="margin-top:10px;text-align:right;">
           <button class="btn sm" onclick="vbConfirmRef()" style="width:auto;padding:8px 18px;">Lanjut →</button>
@@ -3468,15 +3509,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <div class="chip" id="vb-gender-male" onclick="vbPickGender('male','Laki-laki')">Laki-laki</div>
         <div class="chip" id="vb-gender-female" onclick="vbPickGender('female','Perempuan')">Perempuan</div>
       </div>
-      <div class="mt12" style="margin-bottom:14px;">
-        <label class="inplabel">Atau isi sendiri</label>
-        <div class="inp-wrap">
-          <input class="inp" id="v2-gender-custom" maxlength="60" placeholder="Contoh: non-biner" oninput="fCountInp(this,'v2-gender-counter')" />
-          <div class="inp-counter" id="v2-gender-counter">0 / 60</div>
-        </div>
-        <button class="btn sm" data-role="mt12-confirm" onclick="vbPickGenderCustom()">Konfirmasi →</button>
-      </div>
-      <label class="inplabel">Usia Karakter</label>
+      <label class="inplabel" style="margin-top:14px;">Usia Karakter</label>
       <div class="chips" id="vb-age-chips">
         <div class="chip" onclick="vbPickAge('child, approximately 5-10 years old',this,'Anak-anak')">Anak-anak <span style="opacity:0.6;">5–10 th</span></div>
         <div class="chip" onclick="vbPickAge('teenager, approximately 15-20 years old',this,'Remaja')">Remaja <span style="opacity:0.6;">15–20 th</span></div>
@@ -3548,11 +3581,10 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   <div class="wcard pending" id="v5">
     <div class="whead"><div class="wnum">5</div><div class="wtitle">Script / Dialog</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va5"></div></div>
     <div class="wbody">
-      <label class="inplabel">Mau bikin script gimana?</label>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
-        <div class="chip" id="vb-mode-ai" onclick="vbSelectScriptMode('ai')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Kami Bantu Isi</div>
-        <div class="chip" id="vb-mode-manual" onclick="vbSelectScriptMode('manual')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Tulis Manual Sendiri</div>
-        <div class="chip" id="vb-mode-mirrorselfie" onclick="vbSelectScriptMode('mirrorselfie')" style="width:100%;box-sizing:border-box;padding:12px 14px;">Mirror Selfie (Tanpa Bicara)</div>
+      <label class="inplabel">Karakter kakak nanti akan ngomong apa?</label>
+      <div class="chips" style="margin-bottom:4px;">
+        <div class="chip" id="vb-mode-ai" onclick="vbSelectScriptMode('ai')">Kami Bantu Isi</div>
+        <div class="chip" id="vb-mode-manual" onclick="vbSelectScriptMode('manual')">Tulis Manual Sendiri</div>
       </div>
 
       <div id="vb-mode-ai-area" class="hidden" style="margin-top:14px;">
@@ -3563,7 +3595,12 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
              sini dari posisi lama). Logic generate AI/bulk sendiri (tombol
              & fungsi vbGenerate3AI/vbGenerateBulkAI) TIDAK diubah — cuma
              pintu masuknya yang digabung. Lihat vbToggleAiBulk(). -->
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:var(--fs-sm);color:var(--text);">
+        <!-- PERMINTAAN USER: selama tur panduan pemula, opsi "Banyak produk
+             sekaligus" disembunyikan biar pemula tidak bingung dengan mode
+             bulk — checkbox-nya tetap ada di DOM (id="vb-ai-bulk-toggle",
+             logic vbToggleAiBulk tidak diubah), cuma disembunyikan lewat
+             class hidden. -->
+        <label class="hidden" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:var(--fs-sm);color:var(--text);">
           <input type="checkbox" id="vb-ai-bulk-toggle" onchange="vbToggleAiBulk(this.checked)" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;" />
           Banyak produk sekaligus (maks 10)
         </label>
@@ -3576,7 +3613,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
             </div>
           </div>
           <div style="flex-shrink:0;width:64px;">
-            <label class="inplabel" style="font-size:var(--fs-2xs);line-height:1.3;display:block;">Foto <span style="font-weight:400;color:var(--muted);">opsional</span></label>
+            <label class="inplabel" style="font-size:var(--fs-2xs);line-height:1.3;display:block;">Foto AI</label>
             <input type="file" accept="image/*" id="vb-produk-foto-input" style="display:none;" onchange="vbHandleProdukFotoUpload(this)" />
             <div id="vb-produk-foto-empty" onclick="document.getElementById('vb-produk-foto-input').click()" style="width:56px;height:56px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;">
               <svg class="icon" style="width:18px;height:18px;"><use href="#ic-camera"></use></svg>
@@ -3595,11 +3632,11 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <div id="vb-ai-fotopanel-list"></div>
         </div>
         <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:-8px 0 12px;">Foto produk bantu AI biar script lebih sesuai produk asli — opsional.</p>
-        <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span></label>
+        <label class="inplabel">Target Audience (penonton) <span style="color:var(--red);">*wajib</span></label>
         <div class="inp-wrap" style="margin-bottom:8px;">
           <input class="inp" id="vb-target-audience" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang peduli skincare" />
         </div>
-        <button type="button" id="vb-topik-toggle" onclick="vbToggleTopik()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-bottom:12px;">+ Atur detail (opsional)</button>
+        <button type="button" id="vb-topik-toggle" onclick="vbToggleTopik()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-bottom:12px;">+ Atur detail (opsional)</button>
         <div id="vb-topik-box" class="hidden" style="margin-bottom:12px;">
           <label class="inplabel" style="font-size:var(--fs-2xs);">Arah Pembahasan</label>
           <div class="inp-wrap">
@@ -3620,7 +3657,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Tentukan gaya HOOK pembuka — kosongkan (jangan pilih apapun) kalau mau AI bebas nentukan sendiri.</p>
         </div>
         <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Buatkan 3 Script + JSON dengan AI</button>
-        <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">AI otomatis buat 3 script sekaligus (Hook, Cerita Produk, CTA) — jumlah kata disesuaikan otomatis dengan Nada Bicara yang kamu pilih (nada tenang lebih sedikit kata, nada heboh lebih banyak), langsung jadi 3 prompt JSON siap pakai.</p>
         <div id="vb-ai-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
         </div>
         <div id="vb-bulk-area" class="hidden" style="margin-top:0;">
@@ -3630,7 +3666,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
             <button class="btn sm" onclick="vbBulkSetCount()" style="flex:1;">Tentukan Jumlah →</button>
           </div>
           <div id="vb-bulk-rows"></div>
-          <label class="inplabel">Target Audience <span style="color:var(--red);">*wajib</span> <span style="font-weight:400;color:var(--muted);">(sama untuk semua produk)</span></label>
+          <label class="inplabel">Target Audience (penonton) <span style="color:var(--red);">*wajib</span> <span style="font-weight:400;color:var(--muted);">(sama untuk semua produk)</span></label>
           <div class="inp-wrap" style="margin-bottom:12px;">
             <input class="inp" id="vb-bulk-target" maxlength="120" placeholder="Contoh: perempuan usia 20-30 tahun yang suka belanja online" />
           </div>
@@ -3674,37 +3710,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         </div>
         <p class="text-hint-mt">Idealnya jumlah kata mengikuti rentang Nada Bicara yang kamu pilih (lihat angka di bawah tiap kotak), natural kayak orang ngomong beneran — bukan bahasa iklan formal.</p>
         <button class="btn sm" onclick="vbGenerate3Manual()" style="margin-top:10px;">Buat 3 JSON dari Script Ini →</button>
-      </div>
-
-      <!-- MODE BARU (permintaan user): "Mirror Selfie (Tanpa Bicara)" — beda
-           total dari 2 mode di atas, karakter TIDAK ngomong sama sekali,
-           jadi TIDAK butuh dialogue/voice_character (Nada Bicara & Aksen
-           yang diisi di step 3/4 sengaja tidak dipakai di sini). Hasilnya
-           cuma SATU prompt/JSON (bukan 3 kartu Hook/Story/CTA) berisi
-           instruksi gerakan halus saja. Lihat vbGenerateMirrorSelfie(). -->
-      <div id="vb-mirrorselfie-area" class="hidden" style="margin-top:14px;">
-        <div id="vb-mirrorselfie-mode3-produk-wrap" class="hidden" style="margin-bottom:12px;">
-          <label class="inplabel">Nama Produk (di foto referensi 2) <span style="font-weight:400;color:var(--muted);">opsional</span></label>
-          <div style="display:flex;gap:8px;align-items:flex-start;">
-            <div class="inp-wrap" style="flex:1;min-width:0;">
-              <input class="inp" id="vb-mirrorselfie-mode3-produk" maxlength="80" placeholder="Contoh: jam tangan" />
-            </div>
-            <button type="button" onclick="vbToggleProdukFotoPanel('mirrorselfie')" style="flex-shrink:0;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);background:none;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;">
-              <svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg>
-              <span id="vb-mirrorselfie-fotobadge" style="font-size:8px;line-height:1;"></span>
-            </button>
-          </div>
-          <div id="vb-mirrorselfie-fotopanel" class="hidden" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
-            <p style="font-size:var(--fs-2xs);color:var(--muted);margin:0 0 8px;">Tambah 2–5 foto produk (foto referensi 1 = karakter, sisanya produk) — JSON otomatis menyebut nomor foto referensi yang sesuai.</p>
-            <div id="vb-mirrorselfie-fotopanel-list"></div>
-          </div>
-        </div>
-        <label class="inplabel">Gerakan / Pose Karakter</label>
-        <div class="inp-wrap">
-          <textarea id="vb-mirrorselfie-action" rows="4" class="inp textarea-base" maxlength="500">Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.</textarea>
-        </div>
-        <p class="text-hint-mt">Karakter tidak bicara sama sekali di mode ini — cuma gerakan halus & natural. Teks di atas bisa diedit bebas sebelum generate.</p>
-        <button class="btn sm" onclick="vbGenerateMirrorSelfie()" style="margin-top:10px;">Buat Prompt Mirror Selfie →</button>
       </div>
     </div>
   </div>
@@ -3755,7 +3760,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          sekarang untuk menutup selisihnya. Aturan yang SAMA PERSIS ini
          diulang di baris paling atas & paling bawah file — lihat itu kalau
          entah kenapa baris ini terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.35 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.38 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9944,7 +9949,8 @@ const VB_REF_MODE_DESC={
   satu:'Foto dipakai sebagai satu acuan karakter, outfit, dan lokasi untuk seluruh video — dari awal sampai akhir.',
   aset:'Foto yang dilampirkan jadi frame awal SETIAP pergantian scene, scene wajib 100% sama dengan foto (kalau di foto tidak ada wajah, jangan dimunculkan wajah), dan urutan scene wajib berurutan sesuai foto yang dilampirkan.',
   kp:'Foto referensi 1 = karakter (wajah & outfit dipertahankan), foto referensi 2 = produk. Kamu pilih sendiri lokasi & lighting video-nya di bawah.',
-  ikuti:'Foto yang dilampirkan mengikuti gerakan & transisi dari video referensi yang dilampirkan — lokasi, lighting, outfit, dan mood tetap wajib persis seperti foto. Tinggal salin promptnya, tidak perlu isi step lain.'
+  ikuti:'Foto yang dilampirkan mengikuti gerakan & transisi dari video referensi yang dilampirkan — lokasi, lighting, outfit, dan mood tetap wajib persis seperti foto. Tinggal salin promptnya, tidak perlu isi step lain.',
+  mirrorselfie:'Karakter merekam dirinya sendiri gaya mirror selfie, tidak berbicara sama sekali — cuma gerakan halus & natural. Tinggal isi nama produk (opsional) & gerakan/pose, langsung generate, tidak perlu isi step lain.'
 };
 // ── MODE 4 — "Ikuti Gerakan Video Referensi": beda total dari Mode 1-3.
 // Mode 1-3 masih lanjut ke wizard suara karakter & script dialog (V2-V5)
@@ -10017,6 +10023,11 @@ function vbPickRefMode(mode){
   document.getElementById('vb-mode-kp').classList.toggle('sel',mode==='kp');
   let mode4Chip=document.getElementById('vb-mode-ikuti');
   if(mode4Chip)mode4Chip.classList.toggle('sel',mode==='ikuti');
+  // Mirror Selfie (permintaan user — dipindah fisik ke sini dari kartu
+  // Script/Dialog): mode ke-5 yang self-contained sama seperti Motion
+  // Control (mode 'ikuti') — lihat #vb-mode-selfie-area & vbGenerateMirrorSelfie().
+  let mirrorChip=document.getElementById('vb-mode-mirrorselfie');
+  if(mirrorChip)mirrorChip.classList.toggle('sel',mode==='mirrorselfie');
   let desc=document.getElementById('vb-mode-desc');
   if(desc)desc.textContent=VB_REF_MODE_DESC[mode];
   let area=document.getElementById('vb-mode3-area');
@@ -10026,8 +10037,13 @@ function vbPickRefMode(mode){
   // kotak salin promptnya langsung di sini.
   let mode4Area=document.getElementById('vb-mode4-area');
   if(mode4Area)mode4Area.classList.toggle('hidden',mode!=='ikuti');
+  // Mirror Selfie: sama seperti Mode 4, self-contained — tampilkan area-nya
+  // sendiri, sembunyikan footer normal juga (lihat toggle normalFooter di
+  // bawah, mode==='mirrorselfie' ditambahkan ke kondisinya).
+  let selfieArea=document.getElementById('vb-mode-selfie-area');
+  if(selfieArea)selfieArea.classList.toggle('hidden',mode!=='mirrorselfie');
   let normalFooter=document.getElementById('vb-mode-normal-footer');
-  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti');
+  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='mirrorselfie');
   if(justSwitchedToKp)vbMode3ResetSteps();
 }
 // Reset ke step 1 (Nama Produk) tiap kali Mode 3 dipilih ulang
@@ -10211,19 +10227,10 @@ function vbCheckV2Done(){
     vbUpdateProgress(3,'Nada Bicara');
   });
 }
-// FITUR BARU (permintaan user, Sept 2026): kolom "Atau isi sendiri" khusus
-// Jenis Kelamin — dulu cuma Usia yang punya opsi isi sendiri, sekarang
-// Jenis Kelamin juga punya, terpisah dari kolom Usia. Nilai custom disimpan
-// APA ADANYA di VB.gender (bukan cuma 'male'/'female') — lihat penyesuaian
-// genderPrefix di _vbBuildFlowText supaya nilai custom ini tetap kebawa ke
-// output JSON, bukan cuma dibuang jadi string kosong.
-function vbPickGenderCustom(){
-  let val=document.getElementById('v2-gender-custom').value.trim();
-  if(!val){showToast('Isi dulu ya','error');return;}
-  document.querySelectorAll('#vb-gender-chips .chip').forEach(c=>c.classList.remove('sel'));
-  VB.gender=val;VB.genderLabel=val.length>24?val.substring(0,24)+'...':val;
-  vbCheckV2Done();
-}
+// PERMINTAAN USER (Sept 2026): kolom "Atau isi sendiri" untuk Jenis Kelamin
+// dihapus lagi — Jenis Kelamin sekarang cukup 2 opsi chip (Laki-laki/
+// Perempuan) saja, tanpa isian bebas. Yang boleh diisi custom cuma Usia
+// Karakter (lihat vbPickAgeCustom di bawah).
 function vbPickAge(val,el,label){
   document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
@@ -10291,10 +10298,8 @@ function vbPickAccentCustom(){
 function vbSelectScriptMode(mode){
   document.getElementById('vb-mode-ai').classList.toggle('sel',mode==='ai');
   document.getElementById('vb-mode-manual').classList.toggle('sel',mode==='manual');
-  document.getElementById('vb-mode-mirrorselfie').classList.toggle('sel',mode==='mirrorselfie');
   document.getElementById('vb-mode-ai-area').classList.toggle('hidden',mode!=='ai');
   document.getElementById('vb-manual-script-area').classList.toggle('hidden',mode!=='manual');
-  document.getElementById('vb-mirrorselfie-area').classList.toggle('hidden',mode!=='mirrorselfie');
   // FIX BUG#18 (ditemukan saat audit mendalam khusus builder video):
   // vbGenerate3Manual() fallback membaca isi kotak "Nama Produk" milik mode
   // AI (id="vb-produk-nama") untuk label Riwayat kalau refMode bukan Mode 3.
@@ -10312,15 +10317,14 @@ function vbSelectScriptMode(mode){
     let bulkToggle=document.getElementById('vb-ai-bulk-toggle');
     if(bulkToggle&&bulkToggle.checked){bulkToggle.checked=false;vbToggleAiBulk(false);}
   }
-  // Mode 3 (karakter+produk) butuh nama produk buat teks referensi — AI &
-  // bulk sudah nanya sendiri, manual dan mirror-selfie punya kotaknya sendiri
-  // (beda id per mode, ditambahkan di sini biar tidak nyangkut ke mode lain)
+  // Mode 3 (karakter+produk) butuh nama produk buat teks referensi — AI
+  // sudah nanya sendiri, manual punya kotaknya sendiri (beda id, ditambahkan
+  // di sini biar tidak nyangkut ke mode lain). Mirror Selfie sudah dipindah
+  // ke kartu Step 1 (lihat vb-mode-selfie-area), jadi tidak lagi diurus di sini.
   let m3produkWrap=document.getElementById('vb-manual-mode3-produk-wrap');
   if(m3produkWrap)m3produkWrap.classList.toggle('hidden',!(mode==='manual'&&VB.refMode==='kp'));
-  let m3produkWrapMirror=document.getElementById('vb-mirrorselfie-mode3-produk-wrap');
-  if(m3produkWrapMirror)m3produkWrapMirror.classList.toggle('hidden',!(mode==='mirrorselfie'&&VB.refMode==='kp'));
   _vbRenderProdukFotoMulti();
-  let scrollTargetId=mode==='ai'?'vb-mode-ai-area':(mode==='manual'?'vb-manual-script-area':'vb-mirrorselfie-area');
+  let scrollTargetId=mode==='ai'?'vb-mode-ai-area':'vb-manual-script-area';
   setTimeout(()=>document.getElementById(scrollTargetId).scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 // FITUR BARU (permintaan user, Sept 2026): toggle "Banyak produk sekaligus"
@@ -12718,7 +12722,7 @@ function _vbBuildGlobalSettingsPanel(panel){
     +'<div class="text-hint-mb">Usia</div>'+chipRow('age',ageOpts,VB_PANEL.age)
     +'<div class="text-hint-mb">Nada Bicara</div>'+chipRow('pitch',pitchOpts,VB_PANEL.pitch)
     +'<div class="text-hint-mb">Aksen</div>'+chipRow('accent',accentOpts,VB_PANEL.accent)
-    +'<div class="text-hint-mb">Target Audience</div>'
+    +'<div class="text-hint-mb">Target Audience (penonton)</div>'
     +'<input class="inp" id="vb-panel-target" maxlength="120" style="width:100%;box-sizing:border-box;margin-bottom:10px;" value="'+esc(VB.bulkTargetAudience||'')+'" />'
     +'<div style="display:flex;gap:8px;">'
     +'<button class="btn sm" style="flex:1;" onclick="vbApplyGlobalSettings()">Terapkan</button>'
@@ -13907,28 +13911,32 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
 }
 
 // ══════════════════════════════════════════════════════════════════
-// MODE "MIRROR SELFIE (TANPA BICARA)" — permintaan user. Beda total dari
-// _vbBuildFlowText di atas: karakter TIDAK berbicara sama sekali, jadi
-// TIDAK ada blok "dialogue:voice_character:..." (Nada Bicara & Aksen dari
-// step 3/4 sengaja TIDAK dipakai di sini, meskipun user tetap mengisinya
-// karena wizard step-nya berurutan). Instruksi foto referensi (Start
-// Frame/Frame Asset/Raw Asset) SENGAJA diambil dengan logika yang SAMA
-// PERSIS seperti di _vbBuildFlowText — tapi ditulis ulang terpisah di sini
-// (bukan manggil fungsi itu) supaya tidak perlu utak-atik fungsi dialog
-// yang sudah stabil dipakai 3 jalur lain (AI/manual/bulk).
+// MODE "MIRROR SELFIE" — permintaan user, sekarang berdiri sendiri sebagai
+// mode ke-5 di kartu Step 1 (Mode Referensi Foto), sejajar dengan Start
+// Frame/Frame Asset/Raw Asset/Motion Control — bukan lagi salah satu
+// pilihan di kartu Script/Dialog. Karakter TIDAK berbicara sama sekali,
+// jadi TIDAK ada blok "dialogue:voice_character:..." dan wizard V2-V5
+// (Jenis Kelamin/Usia/Nada Bicara/Aksen/Script) dilewati total — lihat
+// vbPickRefMode() yang menyembunyikan footer "Lanjut →" untuk mode ini.
+// Instruksi foto referensi ditentukan dari ADA/TIDAKNYA nama produk diisi
+// di #vb-mirrorselfie-mode3-produk (bukan dari VB.refMode==='kp' lagi,
+// karena sekarang Mirror Selfie bukan bagian dari pilihan Raw Asset) —
+// kalau diisi, dianggap ada foto referensi produk terpisah (foto referensi
+// 1 = karakter, sisanya = produk); kalau kosong, pakai instruksi Start
+// Frame standar (VB_REF_MODE_TEXT.satu).
 // ══════════════════════════════════════════════════════════════════
 function _vbBuildMirrorSelfieFlowText(actionText,produkOverride){
   let instructionText;
-  if(VB.refMode==='kp'){
-    let produkForRef=produkOverride||VB.mode3Produk||'produk tersebut';
+  let produkForRef=produkOverride||VB.mode3Produk||'';
+  if(produkForRef){
     let produkFotoTotal=Math.max(1,vbProdukFotoCount());
     let produkRefNums=[];
     for(let n=2;n<=1+produkFotoTotal;n++)produkRefNums.push(n);
     let produkRefLabel=produkRefNums.join(',');
     let jumlahFotoTotal=1+produkFotoTotal;
-    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi '+produkRefLabel+' adalah produk yaitu '+produkForRef+' (cukup ambil produknya saja, abaikan elemen lain yang ada di foto tersebut, pastikan kamu fokus ke produk supaya bisa 100% mirip tanpa terkecuali). Manfaatkan ke-'+jumlahFotoTotal+' foto tersebut untuk membuat sebuah video. Lokasi: '+VB.mode3Lokasi+'. Lighting: '+VB.mode3Lighting+'. Jangan pernah membuat atau menampilkan sesuatu yang tidak ditampilkan dalam foto referensi yang dilampirkan (misalnya membuka isi '+produkForRef+' kalau memang di foto tidak pernah terlihat isinya). ';
+    instructionText='Foto referensi 1 adalah karakter (pertahankan wajah dan outfit supaya tetap sama), foto referensi '+produkRefLabel+' adalah produk yaitu '+produkForRef+' (cukup ambil produknya saja, abaikan elemen lain yang ada di foto tersebut, pastikan kamu fokus ke produk supaya bisa 100% mirip tanpa terkecuali). Manfaatkan ke-'+jumlahFotoTotal+' foto tersebut untuk membuat sebuah video. Jangan pernah membuat atau menampilkan sesuatu yang tidak ditampilkan dalam foto referensi yang dilampirkan (misalnya membuka isi '+produkForRef+' kalau memang di foto tidak pernah terlihat isinya). ';
   }else{
-    instructionText=VB_REF_MODE_TEXT[VB.refMode]||VB_REF_MODE_TEXT.satu;
+    instructionText=VB_REF_MODE_TEXT.satu;
   }
   return instructionText+' '+actionText;
 }
@@ -13978,21 +13986,15 @@ function _vbRenderMirrorSelfieOutput(promptText){
   multiWrap.appendChild(resetBtn);
 }
 
-// Tombol "Buat Prompt Mirror Selfie →" — validasi minimal (cuma nama produk
-// kalau Mode 3/Raw Asset, karena tidak ada Hook/Story/CTA ataupun Nada
-// Bicara/Aksen yang perlu dicek di mode tanpa dialog ini), lalu render 1
-// kartu output.
+// Tombol "Buat Prompt Mirror Selfie →" — validasi minimal (nama produk
+// opsional, tidak ada Hook/Story/CTA ataupun Nada Bicara/Aksen yang perlu
+// dicek di mode tanpa dialog & self-contained ini — sama seperti Motion
+// Control, tidak ada langkah "selesai" lanjutan karena wizard V2-V5 memang
+// dilewati), lalu render 1 kartu output.
 function vbGenerateMirrorSelfie(){
-  let produkNama='';
-  if(VB.refMode==='kp'){
-    // PERMINTAAN USER: nama produk TIDAK wajib di mode ini (beda dari mode
-    // Manual/AI) — kalau dikosongkan, _vbBuildMirrorSelfieFlowText otomatis
-    // fallback ke VB.mode3Produk (kalau sempat keisi dari mode lain
-    // sebelumnya) lalu ke 'produk tersebut' generik.
-    let produkEl=document.getElementById('vb-mirrorselfie-mode3-produk');
-    produkNama=produkEl?produkEl.value.trim():'';
-    if(produkNama)VB.mode3Produk=produkNama;
-  }
+  let produkEl=document.getElementById('vb-mirrorselfie-mode3-produk');
+  let produkNama=produkEl?produkEl.value.trim():'';
+  if(produkNama)VB.mode3Produk=produkNama;
   let actionEl=document.getElementById('vb-mirrorselfie-action');
   let actionText=(actionEl?actionEl.value.trim():'')||'Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.';
   // Disaring lewat sanitizer yang sama seperti jalur manual — jaring pengaman
@@ -14002,8 +14004,6 @@ function vbGenerateMirrorSelfie(){
   let promptText=_vbBuildMirrorSelfieFlowText(actionText,produkNama);
   _vbRenderMirrorSelfieOutput(promptText);
   _vbBuildCombinedHistoryEntry('Mirror Selfie'+(produkNama?' — '+produkNama:''));
-  doneCard('v5','va5','Mirror Selfie (tanpa bicara)');
-  vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
   setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
   showToast('Prompt Mirror Selfie berhasil dibuat!','success');
 }
@@ -14079,15 +14079,14 @@ function vbReset(){
     let eb=document.getElementById('vb-ai-error'); if(eb){eb.classList.add('hidden');eb.textContent='';}
     let manualArea=document.getElementById('vb-manual-script-area'); if(manualArea)manualArea.classList.add('hidden');
     let aiArea=document.getElementById('vb-mode-ai-area'); if(aiArea)aiArea.classList.add('hidden');
-    // FITUR BARU: reset juga mode "Mirror Selfie (Tanpa Bicara)" — sama
-    // perlakuannya dengan area AI/manual di atas, biar tidak nyangkut ke
-    // sesi generate video berikutnya.
-    let mirrorArea=document.getElementById('vb-mirrorselfie-area'); if(mirrorArea)mirrorArea.classList.add('hidden');
+    // Mirror Selfie sekarang bagian dari Step 1 (Mode Referensi Foto) —
+    // area-nya (#vb-mode-selfie-area) & chip-nya sudah otomatis ikut
+    // direset lewat vbPickRefMode('satu') di atas. Di sini cuma bersihkan
+    // isian field-nya sendiri biar tidak nyangkut ke sesi berikutnya.
     let mirrorProduk=document.getElementById('vb-mirrorselfie-mode3-produk'); if(mirrorProduk)mirrorProduk.value='';
-    let mirrorProdukWrap=document.getElementById('vb-mirrorselfie-mode3-produk-wrap'); if(mirrorProdukWrap)mirrorProdukWrap.classList.add('hidden');
     let mirrorFotoPanel=document.getElementById('vb-mirrorselfie-fotopanel'); if(mirrorFotoPanel)mirrorFotoPanel.classList.add('hidden');
     let mirrorAction=document.getElementById('vb-mirrorselfie-action'); if(mirrorAction)mirrorAction.value='Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.';
-    document.querySelectorAll('#vb-mode-ai,#vb-mode-manual,#vb-mode-mirrorselfie').forEach(c=>c.classList.remove('sel'));
+    document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
     let bulkToggleReset=document.getElementById('vb-ai-bulk-toggle'); if(bulkToggleReset)bulkToggleReset.checked=false;
     let aiSingleReset=document.getElementById('vb-ai-single-fields'); if(aiSingleReset)aiSingleReset.classList.remove('hidden');
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
@@ -15268,6 +15267,7 @@ function pbHideOverlay(){
     pbUnlockChip('#vb-mode-aset');
     pbUnlockChip('#vb-mode-kp');
     pbUnlockChip('#vb-mode-ikuti');
+    pbUnlockChip('#vb-mode-mirrorselfie');
     let hintEl=document.getElementById('vb-tour-mode-hint');
     if(hintEl) hintEl.style.display='none';
     document.body.classList.remove('pb-tour-blur-context');
@@ -15457,6 +15457,7 @@ function pbGoStep7VideoOpen(){
   pbLockChip('#vb-mode-aset');
   pbLockChip('#vb-mode-kp');
   pbLockChip('#vb-mode-ikuti');
+  pbLockChip('#vb-mode-mirrorselfie');
   document.body.classList.add('pb-tour-blur-context');
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='block';
@@ -15473,6 +15474,7 @@ function pbStep7VideoDone(){
   pbUnlockChip('#vb-mode-aset');
   pbUnlockChip('#vb-mode-kp');
   pbUnlockChip('#vb-mode-ikuti');
+  pbUnlockChip('#vb-mode-mirrorselfie');
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='none';
   document.body.classList.remove('pb-tour-blur-context');
