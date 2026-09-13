@@ -2235,7 +2235,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.55</div>
+  <div class="splash-version" id="splash-version">v5.57</div>
 </div>
 <script>
   (function(){
@@ -4020,7 +4020,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.55 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.57 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9866,6 +9866,16 @@ function pbShowSavedOverlay(item){
   if(!overlay||!body)return;
   titleEl.textContent=item.label||'Halaman tersimpan';
   body.innerHTML='';
+  // BUG FIX (laporan user): tombol × / backdrop / Esc dulu langsung
+  // menyembunyikan overlay TANPA peduli ada autosave yang masih "mengantre"
+  // (debounce ±600ms di bawah, lihat pbSavedAutosaveField). Kalau user
+  // mengetik lalu buru-buru menutup dalam <600ms, edit terakhir belum
+  // sempat ditulis ke localStorage saat overlay ditutup/dibuka lagi —
+  // begitu Riwayat dibuka ulang (apalagi cepat), yang tampil masih versi
+  // SEBELUM edit terakhir, kelihatan seperti "gak kesimpan". Direset di
+  // sini (bukan cuma dideklarasikan sekali) supaya tidak ada sisa dari
+  // entri Riwayat sebelumnya yang ketinggalan.
+  _pbSavedOverlayPendingFlushes=[];
   let sections=[
     {type:'foto',html:item.fotoHtml,text:item.fotoText,htmlField:'fotoHtml',textField:'fotoText'},
     {type:'video',html:item.videoHtml,text:item.videoText,htmlField:'videoHtml',textField:'videoText'}
@@ -9931,13 +9941,26 @@ function pbShowSavedOverlay(item){
     }
     body.appendChild(sec);
     // Autosave: tiap ketikan di dalam section ini, debounce, tulis balik
-    // ke entri Riwayat yang sama.
-    let debounceT=null;
+    // ke entri Riwayat yang sama. Fungsi simpan-nya didaftarkan ke
+    // _pbSavedOverlayPendingFlushes supaya pbCloseSavedOverlay bisa
+    // memanggilnya SEGERA (bypass debounce) sebelum overlay ditutup — lihat
+    // catatan bug fix di pbCloseSavedOverlay(). Flag "dirty" supaya flush
+    // ini cuma benar-benar nulis kalau memang ada ketikan yang belum
+    // sempat disimpan (bukan nulis ulang tiap kali overlay ditutup).
+    let debounceT=null,dirty=false;
+    function doSave(){
+      dirty=false;
+      pbSavedAutosaveField(item.id,s.htmlField,s.textField,content);
+    }
     content.addEventListener('input',function(){
+      dirty=true;
       clearTimeout(debounceT);
-      debounceT=setTimeout(function(){
-        pbSavedAutosaveField(item.id,s.htmlField,s.textField,content);
-      },600);
+      debounceT=setTimeout(doSave,600);
+    });
+    _pbSavedOverlayPendingFlushes.push(function(){
+      if(!dirty)return;
+      clearTimeout(debounceT);
+      doSave();
     });
   });
   if(!anyRendered){
@@ -9990,7 +10013,13 @@ function _pbInjectPerCardCopyButtons(root){
       let liveTxt=txt;
       let ta=card.querySelector('textarea');
       if(ta){
-        liveTxt=txt.replace(/script:"[\s\S]*?"/,'script:"'+ta.value+'"');
+        // CATATAN (audit tambahan): pakai fungsi sebagai argumen ke-2
+        // replace(), BUKAN string langsung — kalau skrip user kebetulan
+        // mengandung karakter "$" (mis. "$1", "$&", harga dalam dolar),
+        // String.replace() dengan argumen STRING akan menganggap itu pola
+        // spesial ($&, $$, $1, dst) dan bisa merusak hasil salinnya. Dengan
+        // fungsi, nilainya selalu disisipkan APA ADANYA.
+        liveTxt=txt.replace(/script:"[\s\S]*?"/,function(){return 'script:"'+ta.value+'"';});
       }
       _copyTextRobust(liveTxt,function(){
         btn.textContent='Tersalin!';
@@ -10001,7 +10030,21 @@ function _pbInjectPerCardCopyButtons(root){
   });
 }
 
+// Daftar fungsi "flush" autosave (satu per section foto/video yang sedang
+// terbuka di overlay Riwayat) — diisi ulang tiap pbShowSavedOverlay
+// dipanggil, dipakai pbCloseSavedOverlay() untuk memaksa simpan edit
+// terakhir yang masih "mengantre" di debounce sebelum overlay ditutup.
+let _pbSavedOverlayPendingFlushes=[];
+
 function pbCloseSavedOverlay(){
+  // BUG FIX (laporan user): edit terakhir di kotak skrip/teks bisa hilang
+  // kalau user mengetik lalu langsung klik × (atau tap backdrop / Esc)
+  // dalam waktu <600ms — autosave-nya di-debounce, jadi belum sempat
+  // ditulis ke localStorage saat overlay ini disembunyikan. Flush semua
+  // yang masih pending DULU sebelum overlay ditutup, supaya kalau entri
+  // ini dibuka lagi, isinya sudah pasti versi terakhir yang diketik.
+  _pbSavedOverlayPendingFlushes.forEach(function(fn){fn();});
+  _pbSavedOverlayPendingFlushes=[];
   let overlay=document.getElementById('pb-saved-overlay');
   if(overlay){overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');}
 }
@@ -10009,7 +10052,11 @@ function pbCloseSavedOverlay(){
 // Ambil teks POLOS TERKINI dari sebuah wadah hasil yang field-fieldnya
 // masih hidup/editable (dipakai overlay Riwayat) — beda dari ekstraksi di
 // _pbCollectResult yang membaca dari halaman builder asli, ini membaca
-// dari kloningan overlay yang sudah lepas dari builder aslinya.
+// dari kloningan overlay yang sudah lepas dari builder aslinya. Tombol
+// "Salin" per-kartu yang KITA suntikkan sendiri (lihat
+// _pbInjectPerCardCopyButtons) dibuang dulu dari klonnya — kalau tidak,
+// label "Salin"/"Tersalin!" ikut nyampur ke teks hasil ekstraksi (dipakai
+// juga oleh tombol "Salin Semua Teks").
 function _pbExtractLiveText(el){
   let clone=el.cloneNode(true);
   let orig=el.querySelectorAll('textarea,input');
@@ -10021,7 +10068,44 @@ function _pbExtractLiveText(el){
     span.textContent=val;
     cf.replaceWith(span);
   });
+  clone.querySelectorAll('button').forEach(function(b){b.remove();});
   return (clone.innerText||clone.textContent||'').trim();
+}
+
+// BUG FIX (ditemukan lewat pengujian, laporan user "edit gak kesimpen"):
+// <textarea>.innerHTML TIDAK PERNAH ikut berubah walau .value-nya diketik
+// ulang oleh user/JS — ini keterbatasan bawaan HTML/DOM (innerHTML textarea
+// cuma mencerminkan isi ASLI/default, bukan value yang sedang aktif).
+// pbSavedAutosaveField() dulu langsung menyimpan contentEl.innerHTML apa
+// adanya ke htmlField (fotoHtml/videoHtml) — field INI YANG DIPAKAI untuk
+// merender ulang textarea saat entri dibuka lagi (lihat pbShowSavedOverlay,
+// content.innerHTML=s.html). Akibatnya walau autosave "jalan" (flash
+// "tersimpan" tetap muncul, textField/videoText malah SUDAH benar karena
+// lewat _pbExtractLiveText yang membaca .value), begitu overlay dibuka
+// ulang yang dirender selalu skrip versi LAMA — kelihatan kayak "gak
+// kesimpen" padahal sebenarnya cuma field yang salah yang tidak ter-freeze.
+// Fungsi ini membekukan value textarea/input TERKINI ke dalam klon-nya
+// (pola sama persis dengan _pbCollectResult saat pertama kali menyimpan ke
+// Riwayat) sebelum diserialisasi jadi innerHTML — dan sekalian membuang
+// tombol Salin per-kartu suntikan kita sendiri (lihat catatan
+// _pbExtractLiveText di atas), supaya htmlField yang tersimpan tetap
+// mengikuti invarian lama: tidak pernah berisi <button>, murni markup+isi.
+function _pbFreezeLiveHtml(el){
+  let clone=el.cloneNode(true);
+  let orig=el.querySelectorAll('textarea,input');
+  let cl=clone.querySelectorAll('textarea,input');
+  orig.forEach(function(f,i){
+    let cf=cl[i];if(!cf)return;
+    if(f.type==='checkbox'||f.type==='radio'){
+      if(f.checked)cf.setAttribute('checked','checked');
+      else cf.removeAttribute('checked');
+      return;
+    }
+    if(cf.tagName==='TEXTAREA'){cf.textContent=f.value;}
+    else{cf.setAttribute('value',f.value);}
+  });
+  clone.querySelectorAll('button').forEach(function(b){b.remove();});
+  return clone.innerHTML;
 }
 
 // Tulis balik hasil edit user di overlay ke entri Riwayat yang sama di
@@ -10032,7 +10116,7 @@ function pbSavedAutosaveField(id,htmlField,textField,contentEl){
   let arr=pbSavedGet();
   let idx=arr.findIndex(function(x){return x.id===id;});
   if(idx<0)return;
-  arr[idx][htmlField]=contentEl.innerHTML;
+  arr[idx][htmlField]=_pbFreezeLiveHtml(contentEl);
   arr[idx][textField]=_pbExtractLiveText(contentEl);
   // Field lama (html/text, dipakai kode lain yang belum tahu skema dual-
   // builder) disinkronkan juga kalau section ini yang jadi halaman aktif
