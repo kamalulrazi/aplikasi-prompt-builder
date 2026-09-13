@@ -2166,7 +2166,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.47</div>
+  <div class="splash-version" id="splash-version">v5.48</div>
 </div>
 <script>
   (function(){
@@ -3902,7 +3902,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.47 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.48 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13579,16 +13579,29 @@ async function vbGenerate3AI(){
     vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     showToast('3 script + JSON berhasil dibuat!','success');
     stopGenLogoBtn(btn,genLogoState);
-    // BUGFIX (dilaporkan user): vbShowScriptReadyNotif() DULU dipanggil
-    // otomatis persis di sini, begitu generate selesai — jadi notifikasi
-    // "Prompt Video Siap" + kartu "Panduan Video AI" (kosong) muncul buat
-    // SEMUA user (tur maupun mode biasa), padahal mestinya ini bagian dari
-    // tur panduan pemula saja dan seharusnya baru muncul SETELAH user
-    // beneran menekan tombol "Salin" di salah satu kartu Hook/Story/CTA —
-    // bukan otomatis begitu script selesai dibuat. Pemanggilannya dipindah
-    // ke wrapper copyBtn.onclick di _vbBuildEditableCard() (dan hanya
-    // jalan kalau pbTourVideoScriptActive sedang true). Di mode biasa,
-    // klik "Salin" sekarang tidak memicu apa-apa selain menyalin teksnya.
+    // FITUR BARU (permintaan user, Sept 2026): notifikasi "Prompt Video
+    // Siap" + kolom "Panduan Video AI" (18 foto) SEKARANG otomatis muncul
+    // persis di sini, begitu generate 3 script selesai — TAPI hanya kalau
+    // pbTourVideoScriptActive sedang true (artinya user memang lagi di
+    // dalam tur panduan pemula). Di mode biasa (bukan tur), flag ini false
+    // jadi tidak terjadi apa-apa di sini, sama seperti sebelumnya.
+    // Sebelumnya ini baru dipicu lewat klik tombol "Salin" di salah satu
+    // kartu Hook/Story/CTA (lihat _vbBuildEditableCard) — didesain begitu
+    // supaya notifikasi tidak muncul buat SEMUA user, tapi efek sampingnya
+    // trigger jadi bergantung ke aksi klik yang waktunya tidak pasti
+    // (user bisa menunda lama sebelum klik Salin). Sekarang triggernya
+    // dipindah ke sini — tetap digerbangi flag yang sama (jadi tidak
+    // muncul buat mode biasa), tapi tidak lagi menunggu klik apapun dari
+    // user, jadi kolom panduannya pasti muncul begitu user memang sedang
+    // dalam tur. Pemicu di copyBtn.onclick (_vbBuildEditableCard) sudah
+    // dilepas supaya tidak dobel.
+    if(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive){
+      pbTourVideoScriptActive=false;
+      pbTourWaitingVideoGuideEnd=true;
+      let bulkLabel=document.getElementById('vb-bulk-toggle-label');
+      if(bulkLabel) bulkLabel.classList.remove('hidden');
+      setTimeout(function(){ vbShowScriptReadyNotif(); },300);
+    }
 
     // ── Rapikan jumlah kata di BACKGROUND (senyap), SETELAH animasi ketik
     // selesai (lihat await di atas) — supaya tidak ada perubahan mendadak
@@ -13728,19 +13741,13 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
       // Ingatkan lagi urutan foto tepat saat user menyalin (mau upload ke
       // Google Flow) — khusus Mode 3 yang butuh 2 foto berurutan.
       if(VB.refMode==='kp')vbShowMode3PhotoOrderNotice();
-      // FITUR BARU (permintaan user): kalau ini klik Salin PERTAMA selama
-      // sesi tur "silent" di wizard Video (pbTourVideoScriptActive, lihat
-      // pbStep7VideoDone), baru sekarang notifikasi "Prompt Video Siap"
-      // dimunculkan — bukan otomatis begitu script selesai digenerate.
-      // Di luar sesi tur (mode biasa), klik Salin TIDAK memicu apa-apa
-      // di sini selain menyalin teksnya seperti biasa.
-      if(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive){
-        pbTourVideoScriptActive=false;
-        pbTourWaitingVideoGuideEnd=true;
-        let bulkLabel=document.getElementById('vb-bulk-toggle-label');
-        if(bulkLabel) bulkLabel.classList.remove('hidden');
-        setTimeout(function(){ vbShowScriptReadyNotif(); },300);
-      }
+      // FITUR LAMA (dipindah, Sept 2026): notifikasi "Prompt Video Siap"
+      // dulu dipicu di sini, persis pas klik Salin PERTAMA selama sesi tur
+      // "silent" (pbTourVideoScriptActive). Sekarang triggernya sudah
+      // dipindah ke vbGenerate3AI() — muncul otomatis begitu script selesai
+      // digenerate saat tur aktif, tidak perlu nunggu klik Salin lagi.
+      // Klik Salin di sini (tur maupun mode biasa) sekarang murni cuma
+      // menyalin teksnya, tidak memicu apa-apa lagi.
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
   };})(idx,copyBtn,doneLabel);
   let copyWrap=document.createElement('div');
@@ -15992,12 +15999,14 @@ function pbGoStep7VideoOpen(){
 // alur Foto) — user isi sendiri Jenis Kelamin & Usia (v2), Nada Bicara
 // (v3), Aksen (v4), sampai Script/Dialog (v5) TANPA ditunjuk-tunjuk lagi.
 // Tapi sesi tur masih dianggap "aktif" (pbTourVideoScriptActive=true; nav
-// bawah tetap tersembunyi) sampai user beneran menekan tombol "Salin" di
-// salah satu kartu Hook/Story/CTA hasil generate — baru dari situ
-// notifikasi "Prompt Video Siap" muncul, lalu begitu user tekan "Lanjut"
-// di notifikasi itu, kartu "Panduan Video AI" (masih kosong) muncul, dan
-// tur BENERAN ditutup persis di situ (lihat wrapper copyBtn di
-// _vbBuildEditableCard() & wrapper vbScriptReadyNext() di bawah).
+// bawah tetap tersembunyi) sampai 3 script Hook/Story/CTA selesai
+// digenerate — begitu itu kelar, notifikasi "Prompt Video Siap" muncul
+// OTOMATIS (lihat vbGenerate3AI(), sudah tidak perlu nunggu user klik
+// "Salin" lagi — permintaan user, Sept 2026, biar kolom panduannya pasti
+// muncul selama memang lagi tur, tidak tergantung aksi klik). Begitu user
+// tekan "Lanjut" di notifikasi itu, kartu "Panduan Video AI" (masih
+// kosong) muncul, dan tur BENERAN ditutup persis di situ (lihat
+// vbGenerate3AI() & wrapper vbScriptReadyNext() di bawah).
 // Selama pbTourVideoScriptActive true, toggle "Banyak produk sekaligus"
 // di step Script/Dialog disembunyikan dulu biar pemula tidak bingung
 // dengan mode bulk — otomatis kelihatan lagi begitu tur beneran selesai
