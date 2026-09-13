@@ -2235,7 +2235,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.53</div>
+  <div class="splash-version" id="splash-version">v5.54</div>
 </div>
 <script>
   (function(){
@@ -4020,7 +4020,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.53 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.54 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9902,6 +9902,17 @@ function pbShowSavedOverlay(item){
     sec.appendChild(head);
     let content=document.createElement('div');content.className='pb-saved-overlay-content';
     content.innerHTML=s.html;
+    // FITUR BARU (permintaan user): dulu di Riwayat cuma ada "Salin Semua
+    // Teks" (satu tombol buat seluruh section) — padahal di halaman utama
+    // (Foto/Video builder asli) tiap kartu Hook/Story/CTA/shot punya tombol
+    // "Salin" sendiri-sendiri. Bedanya kelihatan wajar karena _pbCollectResult
+    // MEMBUANG semua <button>/.copy-btn (termasuk tombol Salin per-kartu
+    // aslinya) sebelum disimpan ke Riwayat — supaya tidak ada onclick basi
+    // yang nyangkut ke elemen/state builder asli yang sudah tidak ada di
+    // overlay ini. Sekarang tombol Salin per-kartu itu DIBANGUN ULANG di
+    // sini, bukan dipulihkan dari yang lama, jadi onclick-nya otomatis
+    // aman/independen dari builder asli.
+    _pbInjectPerCardCopyButtons(content);
     sec.appendChild(content);
     // Tombol "Lanjutkan Generate" — PERMINTAAN USER: mesin generate-nya
     // TETAP jalan di halaman Video asli (vb-multi-output) seperti biasa,
@@ -9934,6 +9945,46 @@ function pbShowSavedOverlay(item){
   }
   overlay.classList.add('show');
   overlay.setAttribute('aria-hidden','false');
+}
+
+// FITUR BARU (permintaan user, lihat catatan di pbShowSavedOverlay): pasang
+// tombol "Salin" di TIAP kartu Hook/Story/CTA (Video) atau tiap kartu shot
+// (Foto) di dalam overlay Riwayat — bukan cuma satu tombol "Salin Semua
+// Teks" buat seluruh section. Tidak bisa pakai id (semua id sudah dilepas
+// saat disimpan lewat _pbCollectResult), jadi dicari lewat STRUKTUR kartu
+// yang selalu sama persis di kedua builder: setiap kartu = <div> berisi
+// [head, body], dan body selalu memuat satu <pre> berisi teks JSON siap
+// salin (lihat _vbBuildEditableCard & fGenerate multi-output). Kalau
+// strukturnya ternyata beda (versi lama/format tak dikenal), kartu itu
+// dilewati saja — tidak memaksa & tidak bikin error.
+function _pbInjectPerCardCopyButtons(root){
+  root.querySelectorAll('pre').forEach(function(pre){
+    let body=pre.parentElement;
+    let card=body?body.parentElement:null;
+    let head=card?card.firstElementChild:null;
+    if(!head||head===body)return;
+    if(head.querySelector('.pb-percard-copy'))return; // jangan dobel
+    let txt=pre.textContent||'';
+    if(!txt.trim())return;
+    let btn=document.createElement('button');
+    btn.type='button';
+    btn.className='copy-btn pb-percard-copy';
+    btn.style.cssText='margin-left:auto;font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+    let defaultLabel='Salin';
+    btn.textContent=defaultLabel;
+    btn.onclick=function(){
+      // Ambil ulang teksnya SAAT diklik (bukan snapshot txt di atas) —
+      // kartu Video di overlay tetap editable (textarea skrip hidup +
+      // autosave), tapi <pre> JSON di sini statis/tidak ikut ter-update
+      // live dari textarea; ambil dari pre.textContent tetap benar untuk
+      // apa yang TAMPIL di kartu saat overlay pertama dibuka/di-refresh.
+      _copyTextRobust(pre.textContent,function(){
+        btn.textContent='Tersalin!';
+        setTimeout(function(){btn.textContent=defaultLabel;},1200);
+      },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+    };
+    head.appendChild(btn);
+  });
 }
 
 function pbCloseSavedOverlay(){
@@ -10042,6 +10093,7 @@ async function pbContinueInOverlay(item,content,btnEl){
   // permanen ke entri Riwayat.
   let fresh=_pbCollectResult('video')||{html:content.innerHTML,text:''};
   content.innerHTML=fresh.html;
+  _pbInjectPerCardCopyButtons(content); // pasang lagi tombol Salin per-kartu — innerHTML diganti total di atas
   let arr=pbSavedGet();
   let idx=arr.findIndex(function(x){return x.id===item.id;});
   if(idx>=0){
