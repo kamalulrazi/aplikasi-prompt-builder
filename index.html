@@ -52,6 +52,16 @@
     setTimeout(function () { el.classList.remove('just-revealed'); }, 900);
   };
 
+  // ── HABIT TRACKER DIHAPUS (permintaan user, Sept 2026) ──────────────
+  // Fitur "Biasanya kamu: ..." (saran otomatis berdasar 50 generate
+  // terakhir) sudah dicabut total dari aplikasi (fungsi habitRecord/
+  // habitLoad/habitSave/habitInjectSuggest/habitShowSuggestsForStep, CSS
+  // .habit-suggest*, dan key 'pb_habits_v1' di PB_SYNC_KEYS — semua sudah
+  // dibuang). Baris di bawah ini cuma bersih-bersih SEKALI untuk perangkat
+  // yang sudah lanjut sempat menyimpan data lama di localStorage sebelum
+  // fitur ini dicabut, supaya tidak ada sisa data nganggur/ke-sync lagi.
+  try{ localStorage.removeItem('pb_habits_v1'); }catch(e){}
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function () {
@@ -68,7 +78,7 @@
 
 <!-- FIREBASE — dipakai HANYA sebagai database cloud (Firestore) untuk
      SINKRONISASI DATA ANTAR PERANGKAT (riwayat, halaman tersimpan, preset
-     karakter, habit tracker, API key) yang terhubung ke akun Gmail yang
+     karakter, API key) yang terhubung ke akun Gmail yang
      sama. Login Google tetap pakai Google Identity Services (GIS) seperti
      sebelumnya — Firebase TIDAK menggantikan sistem login yang sudah ada,
      cuma dipakai buat nyimpen datanya di cloud. Lihat blok konfigurasi +
@@ -117,7 +127,7 @@
   // Kunci-kunci localStorage yang disinkron ke Firestore. SENGAJA TIDAK
   // termasuk: pb_auth_user (sesi login lokal, dibentuk ulang tiap login),
   // pb_enc_salt_v1 (salt enkripsi, MEMANG harus unik per perangkat).
-  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_habits_v1','pb_tour_done'];
+  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done'];
 
   var _fbReady = false;
   window.pbCloudUid = null;
@@ -137,7 +147,7 @@
   }
 
   // Dipanggil tiap kali salah satu data yang disinkron berubah (dari
-  // csSaveAll/historyAdd/pbSavedSetAll/habitSave/tour-done, dst). Debounce
+  // csSaveAll/historyAdd/pbSavedSetAll/tour-done, dst). Debounce
   // 800ms per key biar tidak nembak Firestore tiap ketikan/klik beruntun.
   window.pbCloudQueue = function(key){
     if(!_fbReady || !window.pbCloudUid) return;
@@ -1006,7 +1016,7 @@ body input, body textarea, body [contenteditable="true"]{
 /* TOAST */
 #toast{position:fixed;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);padding:var(--space-3) var(--space-7);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:500;font-family:'Geist',sans-serif;z-index:9999;transition:transform 0.25s,opacity 0.25s;opacity:0;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
 /* PROGRESS INDICATOR */
-.progress-wrap{padding:9px var(--space-7);background:var(--glass-hi);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--border);position:sticky;top:var(--nav-h);z-index:99;}
+.progress-wrap{padding:9px var(--space-7);background:var(--surface2);border-bottom:1px solid var(--border);position:sticky;top:var(--nav-h);z-index:99;}
 .progress-bar-track{height:3px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-bottom:5px;}
 .progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent-dim),var(--accent-2));border-radius:3px;transition:width 0.3s ease;}
 .progress-steps{display:flex;justify-content:space-between;align-items:center;}
@@ -1145,15 +1155,6 @@ body input, body textarea, body [contenteditable="true"]{
 .summary-edit:hover{border-color:var(--border-hi);color:var(--text);}
 .summary-warning{background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.15);border-radius:var(--radius);padding:var(--space-3) var(--space-4);margin:0 var(--space-5) var(--space-4);font-size:var(--fs-xs2);color:var(--warning);line-height:1.6;display:flex;gap:7px;align-items:flex-start;}
 .summary-ok-badge{display:inline-flex;align-items:center;gap:3px;background:var(--green-dim);border:1px solid rgba(52,211,153,0.2);border-radius:var(--radius-2xs);padding:1px 7px;font-size:var(--fs-2xs);font-weight:600;color:var(--green);font-family:'Geist Mono',monospace;margin-left:var(--space-2);vertical-align:middle;}
-/* ── HABIT TRACKER ── */
-.habit-suggest{display:flex;align-items:center;gap:var(--space-2);padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:var(--space-3);cursor:pointer;transition:all 0.15s;}
-.habit-suggest:hover{border-color:var(--border-hi);background:var(--surface3);}
-.habit-suggest-icon{font-size:var(--fs-base);flex-shrink:0;}
-.habit-suggest-text{font-size:var(--fs-xs2);line-height:1.4;flex:1;}
-.habit-suggest-text strong{color:var(--text);}
-.habit-suggest-text span{color:var(--muted2);font-size:var(--fs-xs);}
-.habit-suggest-btn{background:var(--text);color:var(--bg);border:none;padding:3px 9px;border-radius:var(--radius-2xs);font-size:var(--fs-xs);font-weight:600;cursor:pointer;flex-shrink:0;font-family:'Geist',sans-serif;}
-.habit-count-badge{font-family:'Geist Mono',monospace;font-size:var(--fs-3xs);font-weight:600;color:var(--muted);background:var(--surface3);border:1px solid var(--border);padding:1px 5px;border-radius:var(--radius-2xs);margin-left:3px;}
 /* ── CAHAYA ── */
 .cahaya-context-hint{display:flex;align-items:center;gap:7px;padding:var(--space-3) var(--space-4);border-radius:var(--radius);margin-bottom:var(--space-4);font-size:var(--fs-xs2);line-height:1.5;}
 .cahaya-context-hint.indoor{background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.12);color:var(--text);}
@@ -2235,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.57</div>
+  <div class="splash-version" id="splash-version">v5.61</div>
 </div>
 <script>
   (function(){
@@ -4020,7 +4021,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.57 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.61 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -4481,8 +4482,6 @@ function showCard(id){
   }
   setTimeout(()=>{
     el.scrollIntoView({behavior:'smooth',block:'nearest'});
-    let stepNum = parseInt(id.replace('f',''),10);
-    if([5,7,8].includes(stepNum)) habitShowSuggestsForStep(stepNum);
   },150);
 }
 
@@ -6640,8 +6639,6 @@ function fBuildPoseChips(){
   container.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;">${poses.map((p,i)=>`<div class="chip" data-pose-idx="${i}" onclick="fPickPose(this)">${p[1]}</div>`).join('')}</div>`;
   // Store poses on the container itself instead of window global — avoids cross-tab race conditions
   container._posesData=poses;
-  // Inject habit suggest setelah chips selesai di-render
-  setTimeout(()=>habitShowSuggestsForStep(4), 50);
 }
 
 function fPickPose(el){
@@ -7326,8 +7323,6 @@ function fGenerate(){
 }
 
 function _fDoGenerate(){
-  habitRecord(); // Catat kebiasaan user
-
   // Cek apakah ada shot tambahan yang dicentang → jalur multi-shot
   let checkedShots = document.querySelectorAll('.f-shot-check:checked');
   if(checkedShots.length>0){
@@ -9454,6 +9449,19 @@ const PB_SAVED_MAX=10; // dibatasi (bukan 5 seperti histori prompt lama)
 // (jadi null lagi) kalau user eksplisit klik tombol "Tutup" di banner
 // halaman tersimpan — lihat pbCloseActiveSavedPage().
 let PB_ACTIVE_SAVED_ID=null;
+// FIX BUG (laporan user, Sept 2026): sebelumnya membuka satu entri Riwayat
+// (pbOpenSavedPage) langsung menimpa FS/VB LIVE lewat Object.assign, dan
+// menutup Riwayat lagi (pbCloseSavedOverlay/pbCloseActiveSavedPage) TIDAK
+// pernah mengembalikannya — jadi builder foto/video yang sedang dikerjakan
+// ikut "kecampur" data dari entri Riwayat yang cuma dibuka untuk dilihat.
+// Reproduksi: pilih mode Video "Frame Asset", generate → buka Riwayat entri
+// video lama bermode "Frame Asset" lain → tutup lagi → mulai prompt baru
+// pilih mode "Raw Asset" → hasil generate ikut bawa produk/lokasi/lighting
+// dari entri Frame Asset yang sempat dibuka tadi. _pbPreOpenSnapshot
+// menyimpan kondisi FS/VB PERSIS sebelum entri Riwayat manapun dibuka,
+// dipulihkan lewat _pbMaybeRestoreOnClose() saat Riwayat ditutup — lihat
+// definisi fungsi-fungsi itu di dekat _vbUnpackState().
+let _pbPreOpenSnapshot=null;
 
 function pbSavedGet(){
   try{return JSON.parse(localStorage.getItem(PB_SAVED_KEY)||'[]');}
@@ -9634,6 +9642,66 @@ function _vbUnpackState(json){
     if(typeof VB_PRODUCT_FOTOCOUNT!=='undefined')VB_PRODUCT_FOTOCOUNT=obj.VB_PRODUCT_FOTOCOUNT||{};
     if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=obj.VB_HOOK_OVERLAY||{};
   }catch(e){}
+}
+
+// Kembalikan FS/VB (+ variabel bulk terkait) PERSIS ke kondisi sebelum
+// entri Riwayat manapun dibuka lewat pbOpenSavedPage — pasangan dari
+// _pbPreOpenSnapshot (lihat catatan lengkap di deklarasinya, dekat
+// PB_ACTIVE_SAVED_ID). Beda dari _vbUnpackState() (yang Object.assign tanpa
+// membuang key lama), di sini key FS/VB dikosongkan dulu sebelum diisi
+// ulang dari snapshot, supaya field yang SEMPAT ditambahkan Object.assign
+// saat entri Riwayat dibuka (mis. VB.mode3Produk dari entri itu) tidak ikut
+// nyangkut kalau ternyata tidak ada di snapshot aslinya.
+function _pbRestorePreOpenSnapshot(){
+  if(_pbPreOpenSnapshot===null)return;
+  let snap=_pbPreOpenSnapshot;
+  _pbPreOpenSnapshot=null;
+  try{
+    let fsData=JSON.parse(snap.fs||'{}');
+    Object.keys(FS).forEach(function(k){delete FS[k];});
+    Object.assign(FS,fsData);
+  }catch(e){/* snapshot foto korup — biarkan FS apa adanya daripada error */}
+  try{
+    let vbObj=JSON.parse(snap.vb||'{}');
+    if(vbObj.VB){
+      Object.keys(VB).forEach(function(k){delete VB[k];});
+      Object.assign(VB,vbObj.VB);
+    }
+    if(typeof VB_BULK_ITEMS!=='undefined')VB_BULK_ITEMS=vbObj.VB_BULK_ITEMS||[];
+    if(typeof VB_BULK_PRODUCTS!=='undefined')VB_BULK_PRODUCTS=vbObj.VB_BULK_PRODUCTS||[];
+    if(typeof VB_BULK_LAST_CONTEXT!=='undefined')VB_BULK_LAST_CONTEXT=vbObj.VB_BULK_LAST_CONTEXT||null;
+    if(typeof VB_CARD_TAMPIL!=='undefined')VB_CARD_TAMPIL=vbObj.VB_CARD_TAMPIL||{};
+    if(typeof VB_CARD_LOKASI!=='undefined')VB_CARD_LOKASI=vbObj.VB_CARD_LOKASI||{};
+    if(typeof VB_PRODUCT_FOTOCOUNT!=='undefined')VB_PRODUCT_FOTOCOUNT=vbObj.VB_PRODUCT_FOTOCOUNT||{};
+    if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=vbObj.VB_HOOK_OVERLAY||{};
+  }catch(e){/* snapshot video korup — biarkan VB apa adanya daripada error */}
+  // Sinkronkan ulang tampilan chip Mode Referensi Foto (V1) di wizard Video
+  // supaya yang KELIHATAN tersorot juga balik cocok dengan VB.refMode yang
+  // baru dipulihkan — tanpa ini datanya sudah benar tapi chip di layar bisa
+  // masih nyangkut dari mode entri Riwayat yang tadi dibuka.
+  try{
+    if(typeof vbPickRefMode==='function' && document.getElementById('vb-mode-satu')){
+      vbPickRefMode(VB.refMode||'satu');
+    }
+  }catch(e){}
+}
+
+// Dipanggil tiap kali Riwayat ditutup (lewat × / backdrop / Esc DI
+// pbCloseSavedOverlay, atau tombol "Tutup Riwayat" DI pbCloseActiveSavedPage).
+// Restore data cuma benar-benar dijalankan kalau TIDAK ada proses "Lanjutkan
+// Generate" bulk yang masih menggantung (VB_BULK_LAST_CONTEXT belum selesai
+// semua produknya) — kalau masih ada sisa, state live sengaja DIBIARKAN
+// seperti sekarang (tidak direstore) supaya tombol "Lanjutkan Generate" itu
+// tetap bisa jalan kalau entrinya dibuka lagi nanti. Snapshot-nya sendiri
+// TIDAK dibuang di kondisi ini, jadi begitu proses itu beres dan Riwayat
+// ditutup lagi, state akhirnya tetap bisa dikembalikan ke sebelum Riwayat
+// pertama kali dibuka.
+function _pbMaybeRestoreOnClose(){
+  let bulkPending=(typeof VB_BULK_LAST_CONTEXT!=='undefined' && VB_BULK_LAST_CONTEXT
+    && VB_BULK_LAST_CONTEXT.produkList && VB_BULK_LAST_CONTEXT.allResults
+    && VB_BULK_LAST_CONTEXT.allResults.length<VB_BULK_LAST_CONTEXT.produkList.length);
+  if(bulkPending)return;
+  _pbRestorePreOpenSnapshot();
 }
 
 
@@ -9838,6 +9906,18 @@ function pbOpenSavedPage(id){
   // tiap klik Simpan berikutnya akan MENIMPA entri id ini, bukan bikin
   // entri baru. Lihat PB_ACTIVE_SAVED_ID & pbSaveCurrentPage().
   PB_ACTIVE_SAVED_ID=item.id;
+  // FIX BUG (lihat catatan panjang di deklarasi _pbPreOpenSnapshot dekat
+  // PB_ACTIVE_SAVED_ID): rekam kondisi FS/VB PERSIS sebelum entri Riwayat
+  // manapun ditimpakan ke state live, supaya bisa dikembalikan lagi saat
+  // Riwayat ditutup. Sengaja HANYA diambil kalau belum ada snapshot yang
+  // "mengantre" (_pbPreOpenSnapshot masih null) — kalau user pindah-pindah
+  // buka entri lain tanpa menutup dulu, snapshot yang dipakai tetap kondisi
+  // ASLI sebelum entri pertama dibuka, bukan kondisi entri sebelumnya yang
+  // sudah "kotor" juga.
+  if(_pbPreOpenSnapshot===null){
+    try{ _pbPreOpenSnapshot={fs:JSON.stringify(FS),vb:_vbPackState()}; }
+    catch(e){ _pbPreOpenSnapshot={fs:'{}',vb:'{}'}; }
+  }
   // FIX: restore KEDUA builder, bukan cuma yang type-nya cocok dengan
   // halaman yang mau ditampilkan. Entri LAMA (dibuat sebelum fix ini) tidak
   // punya fotoState/videoState — fallback ke item.state (skema lama, cuma
@@ -10047,6 +10127,25 @@ function pbCloseSavedOverlay(){
   _pbSavedOverlayPendingFlushes=[];
   let overlay=document.getElementById('pb-saved-overlay');
   if(overlay){overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');}
+  // FIX BUG (laporan user): dulu menutup overlay lewat × / backdrop / Esc
+  // HANYA menyembunyikan jendelanya secara visual — PB_ACTIVE_SAVED_ID (kunci
+  // "sedang melanjutkan entri ini") tetap menyala, jadi chip "Lanjut Riwayat ×"
+  // di halaman Foto/Video tetap nongol terus walau user merasa sudah "menutup"
+  // Riwayat-nya. Satu-satunya cara melepas kunci itu sebelumnya adalah tap ×
+  // di chip itu sendiri, atau hapus entrinya — user tidak menyangka overlay
+  // dan kunci ini adalah dua hal yang berbeda. Sekarang menutup overlay lewat
+  // jalur apapun (× / backdrop / Esc) SEKALIGUS melepas kuncinya, supaya
+  // "tutup" berarti benar-benar tutup dari sudut pandang user.
+  if(PB_ACTIVE_SAVED_ID!==null){
+    PB_ACTIVE_SAVED_ID=null;
+    // FIX BUG: kembalikan FS/VB ke sebelum Riwayat dibuka (lihat
+    // _pbMaybeRestoreOnClose & _pbPreOpenSnapshot) — supaya prompt baru
+    // yang dibuat sesudah ini tidak kecampur data entri Riwayat yang tadi
+    // sempat dibuka.
+    _pbMaybeRestoreOnClose();
+    pbRemoveSavedBanners();
+    pbSavedRender();
+  }
 }
 
 // Ambil teks POLOS TERKINI dari sebuah wadah hasil yang field-fieldnya
@@ -10333,6 +10432,16 @@ function _pbRenderBuilderInto(type,target,frozenHtml,frozenText,isPrimary){
 // kehilangan apa yang sedang dia kerjakan.
 function pbCloseActiveSavedPage(){
   PB_ACTIVE_SAVED_ID=null;
+  // FIX BUG (laporan user, Sept 2026): dulu di sini FS/VB SENGAJA dibiarkan
+  // berisi data entri Riwayat yang tadi dibuka ("biar user tidak kehilangan
+  // apa yang sedang dikerjakan") — tapi ini yang bikin prompt BARU yang
+  // digenerate sesudahnya ikut kecampur data lama (mis. buka Riwayat mode
+  // "Frame Asset", tutup, lalu bikin video baru mode "Raw Asset" tapi hasil
+  // generate-nya ikut bawa data Frame Asset tadi). Sekarang dikembalikan ke
+  // kondisi sebelum Riwayat dibuka lewat _pbMaybeRestoreOnClose() — KECUALI
+  // masih ada proses "Lanjutkan Generate" bulk yang menggantung, supaya
+  // fitur itu tidak ikut rusak (lihat komentar di _pbMaybeRestoreOnClose).
+  _pbMaybeRestoreOnClose();
   pbRemoveSavedBanners();
   showToast('Riwayat ditutup — Simpan berikutnya akan jadi halaman baru','success');
   // Sinkronkan badge "SEDANG DIBUKA" di daftar Riwayat/mini-history —
@@ -11052,7 +11161,24 @@ let VB_MANUAL_COUNT=1;
 function vbManualSyncCache(){
   for(let p=0;p<VB_MANUAL_COUNT;p++){
     let el=document.getElementById('vb-manual-nama-'+p);
-    if(el)VB_MANUAL_ROW_CACHE[p]={nama:el.value};
+    let prev=VB_MANUAL_ROW_CACHE[p]||{};
+    // FIX BUG: sebelumnya cache ini cuma nyimpen "Nama Produk", jadi tiap kali
+    // jumlah produk diubah (vbManualSetCount -> vbManualRenderGroups), SEMUA
+    // kartu di-render ulang dari nol dengan skrip Hook/Story/CTA kosong ('') —
+    // skrip yang sudah diketik manual di kartu-kartu sebelumnya (termasuk yang
+    // urutannya tidak berubah, mis. produk 1-3 saat nambah dari 3 ke 8) ikut
+    // hilang. Sekarang textarea skrip tiap kartu (id vb-bulk-script-{idx},
+    // idx = p*3 + 0/1/2 untuk hook/story/cta) juga dibaca & disimpan ke cache
+    // sebelum di-render ulang.
+    let hookEl=document.getElementById('vb-bulk-script-'+(p*3));
+    let storyEl=document.getElementById('vb-bulk-script-'+(p*3+1));
+    let ctaEl=document.getElementById('vb-bulk-script-'+(p*3+2));
+    VB_MANUAL_ROW_CACHE[p]={
+      nama:el?el.value:(prev.nama||''),
+      hook:hookEl?hookEl.value:(prev.hook||''),
+      story:storyEl?storyEl.value:(prev.story||''),
+      cta:ctaEl?ctaEl.value:(prev.cta||'')
+    };
   }
 }
 // Dipanggil oleh tombol "Tentukan Jumlah →" di #vb-manual-count-wrap.
@@ -11110,9 +11236,14 @@ function vbManualRenderGroups(count){
     group.appendChild(groupHead);
     let groupBody=document.createElement('div');
     groupBody.style.cssText='padding:8px;display:flex;flex-direction:column;gap:6px;';
+    let cachedRow=VB_MANUAL_ROW_CACHE[p]||{};
     ['hook','story','cta'].forEach(function(roleKey){
       let roleInfo=VB_3SCRIPT_ROLES.find(function(r){return r.key===roleKey;});
-      let card=_vbBuildEditableCard(i,roleInfo?roleInfo.label:roleKey,'',cachedNama,false,true);
+      // FIX BUG: dulu selalu '' (skrip manual yang sudah diketik hilang saat
+      // jumlah produk diubah). Sekarang pakai skrip yang sempat di-cache di
+      // vbManualSyncCache() untuk index produk yang sama, kalau ada.
+      let cachedScript=cachedRow[roleKey]||'';
+      let card=_vbBuildEditableCard(i,roleInfo?roleInfo.label:roleKey,cachedScript,cachedNama,false,true);
       groupBody.appendChild(card);
       i++;
     });
@@ -12658,7 +12789,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       let batchArr=await _vbCallBulkBatch(batchProducts,targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
-        updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
+        updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
       },onPartialThisBatch,usedHooksSoFar);
       dlIncrement();
       doneCount+=batchItems.length;
@@ -13310,7 +13441,7 @@ async function vbRevisiProdukAI(prodIdx){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
       let alasan=_vbWaitReasonLabel(status);
-      submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'d)...';
+      submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'dtk)...';
     });
     dlIncrement();
     if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
@@ -13483,7 +13614,7 @@ async function vbRevisiSingleAI(){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
       let alasan=_vbWaitReasonLabel(status);
-      submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'d)...';
+      submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'dtk)...';
     });
     dlIncrement();
     if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
@@ -13677,7 +13808,7 @@ async function vbRegenerateAllBulk(newSettings){
       let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
-        updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... '+batchLabelBase);
+        updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
       },undefined,usedHooksSoFar);
       dlIncrement();
       // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
@@ -14163,7 +14294,7 @@ async function vbGenerate3AI(){
     let _vbOnWait=function(waitMs,attempt,status){
       let detik=Math.ceil(waitMs/1000);
       let alasan=_vbWaitReasonLabel(status);
-      updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'d)... Membuat 3 Script');
+      updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... Membuat 3 Script');
     };
     let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait);
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
@@ -15375,160 +15506,6 @@ function fApplyCahayaContext(){
 // ── END CONTEXT-AWARE CAHAYA ───────────────────────────────────
 
 // ============================================================
-// HABIT TRACKER — Level 1 (statistik localStorage)
-// Catat pilihan user setiap generate, suggest yang paling sering
-// ============================================================
-
-const HABIT_KEY = 'pb_habits_v1';
-const HABIT_MAX_RECORDS = 50; // simpan 50 generate terakhir
-
-function habitLoad(){
-  try {
-    let raw = localStorage.getItem(HABIT_KEY);
-    return raw ? JSON.parse(raw) : { records: [], counts: {} };
-  } catch(e){ return { records: [], counts: {} }; }
-}
-
-function habitSave(data){
-  try { localStorage.setItem(HABIT_KEY, JSON.stringify(data)); if(typeof pbCloudQueue==='function')pbCloudQueue(HABIT_KEY); } catch(e){}
-}
-
-function habitRecord(){
-  // Catat pilihan saat ini ke habit store
-  if(!FS.subjek || !FS.lokasi || !FS.cahaya || !FS.angle) return;
-
-  let data = habitLoad();
-  let record = {
-    ts: Date.now(),
-    subjek:     FS.subjek,
-    produkMode: FS.produkMode || 'tidak',
-    lokasi:     FS.lokasi,
-    lokasiLabel:FS.lokasiLabel || FS.lokasi.substring(0,30),
-    cahaya:     FS.cahaya,
-    cahayaLabel:FS.cahayaLabel || FS.cahaya.substring(0,30),
-    angle:      FS.angle,
-    angleLabel: FS.angleLabel || FS.angle.substring(0,30),
-    pose:       FS.pose || '',
-    poseLabel:  FS.poseLabel || '',
-    holdKey:    FS.holdKey || ''
-  };
-
-  // Tambah record baru, potong jika terlalu banyak
-  data.records.unshift(record);
-  if(data.records.length > HABIT_MAX_RECORDS) data.records = data.records.slice(0, HABIT_MAX_RECORDS);
-
-  // Hitung frekuensi per field
-  data.counts = {};
-  let fields = ['lokasi','cahaya','angle','pose','produkMode','holdKey','subjek'];
-  fields.forEach(field => {
-    data.counts[field] = {};
-    data.records.forEach(r => {
-      if(!r[field]) return;
-      let key = r[field];
-      let label = r[field+'Label'] || key;
-      if(!data.counts[field][key]) data.counts[field][key] = { count:0, label };
-      data.counts[field][key].count++;
-    });
-  });
-
-  habitSave(data);
-}
-
-function habitGetTop(field, currentVal, minCount){
-  // Return item paling sering untuk field tertentu
-  // Hanya tampilkan jika berbeda dari pilihan saat ini
-  let data = habitLoad();
-  if(!data.counts[field]) return null;
-  let entries = Object.entries(data.counts[field])
-    .sort((a,b) => b[1].count - a[1].count);
-  if(!entries.length) return null;
-  let top = entries[0];
-  if(top[1].count < (minCount||2)) return null; // minimal 2x baru suggest
-  if(top[0] === currentVal) return null; // sama dengan pilihan saat ini
-  return { val: top[0], label: top[1].label, count: top[1].count };
-}
-
-function habitInjectSuggest(containerId, field, currentVal, onApply){
-  // Inject kotak suggest ke dalam container jika ada habit yang relevan
-  let container = document.getElementById(containerId);
-  if(!container) return;
-
-  // Hapus suggest lama
-  let old = container.querySelector('.habit-suggest');
-  if(old) old.remove();
-
-  let top = habitGetTop(field, currentVal, 2);
-  if(!top) return;
-
-  let suggest = document.createElement('div');
-  suggest.className = 'habit-suggest';
-  suggest.innerHTML = `
-    <span class="habit-suggest-icon"></span>
-    <div class="habit-suggest-text">
-      <strong>Biasanya kamu:</strong> ${esc(top.label)}<span class="habit-count-badge">${top.count}x</span><br>
-      <span>Pilihan terpopulermu — tap untuk langsung pakai</span>
-    </div>
-    <button class="habit-suggest-btn">Pakai</button>`;
-  suggest.onclick = function(){ onApply(top.val, top.label); };
-  container.insertBefore(suggest, container.firstChild);
-}
-
-function habitShowSuggestsForStep(stepNum){
-  // Tampilkan suggest di step yang relevan
-  if(stepNum === 5){
-    habitInjectSuggest('f5-normal-panel', 'lokasi', FS.lokasi, (val, label) => {
-      // Cari chip yang match
-      let chips = document.querySelectorAll('#f5-normal-panel .chip, #f5-karakter-panel .chip');
-      let found = false;
-      chips.forEach(c => {
-        if(c.getAttribute('onclick') && c.getAttribute('onclick').includes("'"+label+"'")) {
-          c.click(); found = true;
-        }
-      });
-      if(!found) {
-        // Custom lokasi
-        let inp = document.getElementById('f5-custom-karakter');
-        if(inp){ inp.value = val; fPickLokasiCustom && fPickLokasiCustom(); }
-      }
-    });
-    habitInjectSuggest('f5-produk-panel', 'lokasi', FS.lokasi, (val, label) => {
-      let chips = document.querySelectorAll('#f5-produk-panel .chip');
-      chips.forEach(c => {
-        if(c.getAttribute('onclick') && c.getAttribute('onclick').includes("'"+label+"'")) c.click();
-      });
-    });
-  }
-  if(stepNum === 7){
-    let panelId = FS.subjek === 'produk' ? 'f7-produk-panel' : 'f7-normal-panel';
-    habitInjectSuggest(panelId, 'cahaya', FS.cahaya, (val, label) => {
-      let chips = document.querySelectorAll('#'+panelId+' .chip');
-      chips.forEach(c => { if(c.textContent.trim() === label) c.click(); });
-    });
-  }
-  if(stepNum === 8){
-    habitInjectSuggest('f8-normal-panel', 'angle', FS.angle, (val, label) => {
-      let chips = document.querySelectorAll('#f8-normal-panel .chip, #f8-produk-panel .chip');
-      chips.forEach(c => { if(c.textContent.trim() === label) c.click(); });
-    });
-    habitInjectSuggest('f8-produk-panel', 'angle', FS.angle, (val, label) => {
-      let chips = document.querySelectorAll('#f8-produk-panel .chip');
-      chips.forEach(c => { if(c.textContent.trim() === label) c.click(); });
-    });
-  }
-  if(stepNum === 4){
-    // Pose suggest — inject sebelum chip grid
-    let f4body = document.querySelector('#f4 .wbody');
-    if(f4body){
-      habitInjectSuggest('f4-chips', 'pose', FS.pose, (val, label) => {
-        let chips = document.querySelectorAll('#f4-chips .chip');
-        chips.forEach(c => { if(c.textContent.trim() === label) c.click(); });
-      });
-    }
-  }
-}
-// ── END HABIT TRACKER ──────────────────────────────────────────
-
-// ============================================================
 // SUMMARY CARD — Ringkasan Visual Sebelum Generate (Fitur #5)
 // ============================================================
 function fRenderSummary() {
@@ -16478,6 +16455,19 @@ function pbHideOverlay(){
   pbWaitingCopyClick=false;
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
   clearInterval(pbCopyPollTimer);pbCopyPollTimer=null;
+  // FIX BUG PERFORMA (laporan user, Sept 2026 — lihat catatan lengkap di
+  // pbShowModal/pbShowInteractive): lepas TOTAL listener 'resize'/'scroll'
+  // yang dipasang tiap langkah tur begitu tur ditutup/disembunyikan —
+  // sebelumnya listener ini tidak pernah dilepas sama sekali, jadi terus
+  // aktif & memicu pbRepositionCurrent() di setiap scroll/resize SELAMA
+  // SISA SESI walau tur sudah lama selesai (bikin app kerasa berat pas
+  // scroll di wizard Foto/Video), dan berpotensi memunculkan lagi kotak
+  // sorot tur (lewat pbPositionSpot(null)) walau seharusnya sudah tidak
+  // tampil. pbShowModal/pbShowInteractive akan pasang lagi listener ini
+  // sendiri kalau tur benar-benar dimulai/lanjut ke langkah berikutnya.
+  window.removeEventListener('resize',pbRepositionCurrent);
+  let _pbHideShell=document.getElementById('app-shell');
+  if(_pbHideShell) _pbHideShell.removeEventListener('scroll',pbRepositionCurrent);
   // Jaga-jaga: kalau tur ditutup/di-skip persis waktu langkah 4 masih
   // aktif, pastikan chip yang tadi dikunci selalu kembali normal —
   // jangan sampai nyangkut terkunci walau tur sudah tidak tampil.
@@ -17656,9 +17646,25 @@ function pbShowModal(n,title,desc,btnLabel,onNext){
   btn.textContent=btnLabel||'Lanjut';
   btn.onclick=onNext;
   pbPositionSpot(null);
+  // FIX BUG PERFORMA (laporan user, Sept 2026): sebelumnya baris di bawah
+  // ini SELALU menambah listener BARU setiap kali fungsi ini dipanggil
+  // (dipanggil di tiap langkah tur) TANPA pernah melepas yang lama —
+  // tidak ada satupun removeEventListener untuk pbRepositionCurrent di
+  // seluruh file. Efeknya: makin banyak langkah tur (apalagi kalau user
+  // klik "Lihat Tur Panduan Lagi" berkali-kali), makin banyak listener
+  // 'resize'/'scroll' yang nyangkut PERMANEN — dan #app-shell adalah
+  // container scroll utama SELURUH wizard (termasuk Builder Foto), jadi
+  // tiap scroll di situ memicu pbRepositionCurrent() berkali-kali
+  // berturutan, bikin app kerasa berat/lag walau tur sudah lama selesai.
+  // Sekarang listener lama dilepas dulu sebelum pasang yang baru, supaya
+  // yang aktif maksimal cuma 1 pasang setiap saat.
+  window.removeEventListener('resize',pbRepositionCurrent);
   window.addEventListener('resize',pbRepositionCurrent);
   let shell=document.getElementById('app-shell');
-  if(shell) shell.addEventListener('scroll',pbRepositionCurrent);
+  if(shell){
+    shell.removeEventListener('scroll',pbRepositionCurrent);
+    shell.addEventListener('scroll',pbRepositionCurrent);
+  }
 }
 
 // ── Helper generik: render step INTERAKTIF (nempel ke elemen asli,
@@ -17681,9 +17687,15 @@ function pbShowInteractive(n,title,desc,selector){
     pbScrollToTargetTop(el,bannerH+16);
   }
   setTimeout(function(){ pbPositionSpot(el); },el?320:0);
+  // FIX BUG PERFORMA yang sama seperti di pbShowModal() — lihat catatan
+  // lengkap di sana. Dedupe listener sebelum pasang ulang.
+  window.removeEventListener('resize',pbRepositionCurrent);
   window.addEventListener('resize',pbRepositionCurrent);
   let shell=document.getElementById('app-shell');
-  if(shell) shell.addEventListener('scroll',pbRepositionCurrent);
+  if(shell){
+    shell.removeEventListener('scroll',pbRepositionCurrent);
+    shell.addEventListener('scroll',pbRepositionCurrent);
+  }
 }
 
 // Varian pbScrollToTarget() yang MENEPIKAN elemen ke bawah offset tertentu
