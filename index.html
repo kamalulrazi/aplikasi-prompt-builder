@@ -2077,6 +2077,25 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   border:none;border-radius:var(--radius-pill);padding:10px 22px;cursor:pointer;
 }
 .vb-scriptready-btn:active{opacity:0.88;filter:brightness(0.97);}
+/* FITUR BARU (permintaan user): kalimat tugas "klik salin di hook" +
+   varian tombol notifikasi yang di-tengah & sedikit lebih kecil (dipakai
+   khusus tombol "Mengerti", tombol "Lanjut →" lain tetap ukuran & posisi
+   semula karena cuma nambah class, bukan ganti class dasarnya). */
+.vb-scriptready-hint{font-size:var(--fs-xs2);color:var(--accent);font-weight:600;text-align:center;line-height:1.5;margin-top:12px;}
+.vb-scriptready-actions-center{justify-content:center;}
+.vb-scriptready-btn-sm{font-size:var(--fs-xs2);padding:7px 16px;}
+/* FITUR BARU (permintaan user): denyutan kuning di tombol "Salin" kartu
+   Hook, dipasang lewat vbScriptReadyNext() begitu user klik "Mengerti",
+   dilepas lagi begitu tombol itu benar-benar diklik (lihat copyBtn.onclick
+   di _vbBuildEditableCard). */
+@keyframes vbPulseYellow{
+  0%,100%{box-shadow:0 0 0 0 rgba(255,214,64,0.6);}
+  50%{box-shadow:0 0 0 6px rgba(255,214,64,0);}
+}
+.vb-pulse-yellow{
+  animation:vbPulseYellow 1.1s ease-in-out infinite;
+  background:#FFD640!important;color:#1a1a1a!important;
+}
 </style>
 </head>
 <body>
@@ -2166,7 +2185,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.48</div>
+  <div class="splash-version" id="splash-version">v5.49</div>
 </div>
 <script>
   (function(){
@@ -3856,6 +3875,17 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   <!-- OUTPUT MULTI (3 script — AI, manual, atau bulk) -->
   <div id="vb-multi-output" style="display:none;flex-direction:column;gap:8px;margin-top:12px;"></div>
 
+  <!-- FITUR BARU (permintaan user): tombol "Lanjut →" khusus tur panduan
+       pemula, muncul di bawah kartu-kartu skrip SETELAH user klik "Salin"
+       di kartu Hook (lihat copyBtn.onclick di _vbBuildEditableCard &
+       vbShowHookCopiedNotif). Sengaja disembunyikan default (class
+       "hidden") — baru ditampilkan lewat vbScriptReadyNext(). Klik tombol
+       ini yang BARU memunculkan kolom "Panduan Video AI" (18 foto), lewat
+       vbHookCopyLanjutClick(). -->
+  <div id="vb-tour-hookcopy-actions" class="hidden" style="display:flex;justify-content:flex-end;margin-top:10px;">
+    <button type="button" class="vb-scriptready-btn" onclick="vbHookCopyLanjutClick()">Lanjut →</button>
+  </div>
+
 </div>
 </div>
 
@@ -3902,7 +3932,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.48 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.49 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13142,19 +13172,43 @@ function vbCloseScriptReadyNotif(){
   let el=document.getElementById('vb-scriptready-overlay');
   if(el)el.classList.remove('show');
 }
-// FITUR BARU (permintaan user): begitu "Lanjut →" ditekan di notifikasi
-// "Prompt Video Siap", bar progres bintang lanjut menyala ke titik
-// terakhir "Video AI", lalu buka "kolom baru" panduannya (lihat
-// vbShowVideoGuide() & #vb-videoguide-overlay di HTML).
+// FITUR BARU (permintaan user, diubah): "Mengerti" di notifikasi "Prompt
+// Video Siap" TIDAK LAGI langsung lompat ke kolom Video AI. Sekarang cuma
+// menutup notifikasinya dan mengembalikan user ke kolom skrip (Hook/Story/
+// CTA) yang sudah siap di baliknya, lalu memberi kartu Hook denyutan
+// kuning supaya user tahu harus klik "Salin" di situ dulu. Lanjut ke
+// kolom Video AI (18 foto) baru terjadi lewat vbHookCopyLanjutClick(),
+// dipicu tombol "Lanjut →" baru yang muncul di bawah kartu skrip SETELAH
+// user benar-benar klik "Salin" di kartu Hook (lihat copyBtn.onclick di
+// _vbBuildEditableCard).
 function vbScriptReadyNext(){
   vbCloseScriptReadyNotif();
+  pbTourWaitingHookCopy=true;
+  let hookCopyBtn=document.getElementById('vb-bulk-copy-0');
+  if(hookCopyBtn) hookCopyBtn.classList.add('vb-pulse-yellow');
+}
+// FITUR BARU (permintaan user): notifikasi singkat begitu user benar-benar
+// klik "Salin" di kartu Hook — pesan lebih panjang dari toast biasa,
+// jadi dipakai durasi tampil yang lebih lama (5 detik) supaya sempat
+// terbaca, alih-alih memanggil showToast() biasa (2.5 detik).
+function vbShowHookCopiedNotif(){
+  let t=document.getElementById('toast');
+  t.style.borderColor='var(--green)';t.style.color='var(--green)';
+  t.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc('Yang kakak salin itu adalah "prompt vidio" untuk hook (pembuka Vidio). Simpan baik-baik karna sekarang kita akan gunakan prompt-nya.');
+  t.style.transform='translateX(-50%) translateY(0)';
+  t.style.opacity='1';
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>{t.style.transform='translateX(-50%) translateY(80px)';t.style.opacity='0';},5000);
+}
+// FITUR BARU (permintaan user): dipicu tombol "Lanjut →" baru di bawah
+// kartu-kartu skrip (#vb-tour-hookcopy-actions) — INI yang sekarang
+// menjalankan alur lama vbScriptReadyNext() (naikkan bar progres ke titik
+// "Video AI", tutup sesi tur, lalu buka kolom "Panduan Video AI"/18 foto).
+function vbHookCopyLanjutClick(){
+  let hcActions=document.getElementById('vb-tour-hookcopy-actions');
+  if(hcActions) hcActions.classList.add('hidden');
   pbTourProgressShow(4);
   setTimeout(function(){
-    // FITUR BARU (permintaan user): kalau notifikasi ini muncul karena
-    // sesi tur "silent" di wizard Video (lihat wrapper copyBtn.onclick di
-    // _vbBuildEditableCard), tur dianggap SELESAI TOTAL persis di sini —
-    // user bebas pakai app seperti biasa sesudahnya (nav bawah kembali
-    // muncul lewat pbEndTour()).
     // BUGFIX (dilaporkan user): pbEndTour() ini HARUS dipanggil SEBELUM
     // vbShowVideoGuide(), bukan sesudahnya. pbEndTour() -> pbHideOverlay()
     // punya baris "jaga-jaga" yang menutup paksa #vb-videoguide-overlay
@@ -13716,6 +13770,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   head.style.cssText='background:var(--surface3);padding:5px 9px;display:flex;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid var(--border);';
   head.innerHTML='<div style="font-size:var(--fs-2xs);font-weight:700;color:var(--muted);">'+label+'</div>';
   let copyBtn=document.createElement('button');
+  copyBtn.id='vb-bulk-copy-'+idx;
   copyBtn.className='copy-btn';copyBtn.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
   // FIX BUG (ditemukan saat audit mendalam khusus builder video): sebelumnya
   // textContent tombol ini di-set string KOSONG ('') dan tidak pernah diisi
@@ -13748,6 +13803,20 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
       // digenerate saat tur aktif, tidak perlu nunggu klik Salin lagi.
       // Klik Salin di sini (tur maupun mode biasa) sekarang murni cuma
       // menyalin teksnya, tidak memicu apa-apa lagi.
+      // FITUR BARU (permintaan user): begitu user klik "Mengerti" di
+      // notifikasi "Prompt Video Siap", kartu Hook (idx 0) diberi denyutan
+      // kuning (lihat vbScriptReadyNext) supaya user tahu harus klik
+      // "Salin" di situ dulu. Persis saat itu diklik (dan CUMA kartu Hook),
+      // hentikan denyutannya, kasih notifikasi penjelasan, lalu tampilkan
+      // tombol "Lanjut →" baru di bawah kartu-kartu skrip (lihat
+      // #vb-tour-hookcopy-actions & vbHookCopyLanjutClick()).
+      if(ii===0 && typeof pbTourWaitingHookCopy!=='undefined' && pbTourWaitingHookCopy){
+        pbTourWaitingHookCopy=false;
+        b.classList.remove('vb-pulse-yellow');
+        vbShowHookCopiedNotif();
+        let hcActions=document.getElementById('vb-tour-hookcopy-actions');
+        if(hcActions) hcActions.classList.remove('hidden');
+      }
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
   };})(idx,copyBtn,doneLabel);
   let copyWrap=document.createElement('div');
@@ -15421,7 +15490,11 @@ window.addEventListener('beforeunload', function(e){
         <div class="vb-fb"><div class="l">CTA</div><div class="s">8 detik</div></div>
       </div>
     </div>
-    <div class="vb-scriptready-actions"><button type="button" class="vb-scriptready-btn" onclick="vbScriptReadyNext()">Lanjut →</button></div>
+    <!-- FITUR BARU (permintaan user): kalimat tugas ini menuntun user balik
+         ke kolom skrip (bukan langsung lanjut ke kolom Video AI) buat klik
+         "Salin" di kartu Hook dulu — lihat vbScriptReadyNext(). -->
+    <div class="vb-scriptready-hint">Sekarang tugas kakak adalah klik salin pada bagian hook.</div>
+    <div class="vb-scriptready-actions vb-scriptready-actions-center"><button type="button" class="vb-scriptready-btn vb-scriptready-btn-sm" onclick="vbScriptReadyNext()">Mengerti</button></div>
   </div>
 </div>
 
@@ -15951,6 +16024,11 @@ var pbTourVideoModeActive=false;
 // bawah untuk tahu kapan harus benar-benar memanggil pbEndTour().
 var pbTourVideoScriptActive=false;
 var pbTourWaitingVideoGuideEnd=false;
+// FITUR BARU (permintaan user): true selagi notifikasi "Prompt Video
+// Siap" sudah ditutup ("Mengerti" diklik) TAPI user belum klik "Salin" di
+// kartu Hook — lihat vbScriptReadyNext() & copyBtn.onclick di
+// _vbBuildEditableCard.
+var pbTourWaitingHookCopy=false;
 // FITUR BARU (permintaan user — disamakan dengan pola proses pembuatan
 // prompt Foto AI/pbGoStep5): step ini TIDAK PAKAI lagi kartu instruksi
 // tur ("Langkah n dari 10") maupun kotak sorot (spotlight) kuning.
