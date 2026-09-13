@@ -2235,7 +2235,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.54</div>
+  <div class="splash-version" id="splash-version">v5.55</div>
 </div>
 <script>
   (function(){
@@ -4020,7 +4020,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.54 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.55 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9973,12 +9973,26 @@ function _pbInjectPerCardCopyButtons(root){
     let defaultLabel='Salin';
     btn.textContent=defaultLabel;
     btn.onclick=function(){
-      // Ambil ulang teksnya SAAT diklik (bukan snapshot txt di atas) —
-      // kartu Video di overlay tetap editable (textarea skrip hidup +
-      // autosave), tapi <pre> JSON di sini statis/tidak ikut ter-update
-      // live dari textarea; ambil dari pre.textContent tetap benar untuk
-      // apa yang TAMPIL di kartu saat overlay pertama dibuka/di-refresh.
-      _copyTextRobust(pre.textContent,function(){
+      // BUG FIX (laporan user): dulu tombol ini SELALU menyalin isi <pre>
+      // apa adanya — padahal <pre> itu statis (dibangun sekali saat overlay
+      // dibuka/di-refresh) dan TIDAK ikut ter-update kalau user mengedit
+      // kotak skrip (textarea) di kartu Video ini. Di builder utama, tiap
+      // ketikan di textarea otomatis menulis ulang <pre>-nya (vbBulkUpdateJson
+      // via oninput) — tapi listener oninput itu SENGAJA dilepas saat halaman
+      // disimpan ke Riwayat (lihat _pbCollectResult) supaya tidak nyangkut ke
+      // state builder asli yang sudah tidak ada. Akibatnya: user edit skrip
+      // di overlay, klik Salin, yang tersalin skrip yang LAMA (sebelum
+      // diedit) — kelihatan kayak "gak kesalin". Sekarang, kalau kartu ini
+      // punya textarea skrip (khusus kartu Video — kartu Foto tidak
+      // editable/tidak punya textarea), ambil nilai TERKINI dari textarea
+      // itu dan sisipkan ke teks JSON persis di bagian script:"..." SAAT
+      // tombol diklik — bukan dari <pre> yang beku.
+      let liveTxt=txt;
+      let ta=card.querySelector('textarea');
+      if(ta){
+        liveTxt=txt.replace(/script:"[\s\S]*?"/,'script:"'+ta.value+'"');
+      }
+      _copyTextRobust(liveTxt,function(){
         btn.textContent='Tersalin!';
         setTimeout(function(){btn.textContent=defaultLabel;},1200);
       },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
