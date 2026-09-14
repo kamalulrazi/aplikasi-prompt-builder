@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.61</div>
+  <div class="splash-version" id="splash-version">v5.66</div>
 </div>
 <script>
   (function(){
@@ -3634,8 +3634,8 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <button type="button" id="vb-mode4-overlay-toggle" onclick="vbToggleMode4Overlay()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-bottom:8px;">+ Atur Detail (opsional)</button>
         <div id="vb-mode4-overlay-box" class="hidden" style="margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
           <label class="inplabel" style="font-size:var(--fs-2xs);">Teks Overlay</label>
-          <div class="inp-wrap"><input class="inp" id="vb-mode4-overlay-input" maxlength="60" placeholder="Contoh: Diskon 50% Hari Ini!" oninput="vbMode4OverlayInput()" /></div>
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt: muncul di detik 0–2 video (2 detik lalu menghilang), ukuran teks 10px. Kosongkan kalau tidak perlu teks overlay.</p>
+          <div class="inp-wrap"><input class="inp" id="vb-mode4-overlay-input" maxlength="60" placeholder="Contoh: polkadot" oninput="vbMode4OverlayInput()" /></div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt: muncul tulisan kecil banget di pojok kanan paling bawah layar pada detik awal (0–2 detik) lalu menghilang. Kosongkan kalau tidak perlu teks overlay.</p>
         </div>
         <div class="out-card">
           <div class="out-head">
@@ -4021,7 +4021,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.61 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.66 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10730,7 +10730,9 @@ let VB_MODE4_OVERLAY_TEXT='';
 function _vbMode4BuildText(){
   let txt=VB_MODE4_PROMPT_TEXT;
   if(VB_MODE4_OVERLAY_TEXT){
-    txt+='. Tulis :"'+VB_MODE4_OVERLAY_TEXT+'" muncul pada detik 0 sampai detik 2 (2 detik) lalu menghilang, dengan ukuran teks 10px.';
+    // GANTI TOTAL (permintaan user, Sept 2026) — samakan kalimatnya dengan
+    // versi baru di _vbBuildFlowText (lihat catatan lengkap di sana).
+    txt+='. Muncul tulisan kecil banget bertuliskan "'+VB_MODE4_OVERLAY_TEXT+'" di pojok kanan paling bawah layar, tampil pada detik awal selama 2 detik lalu menghilang.';
   }
   return txt;
 }
@@ -11236,6 +11238,14 @@ function vbManualRenderGroups(count){
     group.appendChild(groupHead);
     let groupBody=document.createElement('div');
     groupBody.style.cssText='padding:8px;display:flex;flex-direction:column;gap:6px;';
+    // FIX BUG (laporan user, Sept 2026): mode Bulk MANUAL ("Tulis Manual"
+    // banyak produk) SEBELUMNYA tidak pernah dikasih baris "Atur Detail" →
+    // Teks Overlay Hook ini sama sekali — cuma ada di mode Bulk AI
+    // (_vbRenderBulkOutput) & mode single (manual maupun AI, lewat
+    // _vbRenderMultiOutput). Jadi fitur ini SEBELUMNYA belum benar-benar ada
+    // di "setiap hook" seperti yang diminta — sekarang ditambahkan di sini
+    // juga supaya konsisten di semua mode, termasuk isi sendiri + bulk.
+    groupBody.appendChild(_vbBuildHookOverlayRow(p));
     let cachedRow=VB_MANUAL_ROW_CACHE[p]||{};
     ['hook','story','cta'].forEach(function(roleKey){
       let roleInfo=VB_3SCRIPT_ROLES.find(function(r){return r.key===roleKey;});
@@ -11473,7 +11483,7 @@ function _vbBuildHookOverlayRow(prodIdx){
   inp.className='inp';
   inp.id='vb-hookoverlay-input-'+prodIdx;
   inp.maxLength=60;
-  inp.placeholder='Contoh: Diskon 50% Hari Ini!';
+  inp.placeholder='Contoh: polkadot';
   inp.value=VB_HOOK_OVERLAY[prodIdx]||'';
   inp.oninput=(function(pi){return function(){vbHookOverlayInput(pi);};})(prodIdx);
   inpWrap.appendChild(inp);
@@ -11481,7 +11491,7 @@ function _vbBuildHookOverlayRow(prodIdx){
 
   let hint=document.createElement('p');
   hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;';
-  hint.textContent='Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt Hook: muncul di detik 0–2 video (2 detik lalu menghilang), ukuran teks 10px. Kosongkan kalau tidak perlu teks overlay.';
+  hint.textContent='Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt Hook: muncul tulisan kecil banget di pojok kanan paling bawah layar pada detik awal (0–2 detik) lalu menghilang. Kosongkan kalau tidak perlu teks overlay.';
   box.appendChild(hint);
 
   wrap.appendChild(box);
@@ -15122,18 +15132,25 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // — tidak perlu escaping JSON karena tidak ada JSON.parse yang membaca
   // hasil fungsi ini di bagian lain app (hanya ditampilkan & disalin).
   let flowText=instructionText+'dialogue:voice_character:age:'+ageFull+',pitch:'+VB.pitch+',accent:'+accentFull+',script:"'+scriptText+'"';
-  // FITUR BARU (permintaan user): "Atur Detail" → Teks Overlay Hook —
-  // ditambahkan PALING AKHIR prompt (setelah bagian dialogue/script), dan
-  // HANYA untuk kartu Hook (idx%3===0 — kartu pertama tiap produk, Story/CTA
-  // tidak pernah kena). idx dikirim SAMA oleh semua pemanggil _vbBuildFlowText
-  // (index flat kartu, konsisten hook=0,story=1,cta=2 per produk baik mode
-  // single maupun Bulk — lihat VB_3SCRIPT_ROLES). Kosong kalau user belum isi
-  // apa-apa di panel "Atur Detail" (lihat _vbBuildHookOverlayRow).
+  // GANTI TOTAL (permintaan user, Sept 2026): kalimat overlay Hook lama
+  // ("Tulis :"X" muncul pada detik 0 sampai detik 2 (2 detik) lalu
+  // menghilang, dengan ukuran teks 10px.") DIHAPUS, diganti kalimat baru di
+  // bawah — sekarang eksplisit nentuin POSISI (pojok kanan paling bawah,
+  // sebelumnya tidak disebutkan sama sekali) dan ukurannya digambarkan
+  // "kecil banget" (bukan cuma angka px) — ditambahkan PALING AKHIR prompt
+  // (setelah bagian dialogue/script), HANYA untuk kartu Hook (idx%3===0 —
+  // kartu pertama tiap produk, Story/CTA tidak pernah kena). idx dikirim
+  // SAMA oleh semua pemanggil _vbBuildFlowText (index flat kartu, konsisten
+  // hook=0,story=1,cta=2 per produk di SEMUA mode: single AI, single
+  // manual, bulk AI, DAN bulk manual — lihat VB_3SCRIPT_ROLES & baris
+  // _vbBuildHookOverlayRow yang sekarang juga dipasang di vbManualRenderGroups,
+  // sebelumnya bolong di situ). Kosong kalau user belum isi apa-apa di panel
+  // "Atur Detail" (lihat _vbBuildHookOverlayRow).
   let isHookCard=(typeof idx==='number')&&(idx%3===0);
   if(isHookCard){
     let overlayTxt=_vbHookOverlayText(idx);
     if(overlayTxt){
-      flowText+='. Tulis :"'+overlayTxt+'" muncul pada detik 0 sampai detik 2 (2 detik) lalu menghilang, dengan ukuran teks 10px.';
+      flowText+='. Muncul tulisan kecil banget bertuliskan "'+overlayTxt+'" di pojok kanan paling bawah layar, tampil pada detik awal selama 2 detik lalu menghilang.';
     }
   }
   // FITUR BARU (permintaan user): khusus mode Raw Asset (VB.refMode==='kp')
@@ -17794,6 +17811,370 @@ function pbPositionSpot(targetEl){
 window.addEventListener('load',function(){
   setTimeout(function(){ pbStartTour(false); },3700);
 });
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     FITUR UNDO / REDO (ditambahkan Sept 2026, permintaan user)
+     ──────────────────────────────────────────────────────────────────
+     App ini TIDAK punya satu objek state terpusat — datanya tersebar di
+     puluhan variabel global (FS, csState, VAI, VB, VB_MANUAL_ROW_CACHE,
+     dst) dan sebagian ditulis langsung ke DOM (value input/textarea).
+     Daripada menulis ulang arsitektur itu (berisiko tinggi merusak fitur
+     yang sudah jalan), sistem undo di bawah ini pakai pendekatan
+     "snapshot + replay":
+       1) Membungkus (wrap) SEMUA fungsi global yang namanya berpola
+          render/step (pbGoStepX, pbRenderStepX, csRenderX, fRenderX,
+          vbRenderX, dst — lihat PB_UNDO_STEP_FN_REGEX) supaya tiap kali
+          fungsi itu dipanggil dari MANAPUN (klik tombol, kode internal),
+          sistem tahu "aksi struktural barusan terjadi" dan tahu fungsi
+          mana yang harus dipanggil ulang untuk REBUILD tampilan step itu
+          saat undo/redo (bukan cuma tempel HTML mentah — supaya semua
+          event handler yang dipasang lewat JS, bukan cuma atribut HTML,
+          tetap hidup setelah undo).
+       2) Snapshot juga menyimpan salinan (deep clone) dari daftar
+          variabel state utama (PB_UNDO_STATE_VARS) + nilai semua field
+          input/textarea/select yang punya id di dalam #app-shell.
+       3) Snapshot diambil dengan DEBOUNCE ~450ms setelah aktivitas
+          terakhir (ketik/klik/render) berhenti sejenak — jadi satu
+          "aksi" (misal ngetik satu kalimat, atau tambah 1 baris produk)
+          jadi SATU langkah undo, bukan per-huruf.
+     KETERBATASAN YANG SUDAH DIKETAHUI (jangan dihapus catatan ini kalau
+     nanti ada yang nanya kenapa undo kadang tidak 100% sempurna):
+       - Kalau ada fungsi render/step BARU yang ditambahkan di masa depan
+         dan namanya TIDAK cocok pola regex di PB_UNDO_STEP_FN_REGEX,
+         undo untuk step itu bisa jadi cuma mengembalikan data state-nya
+         tapi tampilannya tidak ikut ter-render ulang. Kalau nambah step
+         besar baru, sebaiknya cek/tambahkan variabel state barunya ke
+         PB_UNDO_STATE_VARS di bawah.
+       - File upload (foto) TIDAK ikut di-undo (base64-nya memang ikut
+         tersimpan di beberapa state var kalau sudah keburu masuk state,
+         tapi proses pemilihan file lewat dialog OS tidak bisa "dibatalkan"
+         oleh JS).
+     ══════════════════════════════════════════════════════════════════ -->
+<style>
+#pb-undo-fab-wrap{position:fixed;right:16px;bottom:16px;z-index:99997;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
+#pb-undo-fab-wrap button{pointer-events:auto;width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,24,0.92);color:#fff;font-size:19px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,0.35);opacity:0;transform:translateY(8px) scale(0.9);transition:opacity .18s ease,transform .18s ease;-webkit-tap-highlight-color:transparent;}
+#pb-undo-fab-wrap button.show{opacity:1;transform:translateY(0) scale(1);}
+#pb-undo-fab-wrap button:disabled{opacity:.28!important;pointer-events:none;}
+#pb-undo-fab-wrap button:active{transform:scale(0.88);}
+@media(min-width:900px){ #pb-undo-fab-wrap{display:none;} } /* di laptop cukup Ctrl+Z / Ctrl+Shift+Z */
+</style>
+<script>
+(function(){
+  'use strict';
+  var MAX_HISTORY = 60;
+  var DEBOUNCE_MS = 450;
+  var stack = [];        // array of snapshot object
+  var pointer = -1;      // index snapshot aktif di stack
+  var timer = null;
+  var restoring = false; // true selagi proses undo/redo jalan (biar tidak nyatet snapshot dari aksi restore itu sendiri)
+  // BUG FIX (Sept 2026): sebelumnya cuma nyimpen SATU stepFn terakhir.
+  // Kalau dalam satu jeda debounce ada beberapa aksi top-level TERPISAH
+  // (bukan nested) — misal klik cepat berturut-turut — yang tersimpan
+  // cuma aksi paling akhir, aksi sebelumnya "ketiban" dan gak ikut
+  // di-replay pas undo. Sekarang dikumpulkan jadi ARRAY, semua dipanggil
+  // ulang berurutan pas restore.
+  var pendingStepCalls = [];
+
+  // BUG FIX (Sept 2026) — PENTING, soal memori: foto (base64) yang
+  // nyempil di dalam VAI/VB/VB_BULK_PRODUCTS dkk bisa berukuran ratusan
+  // KB sampai beberapa MB. Kalau ikut di-clone mentah-mentah di SETIAP
+  // snapshot (sampai 60 snapshot riwayat), app bisa makan memori
+  // ratusan MB dan lag/crash di HP — app ini berat ke fitur upload
+  // foto. String yang lebih panjang dari SKIP_STR_LEN dianggap "data
+  // besar" (foto/base64) dan TIDAK disalin ke riwayat; sesuai catatan
+  // keterbatasan dari awal ("foto tidak ikut di-undo"), pas restore
+  // field ini dibiarkan apa adanya di state yang lagi berjalan (tidak
+  // ditimpa, tidak dihapus).
+  var SKIP_STR_LEN = 3000;
+  var SKIP_MARK = '\u0000__PB_UNDO_KEEP_CURRENT__\u0000';
+
+  // ── Daftar variabel state utama yang dilacak. Kalau nanti nambah
+  // fitur/step besar baru dengan variabel state baru, tambahkan namanya
+  // di sini juga supaya ikut ke-undo. ──────────────────────────────────
+  var PB_UNDO_STATE_VARS = [
+    'FS','csState','VAI','VB','VB_MODE4_OVERLAY_TEXT','VB_MANUAL_ROW_CACHE',
+    'VB_MANUAL_COUNT','VB_BULK_ITEMS','VB_CARD_TAMPIL','VB_CARD_LOKASI',
+    'VB_PRODUCT_FOTOCOUNT','VB_HOOK_OVERLAY','VB_BULK_PRODUCTS',
+    'VB_REVISI_FOTO_OVERRIDE','VB_BULK_ROW_CACHE','VB_BULK_LAST_CONTEXT',
+    'VB_SINGLE_REVISI_BACKUP','VB_PANEL','PB_ACTIVE_SAVED_ID',
+    'pbProdukFotoUploaded','pbProdukFotoDataUrl','pbKsFotoUploaded',
+    'pbKsFotoDataUrl','pbFotoAiUploaded','pbFotoAiDataUrl',
+    'pbStep3Revealed','pbVideoGuideIndex'
+  ];
+
+  // Clone manual (bukan lewat JSON.stringify) sambil "memangkas" string
+  // panjang jadi SKIP_MARK — lebih hemat memori & CPU karena string besar
+  // tidak pernah ikut disalin sama sekali (JSON.stringify tetap harus
+  // membangun teks penuhnya dulu sebelum bisa dipangkas, jadi percuma).
+  function cloneStrip(v){
+    var t = typeof v;
+    if(v===null || t==='undefined' || t==='number' || t==='boolean') return v;
+    if(t==='string') return v.length>SKIP_STR_LEN ? SKIP_MARK : v;
+    if(Array.isArray(v)){ var arr=[]; for(var i=0;i<v.length;i++) arr.push(cloneStrip(v[i])); return arr; }
+    if(t==='object'){
+      var out={};
+      for(var k in v){ if(Object.prototype.hasOwnProperty.call(v,k)) out[k]=cloneStrip(v[k]); }
+      return out;
+    }
+    return null; // function dll, tidak perlu ikut tersimpan
+  }
+
+  // Kebalikan dari cloneStrip pas restore: kalau ketemu SKIP_MARK,
+  // pertahankan nilai yang SEDANG berjalan di state (jangan ditimpa).
+  function mergeSkip(current, snap){
+    if(snap===SKIP_MARK) return current;
+    if(Array.isArray(snap)){
+      var curArr = Array.isArray(current)?current:[];
+      var out=[]; for(var i=0;i<snap.length;i++) out.push(mergeSkip(curArr[i], snap[i]));
+      return out;
+    }
+    if(snap && typeof snap==='object'){
+      var curObj = (current && typeof current==='object') ? current : {};
+      var out2={}; for(var k in snap){ if(Object.prototype.hasOwnProperty.call(snap,k)) out2[k]=mergeSkip(curObj[k], snap[k]); }
+      return out2;
+    }
+    return snap;
+  }
+
+  function captureVars(){
+    var out = {};
+    for(var i=0;i<PB_UNDO_STATE_VARS.length;i++){
+      var name = PB_UNDO_STATE_VARS[i];
+      try{ out[name] = cloneStrip(eval(name)); }catch(e){ out[name] = undefined; }
+    }
+    return out;
+  }
+  function restoreVars(vars){
+    for(var i=0;i<PB_UNDO_STATE_VARS.length;i++){
+      var name = PB_UNDO_STATE_VARS[i];
+      if(!(name in vars)) continue;
+      try{ var merged = mergeSkip(eval(name), vars[name]); eval(name+' = merged;'); }catch(e){}
+    }
+  }
+
+  function captureDom(){
+    var out = {};
+    var nodes = document.querySelectorAll('#app-shell [id]');
+    for(var i=0;i<nodes.length;i++){
+      var el = nodes[i];
+      var tag = el.tagName;
+      if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'){
+        if(el.type==='checkbox'||el.type==='radio'){ out[el.id] = {checked: el.checked}; }
+        else if(el.type!=='file'){
+          // sama seperti state var: field teks yang KEBETULAN berisi
+          // data besar (mis. hidden input nyimpen base64) juga dilewati
+          // biar tidak ikut membengkakkan riwayat.
+          out[el.id] = {value: el.value.length>SKIP_STR_LEN ? SKIP_MARK : el.value};
+        }
+      }
+    }
+    return out;
+  }
+  function restoreDom(dom){
+    Object.keys(dom).forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      var data = dom[id];
+      if('checked' in data){ if(el.checked!==data.checked){ el.checked=data.checked; fire(el,'change'); } }
+      else if('value' in data){
+        if(data.value===SKIP_MARK) return; // biarkan nilai sekarang, jangan ditimpa
+        if(el.value!==data.value){ el.value=data.value; fire(el,'input'); fire(el,'change'); }
+      }
+    });
+  }
+  function fire(el,type){ try{ el.dispatchEvent(new Event(type,{bubbles:true})); }catch(e){} }
+
+  function snapshotNow(){
+    var calls = pendingStepCalls.slice();
+    pendingStepCalls = [];
+    return { stepCalls:calls, vars:captureVars(), dom:captureDom(), t:Date.now() };
+  }
+
+  function pushSnapshot(){
+    if(restoring) return;
+    var snap = snapshotNow();
+    // buang cabang "masa depan" kalau user sempat undo lalu bikin aksi baru
+    if(pointer < stack.length-1) stack = stack.slice(0,pointer+1);
+    stack.push(snap);
+    if(stack.length>MAX_HISTORY){ stack.shift(); }
+    pointer = stack.length-1;
+    updateFab();
+  }
+
+  function scheduleSnapshot(){
+    if(restoring) return;
+    clearTimeout(timer);
+    timer = setTimeout(pushSnapshot, DEBOUNCE_MS);
+  }
+
+  function applySnapshot(snap){
+    restoring = true;
+    try{
+      restoreVars(snap.vars);
+      var calls = snap.stepCalls || [];
+      for(var i=0;i<calls.length;i++){
+        var call = calls[i];
+        if(call && call.fn && typeof window[call.fn]==='function'){
+          try{ window[call.fn].apply(null, call.args||[]); }catch(e){}
+        }
+      }
+      restoreDom(snap.dom);
+    } finally {
+      setTimeout(function(){ restoring = false; }, 60);
+    }
+  }
+
+  window.pbUndo = function(){
+    // BUG FIX (Sept 2026): urutan cek ini SENGAJA dibalik dari draft
+    // pertama. Kalau user baru ngetik lalu LANGSUNG Ctrl+Z sebelum jeda
+    // 450ms lewat (jadi belum sempat ke-snapshot), draft pertama malah
+    // langsung `return` di sini duluan (karena pointer masih nunjuk ke
+    // snapshot lama) sehingga ketikan barusan gagal ke-undo. Sekarang
+    // "flush" dulu perubahan yang masih menggantung, BARU cek apakah
+    // masih ada yang bisa diundo.
+    if(timer){ clearTimeout(timer); timer=null; if(!restoring) pushSnapshot(); }
+    if(pointer<=0) return; // pointer 0 = state paling awal, tidak ada lagi yang bisa diundo
+    pointer--;
+    applySnapshot(stack[pointer]);
+    updateFab();
+  };
+  window.pbRedo = function(){
+    if(pointer>=stack.length-1) return;
+    pointer++;
+    applySnapshot(stack[pointer]);
+    updateFab();
+  };
+  // ── Bungkus semua fungsi global berpola render/step supaya setiap kali
+  // dipanggil (dari tombol manapun, atau dari kode internal manapun),
+  // sistem tahu step mana yang aktif & langsung menjadwalkan snapshot. ──
+  //
+  // BUG FIX (Sept 2026): banyak fungsi pbGoStepX saling memanggil satu
+  // sama lain di dalamnya (mis. pbGoStep2Next() di ujungnya manggil
+  // pbGoStep3()). Draft pertama nyatet `lastStepFn` di SETIAP pemanggilan
+  // termasuk yang nested — karena wrapper luar (pbGoStep2Next) baru
+  // nulis lastStepFn SETELAH pemanggilan dalamnya (pbGoStep3) selesai,
+  // hasil akhirnya lastStepFn ke-timpa jadi fungsi LUAR/pemanggil, bukan
+  // fungsi yang beneran terakhir merender layar. Efeknya: undo/redo bisa
+  // salah manggil ulang fungsi transisi (bukan fungsi render finalnya),
+  // yang belum tentu aman dipanggil ulang sendirian.
+  // Fix: pakai counter `wrapDepth` — cuma pemanggilan PALING LUAR (depth
+  // 0 sebelum masuk) yang boleh nyatet lastStepFn/jadwal snapshot.
+  // Pemanggilan nested di dalamnya dianggap "bagian dari" aksi luar itu.
+  var PB_UNDO_STEP_FN_REGEX = /^(pb|f|cs|vb)[A-Za-z0-9_]*(Step|Render)/;
+  var wrapDepth = 0;
+  function wrapStepFns(){
+    var names = Object.getOwnPropertyNames(window);
+    for(var i=0;i<names.length;i++){
+      var name = names[i];
+      if(name.indexOf('pbUndo')===0 || name.indexOf('pbRedo')===0) continue;
+      if(!PB_UNDO_STEP_FN_REGEX.test(name)) continue;
+      if(typeof window[name] !== 'function') continue;
+      if(window[name].__pbUndoWrapped) continue;
+      (function(name,orig){
+        var wrapped = function(){
+          var isOutermost = (wrapDepth===0);
+          wrapDepth++;
+          var ret;
+          try{
+            ret = orig.apply(this, arguments);
+          } finally {
+            wrapDepth--;
+          }
+          if(!restoring && isOutermost){
+            pendingStepCalls.push({fn:name, args:Array.prototype.slice.call(arguments)});
+            if(pendingStepCalls.length>20) pendingStepCalls.shift(); // jaga-jaga, jangan sampai unbounded
+            scheduleSnapshot();
+          }
+          return ret;
+        };
+        wrapped.__pbUndoWrapped = true;
+        window[name] = wrapped;
+      })(name, window[name]);
+    }
+  }
+
+  function updateFab(){
+    var u = document.getElementById('pb-undo-fab-undo');
+    var r = document.getElementById('pb-undo-fab-redo');
+    if(!u||!r) return;
+    var hasHistory = stack.length>1;
+    u.classList.toggle('show', hasHistory);
+    r.classList.toggle('show', hasHistory);
+    u.disabled = pointer<=0;
+    r.disabled = pointer>=stack.length-1;
+  }
+
+  function buildFab(){
+    var wrap = document.createElement('div');
+    wrap.id = 'pb-undo-fab-wrap';
+    wrap.innerHTML =
+      '<button id="pb-undo-fab-redo" type="button" aria-label="Redo" title="Redo">&#8635;</button>'+
+      '<button id="pb-undo-fab-undo" type="button" aria-label="Undo" title="Undo">&#8634;</button>';
+    document.body.appendChild(wrap);
+    document.getElementById('pb-undo-fab-undo').addEventListener('click', function(){ window.pbUndo(); });
+    document.getElementById('pb-undo-fab-redo').addEventListener('click', function(){ window.pbRedo(); });
+  }
+
+  // ── Ketik/centang langsung di field (yang tidak selalu memicu fungsi
+  // render tertentu) tetap ikut kejadwal jadi snapshot lewat listener
+  // delegasi generik ini. ──────────────────────────────────────────────
+  document.addEventListener('input', function(e){
+    if(restoring) return;
+    var t = e.target;
+    if(t && t.closest && t.closest('#app-shell')) scheduleSnapshot();
+  }, true);
+  document.addEventListener('change', function(e){
+    if(restoring) return;
+    var t = e.target;
+    if(t && t.closest && t.closest('#app-shell')) scheduleSnapshot();
+  }, true);
+
+  // ── Shortcut keyboard: Ctrl+Z / Cmd+Z = undo, Ctrl+Shift+Z (atau
+  // Ctrl+Y) / Cmd+Shift+Z = redo. Berlaku global di seluruh app. ───────
+  //
+  // BUG FIX (Sept 2026) — PENTING, bentrok fitur lama: app ini SUDAH
+  // punya listener keydown sendiri (cari string CHIP_UNDO_STACK, sekitar
+  // baris 4168) yang juga menangkap Ctrl+Z untuk "undo pilihan chip
+  // terakhir" — tapi listener itu didaftarkan di FASE BUBBLE, sedangkan
+  // listener baru ini di FASE CAPTURE (parameter `true` di akhir), jadi
+  // punya kita SELALU jalan lebih dulu. Kalau dibiarkan begitu saja,
+  // setiap Ctrl+Z di luar kotak teks bakal memicu DUA sistem undo
+  // sekaligus (punya kita + punya lama), saling tabrakan dan bikin hasil
+  // undo jadi tidak konsisten/salah. Makanya di sini WAJIB panggil
+  // e.stopPropagation() supaya listener lama tidak ikut jalan untuk
+  // tombol Z — sistem undo lama otomatis "dimatikan" tanpa perlu hapus
+  // kodenya (state CHIP_UNDO_STACK sudah otomatis ke-cover lewat
+  // snapshot form/step yang lebih menyeluruh di sistem baru ini).
+  document.addEventListener('keydown', function(e){
+    var mod = e.ctrlKey || e.metaKey;
+    if(!mod) return;
+    var k = e.key ? e.key.toLowerCase() : '';
+    if(k==='z' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); window.pbUndo(); }
+    else if((k==='z' && e.shiftKey) || k==='y'){ e.preventDefault(); e.stopPropagation(); window.pbRedo(); }
+  }, true);
+
+  window.addEventListener('load', function(){
+    setTimeout(function(){
+      wrapStepFns();
+      buildFab();
+      // BUG FIX (Sept 2026): snapshot baseline diambil SEBELUM pengguna
+      // memicu fungsi step manapun, jadi `lastStepFn` masih kosong
+      // (null). Kalau dibiarkan null, nanti pas user undo balik sampai
+      // ke titik paling awal ini, sistem cuma restore data field tapi
+      // TIDAK memanggil ulang fungsi apapun — akibatnya tampilan step
+      // yang lagi kebuka di layar tidak ikut kembali ke Step 1 (cuma
+      // isi field-nya yang balik, tampilannya nyangkut di step
+      // terakhir). Default-kan ke 'pbGoStep1' — step awal app ini —
+      // supaya undo sampai titik ini benar-benar menampilkan ulang Step 1.
+      pendingStepCalls = [{fn:'pbGoStep1', args:[]}];
+      pushSnapshot(); // baseline state paling awal
+      // re-scan berkala (murah) buat nangkep fungsi step yang mungkin
+      // baru "muncul" ke window belakangan (jarang terjadi, tapi aman)
+      setInterval(wrapStepFns, 4000);
+    }, 500);
+  });
+})();
 </script>
 
 <!-- ══════════════════════════════════════════════════════════════════
