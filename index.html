@@ -163,7 +163,7 @@
     }, 800);
   };
 
-  // Khusus API key Groq: yang disinkron PLAINTEXT-nya, bukan ciphertext
+  // Khusus API key Claude: yang disinkron PLAINTEXT-nya, bukan ciphertext
   // lokal (ciphertext dienkripsi pakai salt unik per perangkat — tidak
   // bisa dibaca ulang di perangkat lain). Firestore-nya sendiri sudah
   // dibatasi per-uid lewat security rules di langkah 5 atas.
@@ -885,7 +885,7 @@ body input, body textarea, body [contenteditable="true"]{
 
 /* ── MINI LOGO P DI DALAM KOTAK SKRIP (permintaan user) ───────────────────
    Selama satu kartu Hook/Story/CTA MASIH KOSONG/BELUM SELESAI diketik
-   (baik nunggu AI jawab, lagi retry kena limit Groq, MAUPUN sedang dalam
+   (baik nunggu AI jawab, lagi retry kena limit Claude, MAUPUN sedang dalam
    proses animasi ketik kata-per-kata), teksnya diblur dulu (samar) dan di
    pojok kartu muncul logo P kecil yang terus pecah-menyatu (pakai ANIMASI
    YANG SAMA — @keyframes pLoopBack/pLoopFront — bukan animasi baru), jadi
@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.66</div>
+  <div class="splash-version" id="splash-version">v5.67</div>
 </div>
 <script>
   (function(){
@@ -2565,7 +2565,11 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <img id="pb-user-avatar" src="" alt="" style="width:16px;height:16px;border-radius:50%;display:none;">
       <span id="pb-user-name" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     </div>
-    <div class="h-pill" style="cursor:pointer;" onclick="openApiKeyModal()" title="Pengaturan koneksi AI"><svg><use href="#ic-sparkle"></use></svg>AI</div>
+    <!-- PROXY (Sep 2026): tombol ini dulu buka modal minta API Key user.
+         Sekarang AI sudah otomatis tersambung lewat server proxy milik
+         pemilik app — user tidak perlu isi apapun lagi, jadi tombol cukup
+         kasih info singkat saja, tidak buka modal API key lagi. -->
+    <div class="h-pill" style="cursor:pointer;" onclick="showToast('AI sudah otomatis aktif — tidak perlu API Key lagi ✓','success')" title="AI sudah otomatis tersambung"><svg><use href="#ic-sparkle"></use></svg>AI</div>
   </div>
 </div>
 
@@ -2580,23 +2584,23 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <div class="wcard" id="vai-key" style="border:none;padding:0;">
         <div class="whead" style="display:none;"><div class="wnum">1</div><div class="wtitle">Sambungkan ke AI (sekali saja)</div><div class="wanswer" id="vai-key-ans"></div></div>
         <div class="wbody" style="padding:0;">
-          <p class="desc-block">Untuk fitur generate JSON prompt via AI, tools ini perlu disambungkan ke Groq (bisa baca teks & foto). <strong style="color:var(--text);">Gratis</strong> dan hanya perlu dilakukan sekali.</p>
+          <p class="desc-block">Untuk fitur generate JSON prompt via AI, tools ini perlu disambungkan ke Claude (Anthropic) — bisa baca teks & foto. Butuh saldo API berbayar (bukan Claude.ai biasa) dan hanya perlu dilakukan sekali.</p>
           <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-            <div class="info-card"><div class="num-badge">1</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Buka browser baru</div><div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:8px;">Ketik atau copy link ini di address bar browser:</div><div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);color:var(--accent);display:flex;align-items:center;justify-content:space-between;gap:8px;"><span>console.groq.com/keys</span><button onclick="copyText('console.groq.com/keys',this)" style="background:var(--surface3);border:1px solid var(--border-hi);color:var(--accent);padding:4px 10px;border-radius:var(--radius-2xs);font-size:var(--fs-xs);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;white-space:nowrap;">Copy Link</button></div></div></div>
-            <div class="info-card"><div class="num-badge">2</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Daftar/login akun Groq</div><div class="desc-text">Bisa pakai akun Google/Gmail kamu juga buat daftar cepat.</div></div></div>
-            <div class="info-card"><div class="num-badge">3</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Klik tombol "Create API Key"</div><div class="desc-text">Tombolnya ada di halaman API Keys. Kasih nama bebas → Submit.</div></div></div>
-            <div class="info-card"><div class="num-badge">4</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Copy API Key yang muncul</div><div class="desc-text">Kode panjang diawali <strong style="color:var(--text);font-family:'Geist Mono',monospace;">gsk_...</strong> — cuma tampil SEKALI, langsung copy.</div></div></div>
+            <div class="info-card"><div class="num-badge">1</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Buka browser baru</div><div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:8px;">Ketik atau copy link ini di address bar browser:</div><div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);color:var(--accent);display:flex;align-items:center;justify-content:space-between;gap:8px;"><span>console.anthropic.com/settings/keys</span><button onclick="copyText('console.anthropic.com/settings/keys',this)" style="background:var(--surface3);border:1px solid var(--border-hi);color:var(--accent);padding:4px 10px;border-radius:var(--radius-2xs);font-size:var(--fs-xs);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;white-space:nowrap;">Copy Link</button></div></div></div>
+            <div class="info-card"><div class="num-badge">2</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Daftar/login akun Anthropic</div><div class="desc-text">Isi saldo API (billing) dulu di menu Plans & Billing supaya key-nya bisa dipakai generate.</div></div></div>
+            <div class="info-card"><div class="num-badge">3</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Klik tombol "Create Key"</div><div class="desc-text">Tombolnya ada di halaman API Keys. Kasih nama bebas → Add.</div></div></div>
+            <div class="info-card"><div class="num-badge">4</div><div><div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Copy API Key yang muncul</div><div class="desc-text">Kode panjang diawali <strong style="color:var(--text);font-family:'Geist Mono',monospace;">sk-ant-...</strong> — cuma tampil SEKALI, langsung copy.</div></div></div>
             <div style="background:rgba(76,175,125,0.08);border:1px solid rgba(76,175,125,0.25);border-radius:var(--radius-md);padding:12px;display:flex;align-items:flex-start;gap:12px;"><div style="width:28px;height:28px;background:var(--green);color:#fff;border-radius:50%;font-size:var(--fs-sm);font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Geist Mono',monospace;">5</div><div><div style="font-size:var(--fs-base);font-weight:700;color:var(--green);margin-bottom:4px;">Paste di kotak di bawah ini</div><div class="desc-text">Kembali ke halaman ini → tekan lama di kotak bawah → pilih Paste → klik Simpan.</div></div></div>
           </div>
           <label class="inplabel">Paste API Key di sini</label>
           <div style="display:flex;gap:8px;">
-            <input class="inp" id="gemini-api-key" type="password" placeholder="gsk_... (paste kode dari Groq Console)" style="flex:1;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);" oninput="let eb=document.getElementById('vai-key-error');if(eb)eb.classList.add('hidden');" />
+            <input class="inp" id="gemini-api-key" type="password" placeholder="sk-ant-... (paste kode dari Anthropic Console)" style="flex:1;font-family:'Geist Mono',monospace;font-size:var(--fs-sm);" oninput="let eb=document.getElementById('vai-key-error');if(eb)eb.classList.add('hidden');" />
             <button onclick="vaiToggleKeyVisibility(this)" title="Tampilkan/sembunyikan API key" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:0 12px;border-radius:var(--radius-md);cursor:pointer;font-size:16px;"><svg class="icon"><use href="#ic-eye"></use></svg></button>
           </div>
           <div id="vai-key-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.12);border:1px solid rgba(224,92,92,0.4);border-radius:var(--radius-md);padding:10px 12px;font-size:var(--fs-xs2);color:var(--red);line-height:1.6;"></div>
-          <p style="font-size:var(--fs-xs2);color:var(--muted);margin-top:6px;line-height:1.6;">Kode ini hanya tersimpan di browser kamu — tidak dikirim ke server manapun selain Groq.</p>
+          <p style="font-size:var(--fs-xs2);color:var(--muted);margin-top:6px;line-height:1.6;">Kode ini hanya tersimpan di browser kamu — tidak dikirim ke server manapun selain Anthropic.</p>
           <p style="font-size:var(--fs-xs2);color:var(--muted);margin-top:4px;line-height:1.6;">Mode incognito/private: key <strong>tidak tersimpan</strong> — kamu perlu isi ulang setiap sesi baru.</p>
-          <p style="font-size:var(--fs-xs2);color:rgba(224,92,92,0.8);margin-top:4px;line-height:1.6;"><strong>Tips keamanan:</strong> Key hanya tersimpan di browser kamu (tidak dikirim ke server kami). Jangan share perangkat saat key tersimpan. Jika curiga bocor, hapus dan buat key baru di Groq Console.</p>
+          <p style="font-size:var(--fs-xs2);color:rgba(224,92,92,0.8);margin-top:4px;line-height:1.6;"><strong>Tips keamanan:</strong> Key hanya tersimpan di browser kamu (tidak dikirim ke server kami). Jangan share perangkat saat key tersimpan. Jika curiga bocor, hapus dan buat key baru di Anthropic Console.</p>
           <button class="btn sm" onclick="vaiSaveKey()" style="margin-top:10px;"><svg class="icon"><use href="#ic-check"></use></svg> Simpan & Mulai →</button>
           <div style="margin-top:12px;text-align:center;"><button onclick="vaiShowSavedKey()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;font-family:'Geist',sans-serif;">Sudah pernah simpan key sebelumnya?</button></div>
         </div>
@@ -4021,7 +4025,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.66 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.67 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -4262,12 +4266,13 @@ document.addEventListener('keydown', function(e){
 
 // FIX A14: esc() dipindah ke scope global agar tidak dibuat ulang tiap render
 function esc(str){return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-// GANTI PROVIDER KE GROQ: API key Groq selalu diawali "gsk_" (beda dari
-// key Gemini yang diawali "AIza..."/"AQ...."). Nama fungsi TIDAK diubah
-// biar tidak perlu ganti semua call-site (_isValidGeminiKey dipanggil di
-// beberapa tempat lain di file ini).
+// GANTI PROVIDER KE CLAUDE: API key Claude (Anthropic) selalu diawali
+// "sk-ant-" (beda dari key Groq yang dulu diawali "gsk_" atau key Gemini yang
+// diawali "AIza.../AQ...."). Nama fungsi TIDAK diubah biar tidak perlu
+// ganti semua call-site (_isValidGeminiKey dipanggil di beberapa tempat
+// lain di file ini).
 function _isValidGeminiKey(k){
-  return !!(k && k.startsWith('gsk_'));
+  return !!(k && k.startsWith('sk-ant-'));
 }
 
 // ============================================================
@@ -9045,34 +9050,55 @@ function fReset(){
 // sebelumnya tidak pernah dideklarasikan di mana pun → setiap generate AI di
 // Video Builder langsung error "GEMINI_ENDPOINT is not defined" dan gagal total.
 // GANTI model di bawah kalau kamu memang mau pakai versi model lain.
-// ── PINDAH KE GROQ (permintaan user) ────────────────────────────────────
-// Sebelumnya provider-nya Gemini (Google AI Studio). Sekarang diganti ke
-// Groq — endpoint-nya OpenAI-compatible (/openai/v1/chat/completions),
-// BUKAN format request/response Gemini. Supaya semua kode pemanggil di
-// bawah (_vbFetchWithGeminiFallback, _vbStreamGeminiJSONWithRetryModel,
-// dst — namanya sengaja TIDAK diganti biar tidak perlu ubah puluhan
-// call-site lain) tidak perlu diubah satu-satu, kedua fungsi itu yang
-// menerjemahkan: request dibungkus ulang jadi format Groq sebelum dikirim,
-// lalu response Groq dibungkus BALIK jadi bentuk {candidates:[{content:
-// {parts:[{text}]}}]} persis seperti balikan Gemini — jadi seluruh kode
-// yang membaca data.candidates[0].content.parts[0].text tetap jalan apa
-// adanya.
-const GROQ_ENDPOINT='https://api.groq.com/openai/v1/chat/completions';
-// Kedua model ini gratis di akun Groq (free tier) DAN bisa baca foto
-// (vision) — beda dari model teks-only Groq yang lain (mis. llama-3.1-8b)
-// yang TIDAK bisa terima gambar sama sekali.
-// UPDATE (Sep 2026): meta-llama/llama-4-scout-17b-16e-instruct DAN
-// meta-llama/llama-4-maverick-17b-128e-instruct SUDAH DIMATIKAN oleh Groq
-// (scout: shutdown 17 Jul 2026, maverick: shutdown 9 Mar 2026) — makanya
-// selalu 404 "does not exist or you do not have access to it". Groq
-// merekomendasikan openai/gpt-oss-120b sebagai pengganti, TAPI model itu
-// TEXT-ONLY (tidak bisa baca foto produk) — tidak cocok karena app ini
-// butuh vision. Model vision yang MASIH AKTIF di Groq per dokumentasi
-// resmi mereka (console.groq.com/docs/vision) saat ini cuma dua:
-// qwen/qwen3.6-27b dan qwen/qwen3.8-27b — keduanya dipakai di sini.
-const GEMINI_MODEL_PRIMARY='qwen/qwen3.6-27b';
-const GEMINI_MODEL_FALLBACK='qwen/qwen3.8-27b';
-var VAI={apiKey:'',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
+// ── PINDAH KE CLAUDE (permintaan user, Sep 2026) ─────────────────────────
+// Sebelumnya provider-nya Groq (sebelum itu Gemini). Sekarang diganti ke
+// Claude (Anthropic) — endpoint Messages API resminya, BUKAN format
+// request/response Gemini/OpenAI. Supaya semua kode pemanggil di bawah
+// (_vbFetchWithGeminiFallback, _vbStreamGeminiJSONWithRetryModel, dst —
+// namanya sengaja TIDAK diganti biar tidak perlu ubah puluhan call-site
+// lain) tidak perlu diubah satu-satu, kedua fungsi itu yang menerjemahkan:
+// request dibungkus ulang jadi format Claude (content blocks {type:'text'}/
+// {type:'image',source:{...}}) sebelum dikirim, lalu response Claude
+// dibungkus BALIK jadi bentuk {candidates:[{content:{parts:[{text}]}}]}
+// persis seperti balikan Gemini — jadi seluruh kode yang membaca
+// data.candidates[0].content.parts[0].text tetap jalan apa adanya.
+// CATATAN CORS: Claude API baru bisa dipanggil langsung dari browser kalau
+// header 'anthropic-dangerous-direct-browser-access':'true' disertakan di
+// tiap request (lihat _vbStreamGeminiJSONWithRetryModel &
+// _vbFetchWithGeminiFallback) — tanpa header ini browser akan diblokir CORS.
+// ── PROXY (permintaan user, Sep 2026) ───────────────────────────────────
+// App TIDAK LAGI memanggil api.anthropic.com langsung dari browser dan
+// TIDAK LAGI minta API Key dari user. Semua request AI sekarang lewat
+// Cloudflare Worker proxy milik pemilik app (API key Claude disimpan aman
+// di server sebagai secret, tidak pernah terkirim ke browser user).
+// GANTI URL ini kalau nanti pindah/redeploy Worker-nya.
+const ANTHROPIC_ENDPOINT='https://promptbuilder.vid1hihu.workers.dev';
+const ANTHROPIC_VERSION='2023-06-01';
+// Identitas anonim per-perangkat (bukan data pribadi) — dipakai Worker
+// buat menghitung kuota generate per user/device, bukan per-key lagi
+// (karena key sekarang shared/milik pemilik app, bukan per-user).
+function _pbGetDeviceId(){
+  try{
+    var k='pb_device_id_v1';
+    var id=localStorage.getItem(k);
+    if(id)return id;
+    id='dev-'+Array.from(crypto.getRandomValues(new Uint8Array(12))).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+    localStorage.setItem(k,id);
+    return id;
+  }catch(e){return 'dev-unknown';}
+}
+// Kedua model ini bisa baca foto (vision) — dipakai sebagai primary &
+// fallback. GEMINI_MODEL_PRIMARY dipakai buat generate utama (kualitas
+// terbaik), GEMINI_MODEL_FALLBACK dipakai kalau primary gagal total
+// (lebih ringan/cepat) — nama konstanta sengaja TIDAK diganti biar tidak
+// perlu ubah call-site lain yang sudah memakainya.
+const GEMINI_MODEL_PRIMARY='claude-sonnet-5';
+const GEMINI_MODEL_FALLBACK='claude-haiku-4-5-20251001';
+// apiKey diisi placeholder tetap ('via-proxy') — bukan API key asli lagi.
+// Cukup supaya semua pengecekan "if(!VAI.apiKey)" di bawah otomatis lolos,
+// karena kunci Claude yang sesungguhnya sekarang disimpan aman di server
+// Worker (proxy), bukan di browser/perangkat user.
+var VAI={apiKey:'via-proxy',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 
 // ── GEN LOGO LOADING (VIDEO) — pakai animasi brand yang sama persis dengan
@@ -9222,21 +9248,21 @@ async function vaiSaveKey(){
   if(errBox){errBox.classList.add('hidden');errBox.textContent='';}
   if(!key){
     showToast('Paste API Key dulu ya!','error');
-    if(errBox){errBox.textContent='Kotaknya masih kosong — paste dulu API Key dari Groq Console.';errBox.classList.remove('hidden');}
+    if(errBox){errBox.textContent='Kotaknya masih kosong — paste dulu API Key dari Anthropic Console.';errBox.classList.remove('hidden');}
     return;
   }
   if(!_isValidGeminiKey(key)){
-    showToast('Kode tidak valid — harus diawali gsk_...','error');
+    showToast('Kode tidak valid — harus diawali sk-ant-...','error');
     if(errBox){
       let preview=key.length>12?key.substring(0,12)+'...':key;
-      errBox.innerHTML='Kode yang kamu paste (<code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">'+esc(preview)+'</code>) <strong>bukan API Key Groq yang benar</strong>. API Key asli diawali <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">gsk_...</code>. Kemungkinan kamu copy dari tempat yang salah — buka lagi <strong>console.groq.com/keys</strong> dan copy kode API Key-nya.';
+      errBox.innerHTML='Kode yang kamu paste (<code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">'+esc(preview)+'</code>) <strong>bukan API Key Claude yang benar</strong>. API Key asli diawali <code style="background:rgba(255,255,255,0.1);padding:1px 4px;border-radius:var(--radius-2xs);">sk-ant-...</code>. Kemungkinan kamu copy dari tempat yang salah — buka lagi <strong>console.anthropic.com/settings/keys</strong> dan copy kode API Key-nya.';
       errBox.classList.remove('hidden');
     }
     return;
   }
   if(key.length<30){
     showToast('Kode kelihatannya kependekan/kepotong — coba copy ulang','error');
-    if(errBox){errBox.textContent='Kode ini cuma '+key.length+' karakter — kelihatannya kepotong pas di-copy. API Key Groq biasanya jauh lebih panjang. Coba copy ulang dari console.groq.com/keys, pastikan ke-copy semua.';errBox.classList.remove('hidden');}
+    if(errBox){errBox.textContent='Kode ini cuma '+key.length+' karakter — kelihatannya kepotong pas di-copy. API Key Claude biasanya jauh lebih panjang. Coba copy ulang dari console.anthropic.com/settings/keys, pastikan ke-copy semua.';errBox.classList.remove('hidden');}
     return;
   }
   // FIX #10: Disable tombol segera setelah validasi lolos — cegah double-klik
@@ -9271,7 +9297,7 @@ async function vaiSaveKey(){
   if(visBtn){let use=visBtn.querySelector('use');if(use)use.setAttribute('href','#ic-eye');}
   // BUG Y FIX: Re-enable saveBtn — tanpa ini saat vaiBack ke vai-key tombol tetap disabled
   if(saveBtn){saveBtn.disabled=false;saveBtn.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> Simpan & Mulai';}
-  vaiDoneCard('vai-key','vai-key-ans','Terhubung ke Groq AI');
+  vaiDoneCard('vai-key','vai-key-ans','Terhubung ke Claude AI');
   dlRenderBar(); // Update limit bar sesuai API key baru
   showToast('Berhasil tersambung ke AI!','success');
   setTimeout(()=>closeApiKeyModal(),700);
@@ -11722,13 +11748,15 @@ async function _vbThrottleGeminiGate(){
 }
 
 // ── Baca saran "tunggu sekian detik" dari body error 429 (kalau ada) —
-// lebih akurat daripada nebak jeda sendiri. Dulu cuma parsing format Gemini
-// (google.rpc.RetryInfo di error.details[]). FIX MIGRASI GROQ: format itu
-// TIDAK ADA di error Groq, jadi fungsi ini selalu balik 0 sejak pindah
-// provider (retry tetap jalan, cuma pakai hitungan manual, bukan angka asli
-// dari server). Sekarang ditambah fallback baca pesan error Groq yang
-// biasanya mengandung teks "try again in X.Ys" (format standar rate-limit
-// ala OpenAI-compatible yang dipakai Groq). ──────────────────────────────
+// lebih akurat daripada nebak jeda sendiri. FIX MIGRASI CLAUDE: Claude
+// (Anthropic) TIDAK mengirim angka retry-delay di body JSON error (beda
+// dari Gemini yang punya google.rpc.RetryInfo, atau Groq yang kadang
+// menyisipkan teks "try again in X.Ys" di error.message) — Anthropic
+// kalau ada saran retry biasanya lewat HTTP header 'retry-after', bukan
+// body, dan fetch() di pemanggil fungsi ini cuma meneruskan body teks.
+// Kedua pola lama tetap dicek di bawah untuk jaga-jaga (harmless kalau
+// tidak match), tapi untuk Claude fungsi ini akan balik 0 sehingga
+// pemanggil otomatis pakai hitungan mundur manual (backoff bertingkat).
 function _vbParseRetryDelayMs(rawText){
   try{
     let j=JSON.parse(rawText);
@@ -11740,7 +11768,7 @@ function _vbParseRetryDelayMs(rawText){
         if(m)return Math.ceil(parseFloat(m[1])*1000)+500;
       }
     }
-    // Format Groq: error.message berisi teks "...try again in 1.234s..."
+    // Format lama (Groq): error.message berisi teks "...try again in 1.234s..."
     let msg=(j&&j.error&&j.error.message)||'';
     let mg=/try again in ([\d.]+)s/i.exec(msg);
     if(mg)return Math.ceil(parseFloat(mg[1])*1000)+500;
@@ -11754,10 +11782,13 @@ function _vbParseRetryDelayMs(rawText){
 // tempat nulis ternary sendiri-sendiri yang cuma tahu 429 vs selain-429,
 // jadi status 0 (timeout/koneksi putus, sekarang ikut di-retry juga)
 // salah dilabeli "server Google lagi sibuk" padahal bukan itu masalahnya.
+// Status 529 ditambahkan khusus buat Claude: itu kode resmi Anthropic
+// untuk "server sedang overload" (beda dari 503 generik).
 function _vbWaitReasonLabel(status){
-  if(status===429)return'nunggu limit Groq reset';
+  if(status===429)return'nunggu limit Claude reset';
+  if(status===529)return'server Claude lagi overload';
   if(status===0)return'koneksi sempat putus, mencoba lagi';
-  return'server Groq lagi sibuk';
+  return'server Claude lagi sibuk';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -11809,25 +11840,26 @@ function _vbTryParsePartialJsonArray(buf){
   try{let r=JSON.parse(s);return Array.isArray(r)?r:null;}catch(e){return null;}
 }
 
-// Panggil Gemini lewat streamGenerateContent (SSE), lapor progres tiap
+// Panggil Claude lewat Messages API (SSE, stream:true), lapor progres tiap
 // chunk ke onPartial(arraySoFar), dan balikin {resp,rawText} dalam
 // BENTUK YANG SAMA seperti generateContent biasa (candidates[0].content
 // .parts[0].text, finishReason, dst) — supaya kode pemanggil (parse
 // JSON, sanitizer, fix kata) tidak perlu berubah sama sekali.
-// Retry & fallback thinkingConfig meniru persis _vbFetchWithRetry lama.
+// Retry & fallback meniru persis _vbFetchWithRetry lama.
 // Menerima parameter 'model' eksplisit — dipanggil oleh
 // _vbStreamGeminiJSONWithRetry (lihat di bawah) yang mengurus pergantian
 // primary→fallback antar model.
 // Ubah 'parts' gaya Gemini (dipakai di banyak tempat di file ini — teks
 // biasa {text:'...'} dan foto {inline_data:{mime_type,data}}) jadi
-// 'content' gaya OpenAI/Groq, supaya seluruh prompt yang sudah disusun
-// di tempat lain TIDAK perlu diubah — cuma diterjemahkan di titik paling
-// akhir sebelum benar-benar dikirim ke Groq.
-function _vbGeminiPartsToGroqContent(parts){
+// content block gaya Claude ({type:'text',text}/{type:'image',source:
+// {type:'base64',media_type,data}}), supaya seluruh prompt yang sudah
+// disusun di tempat lain TIDAK perlu diubah — cuma diterjemahkan di
+// titik paling akhir sebelum benar-benar dikirim ke Claude.
+function _vbGeminiPartsToClaudeContent(parts){
   if(!parts||!parts.length)return[{type:'text',text:''}];
   return parts.map(function(p){
-    if(p&&p.inline_data)return{type:'image_url',image_url:{url:'data:'+(p.inline_data.mime_type||'image/jpeg')+';base64,'+p.inline_data.data}};
-    if(p&&p.inlineData)return{type:'image_url',image_url:{url:'data:'+(p.inlineData.mimeType||'image/jpeg')+';base64,'+p.inlineData.data}};
+    if(p&&p.inline_data)return{type:'image',source:{type:'base64',media_type:(p.inline_data.mime_type||'image/jpeg'),data:p.inline_data.data}};
+    if(p&&p.inlineData)return{type:'image',source:{type:'base64',media_type:(p.inlineData.mimeType||'image/jpeg'),data:p.inlineData.data}};
     return{type:'text',text:(p&&p.text)||''};
   });
 }
@@ -11835,32 +11867,22 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
   for(let attempt=0;;attempt++){
-    let withThinkingOff=(attempt===0);
-    // CATATAN: cfg.thinkingConfig (khusus Gemini) sudah tidak dipakai lagi
-    // sejak pindah ke Groq — dibiarkan sebagai variabel kosong supaya baris
-    // di bawah yang mengecek 'thinkingConfig' di pesan error tetap aman
-    // (tidak pernah match, tidak pernah dipakai untuk apa-apa).
-    // FIX (audit "Respons AI terpotong / kehabisan token"): model qwen3 di
-    // Groq punya mode "thinking" (reasoning panjang sebelum jawab) yang
-    // TIDAK dimatikan sebelumnya — parameter reasoning_effort tidak pernah
-    // dikirim, jadi model qwen3.6-27b (GEMINI_MODEL_PRIMARY) jalan pakai
-    // mode default-nya yang kemungkinan besar "thinking ON". Prompt di
-    // fungsi pemanggil juga secara eksplisit minta model "hitung kata di
-    // kepala, revisi sampai pas" — buat model reasoning ini malah jadi
-    // pemicu mikir makin panjang. Karena proses "mikir" itu ikut kehitung
-    // dalam max_tokens (4096), jawaban JSON akhirnya sering kepotong
-    // sebelum sempat ditulis lengkap (finishReason 'length'). Sekarang
-    // reasoning_effort dipaksa 'none' (didukung kedua model qwen3.6-27b &
-    // qwen3.8-27b) supaya model langsung jawab tanpa mikir panjang duluan
-    // — seluruh jatah token dipakai buat jawaban asli, bukan buat proses
-    // mikirnya. Batas token juga dinaikkan sedikit (4096→6144) sebagai
-    // jaring pengaman tambahan kalau responsnya tetap butuh ruang lebih.
+    let isFirstAttempt=(attempt===0);
+    // CATATAN MIGRASI CLAUDE: dulu di sini ada logic paksa "reasoning_effort:
+    // none" karena model Groq (qwen3) diam-diam mikir panjang (extended
+    // reasoning) sebelum jawab, ikut makan jatah max_tokens sampai jawaban
+    // JSON kepotong. Claude standar (tanpa parameter 'thinking' eksplisit)
+    // TIDAK melakukan reasoning tersembunyi seperti itu — seluruh isi
+    // max_tokens memang dipakai buat jawaban, jadi parameter itu dibuang.
+    // max_tokens tetap 6144 sebagai jaring pengaman token yang cukup lega
+    // untuk jawaban JSON hook/story/cta.
     let cfg={maxOutputTokens:6144};
-    const url=GROQ_ENDPOINT;
+    const url=ANTHROPIC_ENDPOINT;
     let controller=new AbortController();
     let timedOut=false;
-    let timer=setTimeout(function(){timedOut=true;controller.abort();},withThinkingOff?30000:45000);
+    let timer=setTimeout(function(){timedOut=true;controller.abort();},isFirstAttempt?30000:45000);
     let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
+    let streamErrType='',streamErrMsg='';
     // FIX "Status 0: API error" TANPA KETERANGAN: sebelumnya kalau fetch()
     // sendiri gagal (bukan server yang balas error, tapi koneksi browser
     // gagal total — offline, diblokir firewall/DNS, ekstensi/ad-blocker,
@@ -11875,8 +11897,8 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       await _vbThrottleGeminiGate();
       resp=await fetch(url,{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+VAI.apiKey},
-        body:JSON.stringify({model:model,stream:true,max_tokens:cfg.maxOutputTokens,reasoning_effort:'none',messages:[{role:'user',content:_vbGeminiPartsToGroqContent(promptParts)}]}),
+        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
+        body:JSON.stringify({model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]}),
         signal:controller.signal
       });
       if(resp.ok&&resp.body&&typeof resp.body.getReader==='function'){
@@ -11894,20 +11916,34 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
             line=line.trim();
             if(!line.startsWith('data:'))continue;
             let js=line.slice(5).trim();
-            if(!js||js==='[DONE]')continue;
+            if(!js)continue;
             try{
               let evt=JSON.parse(js);
-              // Bentuk SSE Groq (OpenAI-compatible) beda dari Gemini:
-              // potongan teksnya ada di choices[0].delta.content, dan
-              // alasan berhenti (kalau ada) di choices[0].finish_reason.
-              let delta=evt.choices&&evt.choices[0]&&evt.choices[0].delta&&evt.choices[0].delta.content||'';
-              if(evt.choices&&evt.choices[0]&&evt.choices[0].finish_reason)finishReason=evt.choices[0].finish_reason;
-              if(delta){
-                textBuf+=delta;
-                if(typeof onPartial==='function'){
-                  let arr=_vbTryParsePartialJsonArray(textBuf);
-                  if(arr)try{onPartial(arr);}catch(e){}
+              // Bentuk SSE Claude (Anthropic Messages API) beda dari
+              // Gemini/Groq: bukan satu event "delta" datar, tapi rangkaian
+              // event bertipe (message_start/content_block_start/
+              // content_block_delta/content_block_stop/message_delta/
+              // message_stop/ping/error). Potongan teksnya ada di
+              // delta.text saat type==='content_block_delta' &&
+              // delta.type==='text_delta'. Alasan berhenti ada di
+              // message_delta.delta.stop_reason ('end_turn' normal,
+              // 'max_tokens' kalau kehabisan token — disamakan jadi
+              // 'length' supaya cek finishReason yang sudah ada di kode
+              // pemanggil tetap match tanpa perlu diubah).
+              if(evt.type==='content_block_delta'&&evt.delta&&evt.delta.type==='text_delta'){
+                let delta=evt.delta.text||'';
+                if(delta){
+                  textBuf+=delta;
+                  if(typeof onPartial==='function'){
+                    let arr=_vbTryParsePartialJsonArray(textBuf);
+                    if(arr)try{onPartial(arr);}catch(e){}
+                  }
                 }
+              }else if(evt.type==='message_delta'&&evt.delta&&evt.delta.stop_reason){
+                finishReason=evt.delta.stop_reason==='max_tokens'?'length':evt.delta.stop_reason;
+              }else if(evt.type==='error'&&evt.error){
+                streamErrType=evt.error.type||'';
+                streamErrMsg=evt.error.message||'';
               }
             }catch(e){/* baris SSE tidak lengkap/aneh, lewati aman */}
           }
@@ -11920,10 +11956,20 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       // Simpan pesan error asli (nama + pesan) sebelum hilang. Kalau abort
       // karena timeout, pakai pesan timeout yang sudah jelas; selain itu
       // pakai pesan asli dari browser apa adanya.
-      netErrMsg=timedOut?'timeout — server tidak merespons dalam '+((withThinkingOff?30000:45000)/1000)+' detik'
+      netErrMsg=timedOut?'timeout — server tidak merespons dalam '+((isFirstAttempt?30000:45000)/1000)+' detik'
         :((e&&e.name)?e.name+': ':'')+((e&&e.message)?e.message:String(e));
     }finally{
       clearTimeout(timer);
+    }
+    // Event type 'error' bisa muncul DI TENGAH stream (HTTP status-nya
+    // sudah kadung 200) — mis. server overload pas lagi jalan. Kalau itu
+    // terjadi, jangan dianggap sukses walau streamOk true; jatuhkan ke
+    // jalur retry yang sama seperti error HTTP biasa, dengan status
+    // sintetis dipetakan dari tipe error Anthropic-nya.
+    if(streamOk&&streamErrType){
+      streamOk=false;
+      resp={ok:false,status:streamErrType==='overloaded_error'?529:(streamErrType==='rate_limit_error'?429:500)};
+      rawText=JSON.stringify({error:{type:streamErrType,message:streamErrMsg}});
     }
     if(streamOk){
       return{resp:{ok:true,status:200},rawText:JSON.stringify({candidates:[{content:{parts:[{text:textBuf}]},finishReason:finishReason}]})};
@@ -11931,9 +11977,6 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
     // Stream gagal start (error jaringan/HTTP) — jatuh ke logika retry
     // yang sama persis seperti jalur non-streaming lama.
     let status=resp?resp.status:0;
-    if(status&&/thinkingConfig|thinking_config|thinkingLevel|thinkingBudget|Unknown name|invalid argument/i.test(rawText)&&withThinkingOff){
-      continue; // langsung ulang di attempt berikutnya TANPA thinkingConfig
-    }
     // BUG FIX (audit lanjutan, Sept 2026): sebelumnya timeout/koneksi
     // putus total (fetch() gagal SEBELUM sempat dapat respon HTTP apa pun
     // — status jadi 0 di sini) TIDAK dianggap transient, jadi langsung
@@ -11942,10 +11985,11 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
     // Padahal di 4G yang kadang lag/putus sebentar, timeout justru paling
     // sering SEMENTARA dan paling masuk akal buat dicoba ulang — bukan
     // alasan buat langsung menyerah. Sekarang status 0 (timeout/network
-    // error) ikut dianggap transient sama seperti 429/503, tetap dibatasi
-    // jaring pengaman MAX_TOTAL_WAIT_MS yang sama (~3 menit) supaya kalau
-    // internetnya memang benar-benar mati, tidak dicoba selamanya.
-    let isTransient=status===503||status===429||status===0;
+    // error) ikut dianggap transient sama seperti 429/503/529, tetap
+    // dibatasi jaring pengaman MAX_TOTAL_WAIT_MS yang sama (~3 menit)
+    // supaya kalau internetnya memang benar-benar mati, tidak dicoba
+    // selamanya. Status 529 = kode resmi Anthropic untuk server overload.
+    let isTransient=status===503||status===429||status===529||status===0;
     if(!isTransient||totalWaited>=MAX_TOTAL_WAIT_MS){
       // Kalau fetch gagal total (status 0, resp null) dan belum ada rawText,
       // selipkan pesan error jaringan asli (netErrMsg) supaya pemanggil bisa
@@ -12079,7 +12123,7 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
     let rawText=await resp.text();
     lastResp=resp;lastRawText=rawText;
     if(resp.ok)return{resp,rawText};
-    let isTransient=resp.status===503||resp.status===429;
+    let isTransient=resp.status===503||resp.status===429||resp.status===529;
     if(!isTransient||attempt>=cap||totalWaited>=MAX_TOTAL_WAIT_MS)return{resp,rawText};
     let waitMs;
     if(resp.status===429){
@@ -12105,44 +12149,46 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
 
 // ── FALLBACK MODEL untuk panggilan generateContent (non-streaming) ──────
 // Coba GEMINI_MODEL_PRIMARY dulu lewat _vbFetchWithRetry seperti biasa
-// (429/503 tetap di-retry sesuai maxRetries). Kalau setelah retry habis
+// (429/503/529 tetap di-retry sesuai maxRetries). Kalau setelah retry habis
 // hasilnya TETAP gagal (resp.ok false), baru dicoba SEKALI LAGI dari nol
 // pakai GEMINI_MODEL_FALLBACK. bodyObj sama persis dipakai di percobaan
 // manapun — cuma model & url di endpoint yang beda.
 // bodyObj yang masuk ke sini masih bentuk Gemini ({contents:[{parts:[...]}],
 // generationConfig:{maxOutputTokens,...}}) karena semua pemanggil fungsi
 // ini (tersebar di banyak tempat) tidak diubah. Di dalam sini bodyObj
-// diterjemahkan ke format Groq sebelum dikirim, dan HASILNYA dibungkus
-// BALIK jadi rawText berbentuk Gemini ({candidates:[{content:{parts:
-// [{text}]}}]}) sebelum dikembalikan — supaya semua pemanggil yang
-// melakukan JSON.parse(rawText) lalu baca data.candidates[0]... tetap
-// jalan tanpa perlu diubah satu-satu.
+// diterjemahkan ke format Claude (Messages API, non-streaming) sebelum
+// dikirim, dan HASILNYA dibungkus BALIK jadi rawText berbentuk Gemini
+// ({candidates:[{content:{parts:[{text}]}}]}) sebelum dikembalikan —
+// supaya semua pemanggil yang melakukan JSON.parse(rawText) lalu baca
+// data.candidates[0]... tetap jalan tanpa perlu diubah satu-satu.
 async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
   const parts=(bodyObj&&bodyObj.contents&&bodyObj.contents[0]&&bodyObj.contents[0].parts)||[];
   const maxTokens=(bodyObj&&bodyObj.generationConfig&&bodyObj.generationConfig.maxOutputTokens)||2048;
-  const groqMessages=[{role:'user',content:_vbGeminiPartsToGroqContent(parts)}];
-  async function callGroq(model){
-    // FIX (sama seperti _vbStreamGeminiJSONWithRetryModel): matikan mode
-    // thinking supaya panggilan fix-up singkat ini (rapikan jumlah kata)
-    // tidak ikut kehabisan token gara-gara model "mikir" duluan.
-    let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(GROQ_ENDPOINT,{
+  const claudeMessages=[{role:'user',content:_vbGeminiPartsToClaudeContent(parts)}];
+  async function callClaude(model){
+    let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+VAI.apiKey},
-      body:JSON.stringify({model:model,max_tokens:maxTokens,reasoning_effort:'none',messages:groqMessages})
+      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
+      body:JSON.stringify({model:model,max_tokens:maxTokens,messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
       try{
         let g=JSON.parse(r.rawText);
-        let msg=g.choices&&g.choices[0]&&g.choices[0].message;
-        r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(msg&&msg.content)||''}]},finishReason:(g.choices&&g.choices[0]&&g.choices[0].finish_reason)||''}]});
+        // Bentuk balasan non-streaming Claude: {content:[{type:'text',text}],
+        // stop_reason:'end_turn'|'max_tokens'|...} — beda dari Groq/OpenAI
+        // yang punya choices[0].message.content. 'max_tokens' disamakan
+        // jadi 'length' biar konsisten dengan cek finishReason di pemanggil.
+        let block=Array.isArray(g.content)?g.content.find(function(c){return c&&c.type==='text';}):null;
+        let stopReason=g.stop_reason==='max_tokens'?'length':(g.stop_reason||'');
+        r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(block&&block.text)||''}]},finishReason:stopReason}]});
       }catch(e){/* bentuk balasan di luar dugaan — dibiarkan apa adanya */}
     }
     return r;
   }
-  let r=await callGroq(GEMINI_MODEL_PRIMARY);
+  let r=await callClaude(GEMINI_MODEL_PRIMARY);
   if(r.resp.ok)return r;
   console.log('[_vbFetchWithGeminiFallback] '+GEMINI_MODEL_PRIMARY+' gagal (status '+r.resp.status+'), coba '+GEMINI_MODEL_FALLBACK);
-  return await callGroq(GEMINI_MODEL_FALLBACK);
+  return await callClaude(GEMINI_MODEL_FALLBACK);
 }
 
 // ── SANITIZER CTA — jaring pengaman KODE untuk frasa yang dilarang di
@@ -12467,9 +12513,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       }
       throw new Error('Request ke AI kebesaran (413) walau cuma 1 produk yang dikirim — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
     }
-    if(resp.status===503)throw new Error('Server AI Groq masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Groq lagi padat, bukan masalah dari tools.');
-    if(resp.status===429)throw new Error('Masih kena rate limit dari Groq walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
-    if(resp.status===0)throw new Error('Gagal terhubung ke server AI Groq'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Groq yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+    if(resp.status===503||resp.status===529)throw new Error('Server AI Claude masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Claude lagi padat, bukan masalah dari tools.');
+    if(resp.status===429)throw new Error('Masih kena rate limit dari Claude walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+    if(resp.status===0)throw new Error('Gagal terhubung ke server AI Claude'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
   }
   // FIX KONSISTENSI PENANGANAN ERROR: sebelumnya JSON.parse(rawText) di sini
@@ -12483,9 +12529,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // pesan yang konsisten dengan gaya error lain di bawah.
   let data;
   try{data=JSON.parse(rawText);}catch(eParse){
-    throw new Error('Respons dari server AI Groq tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+    throw new Error('Respons dari server AI Claude tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
   }
-  if(data.error)throw new Error(data.error.message||'Groq API error');
+  if(data.error)throw new Error(data.error.message||'Claude API error');
   let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
   let finishReason=data.candidates?.[0]?.finishReason||'';
   if(!text)throw new Error('Respons AI kosong (finishReason: '+(finishReason||'unknown')+'). Coba lagi.');
@@ -14313,9 +14359,9 @@ async function vbGenerate3AI(){
       // FIX RETRY TANPA BATAS: pesan di bawah ini sekarang cuma muncul kalau
       // sudah dicoba ulang TERUS-MENERUS selama ~3 menit (jaring pengaman
       // MAX_TOTAL_WAIT_MS di _vbFetchWithRetry) dan tetap gagal.
-      if(resp.status===503)throw new Error('Server AI Groq masih sibuk/kebanjiran request walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Groq lagi padat, bukan masalah dari tools.');
-      if(resp.status===429)throw new Error('Masih kena rate limit dari Groq walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
-      if(resp.status===0)throw new Error('Gagal terhubung ke server AI Groq'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Groq yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+      if(resp.status===503||resp.status===529)throw new Error('Server AI Claude masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Claude lagi padat, bukan masalah dari tools.');
+      if(resp.status===429)throw new Error('Masih kena rate limit dari Claude walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+      if(resp.status===0)throw new Error('Gagal terhubung ke server AI Claude'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
       throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
     }
     // FIX KONSISTENSI PENANGANAN ERROR (sama seperti _vbCallBulkBatch): kalau
@@ -14323,9 +14369,9 @@ async function vbGenerate3AI(){
     // dikasih pesan ramah bahasa Indonesia — bukan error mentah JS.
     let data;
     try{data=JSON.parse(rawText);}catch(eParse){
-      throw new Error('Respons dari server AI Groq tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+      throw new Error('Respons dari server AI Claude tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
     }
-    if(data.error)throw new Error(data.error.message||'Groq API error');
+    if(data.error)throw new Error(data.error.message||'Claude API error');
     let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
     let finishReason=data.candidates?.[0]?.finishReason||'';
     if(!text){
