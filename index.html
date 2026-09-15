@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.72</div>
+  <div class="splash-version" id="splash-version">v5.75</div>
 </div>
 <script>
   (function(){
@@ -4025,7 +4025,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.72 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.75 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10366,29 +10366,38 @@ document.addEventListener('keydown',function(e){
 // selalu tersedia begitu user pindah ke tab itu, tidak peduli halaman mana
 // yang aktif saat Simpan terakhir ditekan. Return true kalau berhasil
 // dipulihkan hidup (dipakai pemanggil kalau perlu tahu).
+// Gambar ulang kartu-kartu skrip bulk yang SUDAH SELESAI (dari
+// VB_BULK_LAST_CONTEXT.allResults) + tombol "Lanjutkan Generate" untuk
+// sisanya, tanpa mengganggu apa pun yang sudah jadi. Dipakai di 2 tempat:
+// (1) _pbRenderBuilderInto di bawah, saat membuka entri Riwayat yang masih
+// ada proses bulk menggantung, dan (2) window.load di IIFE undo/redo (dekat
+// akhir file) saat RELOAD/refresh browser mendapati draft otomatis punya
+// proses bulk yang belum tuntas — supaya kedua jalur ini konsisten & tidak
+// dobel logic. Return true kalau berhasil dipulihkan hidup.
+function _vbRestoreLiveBulkOutput(){
+  if(!(typeof VB_BULK_LAST_CONTEXT!=='undefined' && VB_BULK_LAST_CONTEXT
+     && VB_BULK_LAST_CONTEXT.produkList && VB_BULK_LAST_CONTEXT.allResults
+     && VB_BULK_LAST_CONTEXT.allResults.length<VB_BULK_LAST_CONTEXT.produkList.length)) return false;
+  // BUG FIX: _vbRenderBulkOutput me-RESET VB_CARD_TAMPIL/VB_CARD_LOKASI/
+  // VB_PRODUCT_FOTOCOUNT/VB_HOOK_OVERLAY ke objek {} BARU di awal
+  // fungsinya. Kalau dibiarkan, override per-kartu yang baru saja
+  // dipulihkan (lokasi custom, teks overlay Hook, dst) langsung hilang lagi
+  // begitu render ini jalan. Simpan dulu REFERENSI objek lama di sini
+  // (reassignment global TIDAK mengubah objek yang sudah direferensikan
+  // variabel lokal ini — semantik reference JS biasa), lalu pasang balik
+  // setelah render selesai.
+  let keepTampil=VB_CARD_TAMPIL,keepLokasi=VB_CARD_LOKASI,keepFotoCount=VB_PRODUCT_FOTOCOUNT,keepOverlay=VB_HOOK_OVERLAY;
+  try{
+    _vbRenderBulkOutput(VB_BULK_LAST_CONTEXT.allResults,VB_BULK_LAST_CONTEXT.produkList,true,false);
+    VB_CARD_TAMPIL=keepTampil;VB_CARD_LOKASI=keepLokasi;VB_PRODUCT_FOTOCOUNT=keepFotoCount;VB_HOOK_OVERLAY=keepOverlay;
+    let errBox=document.getElementById('vb-bulk-error');
+    if(errBox)_vbShowBulkResumeUI(errBox,VB_BULK_LAST_CONTEXT.produkList.length-VB_BULK_LAST_CONTEXT.allResults.length);
+    return true;
+  }catch(e){ return false; }
+}
 function _pbRenderBuilderInto(type,target,frozenHtml,frozenText,isPrimary){
   if(!target)return false;
-  let live=false;
-  if(type==='video' && typeof VB_BULK_LAST_CONTEXT!=='undefined' && VB_BULK_LAST_CONTEXT
-     && VB_BULK_LAST_CONTEXT.produkList && VB_BULK_LAST_CONTEXT.allResults
-     && VB_BULK_LAST_CONTEXT.allResults.length<VB_BULK_LAST_CONTEXT.produkList.length){
-    // BUG FIX: _vbRenderBulkOutput me-RESET VB_CARD_TAMPIL/VB_CARD_LOKASI/
-    // VB_PRODUCT_FOTOCOUNT/VB_HOOK_OVERLAY ke objek {} BARU di awal
-    // fungsinya. Kalau dibiarkan, override per-kartu yang baru saja
-    // dipulihkan oleh _vbUnpackState() (lokasi custom, teks overlay Hook,
-    // dst) langsung hilang lagi begitu render ini jalan. Simpan dulu
-    // REFERENSI objek lama di sini (reassignment global TIDAK mengubah
-    // objek yang sudah direferensikan variabel lokal ini — semantik
-    // reference JS biasa), lalu pasang balik setelah render selesai.
-    let keepTampil=VB_CARD_TAMPIL,keepLokasi=VB_CARD_LOKASI,keepFotoCount=VB_PRODUCT_FOTOCOUNT,keepOverlay=VB_HOOK_OVERLAY;
-    try{
-      _vbRenderBulkOutput(VB_BULK_LAST_CONTEXT.allResults,VB_BULK_LAST_CONTEXT.produkList,true,false);
-      VB_CARD_TAMPIL=keepTampil;VB_CARD_LOKASI=keepLokasi;VB_PRODUCT_FOTOCOUNT=keepFotoCount;VB_HOOK_OVERLAY=keepOverlay;
-      let errBox=document.getElementById('vb-bulk-error');
-      if(errBox)_vbShowBulkResumeUI(errBox,VB_BULK_LAST_CONTEXT.produkList.length-VB_BULK_LAST_CONTEXT.allResults.length);
-      live=true;
-    }catch(e){live=false;}
-  }
+  let live=(type==='video') && _vbRestoreLiveBulkOutput();
   if(!live){
     target.innerHTML='';
     if(frozenHtml){
@@ -13086,6 +13095,20 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       if(allResults.length<produkList.length){
         VB_BULK_LAST_CONTEXT={produkList:produkList,targetAudience:targetAudience,allResults:allResults.slice()};
       }
+      // FITUR BARU (permintaan user, Sept 2026): paksa draft otomatis
+      // (localStorage, lihat DRAFT_KEY di IIFE undo/redo dekat akhir file)
+      // tersimpan SEKARANG juga, bukan nunggu debounce dari ketikan/klik
+      // biasa — proses bulk ini jalan sendiri TANPA user menyentuh apa pun,
+      // jadi tanpa panggilan eksplisit ini draft bisa saja masih yang LAMA
+      // (sebelum batch ini) kalau user refresh tepat setelah satu batch
+      // beres. Dengan ini, tiap kali satu batch produk selesai, progresnya
+      // (kolom skrip yang sudah jadi) langsung aman tersimpan — kalau user
+      // refresh di tengah proses, produk yang sudah selesai TETAP ada,
+      // proses generate-nya sendiri berhenti total (wajar, reload membuang
+      // request API yang sedang berjalan), dan tombol "Lanjutkan Generate"
+      // akan muncul lagi untuk memproses SISA produk saja (lihat window.load
+      // & _vbRestoreLiveBulkOutput di IIFE undo/redo).
+      if(typeof window.pbForceSaveDraftNow==='function')window.pbForceSaveDraftNow();
       // FIX SCRIPT YANG SUDAH JADI TAPI KOLOMNYA MASIH KOSONG: sebelumnya di
       // sini TIDAK ADA update UI sama sekali begitu satu batch selesai —
       // kartu Hook/Story/CTA punya produk di batch ini DIBIARKAN kosong
@@ -13164,6 +13187,12 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       VB_BULK_LAST_CONTEXT=null; // sudah lengkap semua — tidak ada lagi yang perlu dilanjutkan
       showToast((allResults.length*3)+' script + JSON berhasil dibuat!','success');
     }
+    // Simpan draft SEKARANG (lihat catatan panjang di dalam loop batch di
+    // atas) — berlaku baik untuk kasus masih ada sisa (VB_BULK_LAST_CONTEXT
+    // terisi) maupun sudah lengkap semua (VB_BULK_LAST_CONTEXT jadi null,
+    // supaya draft juga ikut tahu proses ini sudah tuntas kalau nanti
+    // di-refresh — tidak nyangkut nampilin tombol "Lanjutkan" yang basi).
+    if(typeof window.pbForceSaveDraftNow==='function')window.pbForceSaveDraftNow();
   }catch(err){
     console.error('_vbRunBulkGenerate error:',err);
     if(allResults.length>0){
@@ -13178,6 +13207,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       errBox.textContent=''+err.message;
       errBox.classList.remove('hidden');
     }
+    if(typeof window.pbForceSaveDraftNow==='function')window.pbForceSaveDraftNow();
     showToast('Gagal generate: '+err.message,'error');
   }finally{
     stopGenLogoBtn(btn,genLogoState);
@@ -18112,6 +18142,16 @@ window.addEventListener('load',function(){
   'use strict';
   var MAX_HISTORY = 60;
   var DEBOUNCE_MS = 450;
+  // ── DRAFT OTOMATIS (permintaan user, Sept 2026) ─────────────────────
+  // Snapshot TERAKHIR (bukan seluruh riwayat undo) juga disimpan ke
+  // localStorage di HP yang sama (BUKAN ikut sync Firebase — sengaja,
+  // sesuai permintaan). Tujuannya: kalau user tutup app total di
+  // tengah wizard (mis. sampai Step 5) lalu buka lagi, app lanjut dari
+  // situ, bukan balik ke Step 1 kosong. Dipakai ulang mekanisme
+  // snapshot yang sama dengan undo/redo di bawah — snapshot itu sudah
+  // lengkap (posisi step + semua isian field + kartu yang "done"),
+  // jadi tidak perlu sistem simpan-state terpisah.
+  var DRAFT_KEY = 'pb_wizard_draft_v1';
   var stack = [];        // array of snapshot object
   var pointer = -1;      // index snapshot aktif di stack
   var timer = null;
@@ -18247,7 +18287,48 @@ window.addEventListener('load',function(){
     stack.push(snap);
     if(stack.length>MAX_HISTORY){ stack.shift(); }
     pointer = stack.length-1;
+    saveDraft(snap);
     updateFab();
+  }
+
+  // Simpan/hapus draft di localStorage (lihat catatan DRAFT_KEY di atas).
+  function saveDraft(snap){
+    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(snap)); }catch(e){}
+  }
+  function clearDraft(){
+    try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+  }
+  // Dipanggil sekali saat app pertama dibuka (lihat window.load di bawah).
+  // Return true kalau berhasil menemukan & memuat draft lama.
+  function tryRestoreDraft(){
+    try{
+      var raw = localStorage.getItem(DRAFT_KEY);
+      if(!raw) return false;
+      var snap = JSON.parse(raw);
+      if(!snap || typeof snap!=='object') return false;
+      stack = [snap];
+      pointer = 0;
+      applySnapshot(snap);
+      return true;
+    }catch(e){ return false; }
+  }
+  // Bedakan "refresh/reload" vs "buka app baru" (buka lagi setelah
+  // ditutup total / dari home screen). Browser modern menandai jenis
+  // navigasi lewat Performance API — kalau type-nya "reload", berarti
+  // user sengaja refresh (pull-to-refresh atau tombol reload), maka
+  // draft wizard di-reset ke Step 1. Kalau bukan reload (app baru
+  // dibuka lagi), draft TETAP dipakai (lihat tryRestoreDraft di atas).
+  // CATATAN: ini HANYA menghapus draft wizard (DRAFT_KEY di atas).
+  // Riwayat generate (pb_history_v1), halaman tersimpan, preset
+  // karakter dll sama sekali TIDAK disentuh oleh ini — key-nya
+  // memang terpisah total dari draft.
+  function isReloadNavigation(){
+    try{
+      var entries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+      if(entries && entries.length && entries[0].type) return entries[0].type === 'reload';
+      if(performance.navigation) return performance.navigation.type === 1; // fallback API lama, TYPE_RELOAD
+    }catch(e){}
+    return false;
   }
 
   function scheduleSnapshot(){
@@ -18292,6 +18373,19 @@ window.addEventListener('load',function(){
     pointer++;
     applySnapshot(stack[pointer]);
     updateFab();
+  };
+  // FITUR BARU (permintaan user, Sept 2026): ekspos cara untuk memaksa
+  // draft otomatis (localStorage DRAFT_KEY) tersimpan SEKARANG JUGA,
+  // dipakai oleh proses yang jalan sendiri tanpa input user (mis. generate
+  // bulk video) supaya progresnya (produk yang sudah selesai) tidak
+  // hilang kalau user refresh SAAT proses masih berjalan — normalnya draft
+  // cuma tersimpan lewat scheduleSnapshot yang didebounce dari ketikan/klik
+  // step, yang tidak pernah terpicu selama proses bulk berjalan sendiri di
+  // latar belakang.
+  window.pbForceSaveDraftNow = function(){
+    if(restoring) return;
+    clearTimeout(timer); timer=null;
+    pushSnapshot();
   };
   // ── Bungkus semua fungsi global berpola render/step supaya setiap kali
   // dipanggil (dari tombol manapun, atau dari kode internal manapun),
@@ -18415,8 +18509,58 @@ window.addEventListener('load',function(){
       // isi field-nya yang balik, tampilannya nyangkut di step
       // terakhir). Default-kan ke 'pbGoStep1' — step awal app ini —
       // supaya undo sampai titik ini benar-benar menampilkan ulang Step 1.
-      pendingStepCalls = [{fn:'pbGoStep1', args:[]}];
-      pushSnapshot(); // baseline state paling awal
+      // Kalau ini refresh/reload sengaja dari user, hapus draft dulu
+      // (Riwayat/halaman tersimpan/preset TIDAK ikut terhapus — beda
+      // key). Kalau bukan reload (app baru dibuka lagi setelah
+      // ditutup), draft tetap dicoba dipulihkan seperti biasa.
+      //
+      // PENGECUALIAN (permintaan user, Sept 2026): kalau draft yang mau
+      // dihapus itu ternyata punya proses BULK VIDEO yang masih menggantung
+      // (sebagian produk sudah dapat script, sisanya belum — mis. 5 dari 10
+      // produk beres lalu user refresh), draft ini SENGAJA TIDAK dihapus
+      // walau ini reload sungguhan. Kalau dihapus, kolom skrip yang sudah
+      // jadi ikut hilang percuma padahal user cuma refresh, bukan minta
+      // mulai dari nol. Prosesnya sendiri TETAP berhenti total apa adanya
+      // (wajar — reload membuang seluruh request API yang sedang berjalan,
+      // tidak ada cara menyambungnya di tengah jalan), tapi begitu draft
+      // ini dipulihkan, kartu yang sudah selesai ditampilkan lagi persis
+      // seperti sebelum refresh + tombol "Lanjutkan Generate" muncul supaya
+      // user tinggal 1x tap untuk memproses SISA produk saja — TANPA
+      // mengulang/menimpa produk yang sudah jadi (lihat vbBulkResumeAI →
+      // _vbRunBulkGenerate, keduanya cuma mengirim produk yang belum ada di
+      // VB_BULK_LAST_CONTEXT.allResults).
+      var _rawDraftPeek=null;
+      try{ _rawDraftPeek = localStorage.getItem(DRAFT_KEY); }catch(e){}
+      var _draftPendingBulk=false;
+      try{
+        var _peekSnap = _rawDraftPeek ? JSON.parse(_rawDraftPeek) : null;
+        var _peekCtx = _peekSnap && _peekSnap.vars && _peekSnap.vars.VB_BULK_LAST_CONTEXT;
+        _draftPendingBulk = !!(_peekCtx && _peekCtx.produkList && _peekCtx.allResults
+          && _peekCtx.allResults.length < _peekCtx.produkList.length);
+      }catch(e){ _draftPendingBulk=false; }
+      var _isReload = isReloadNavigation();
+      if(_isReload && !_draftPendingBulk) clearDraft();
+      var restoredDraft = tryRestoreDraft();
+      if(!restoredDraft){
+        pendingStepCalls = [{fn:'pbGoStep1', args:[]}];
+        pushSnapshot(); // baseline state paling awal
+      } else if(_isReload && _draftPendingBulk){
+        // Step render lewat pendingStepCalls (di atas, sudah jalan di dalam
+        // tryRestoreDraft→applySnapshot) cuma memulihkan KERANGKA wizard-nya
+        // (posisi step, isi field lewat restoreDom) — kartu-kartu skrip bulk
+        // di dalam #vb-multi-output BUKAN <input>/<textarea> biasa, jadi
+        // TIDAK ikut kepulihkan otomatis dari situ. Digambar ulang manual di
+        // sini dari VB_BULK_LAST_CONTEXT yang baru saja dipulihkan — pakai
+        // fungsi yang SAMA dengan yang dipakai halaman Riwayat untuk kasus
+        // serupa (lihat _vbRestoreLiveBulkOutput, dekat _pbRenderBuilderInto).
+        // Jeda sedikit (setelah restoring di-set false oleh applySnapshot)
+        // supaya tidak bentrok dengan proses restore yang masih berjalan.
+        setTimeout(function(){
+          try{
+            if(typeof _vbRestoreLiveBulkOutput==='function') _vbRestoreLiveBulkOutput();
+          }catch(e){ console.warn('Gagal memulihkan tampilan bulk yang menggantung setelah refresh:',e); }
+        }, 300);
+      }
       // re-scan berkala (murah) buat nangkep fungsi step yang mungkin
       // baru "muncul" ke window belakangan (jarang terjadi, tapi aman)
       setInterval(wrapStepFns, 4000);
