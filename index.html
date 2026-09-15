@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.75</div>
+  <div class="splash-version" id="splash-version">v5.76</div>
 </div>
 <script>
   (function(){
@@ -4025,7 +4025,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.75 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.76 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9088,12 +9088,19 @@ function _pbGetDeviceId(){
   }catch(e){return 'dev-unknown';}
 }
 // Kedua model ini bisa baca foto (vision) — dipakai sebagai primary &
-// fallback. GEMINI_MODEL_PRIMARY dipakai buat generate utama (kualitas
-// terbaik), GEMINI_MODEL_FALLBACK dipakai kalau primary gagal total
-// (lebih ringan/cepat) — nama konstanta sengaja TIDAK diganti biar tidak
-// perlu ubah call-site lain yang sudah memakainya.
-const GEMINI_MODEL_PRIMARY='claude-sonnet-5';
-const GEMINI_MODEL_FALLBACK='claude-haiku-4-5-20251001';
+// fallback. GEMINI_MODEL_PRIMARY dipakai buat generate utama, dst,
+// GEMINI_MODEL_FALLBACK dipakai kalau primary gagal total — nama
+// konstanta sengaja TIDAK diganti biar tidak perlu ubah call-site lain
+// yang sudah memakainya.
+// FIX HEMAT BIAYA (permintaan user, Sept 2026): Haiku 4.5 dijadikan
+// PRIMARY (sebelumnya Sonnet) supaya prompt caching di bulk & revisi
+// (_vbBulkSystemPrompt, sudah lolos syarat minimum cache Haiku 4.096
+// token) beneran aktif setiap generate NORMAL, bukan cuma pas Sonnet
+// kebetulan gagal lalu jatuh ke fallback. Sonnet-5 dipindah jadi
+// FALLBACK — tetap jadi jaring pengaman kualitas/ketersediaan kalau
+// Haiku gagal total setelah retry habis.
+const GEMINI_MODEL_PRIMARY='claude-haiku-4-5-20251001';
+const GEMINI_MODEL_FALLBACK='claude-sonnet-5';
 // apiKey diisi placeholder tetap ('via-proxy') — bukan API key asli lagi.
 // Cukup supaya semua pengecekan "if(!VAI.apiKey)" di bawah otomatis lolos,
 // karena kunci Claude yang sesungguhnya sekarang disimpan aman di server
@@ -11572,6 +11579,16 @@ let VB_REVISI_FOTO_OVERRIDE={};
 // (lihat FIX BUG#15 di bawah) — direset di vbReset().
 let VB_BULK_ROW_CACHE=[];
 
+// FITUR BARU (permintaan user): backup 1 langkah PER PRODUK untuk revisi
+// mode Bulk (vbRevisiProdukAI) — object dengan key prodIdx, value
+// {nama,keunggulan,topik,fotoBase64,fotoMime,scripts:[hook,story,cta]}.
+// Kehadiran entri prodIdx di sini juga dipakai sebagai penanda "produk ini
+// sudah dipakai jatah revisinya" (maksimal 1x revisi per produk sebelum
+// di-undo) — lihat vbRevisiProdukAI/vbUndoRevisiProduk. Direset tiap kali
+// _vbRenderBulkOutput dipanggil ulang (generate awal/regenerate semua),
+// sama seperti VB_REVISI_FOTO_OVERRIDE di atas.
+let VB_BULK_REVISI_BACKUP={};
+
 // FITUR BARU (permintaan user): kalau bulk generate berhenti di tengah
 // jalan (macet, limit Google habis, dst) dan sebagian produk SUDAH
 // berhasil dapat script, simpan konteksnya di sini supaya user bisa
@@ -11882,7 +11899,69 @@ function _vbGeminiPartsToClaudeContent(parts){
 // Aman dipakai walau kebetulan jatuh ke model fallback yang syarat minimum
 // token cache-nya lebih tinggi (Haiku 4.5) — kalau di bawah syarat minimum,
 // Anthropic otomatis memprosesnya TANPA cache (tidak error, cuma tidak hemat).
-async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText){
+
+// ── BADGE PEMAKAIAN TOKEN (permintaan user, Sept 2026) ───────────────────
+// Sebelumnya angka usage/cache HIT-MISS cuma kelihatan lewat console.log
+// (harus buka DevTools browser — ribet, apalagi di HP). Fungsi di bawah
+// ini mengakumulasi angka yang SAMA PERSIS dari API (bukan estimasi baru)
+// ke localStorage + badge kecil mengambang di pojok layar, supaya bisa
+// dipantau langsung tanpa DevTools. Ini MURNI monitoring — tidak mengubah
+// jumlah token yang benar-benar terpakai/tertagih sama sekali.
+var PB_USAGE_KEY='pb_usage_stats_v1';
+function _vbLoadUsageStats(){
+  try{
+    var s=JSON.parse(localStorage.getItem(PB_USAGE_KEY)||'null');
+    if(s&&typeof s.hit==='number')return s;
+  }catch(e){}
+  return{hit:0,miss:0,noCache:0,inTok:0,outTok:0};
+}
+function _vbSaveUsageStats(s){
+  try{localStorage.setItem(PB_USAGE_KEY,JSON.stringify(s));}catch(e){}
+}
+function _vbTrackUsage(usageInfo){
+  var s=_vbLoadUsageStats();
+  if(usageInfo.cache_read_input_tokens>0)s.hit++;
+  else if(usageInfo.cache_creation_input_tokens>0)s.miss++;
+  else s.noCache++;
+  s.inTok+=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0);
+  s.outTok+=(usageInfo.output_tokens||0);
+  _vbSaveUsageStats(s);
+  _vbRenderUsageBadge(s);
+}
+// Badge dibuat sekali (lazy) pas generate pertama kali kejadi, lalu cuma
+// di-update isinya tiap generate berikutnya — tap buat toggle detail
+// (ringkas <-> lengkap), tap-tahan (long-press, via dblclick di desktop)
+// buat reset hitungan kalau mau mulai audit dari nol.
+var _vbUsageBadgeExpanded=false;
+function _vbRenderUsageBadge(s){
+  var el=document.getElementById('pb-usage-badge');
+  if(!el){
+    el=document.createElement('div');
+    el.id='pb-usage-badge';
+    el.title='Tap: detail · Dobel-klik/tap-tahan: reset hitungan';
+    el.addEventListener('click',function(){
+      _vbUsageBadgeExpanded=!_vbUsageBadgeExpanded;
+      _vbRenderUsageBadge(_vbLoadUsageStats());
+    });
+    el.addEventListener('dblclick',function(e){
+      e.stopPropagation();
+      _vbSaveUsageStats({hit:0,miss:0,noCache:0,inTok:0,outTok:0});
+      _vbRenderUsageBadge(_vbLoadUsageStats());
+    });
+    document.body.appendChild(el);
+  }
+  var total=s.hit+s.miss+s.noCache;
+  var pct=total>0?Math.round((s.hit/total)*100):0;
+  if(!_vbUsageBadgeExpanded){
+    el.innerHTML='Cache '+pct+'% <span class="pb-usage-badge-sub">('+s.hit+'/'+total+')</span>';
+  }else{
+    el.innerHTML='Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Tanpa cache: '+s.noCache
+      +'<br>Input total: '+s.inTok.toLocaleString('id-ID')
+      +'<br>Output total: '+s.outTok.toLocaleString('id-ID');
+  }
+}
+async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem){
+  if(cacheSystem===undefined)cacheSystem=true;
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
   for(let attempt=0;;attempt++){
@@ -11925,7 +12004,16 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
         headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
         body:JSON.stringify(Object.assign(
           {model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
-          systemText?{system:[{type:'text',text:systemText,cache_control:{type:'ephemeral'}}]}:{}
+          // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
+          // ditempel kalau cacheSystem true. System prompt generate pertama
+          // mode single (_vbScript3SystemPrompt) TIDAK PERNAH tembus syarat
+          // minimum cache Haiku 4.5 (jauh di bawah ~4.096 token) — jadi
+          // menandainya dengan cache_control percuma (tidak pernah kena HIT
+          // ataupun MISS/nulis, Anthropic otomatis proses tanpa cache), maka
+          // dicabut saja di pemanggil itu (lihat vbGenerate3AI). Bulk & revisi
+          // (_vbBulkSystemPrompt, sudah lolos syarat) TETAP pakai cache_control
+          // seperti biasa karena cacheSystem default-nya true.
+          systemText?{system:[{type:'text',text:systemText,...(cacheSystem?{cache_control:{type:'ephemeral'}}:{})}]}:{}
         )),
         signal:controller.signal
       });
@@ -12030,6 +12118,7 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
         +' cache_read='+usageInfo.cache_read_input_tokens
         +' output='+usageInfo.output_tokens
         +' | cache: '+cacheStatus);
+      try{_vbTrackUsage(usageInfo);}catch(e){}
       return{resp:{ok:true,status:200},rawText:JSON.stringify({candidates:[{content:{parts:[{text:textBuf}]},finishReason:finishReason}]}),usage:usageInfo};
     }
     // Stream gagal start (error jaringan/HTTP) — jatuh ke logika retry
@@ -12106,11 +12195,18 @@ function _vbSanitizeJsonText(s){
 // PRIMARY tetap gagal total sesudah itu, baru dicoba SEKALI LAGI dari nol
 // pakai GEMINI_MODEL_FALLBACK — supaya generate tetap bisa jalan walau
 // primary lagi kena limit/error, bukan langsung gagal ke user.
-async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait,systemText){
-  let r=await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText);
+// FIX HEMAT BIAYA (permintaan user, Sept 2026): parameter cacheSystem baru
+// (default true) — dilempar apa adanya ke _vbStreamGeminiJSONWithRetryModel
+// supaya bisa dimatikan KHUSUS untuk pemanggil yang system prompt-nya
+// memang belum tembus syarat minimum cache (lihat vbGenerate3AI, satu-
+// satunya pemanggil yang mengirim false). Semua pemanggil lain tidak
+// perlu diubah — otomatis tetap true seperti sebelumnya.
+async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem){
+  if(cacheSystem===undefined)cacheSystem=true;
+  let r=await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem);
   if(r.resp&&r.resp.ok)return r;
   console.log('[_vbStreamGeminiJSONWithRetry] '+GEMINI_MODEL_PRIMARY+' gagal, coba '+GEMINI_MODEL_FALLBACK);
-  return await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText);
+  return await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText,cacheSystem);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -12524,7 +12620,19 @@ function vbPickTargetAudiencePreset(inputId,presetKey){
   if(typeof showToast==='function') showToast('Target audience diisi: Gen Z Perempuan','success');
 }
 
-async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks){
+// FIX HEMAT BIAYA (permintaan user, Sept 2026): parameter cacheSystem baru
+// (default true) — dikirim ke _vbStreamGeminiJSONWithRetry supaya bisa
+// dimatikan KHUSUS untuk panggilan REVISI (vbRevisiProdukAI &
+// vbRevisiSingleAI, yang mengirim cacheSystem=false). Revisi biasanya
+// cuma dipanggil SEKALI per produk (dibatasi juga di sisi UI, lihat
+// vbRevisiProdukAI), jadi cache_control di sana cuma akan kena
+// cache_creation (+25%) tanpa PERNAH sempat kena cache_read (diskon 90%)
+// — percuma dan malah nambah biaya, makanya dicabut khusus di jalur ini.
+// Generate bulk pertama & "Generate Ulang Semua" TIDAK disentuh (tetap
+// cacheSystem=true default) karena di situ ada banyak panggilan
+// berurutan dalam <5 menit yang beneran saling kena cache HIT.
+async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem){
+  if(cacheSystem===undefined)cacheSystem=true;
   let range=vbGetWordRange();
   // Tandai produk yang punya foto referensi dengan nomor urut gambar
   // (Gambar 1, Gambar 2, dst — cuma dihitung dari produk yang benar-benar
@@ -12670,7 +12778,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // persis seperti sebelumnya, dibungkus di _vbStreamGeminiJSONWithRetry.
   // _vbBulkSystemPrompt (bagian statis, lihat komentar di atas) dikirim
   // sebagai blok "system" tersendiri supaya bisa kena prompt caching.
-  let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_promptParts,onPartial,onWait,_vbBulkSystemPrompt);
+  let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_promptParts,onPartial,onWait,_vbBulkSystemPrompt,cacheSystem);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -12693,8 +12801,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
         let mid=Math.ceil(batch.length/2);
         let firstHalf=batch.slice(0,mid),secondHalf=batch.slice(mid);
         console.warn('[_vbCallBulkBatch] status 413 (request kebesaran) dengan '+batch.length+' produk sekaligus — otomatis dipecah jadi 2 batch lebih kecil ('+firstHalf.length+' + '+secondHalf.length+' produk) dan dicoba ulang.');
-        let r1=await _vbCallBulkBatch(firstHalf,targetAudience,extraNote,onWait,onPartial,usedHooks);
-        let r2=await _vbCallBulkBatch(secondHalf,targetAudience,extraNote,onWait,onPartial,usedHooks);
+        let r1=await _vbCallBulkBatch(firstHalf,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem);
+        let r2=await _vbCallBulkBatch(secondHalf,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem);
         return r1.concat(r2);
       }
       throw new Error('Request ke AI kebesaran (413) walau cuma 1 produk yang dikirim — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
@@ -13289,6 +13397,9 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   // produk yang berbeda dari sebelumnya kalau ada yang di-drop AI) — buang
   // override foto lama biar tidak nyangkut ke prodIdx yang salah.
   VB_REVISI_FOTO_OVERRIDE={};
+  // FITUR BARU (permintaan user, Sept 2026): backup+jatah revisi per-produk
+  // ikut dibuang di sini juga — sama alasannya seperti baris di atas.
+  VB_BULK_REVISI_BACKUP={};
   let metaLookup=_vbBuildProductMetaLookup(produkListMeta);
   VB_BULK_PRODUCTS=products.map(function(p){
     let key=(p.produk||'').trim().toLowerCase();
@@ -13377,7 +13488,14 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
       +'<div style="display:flex;gap:6px;">'
       +'<button class="btn sm" style="flex:1;" onclick="vbRevisiProdukAI('+prodIdx+')">Generate Ulang Produk Ini</button>'
       +'<button class="reset-btn" style="flex:0;padding:8px 12px;" onclick="vbToggleRevisiPanel('+prodIdx+',true)">Batal</button>'
-      +'</div>';
+      +'</div>'
+      // FITUR BARU (permintaan user, Sept 2026): tombol "Kembalikan ke Versi
+      // Awal" — tersembunyi default, cuma muncul setelah revisi PERTAMA
+      // untuk produk ini berhasil (lihat vbRevisiProdukAI/vbUndoRevisiProduk).
+      // Ini yang bikin batas 1x revisi di atas aman dipakai user — kalau
+      // hasilnya kurang memuaskan, tinggal klik ini buat balik ke versi awal
+      // (jatah revisi ikut kebuka lagi 1x).
+      +'<button class="reset-btn hidden" id="vb-revisi-undo-btn-'+prodIdx+'" style="width:100%;" onclick="vbUndoRevisiProduk('+prodIdx+')"><svg class="icon"><use href="#ic-refresh"></use></svg> Kembalikan ke Versi Awal</button>';
     group.appendChild(revisiPanel);
 
     let groupBody=document.createElement('div');
@@ -13677,6 +13795,15 @@ function vbRemoveRevisiFoto(prodIdx){
 // Revisi 1 produk lewat AI (dipanggil dari panel revisi per-produk)
 async function vbRevisiProdukAI(prodIdx){
   if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  // FITUR BARU (permintaan user, Sept 2026): revisi dibatasi MAKSIMAL 1x per
+  // produk — kalau sudah ada backup tersimpan buat prodIdx ini artinya jatah
+  // revisi sudah kepakai & belum di-undo, jadi diblok di sini (jaga-jaga
+  // kalau tombolnya somehow masih bisa diklik, defense in depth di samping
+  // tombol yang sudah di-disable/relabel di bagian akhir fungsi ini).
+  if(VB_BULK_REVISI_BACKUP.hasOwnProperty(prodIdx)){
+    showToast('Produk ini sudah dipakai jatah revisinya (maks 1x). Klik "Kembalikan ke Versi Awal" dulu kalau mau revisi ulang.','error');
+    return;
+  }
   let namaEl=document.getElementById('vb-revisi-nama-'+prodIdx);
   let keunggulanEl=document.getElementById('vb-revisi-keunggulan-'+prodIdx);
   let noteEl=document.getElementById('vb-revisi-note-'+prodIdx);
@@ -13690,7 +13817,9 @@ async function vbRevisiProdukAI(prodIdx){
 
   let btn=document.getElementById('vb-revisi-btn-'+prodIdx);
   let submitBtn=document.querySelector('#vb-revisi-panel-'+prodIdx+' .btn.sm');
+  let undoBtn=document.getElementById('vb-revisi-undo-btn-'+prodIdx);
   let originalText=submitBtn?submitBtn.textContent:'';
+  let revisiSucceeded=false; // dipakai finally di bawah buat memutuskan tombol direset atau dikunci
   VAI._isGenerating=true;
   _vbAcquireWakeLock();
   if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> Memproses...';}
@@ -13712,12 +13841,32 @@ async function vbRevisiProdukAI(prodIdx){
     // _vbRenderBulkOutput). Dipertahankan di sini supaya arahan topik yang
     // user isi di awal tidak hilang begitu saja tiap kali revisi 1 produk.
     let existingTopik=existingFoto.topik||'';
+    // FITUR BARU (permintaan user, Sept 2026): simpan backup KONDISI SEBELUM
+    // revisi ini diterapkan (nama/keunggulan/topik/foto LAMA + ketiga script
+    // yang SEDANG tampil di kartu) — dipakai vbUndoRevisiProduk() kalau hasil
+    // revisi ternyata kurang memuaskan. Diambil di sini (SEBELUM overwrite
+    // di bawah), bukan setelah animasi selesai, supaya benar-benar kondisi
+    // asli sebelum revisi, bukan hasil revisi yang keburu ketimpa.
+    let _backupScripts=[0,1,2].map(function(k){
+      let ta=document.getElementById('vb-bulk-script-'+(prodIdx*3+k));
+      return ta?ta.value:'';
+    });
+    let _backupSnapshot={
+      nama:existingFoto.nama||'',keunggulan:existingFoto.keunggulan||'',topik:existingTopik,
+      fotoBase64:existingFoto.fotoBase64||'',fotoMime:existingFoto.fotoMime||'',
+      scripts:_backupScripts
+    };
+    // FIX HEMAT BIAYA (permintaan user, Sept 2026): cacheSystem=false —
+    // revisi cuma boleh 1x per produk (lihat pengecekan VB_BULK_REVISI_BACKUP
+    // di atas), jadi cache_control di sini cuma bakal kena cache_creation
+    // (+25%) tanpa pernah sempat kena cache_read (diskon 90%). Percuma &
+    // malah nambah biaya, jadi dicabut khusus di jalur revisi ini.
     let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,topik:existingTopik,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
       let alasan=_vbWaitReasonLabel(status);
       submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'dtk)...';
-    });
+    },undefined,undefined,false);
     dlIncrement();
     if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
     let p=arr[0];
@@ -13745,15 +13894,76 @@ async function vbRevisiProdukAI(prodIdx){
     // Sekarang catat ulang entri Riwayat gabungan begitu 1 produk selesai
     // direvisi, supaya Riwayat selalu mencerminkan kondisi terbaru di layar.
     _vbBuildCombinedHistoryEntry('Bulk '+VB_BULK_PRODUCTS.length+' produk (revisi: '+nama+')'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
-    showToast('Produk berhasil direvisi!','success');
+    // Backup baru disimpan SETELAH revisi benar-benar berhasil diterapkan —
+    // kehadiran entri ini yang jadi penanda "jatah revisi produk ini sudah
+    // kepakai" (lihat guard di awal fungsi & tombol yang dikunci di finally).
+    VB_BULK_REVISI_BACKUP[prodIdx]=_backupSnapshot;
+    if(undoBtn)undoBtn.classList.remove('hidden');
+    revisiSucceeded=true;
+    showToast('Produk berhasil direvisi! (jatah revisi produk ini sudah kepakai — klik "Kembalikan ke Versi Awal" kalau mau ulang)','success');
   }catch(err){
     console.error('vbRevisiProdukAI error:',err);
     showToast('Gagal revisi: '+err.message,'error');
   }finally{
     VAI._isGenerating=false;
     _vbReleaseWakeLock();
-    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=originalText;}
+    if(submitBtn){
+      if(revisiSucceeded){
+        // Revisi sukses & jatah sudah kepakai — tombol dikunci permanen
+        // (relabel, bukan "Memproses..." lagi) sampai user klik Undo.
+        submitBtn.disabled=true;
+        submitBtn.textContent='Sudah direvisi 1x — undo dulu utk revisi lagi';
+      }else{
+        submitBtn.disabled=false;
+        submitBtn.textContent=originalText;
+      }
+    }
   }
+}
+
+// Kembalikan 1 produk (mode Bulk) ke kondisi SEBELUM revisi AI TERAKHIR —
+// pasangan vbUndoSingleRevisi() tapi khusus per-produk mode Bulk, dipakai
+// karena revisi mode Bulk sekarang dibatasi maksimal 1x per produk (lihat
+// guard di vbRevisiProdukAI) supaya user tetap bisa kembali ke versi awal
+// kalau hasil revisi ternyata kurang memuaskan.
+function vbUndoRevisiProduk(prodIdx){
+  let backup=VB_BULK_REVISI_BACKUP[prodIdx];
+  if(!backup){showToast('Tidak ada revisi untuk dibatalkan di produk ini.','error');return;}
+  VB_BULK_PRODUCTS[prodIdx]={nama:backup.nama,keunggulan:backup.keunggulan,topik:backup.topik,fotoBase64:backup.fotoBase64,fotoMime:backup.fotoMime};
+  // Foto override panel (kalau sempat diganti user di panel revisi) juga
+  // dibuang, supaya revisi BERIKUTNYA (setelah undo ini) tidak keliru masih
+  // memakai foto pengganti yang barusan dibatalkan.
+  delete VB_REVISI_FOTO_OVERRIDE[prodIdx];
+  backup.scripts.forEach(function(scriptText,k){
+    let idx=prodIdx*3+k;
+    let ta=document.getElementById('vb-bulk-script-'+idx);
+    if(ta)ta.value=scriptText;
+    if(VB_BULK_ITEMS[idx]){VB_BULK_ITEMS[idx].script=scriptText;VB_BULK_ITEMS[idx].produk=backup.nama||VB_BULK_ITEMS[idx].produk;}
+    vbBulkUpdateJson(idx);
+  });
+  // Sinkronkan balik field di panel revisi (nama/keunggulan) & nama header
+  // grup, supaya kalau panel dibuka lagi tidak menampilkan nilai hasil
+  // revisi yang barusan dibatalkan.
+  let namaEl=document.getElementById('vb-revisi-nama-'+prodIdx); if(namaEl)namaEl.value=backup.nama||'';
+  let keunggulanEl=document.getElementById('vb-revisi-keunggulan-'+prodIdx); if(keunggulanEl)keunggulanEl.value=backup.keunggulan||'';
+  let prodNameEl=document.getElementById('vb-prodname-'+prodIdx); if(prodNameEl)prodNameEl.textContent=backup.nama||('Produk '+(prodIdx+1));
+  // Foto preview di panel revisi disamakan lagi ke foto LAMA (backup) —
+  // logic sama persis seperti vbHandleRevisiFotoUpload/vbRemoveRevisiFoto.
+  let hasFoto=!!backup.fotoBase64;
+  let img=document.getElementById('vb-revisi-foto-img-'+prodIdx);
+  if(img)img.src=hasFoto?('data:'+(backup.fotoMime||'image/jpeg')+';base64,'+backup.fotoBase64):'';
+  let empty=document.getElementById('vb-revisi-foto-empty-'+prodIdx); if(empty)empty.style.display=hasFoto?'none':'';
+  let preview=document.getElementById('vb-revisi-foto-preview-'+prodIdx); if(preview)preview.style.display=hasFoto?'inline-block':'none';
+  _vbUpdateGroupFotoThumb(prodIdx);
+  delete VB_BULK_REVISI_BACKUP[prodIdx];
+  // Tombol "Generate Ulang Produk Ini" dibuka kuncinya lagi & tombol Undo
+  // disembunyikan lagi — jatah revisi produk ini kembali tersedia 1x.
+  let submitBtn=document.querySelector('#vb-revisi-panel-'+prodIdx+' .btn.sm');
+  if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Generate Ulang Produk Ini';}
+  let undoBtn=document.getElementById('vb-revisi-undo-btn-'+prodIdx);
+  if(undoBtn)undoBtn.classList.add('hidden');
+  _vbBuildCombinedHistoryEntry('Bulk '+VB_BULK_PRODUCTS.length+' produk (undo revisi: '+(backup.nama||'')+')'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
+  showToast('Produk dikembalikan ke versi sebelum revisi.','success');
 }
 
 // ============================================================
@@ -13827,6 +14037,15 @@ function _vbSyncProdukFotoPreviews(){
 
 async function vbRevisiSingleAI(){
   if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  // FITUR BARU (permintaan user, Sept 2026): revisi mode single juga
+  // dibatasi MAKSIMAL 1x — kalau VB_SINGLE_REVISI_BACKUP sudah keisi artinya
+  // jatah revisi sudah kepakai & belum di-undo. Sama seperti bulk, ini
+  // defense in depth di samping tombol yang sudah di-disable/relabel di
+  // bagian akhir fungsi ini.
+  if(VB_SINGLE_REVISI_BACKUP){
+    showToast('Sudah dipakai jatah revisinya (maks 1x). Klik "Kembali ke Versi Sebelumnya" dulu kalau mau revisi ulang.','error');
+    return;
+  }
   let noteEl=document.getElementById('vb-single-revisi-note');
   let note=noteEl?noteEl.value.trim():'';
   if(!note){
@@ -13875,6 +14094,7 @@ async function vbRevisiSingleAI(){
 
   let submitBtn=document.getElementById('vb-single-revisi-submit');
   let originalText=submitBtn?submitBtn.textContent:'';
+  let revisiSucceeded=false; // dipakai finally di bawah buat memutuskan tombol direset atau dikunci
   VAI._isGenerating=true;
   _vbAcquireWakeLock();
   if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> Memproses...';}
@@ -13885,12 +14105,16 @@ async function vbRevisiSingleAI(){
       produk:produkNama,
       scripts:[0,1,2].map(function(i){return VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].script:'';})
     };
+    // FIX HEMAT BIAYA (permintaan user, Sept 2026): cacheSystem=false —
+    // sama alasan seperti vbRevisiProdukAI: revisi cuma boleh 1x sebelum
+    // di-undo, jadi cache_control di sini cuma bakal kena cache_creation
+    // (+25%) tanpa pernah sempat kena cache_read (diskon 90%). Dicabut.
     let arr=await _vbCallBulkBatch([{nama:produkNama,keunggulan:keunggulan,fotoBase64:VB.produkFotoBase64||'',fotoMime:VB.produkFotoMime||''}],targetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
       let alasan=_vbWaitReasonLabel(status);
       submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> ⏳ '+alasan+' (~'+detik+'dtk)...';
-    });
+    },undefined,undefined,false);
     dlIncrement();
     if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
     let p=arr[0];
@@ -13903,7 +14127,8 @@ async function vbRevisiSingleAI(){
     let undoBtn=document.getElementById('vb-single-revisi-undo-btn');
     if(undoBtn)undoBtn.classList.remove('hidden');
     _vbBuildCombinedHistoryEntry('3 script AI (revisi)'+(produkNama?' — '+produkNama:''));
-    showToast('Script berhasil direvisi!','success');
+    revisiSucceeded=true;
+    showToast('Script berhasil direvisi! (jatah revisi sudah kepakai — klik "Kembali ke Versi Sebelumnya" kalau mau ulang)','success');
   }catch(err){
     console.error('vbRevisiSingleAI error:',err);
     VB_SINGLE_REVISI_BACKUP=null; // gagal — tidak ada perubahan yang perlu di-undo
@@ -13911,7 +14136,17 @@ async function vbRevisiSingleAI(){
   }finally{
     VAI._isGenerating=false;
     _vbReleaseWakeLock();
-    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=originalText;}
+    if(submitBtn){
+      if(revisiSucceeded){
+        // Revisi sukses & jatah sudah kepakai — tombol dikunci permanen
+        // (relabel, bukan "Memproses..." lagi) sampai user klik Undo.
+        submitBtn.disabled=true;
+        submitBtn.textContent='Sudah direvisi 1x — undo dulu utk revisi lagi';
+      }else{
+        submitBtn.disabled=false;
+        submitBtn.textContent=originalText;
+      }
+    }
   }
 }
 
@@ -13929,6 +14164,10 @@ function vbUndoSingleRevisi(){
   VB_SINGLE_REVISI_BACKUP=null;
   let undoBtn=document.getElementById('vb-single-revisi-undo-btn');
   if(undoBtn)undoBtn.classList.add('hidden');
+  // FITUR BARU (permintaan user, Sept 2026): buka kunci tombol submit revisi
+  // lagi — jatah revisi (maks 1x) kembali tersedia setelah di-undo.
+  let submitBtn=document.getElementById('vb-single-revisi-submit');
+  if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Revisi Sekarang';}
   _vbBuildCombinedHistoryEntry('3 script (kembali ke versi sebelum revisi)'+(backup.produk?' — '+backup.produk:''));
   showToast('Dikembalikan ke versi sebelum revisi.','success');
 }
@@ -14580,7 +14819,14 @@ async function vbGenerate3AI(){
       let alasan=_vbWaitReasonLabel(status);
       updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... Membuat 3 Script');
     };
-    let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt);
+    // FIX HEMAT BIAYA (permintaan user, Sept 2026): cacheSystem=false di sini
+    // — _vbScript3SystemPrompt (~660 kata) TIDAK PERNAH tembus syarat minimum
+    // cache Haiku 4.5 (~4.096 token), jadi menandainya dengan cache_control
+    // percuma (tidak pernah kena HIT/nulis, aman & tidak mempengaruhi biaya
+    // sama sekali). Jalur bulk & revisi (_vbCallBulkBatch, pakai
+    // _vbBulkSystemPrompt yang sudah lolos syarat) TIDAK disentuh di sini —
+    // tetap default cacheSystem=true seperti sebelumnya.
+    let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt,false);
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
     if(!resp.ok){
       let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -15631,6 +15877,7 @@ function vbReset(){
     let aiSingleReset=document.getElementById('vb-ai-single-fields'); if(aiSingleReset)aiSingleReset.classList.remove('hidden');
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
     VB_BULK_ROW_CACHE=[]; // FIX BUG#15: cache baris bulk juga wajib ikut bersih saat reset, biar tidak bocor ke sesi generate berikutnya
+    VB_BULK_REVISI_BACKUP={}; // FITUR BARU: backup+jatah revisi per-produk juga wajib ikut bersih saat reset
     VB_REVISI_FOTO_OVERRIDE={}; // override foto panel Revisi juga wajib ikut bersih, biar tidak bocor ke sesi berikutnya
     let bulkCount=document.getElementById('vb-bulk-count'); if(bulkCount)bulkCount.value='3';
     let bulkTarget=document.getElementById('vb-bulk-target'); if(bulkTarget)bulkTarget.value='';
@@ -18136,6 +18383,11 @@ window.addEventListener('load',function(){
 #pb-undo-fab-wrap button:disabled{opacity:.28!important;pointer-events:none;}
 #pb-undo-fab-wrap button:active{transform:scale(0.88);}
 @media(min-width:900px){ #pb-undo-fab-wrap{display:none;} } /* di laptop cukup Ctrl+Z / Ctrl+Shift+Z */
+/* ── BADGE PEMAKAIAN TOKEN (permintaan user, Sept 2026) ─────────────────
+   Pojok kiri-bawah (undo-fab pakai kanan-bawah) — kecil & tidak
+   mengganggu, cuma nongol setelah generate AI pertama kali terjadi. */
+#pb-usage-badge{position:fixed;left:12px;bottom:12px;z-index:99997;background:rgba(20,20,24,0.92);border:1px solid rgba(255,255,255,0.12);color:#cfcfd6;font-family:'Geist Mono',monospace;font-size:11px;line-height:1.6;padding:6px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;max-width:180px;}
+#pb-usage-badge .pb-usage-badge-sub{opacity:.6;}
 </style>
 <script>
 (function(){
@@ -18185,7 +18437,7 @@ window.addEventListener('load',function(){
     'VB_MANUAL_COUNT','VB_BULK_ITEMS','VB_CARD_TAMPIL','VB_CARD_LOKASI',
     'VB_PRODUCT_FOTOCOUNT','VB_HOOK_OVERLAY','VB_BULK_PRODUCTS',
     'VB_REVISI_FOTO_OVERRIDE','VB_BULK_ROW_CACHE','VB_BULK_LAST_CONTEXT',
-    'VB_SINGLE_REVISI_BACKUP','VB_PANEL','PB_ACTIVE_SAVED_ID',
+    'VB_SINGLE_REVISI_BACKUP','VB_BULK_REVISI_BACKUP','VB_PANEL','PB_ACTIVE_SAVED_ID',
     'pbProdukFotoUploaded','pbProdukFotoDataUrl','pbKsFotoUploaded',
     'pbKsFotoDataUrl','pbFotoAiUploaded','pbFotoAiDataUrl',
     'pbStep3Revealed','pbVideoGuideIndex'
