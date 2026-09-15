@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.79</div>
+  <div class="splash-version" id="splash-version">v5.80</div>
 </div>
 <script>
   (function(){
@@ -4025,7 +4025,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.79 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.80 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -12450,20 +12450,65 @@ function _vbSanitizeForbiddenPhrases(text){
 // buat merapikan script itu jadi persis 25 kata, sampai maksimal 2x
 // percobaan. Kalau tetap gagal, script asli/terakhir dikembalikan apa
 // adanya (masih bisa diedit manual + label kata di UI kasih tanda). ──────
+// Jaring pengaman DETERMINISTIK, TANPA panggilan API — jaminan bahwa jumlah
+// kata TIDAK PERNAH melewati batas atas, apapun hasil AI-nya. Dipanggil di
+// SETIAP jalur keluar dari _vbFixWordCountIfNeeded di bawah (termasuk saat
+// gagal/limit/exception) supaya batas atas benar-benar pasti, bukan cuma
+// "biasanya". Cari titik potong di akhir kalimat (. ! ?) dalam 6 kata
+// terakhir sebelum batas max; kalau tidak ada, potong polos di kata ke-max
+// lalu tutup dengan titik.
+function _vbHardEnforceMaxWords(text,max){
+  text=(text||'').trim();
+  if(!text)return text;
+  let words=text.split(/\s+/).filter(Boolean);
+  if(words.length<=max)return text;
+  for(let i=max;i>=Math.max(1,max-6);i--){
+    if(/[.!?]$/.test(words[i-1]))return words.slice(0,i).join(' ');
+  }
+  return words.slice(0,max).join(' ')+'.';
+}
+// FIX BIAYA (permintaan user, Sept 2026): DINYALAKAN LAGI tapi dibatasi
+// SATU kali panggilan AI saja (bukan sampai 2-3x percobaan seperti versi
+// lama di bawah) — biaya per script yang meleset jadi predictable (0 atau
+// 1 panggilan tambahan, tidak pernah lebih). Supaya hasil satu kali ini
+// tetap "pasti sesuai" rentang walau cuma 1 kesempatan:
+// 1) prompt minta AI hitung-draft-revisi dulu SEBELUM jawab (bukan tebak);
+// 2) apapun hasilnya (berhasil, gagal, limit, exception), SELALU disaring
+//    lewat _vbHardEnforceMaxWords di atas — jadi batas ATAS dijamin 100%
+//    tanpa panggilan API tambahan. Batas BAWAH tidak bisa dijamin sama
+//    persis (nambah kata butuh konten baru yang cuma AI bisa bikin
+//    natural) — kalau masih kurang, kartu tetap diberi tanda oranye di UI
+//    supaya user tahu perlu dicek manual, tidak dianggap sudah pas.
 async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
-  // FIX BIAYA (permintaan user, Sept 2026): auto-perbaikan jumlah kata via AI
-  // DIMATIKAN LAGI. Sebelumnya (lihat riwayat di atas) sempat dinyalakan
-  // ulang dengan sampai 3x percobaan PER SCRIPT — artinya satu kali klik
-  // "Buatkan 3 Script" bisa diam-diam memicu sampai 9 panggilan AI tambahan
-  // di belakang layar (3 script × 3 percobaan) HANYA gara-gara jumlah kata
-  // meleset dikit dari target, dan ini yang bikin token/biaya per generate
-  // jauh lebih besar dari perkiraan. User memilih TIDAK mau kena generate
-  // ulang otomatis cuma soal jumlah kata — jadi sekarang script dipakai APA
-  // ADANYA dari hasil generate awal, walau jumlah katanya sedikit meleset
-  // dari rentang target. Fungsi ini tetap ada (bukan dihapus) supaya logic
-  // lengkapnya gampang dinyalakan lagi nanti kalau suatu saat user berubah
-  // pikiran — cukup hapus early-return di bawah ini.
-  return (scriptText||'').trim();
+  let current=(scriptText||'').trim();
+  let range=vbGetWordRange();
+  let wc=current.split(/\s+/).filter(Boolean).length;
+  if((wc>=range.min&&wc<=range.max)||!current)return current;
+  let dlCheck=dlCheckBeforeCall();
+  if(!dlCheck.ok){console.warn('[_vbFixWordCountIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);return _vbHardEnforceMaxWords(current,range.max);}
+  let selisih=range.target-wc;
+  let arah=selisih>0
+    ?'Script ini KURANG kata (saat ini '+wc+'). TAMBAH sekitar '+selisih+' kata (detail natural yang relevan, jangan cuma ulang kata yang sudah ada).'
+    :'Script ini KELEBIHAN kata (saat ini '+wc+'). KURANGI sekitar '+Math.abs(selisih)+' kata (potong bagian paling tidak penting, jangan sampai kalimatnya jadi ganjil).';
+  let fixPrompt='Perbaiki script "'+roleLabelPlain+'"'+(produkNama?' untuk produk "'+produkNama+'"':'')+' supaya PERSIS masuk rentang '+range.min+'-'+range.max+' kata (idealnya '+range.target+', hitung tiap kata dipisah spasi — bukan karakter/suku kata). '+arah+' '
+    +'WAJIB: draft dulu di kepalamu, HITUNG sendiri jumlah katanya satu-satu, kalau belum masuk rentang REVISI lalu hitung ulang — baru tulis jawaban final. Jangan menebak/mengira-ngira jumlah kata.\n'
+    +'Pertahankan makna, topik, nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'", dan aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai — jangan diratakan jadi kalimat netral/formal. Tanpa emoji, tanpa tanda kutip.\n\n'
+    +'Script saat ini ('+wc+' kata): '+current+'\n\n'
+    +'Balas HANYA dengan teks script hasil perbaikan, tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
+  try{
+    let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
+    if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return _vbHardEnforceMaxWords(current,range.max);}
+    let data=JSON.parse(rawText);
+    if(data.error){console.warn('[_vbFixWordCountIfNeeded] error API:',data.error.message);return _vbHardEnforceMaxWords(current,range.max);}
+    let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+    if(!text)return _vbHardEnforceMaxWords(current,range.max);
+    text=text.replace(/^```\s*/,'').replace(/\s*```$/,'').replace(/^["']+|["']+$/g,'').trim();
+    dlIncrement();
+    return _vbHardEnforceMaxWords(text,range.max);
+  }catch(e){
+    console.warn('[_vbFixWordCountIfNeeded] exception, dibiarkan apa adanya:',e);
+    return _vbHardEnforceMaxWords(current,range.max);
+  }
 }
 async function _vbFixWordCountIfNeededFULL_DISABLED(scriptText,roleLabelPlain,produkNama){
   let current=(scriptText||'').trim();
@@ -15022,7 +15067,7 @@ async function vbGenerate3AI(){
       if(_finalWc<range.min||_finalWc>range.max){
         let wcLabelFinal=document.getElementById('vb-bulk-wc-'+si);
         if(wcLabelFinal){
-          wcLabelFinal.textContent=_finalWc+'/'+range.min+'-'+range.max+' kata — AI belum pas rentang target setelah beberapa kali dicoba, cek/edit lagi manual';
+          wcLabelFinal.textContent=_finalWc+'/'+range.min+'-'+range.max+' kata — masih kurang kata setelah 1x perbaikan AI, cek/edit lagi manual';
           wcLabelFinal.style.color='#e0a05c';
         }
       }
