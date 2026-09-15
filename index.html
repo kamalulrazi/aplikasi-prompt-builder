@@ -116,12 +116,12 @@
   // NORMAL seperti sebelumnya — cuma datanya tetap lokal per perangkat
   // (tidak error, tidak ke-block, fitur sinkron aja yang belum aktif).
   var PB_FIREBASE_CONFIG = {
-    apiKey: "GANTI_DENGAN_API_KEY_FIREBASE_ANDA",
-    authDomain: "GANTI.firebaseapp.com",
-    projectId: "GANTI_PROJECT_ID",
-    storageBucket: "GANTI.appspot.com",
-    messagingSenderId: "GANTI",
-    appId: "GANTI"
+    apiKey: "AIzaSyCUnigD8-J8FG1HmWJrKjXWex4ZJFoJYGM",
+    authDomain: "maiiil-55365.firebaseapp.com",
+    projectId: "maiiil-55365",
+    storageBucket: "maiiil-55365.firebasestorage.app",
+    messagingSenderId: "73740157914",
+    appId: "1:73740157914:web:8dd222e5d750a421e776e3"
   };
 
   // Kunci-kunci localStorage yang disinkron ke Firestore. SENGAJA TIDAK
@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.67</div>
+  <div class="splash-version" id="splash-version">v5.72</div>
 </div>
 <script>
   (function(){
@@ -4025,7 +4025,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.67 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.72 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10523,7 +10523,7 @@ document.addEventListener('click',function(e){
 // FITUR (permintaan user): rentang jumlah kata script DIPATOK TETAP di
 // 25-27 kata untuk semua nada bicara — tidak lagi mengikuti estimasi
 // kecepatan bicara per nada / durasi video 8 detik seperti sebelumnya.
-const VB_FIXED_WORD_RANGE={min:25,max:27,target:26};
+const VB_FIXED_WORD_RANGE={min:24,max:27,target:26};
 function vbGetWordRange(){
   return VB_FIXED_WORD_RANGE;
 }
@@ -10575,12 +10575,12 @@ function _vbCompressImageFile(file){
       img.onload=function(){
         // FIX (audit 413 — request kebesaran ke Groq): dulu MAX=1024px +
         // quality 0.8 menghasilkan base64 yang lumayan berat buat model
-        // vision (foto itu MAHAL secara token). Diturunkan ke 640px +
+        // vision (foto itu MAHAL secara token). Diturunkan ke 512px +
         // quality 0.7 supaya foto referensi tetap cukup jelas dibaca AI
         // untuk kenali jenis/warna/motif produk, tapi jauh lebih hemat
         // token per foto — mengurangi risiko 1 request nembus limit
         // token/menit Groq waktu ada foto ikut dilampirkan.
-        let MAX=640;
+        let MAX=512;
         let w=img.width,h=img.height;
         if(w>MAX||h>MAX){
           if(w>h){h=Math.round(h*(MAX/w));w=MAX;}
@@ -11863,7 +11863,17 @@ function _vbGeminiPartsToClaudeContent(parts){
     return{type:'text',text:(p&&p.text)||''};
   });
 }
-async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait){
+// FIX HEMAT BIAYA (permintaan user, Sept 2026): parameter systemText baru —
+// opsional, dipakai buat naruh instruksi yang SAMA PERSIS di setiap generate
+// (aturan HOOK/STORY/CTA dkk) sebagai blok "system" terpisah dari pesan user
+// yang isinya beda-beda tiap generate (nama produk/target audience/dst).
+// Kalau isi system-nya identik antar request DAN ditandai cache_control,
+// Anthropic bisa "cache hit" bagian itu — dibaca ulang dengan diskon ~90%
+// dibanding diproses dari nol tiap kali (lihat pemanggil di vbGenerate3AI).
+// Aman dipakai walau kebetulan jatuh ke model fallback yang syarat minimum
+// token cache-nya lebih tinggi (Haiku 4.5) — kalau di bawah syarat minimum,
+// Anthropic otomatis memprosesnya TANPA cache (tidak error, cuma tidak hemat).
+async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText){
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
   for(let attempt=0;;attempt++){
@@ -11883,6 +11893,12 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
     let timer=setTimeout(function(){timedOut=true;controller.abort();},isFirstAttempt?30000:45000);
     let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
     let streamErrType='',streamErrMsg='';
+    // LOGGING TOKEN (permintaan user, Sept 2026): tampung angka token ASLI
+    // dari API (bukan estimasi) — diisi dari event 'message_start' (input +
+    // cache_creation/cache_read) dan 'message_delta' (output_tokens,
+    // dikirim kumulatif tiap event). Dilog ke console setelah stream
+    // selesai supaya bisa dicek biaya real per generate, lihat di bawah.
+    let usageInfo={input_tokens:0,cache_creation_input_tokens:0,cache_read_input_tokens:0,output_tokens:0};
     // FIX "Status 0: API error" TANPA KETERANGAN: sebelumnya kalau fetch()
     // sendiri gagal (bukan server yang balas error, tapi koneksi browser
     // gagal total — offline, diblokir firewall/DNS, ekstensi/ad-blocker,
@@ -11898,7 +11914,10 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       resp=await fetch(url,{
         method:'POST',
         headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
-        body:JSON.stringify({model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]}),
+        body:JSON.stringify(Object.assign(
+          {model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
+          systemText?{system:[{type:'text',text:systemText,cache_control:{type:'ephemeral'}}]}:{}
+        )),
         signal:controller.signal
       });
       if(resp.ok&&resp.body&&typeof resp.body.getReader==='function'){
@@ -11939,8 +11958,23 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
                     if(arr)try{onPartial(arr);}catch(e){}
                   }
                 }
+              }else if(evt.type==='message_start'&&evt.message&&evt.message.usage){
+                // usage awal: input_tokens (bagian yang TIDAK di-cache),
+                // cache_creation_input_tokens (baru ditulis ke cache kali
+                // ini, kena +25%), cache_read_input_tokens (kena diskon
+                // ~90%, berarti cache HIT). output_tokens di sini masih 0,
+                // diupdate lewat message_delta di bawah.
+                let u=evt.message.usage;
+                usageInfo.input_tokens=u.input_tokens||0;
+                usageInfo.cache_creation_input_tokens=u.cache_creation_input_tokens||0;
+                usageInfo.cache_read_input_tokens=u.cache_read_input_tokens||0;
               }else if(evt.type==='message_delta'&&evt.delta&&evt.delta.stop_reason){
                 finishReason=evt.delta.stop_reason==='max_tokens'?'length':evt.delta.stop_reason;
+                // message_delta juga bawa usage.output_tokens (kumulatif
+                // sampai titik ini) — ambil yang terakhir/terbesar.
+                if(evt.usage&&typeof evt.usage.output_tokens==='number'){
+                  usageInfo.output_tokens=evt.usage.output_tokens;
+                }
               }else if(evt.type==='error'&&evt.error){
                 streamErrType=evt.error.type||'';
                 streamErrMsg=evt.error.message||'';
@@ -11972,7 +12006,22 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       rawText=JSON.stringify({error:{type:streamErrType,message:streamErrMsg}});
     }
     if(streamOk){
-      return{resp:{ok:true,status:200},rawText:JSON.stringify({candidates:[{content:{parts:[{text:textBuf}]},finishReason:finishReason}]})};
+      // LOGGING TOKEN: cetak angka usage ASLI dari API (bukan estimasi)
+      // ke console, supaya bisa dicek langsung berapa token beneran
+      // dipakai + apakah cache kena HIT (cache_read>0) atau MISS/nulis
+      // baru (cache_creation>0) atau malah gak ke-cache sama sekali
+      // (keduanya 0 — misal karena model-nya belum tembus syarat minimum
+      // token, lihat catatan di atas fungsi ini).
+      let cacheStatus=usageInfo.cache_read_input_tokens>0?'HIT (diskon ~90%)'
+        :usageInfo.cache_creation_input_tokens>0?'MISS/nulis baru (kena +25%)'
+        :'tidak ke-cache';
+      console.log('[vbUsage] model='+model
+        +' | input='+usageInfo.input_tokens
+        +' cache_write='+usageInfo.cache_creation_input_tokens
+        +' cache_read='+usageInfo.cache_read_input_tokens
+        +' output='+usageInfo.output_tokens
+        +' | cache: '+cacheStatus);
+      return{resp:{ok:true,status:200},rawText:JSON.stringify({candidates:[{content:{parts:[{text:textBuf}]},finishReason:finishReason}]}),usage:usageInfo};
     }
     // Stream gagal start (error jaringan/HTTP) — jatuh ke logika retry
     // yang sama persis seperti jalur non-streaming lama.
@@ -12010,16 +12059,49 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
   }
 }
 
+// BUG FIX (Sept 2026): escape karakter kontrol mentah (newline/tab/CR/dll)
+// yang muncul DI DALAM string literal JSON hasil AI, supaya JSON.parse tidak
+// gagal total dengan "Bad control character in string literal" — lihat
+// catatan lengkap di titik pemanggilannya (_vbCallBulkBatch & vbGenerate3AI).
+// Cuma karakter kontrol yang posisinya DI DALAM tanda kutip (inStr true)
+// yang di-escape; whitespace/newline DI LUAR string (pemisah antar token
+// JSON, tetap valid) dibiarkan apa adanya.
+function _vbSanitizeJsonText(s){
+  s=String(s||'');
+  let out='',inStr=false,esc=false;
+  for(let i=0;i<s.length;i++){
+    let ch=s[i];
+    if(inStr){
+      out+=ch;
+      if(esc){ esc=false; continue; }
+      if(ch==='\\'){ esc=true; continue; }
+      if(ch==='"'){ inStr=false; continue; }
+      let code=ch.charCodeAt(0);
+      if(code<0x20){
+        out=out.slice(0,-1); // buang karakter mentah yang barusan ditambahkan
+        if(ch==='\n')out+='\\n';
+        else if(ch==='\r')out+='\\r';
+        else if(ch==='\t')out+='\\t';
+        else out+='\\u'+code.toString(16).padStart(4,'0');
+      }
+    }else{
+      if(ch==='"')inStr=true;
+      out+=ch;
+    }
+  }
+  return out;
+}
+
 // Coba GEMINI_MODEL_PRIMARY dulu (lewat _vbStreamGeminiJSONWithRetryModel,
 // termasuk retry internalnya sampai jaring pengaman ~3 menit). Kalau
 // PRIMARY tetap gagal total sesudah itu, baru dicoba SEKALI LAGI dari nol
 // pakai GEMINI_MODEL_FALLBACK — supaya generate tetap bisa jalan walau
 // primary lagi kena limit/error, bukan langsung gagal ke user.
-async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait){
-  let r=await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_PRIMARY,promptParts,onPartial,onWait);
+async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait,systemText){
+  let r=await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText);
   if(r.resp&&r.resp.ok)return r;
   console.log('[_vbStreamGeminiJSONWithRetry] '+GEMINI_MODEL_PRIMARY+' gagal, coba '+GEMINI_MODEL_FALLBACK);
-  return await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_FALLBACK,promptParts,onPartial,onWait);
+  return await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -12259,10 +12341,21 @@ function _vbSanitizeForbiddenPhrases(text){
 // percobaan. Kalau tetap gagal, script asli/terakhir dikembalikan apa
 // adanya (masih bisa diedit manual + label kata di UI kasih tanda). ──────
 async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
-  // Auto-perbaikan jumlah kata via AI DIAKTIFKAN LAGI (permintaan user,
-  // Sept 2026) — sebelumnya di-nonaktifkan lewat early-return di sini,
-  // sekarang dikembalikan ke logic retry aslinya di bawah (sampai 3x
-  // percobaan minta AI menyesuaikan jumlah kata).
+  // FIX BIAYA (permintaan user, Sept 2026): auto-perbaikan jumlah kata via AI
+  // DIMATIKAN LAGI. Sebelumnya (lihat riwayat di atas) sempat dinyalakan
+  // ulang dengan sampai 3x percobaan PER SCRIPT — artinya satu kali klik
+  // "Buatkan 3 Script" bisa diam-diam memicu sampai 9 panggilan AI tambahan
+  // di belakang layar (3 script × 3 percobaan) HANYA gara-gara jumlah kata
+  // meleset dikit dari target, dan ini yang bikin token/biaya per generate
+  // jauh lebih besar dari perkiraan. User memilih TIDAK mau kena generate
+  // ulang otomatis cuma soal jumlah kata — jadi sekarang script dipakai APA
+  // ADANYA dari hasil generate awal, walau jumlah katanya sedikit meleset
+  // dari rentang target. Fungsi ini tetap ada (bukan dihapus) supaya logic
+  // lengkapnya gampang dinyalakan lagi nanti kalau suatu saat user berubah
+  // pikiran — cukup hapus early-return di bawah ini.
+  return (scriptText||'').trim();
+}
+async function _vbFixWordCountIfNeededFULL_DISABLED(scriptText,roleLabelPlain,produkNama){
   let current=(scriptText||'').trim();
   // FIX (solusi biar makin sering BENERAN pas 25 kata, bukan cuma dikasih
   // tanda peringatan kalau gagal): sebelumnya prompt perbaikan cuma bilang
@@ -12333,9 +12426,13 @@ async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
 // 2x percobaan TOTAL per produk, bukan per script) — mengurangi jumlah
 // request sampai ~6x lipat tanpa mengorbankan akurasi tiap script. ──────
 async function _vbFixWordCountBatchIfNeeded(prod){
-  // Auto-perbaikan jumlah kata via AI DIAKTIFKAN LAGI (permintaan user,
-  // Sept 2026) — sama seperti _vbFixWordCountIfNeeded single, early-return
-  // yang mematikan logic-nya dihapus, kembali ke retry batch aslinya.
+  // FIX BIAYA (permintaan user, Sept 2026): sama seperti versi single di
+  // atas — auto-perbaikan jumlah kata via AI DIMATIKAN, script dipakai apa
+  // adanya. Logic aslinya dipindah ke _vbFixWordCountBatchIfNeededFULL_DISABLED
+  // di bawah (bukan dihapus) buat jaga-jaga kalau mau dinyalakan lagi nanti.
+  return {hook:(prod.hook||'').trim(),story:(prod.story||'').trim(),cta:(prod.cta||'').trim()};
+}
+async function _vbFixWordCountBatchIfNeededFULL_DISABLED(prod){
   // FIX (solusi konsistensi sama seperti _vbFixWordCountIfNeeded single):
   // percobaan ditambah 2x→3x, dan tiap script yang perlu diperbaiki sekarang
   // dikasih instruksi selisih eksplisit (kurang/lebih berapa kata) per item,
@@ -12441,13 +12538,102 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // expressive") — instruksi contoh per-opsi itu sudah tidak relevan lagi,
   // jadi dihapus semua. Label nada & aksen yang dipilih user (atau diisi
   // manual lewat "tulis sendiri") tetap dikirim apa adanya ke AI di bawah.
-  let prompt='Kamu adalah seorang yang sangat ahli dalam bidang menulis skrip konten.\n\n'
-    +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
+  //
+  // FIX HEMAT BIAYA (permintaan user, Sept 2026 — SAMA seperti
+  // _vbScript3SystemPrompt di vbGenerate3AI, lihat komentar lengkap di sana):
+  // sebelumnya SELURUH instruksi (aturan HOOK/STORY/CTA yang isinya SAMA
+  // PERSIS tiap kali) digabung jadi SATU string panjang dengan daftar
+  // produk/target audience/catatan revisi/hook terpakai (yang BEDA-BEDA tiap
+  // panggilan) — akibatnya prefix-nya TIDAK PERNAH identik antar request,
+  // jadi TIDAK PERNAH bisa kena prompt caching Anthropic sama sekali
+  // (padahal fitur bulk ini kemungkinan paling sering dipanggil). Sekarang
+  // bagian statis dipisah jadi blok "system" tersendiri (_vbBulkSystemPrompt,
+  // ditandai cache_control di _vbStreamGeminiJSONWithRetryModel) — isinya
+  // TIDAK diubah, cuma DIPINDAH & DIGENERALISASI (referensi ke target
+  // audience/jumlah produk yang tadinya nilai langsung sekarang menunjuk
+  // generik ke "yang disebutkan user di pesan berikutnya", nilai aslinya
+  // tetap dikirim di `prompt` dinamis di bawah).
+  //
+  // ============================================================
+  // BACKUP VERSI SINGKAT (permintaan user, Sept 2026) — ~1.850 token,
+  // DI BAWAH syarat minimum cache Haiku (4.096 token) makanya caching
+  // tidak pernah aktif dengan versi ini. Diperpanjang jadi versi baru
+  // di bawah (poin 6-12 ditambahkan) supaya tembus syarat Haiku. KALAU
+  // SUATU SAAT INGIN BALIK KE VERSI PENDEK INI (misal ganti balik ke
+  // Sonnet yang syarat cache-nya cuma 1.024 token jadi versi pendek ini
+  // saja sudah cukup), tinggal copy teks di bawah ini (hapus tanda
+  // komentar "// " di depan tiap barisnya) dan pakai itu, GANTI variabel
+  // _vbBulkSystemPrompt di bawah dengan versi ini:
+  //
+  // let _vbBulkSystemPrompt='Kamu adalah seorang yang sangat ahli dalam bidang menulis skrip konten.\n\n'
+  //   +'Kamu akan diberi daftar produk (satu atau lebih) oleh user di pesan berikutnya, beserta detail karakter (jenis kelamin, nada bicara, aksen), target audience, dan rentang jumlah kata. Untuk SETIAP produk di daftar itu, buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera berdasarkan detail itu. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
+  //   +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience-nya masing-masing: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat. KALAU ADA BEBERAPA PRODUK SEKALIGUS DI DAFTAR: HOOK tiap produk WAJIB beda gaya/pola pembuka satu sama lain — JANGAN pakai struktur kalimat atau kata pembuka yang sama persis/mirip untuk lebih dari 1 produk (misal jangan semua produk dibuka dengan "pernah gak sih" atau pola tanya yang identik), supaya kalau dibaca berurutan tidak kedengaran seperti hasil copy-paste satu rumus. KALAU user memberi daftar "HOOK yang sudah dipakai sebelumnya" di pesan berikutnya, HOOK di sini WAJIB juga beda dari semua contoh di daftar itu.\n'
+  //   +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience yang disebutkan user). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
+  //   +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
+  //   +'4. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
+  //   +'5. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
+  //   +'Kalau ada foto referensi produk yang dilampirkan user, itu HANYA supaya kamu tahu PERSIS jenis/tipe tiap produk (biar tidak salah asumsi generik soal jenis produknya). BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 4 di atas, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto. Untuk produk yang TIDAK punya foto terlampir, tetap buat script berdasarkan nama & keunggulan seperti biasa (tanpa detail visual mengarang).\n\n'
+  //   +'Kalau user memberi "CATATAN REVISI" di pesan berikutnya, itu WAJIB diikuti dan jadi prioritas utama di atas aturan lain manapun yang bentrok.\n\n'
+  //   +'ATURAN WAJIB tiap script: jumlah kata WAJIB sesuai rentang yang disebutkan user di pesan berikutnya. Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik merujuk ke JENIS produknya masing-masing (jangan generik/tertukar antar produk), TAPI dengan kata-kata natural buatanmu sendiri — bukan menyalin persis teks nama produk yang diberikan apa adanya.\n\n'
+  //   +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di daftar ini satu sama lain, DAN bandingkan juga dengan daftar "HOOK yang sudah dipakai sebelumnya" (kalau ada) — kalau ada yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama), tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
+  //   +'PENTING: jumlah object di JSON array jawabanmu WAJIB sama persis dengan jumlah produk di daftar yang diberikan user di pesan berikutnya — SATU object untuk SETIAP produk, urutan SAMA seperti daftar itu, jangan ada yang dilewati/digabung/dikurangi.\n\n'
+  //   +'Balas HANYA dengan JSON array (satu object per produk, urutan SAMA seperti daftar produk di pesan user), tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk 1","hook":"...","story":"...","cta":"..."}, {"produk":"nama produk 2","hook":"...","story":"...","cta":"..."}]';
+  // ============================================================
+  //
+  let _vbBulkSystemPrompt='Kamu adalah seorang yang sangat ahli dalam bidang menulis skrip konten.\n\n'
+    +'Kamu akan diberi daftar produk (satu atau lebih) oleh user di pesan berikutnya, beserta detail karakter (jenis kelamin, nada bicara, aksen), target audience, dan rentang jumlah kata. Untuk SETIAP produk di daftar itu, buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera berdasarkan detail itu. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
+    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience-nya masing-masing: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat. KALAU ADA BEBERAPA PRODUK SEKALIGUS DI DAFTAR: HOOK tiap produk WAJIB beda gaya/pola pembuka satu sama lain — JANGAN pakai struktur kalimat atau kata pembuka yang sama persis/mirip untuk lebih dari 1 produk (misal jangan semua produk dibuka dengan "pernah gak sih" atau pola tanya yang identik), supaya kalau dibaca berurutan tidak kedengaran seperti hasil copy-paste satu rumus. KALAU user memberi daftar "HOOK yang sudah dipakai sebelumnya" di pesan berikutnya, HOOK di sini WAJIB juga beda dari semua contoh di daftar itu.\n'
+    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience yang disebutkan user). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
+    +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
+    +'4. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
+    +'5. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
+    // FIX HEMAT BIAYA lanjutan (permintaan user, Sept 2026): poin 6-12 di
+    // bawah ini ditambahkan supaya _vbBulkSystemPrompt tembus syarat
+    // minimum cache Haiku 4.5 (4.096 token — 2x lebih tinggi dari Sonnet
+    // yang cuma 1.024). Isinya BUKAN filler/pengisi kosong — semuanya
+    // aturan/panduan konten yang beneran dipakai buat mutu script,
+    // sekalian memperjelas hal-hal yang sebelumnya cuma tersirat.
+    +'6. VARIASI NADA SESUAI TARGET AUDIENCE — sesuaikan pilihan kata & gaya bicara dengan target audience yang disebutkan user, jangan pakai satu gaya generik untuk semua audiens. Contoh penyesuaian (bukan daftar tertutup, sesuaikan dengan audiens spesifik yang disebutkan user): kalau audiensnya anak muda/Gen Z, boleh lebih santai & to-the-point, pakai sudut pandang yang relate ke keseharian anak muda (kuliah, kerja pertama, media sosial, nongkrong). Kalau audiensnya ibu-ibu/orang tua, gaya lebih hangat & praktis, fokus ke kepraktisan/manfaat buat keluarga/rumah tangga. Kalau audiensnya profesional/pekerja kantoran, gaya lebih efisien & fokus ke manfaat yang menghemat waktu/tenaga. Kalau audiensnya lansia/dewasa, gaya lebih tenang & sopan, hindari istilah gaul yang mungkin asing. Intinya: BUKAN cuma ganti target audience jadi kata kunci di kalimat, tapi beneran ubah cara bertuturnya supaya terasa ngomong LANGSUNG ke audiens itu.\n\n'
+    +'7. RITME & PANJANG KALIMAT UNTUK DIUCAPKAN — ingat ini script yang akan DIUCAPKAN di depan kamera, bukan dibaca sebagai teks tertulis. Hindari satu kalimat yang kepanjangan tanpa jeda alami (susah diucapkan dalam satu tarikan napas) — campur kalimat pendek & sedang supaya ada ritme, ada jeda natural. Hindari struktur daftar/list bergaya tulisan (misal "pertama..., kedua..., ketiga...") karena itu terdengar seperti presentasi, bukan ngobrol natural. Hindari juga kalimat yang terlalu dipadatkan/rumit strukturnya (banyak anak kalimat bersarang) — orang ngomong beneran biasanya kalimatnya lebih sederhana & mengalir, bukan seperti kalimat tertulis formal.\n\n'
+    +'8. DAFTAR KATA/FRASA TERLARANG (perluasan aturan 4 & 5 di atas, tetap berlaku mutlak) — kategori BAHAN/MATERIAL yang dilarang: nama bahan (katun, sutra, linen, polyester, spandex, kulit asli/sintetis, stainless steel, keramik, kayu jati, dll), tekstur yang merujuk ke material (lembut/adem/elastis/kaku KALAU konteksnya bahas material), proses produksi (dijahit tangan, hand-made, diproses khusus, dll — kecuali disebut eksplisit oleh user di "keunggulan"). Kategori PROMO/URGENSI yang dilarang: promo, diskon, cashback, gratis ongkir, terbatas, buruan, stok menipis, sebelum kehabisan, hari ini saja, flash sale, dan variasi/sinonim dari kata-kata itu dalam bentuk apapun. Kategori KLAIM BERLEBIHAN yang juga sebaiknya dihindari kecuali memang bagian dari "keunggulan" yang disebut user: klaim medis/kesehatan yang tidak terverifikasi (menyembuhkan, mengobati), klaim superlatif kosong tanpa dasar (terbaik sedunia, nomor 1, paling laris) yang tidak didukung info dari user.\n\n'
+    +'9. POLA VARIASI PEMBUKA HOOK (perluasan aturan 1 di atas) — beberapa sudut masuk yang bisa dipakai bergantian supaya tidak monoton antar produk: (a) PERTANYAAN RETORIS — melempar pertanyaan yang bikin audiens mikir sejenak sebelum lanjut cerita; (b) PERNYATAAN MENGEJUTKAN/RELATABLE — kalimat pernyataan yang langsung kena ke masalah/situasi yang familiar buat audiens; (c) GAMBARAN SITUASI SEHARI-HARI — melukiskan momen spesifik yang sering dialami audiens tanpa berupa pertanyaan; (d) PERBANDINGAN SINGKAT — membandingkan dua kondisi/cara secara singkat untuk memancing rasa penasaran; (e) LANGSUNG KE MASALAH/PAIN POINT — menyebut masalah spesifik yang relevan dengan produk tanpa berputar-putar; (f) SAPAAN/OBSERVASI PERSONAL — seolah menyapa langsung ke satu orang di antara audiens berdasarkan ciri/kebiasaan tertentu. Pilih pola yang paling pas untuk tiap produk & audiensnya, dan pastikan antar produk dalam satu daftar tidak berulang pola yang sama (lihat lagi aturan 1).\n\n'
+    +'10. TRANSISI ANTAR BAGIAN — supaya HOOK→STORY→CTA benar-benar nyambung (bukan 3 kalimat lepas yang ditempel), perhatikan bagaimana kalimat terakhir tiap bagian "membuka pintu" ke bagian berikutnya: akhir HOOK sebaiknya menyisakan rasa penasaran/pertanyaan yang belum terjawab (baru dijawab/dijelaskan di STORY), dan akhir STORY sebaiknya sudah mengarah secara natural ke ajakan (baru ditutup eksplisit di CTA) — bukan tiba-tiba lompat topik dari cerita ke ajakan klik keranjang. Hindari transisi yang terasa dipaksakan seperti "oh iya ngomong-ngomong" atau "btw" yang terdengar seperti mengganti topik, bukan melanjutkan.\n\n'
+    +'11. PENYEBUTAN ANGKA/HARGA — kalau info "keunggulan" dari user memang menyebut angka spesifik (misal ukuran, berat, kapasitas, durasi pemakaian), boleh dipakai apa adanya di script karena itu fakta produk, BUKAN klaim promosi. TAPI jangan pernah mengarang angka/harga yang tidak disebut user, dan jangan jadikan angka/harga sebagai fokus utama kalimat (tetap fokus ke manfaat/pengalaman pakai, angka cuma pelengkap kalau memang relevan).\n\n'
+    +'12. QA TERAKHIR sebelum menjawab (tambahan dari CEK ALUR di bawah) — pastikan tidak ada typo/kata yang terpotong, tidak ada sisa placeholder atau instruksi yang ketulis (misal jangan sampai ada teks semacam "[isi di sini]" ikut kebawa ke jawaban), dan pastikan JSON yang dihasilkan valid (tanda kutip tertutup semua, tidak ada koma nyangkut di akhir array/object).\n\n'
+    +'13. GAMBARAN VALUE PROPOSITION PER KATEGORI PRODUK (sebagai referensi arah, sesuaikan dengan produk spesifik & "keunggulan" yang disebut user — JANGAN dipakai sebagai teks jadi, ini cuma panduan sudut pandang) — untuk produk FASHION/PAKAIAN: fokus ke rasa percaya diri, kenyamanan dipakai seharian, kecocokan dengan berbagai aktivitas/suasana (tanpa sebut bahan). Untuk SKINCARE/KOSMETIK: fokus ke rasa nyaman di kulit, hasil yang dirasakan dari pemakaian rutin, kecocokan dengan rutinitas sehari-hari (tanpa klaim medis berlebihan). Untuk ALAT RUMAH TANGGA/DAPUR: fokus ke kepraktisan, hemat waktu/tenaga, memudahkan pekerjaan rumah. Untuk ELEKTRONIK/GADGET: fokus ke kemudahan pemakaian, seberapa membantu di aktivitas sehari-hari, bukan spesifikasi teknis mendetail. Untuk MAKANAN/MINUMAN: fokus ke momen menikmatinya, rasa, kepraktisan penyajian (tanpa klaim kesehatan berlebihan kecuali disebut user). Kategori di luar ini, sesuaikan logika serupa: temukan sudut manfaat yang paling relate ke audiens, bukan sekadar deskripsi produk.\n\n'
+    +'14. KONSISTENSI KARAKTER ANTAR PRODUK — karena satu karakter (gender/nada bicara/aksen yang sama, sesuai yang disebutkan user) membacakan script untuk SEMUA produk dalam satu daftar, jaga supaya gaya bicara karakter itu tetap konsisten dari produk ke produk (nada yang sama, level formalitas yang sama, kosakata khas yang sama) walau isi cerita & sudut masuk HOOK-nya beda-beda per produk sesuai aturan variasi di atas — jangan sampai karakter terasa "berubah kepribadian" di tengah-tengah daftar produk hanya karena produknya beda kategori.\n\n'
+    +'15. PROPORSI PANJANG HOOK vs STORY vs CTA — dalam rentang jumlah kata total yang diminta user, distribusi wajarnya: HOOK paling singkat (kalimat pembuka, jangan sampai kepanjangan sehingga terasa seperti mini-STORY sendiri), STORY paling panjang (karena ini badan cerita/skenario utama), CTA singkat & padat (ajakan penutup, tidak perlu berpanjang-panjang). Jangan sampai salah satu bagian jadi terlalu dominan sehingga bagian lain jadi kependekan/kurang berkembang — jaga keseimbangan proporsional supaya monolog terasa utuh dari awal sampai akhir, bukan timpang sebelah.\n\n'
+    +'16. HAL-HAL YANG SEBAIKNYA DIHINDARI DI SEMUA BAGIAN (rangkuman tambahan, di luar larangan bahan/promo yang sudah disebut di atas) — hindari bahasa yang terlalu formal/baku ala pidato atau siaran pers (script ini untuk diucapkan santai di depan kamera, bukan dibacakan formal), hindari istilah teknis/jargon marketing yang jarang dipakai orang ngomong sehari-hari (misal "solusi inovatif", "kualitas premium", "game changer" — kecuali memang bagian alami dari gaya bicara karakter/audiens yang diminta), hindari kalimat yang terdengar seperti membaca dari brosur produk (daftar fitur berurutan tanpa konteks cerita), dan hindari mengulang kata kunci nama produk terlalu sering dalam satu script (cukup disebut secukupnya, sisanya bisa pakai kata ganti seperti "ini", "produk ini", atau nama singkatnya) supaya tidak terdengar seperti diulang-ulang secara dipaksakan untuk SEO/algoritma.\n\n'
+    +'17. CATATAN KHUSUS UNTUK BATCH BERISI BEBERAPA PRODUK SEKALIGUS — perlakukan tiap produk di daftar sebagai unit yang sepenuhnya independen dari sisi ISI CERITA (jangan sampai STORY produk A tanpa sengaja menyebut detail produk B, atau CTA salah satu produk ikut menyebut nama produk lain), walau semuanya dibacakan oleh karakter & target audience yang sama. Urutan produk di JSON jawabanmu WAJIB sama persis dengan urutan produk di daftar yang diberikan user — jangan diacak, digabung, atau ada yang tertukar posisinya, karena urutan ini dipakai sistem untuk mencocokkan hasil dengan produk yang benar di sisi aplikasi.\n\n'
+    +'18. RINGKASAN PRIORITAS ATURAN (kalau ada dua aturan di atas yang terasa saling tarik-menarik dalam satu kasus spesifik) — urutan prioritasnya dari paling wajib ke paling fleksibel: (1) larangan mutlak yang tidak boleh dilanggar sama sekali (bahan/material, promo/diskon/urgensi, keranjang kuning, checkout, testimoni pribadi karakter) — ini HARGA MATI, tidak ada pengecualian selain yang sudah disebutkan eksplisit di aturan masing-masing; (2) struktur wajib (3 bagian HOOK/STORY/CTA yang mengalir jadi satu monolog, jumlah kata sesuai rentang, jumlah object JSON sesuai jumlah produk); (3) panduan kualitas/gaya (variasi pembuka, nada sesuai audiens, ritme kalimat, proporsi panjang) — ini tetap diusahakan sebaik mungkin, tapi kalau dalam kasus tertentu ada benturan kecil dengan struktur wajib, struktur wajib yang menang. CATATAN REVISI dari user (kalau ada di pesan berikutnya) tetap jadi prioritas TERTINGGI di atas semua ini, kecuali kalau isinya bertentangan dengan larangan mutlak di (1) — dalam kasus itu, larangan mutlak tetap dipegang, dan bagian yang bentrok saja yang disesuaikan seaman mungkin dengan maksud revisi user.\n\n'
+    // FIX HEMAT BIAYA (permintaan user, Sept 2026): sebelumnya AI cuma
+    // diminta "jumlah kata WAJIB sesuai rentang" tanpa diminta verifikasi
+    // hitungannya sendiri SEBELUM menjawab — akibatnya sering meleset dari
+    // rentang ketat (24-27 kata, jendela cuma 4 kata, berlaku terpisah
+    // untuk HOOK/STORY/CTA tiap produk), lalu ketahuan belakangan lewat
+    // _vbFixWordCountBatchIfNeeded — panggilan API TERPISAH, TANPA cache
+    // sama sekali (full harga normal), bisa sampai 3x percobaan per item
+    // yang meleset. Instruksi hitung-sendiri ini ditaruh di blok system
+    // yang SUDAH di-cache — jadi nambahnya nyaris gratis (~10% harga
+    // normal per panggilan setelah cache pertama), tapi berpotensi
+    // mengurangi banyak trigger fix-pass yang jauh lebih mahal itu.
+    +'19. WAJIB HITUNG KATA SENDIRI SEBELUM MENJAWAB (paling penting buat efisiensi, baca baik-baik) — untuk SETIAP bagian (HOOK, STORY, CTA) dari SETIAP produk, sebelum menuliskan jawaban akhir: draft dulu kalimatnya di kepalamu, HITUNG jumlah katanya sendiri (pisah per spasi, bukan karakter), lalu BANDINGKAN dengan target 24-27 kata (idealnya pas 26). Kalau hasil draft masih di luar 24-27, REVISI dulu draft itu (tambah/kurangi kata seperlunya, TANPA mengubah makna/alur/aturan lain manapun) SAMPAI benar-benar masuk rentang 24-27 — baru setelah itu tulis sebagai jawaban final. JANGAN menjawab draft pertama begitu saja tanpa dihitung dan direvisi dulu — proses hitung-revisi ini WAJIB dilakukan untuk KETIGA bagian (HOOK, STORY, CTA) di SETIAP produk dalam daftar, bukan cuma salah satu produk saja. Ini penting supaya hasil pertama sudah pas dari awal, bukan mengandalkan proses perbaikan terpisah belakangan.\n\n'
+    +'Kalau ada foto referensi produk yang dilampirkan user, itu HANYA supaya kamu tahu PERSIS jenis/tipe tiap produk (biar tidak salah asumsi generik soal jenis produknya). BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 4 di atas, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto. Untuk produk yang TIDAK punya foto terlampir, tetap buat script berdasarkan nama & keunggulan seperti biasa (tanpa detail visual mengarang).\n\n'
+    +'Kalau user memberi "CATATAN REVISI" di pesan berikutnya, itu WAJIB diikuti dan jadi prioritas utama di atas aturan lain manapun yang bentrok.\n\n'
+    +'ATURAN WAJIB tiap script: jumlah kata WAJIB sesuai rentang yang disebutkan user di pesan berikutnya. Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik merujuk ke JENIS produknya masing-masing (jangan generik/tertukar antar produk), TAPI dengan kata-kata natural buatanmu sendiri — bukan menyalin persis teks nama produk yang diberikan apa adanya.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di daftar ini satu sama lain, DAN bandingkan juga dengan daftar "HOOK yang sudah dipakai sebelumnya" (kalau ada) — kalau ada yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama), tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
+    +'PENTING: jumlah object di JSON array jawabanmu WAJIB sama persis dengan jumlah produk di daftar yang diberikan user di pesan berikutnya — SATU object untuk SETIAP produk, urutan SAMA seperti daftar itu, jangan ada yang dilewati/digabung/dikurangi.\n\n'
+    +'Balas HANYA dengan JSON array (satu object per produk, urutan SAMA seperti daftar produk di pesan user), tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk 1","hook":"...","story":"...","cta":"..."}, {"produk":"nama produk 2","hook":"...","story":"...","cta":"..."}]';
+
+  // Bagian yang BEDA-BEDA tiap generate (produk/karakter/target audience/
+  // catatan revisi/hook terpakai spesifik kali ini) — ini yang jadi pesan
+  // user, TIDAK ikut di-cache (memang wajar beda tiap generate).
+  let prompt='Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
     +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+'.\n'
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+'.\n'
-    +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n\n'
+    +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n'
+    +'Rentang jumlah kata WAJIB tiap script: '+range.min+'-'+range.max+' kata.\n\n'
     +'Daftar produk ('+batch.length+' produk) — nama produk di bawah ini HANYA supaya kamu paham jenis/konteks tiap produk (dipakai buat referensi internal), BUKAN teks yang wajib disalin persis apa adanya ke dalam script — terutama kalau nama produknya berupa deskripsi/kalimat panjang (bukan nama baku singkat), tulis ulang dengan bahasa natural sendiri yang tetap jelas merujuk ke jenis produknya, jangan asal tempel teks aslinya. Kalau ada info "keunggulan", manfaatkan di script STORY biar spesifik dan meyakinkan:\n'+produkListText+'\n\n'
-    +(_imgCounter>0?'Foto-foto yang dilampirkan supaya kamu tahu PERSIS jenis/tipe tiap produk (biar tidak salah asumsi generik soal jenis produknya). BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 5 di bawah, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto. Untuk produk yang TIDAK punya foto terlampir, tetap buat script berdasarkan nama & keunggulan seperti biasa (tanpa detail visual mengarang).\n\n':'')
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
     // FIX (permintaan user: hook antar produk masih kedengaran "tempelan"
     // kalau jumlah produk bulk lebih dari BATCH_SIZE=3, karena tiap panggilan
@@ -12458,19 +12644,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // dikirim ke tiap panggilan berikutnya sebagai larangan eksplisit, supaya
     // variasi hook terjaga LINTAS BATCH, bukan cuma di dalam 1 batch.
     +(usedHooks&&usedHooks.length?'HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA (batch lain, dalam sesi generate yang sama) — WAJIB DIHINDARI, jangan pakai kalimat yang sama/mirip maupun pola/struktur pembuka yang sama (misal sama-sama pertanyaan retoris dengan bentuk kalimat serupa, atau sama-sama mulai dengan gambaran situasi sehari-hari yang mirip):\n'+usedHooks.map(function(h,i){return'- "'+h+'"';}).join('\n')+'\n\nHOOK produk-produk di batch ini WAJIB pakai sudut masuk & pola kalimat yang BEDA dari semua contoh di atas, supaya kalau semua produk bulk ini dibaca berurutan dari awal, tidak ada 2 hook pun yang kedengaran seperti rumus yang sama ditempel ulang.\n\n':'')
-    +'Untuk SETIAP produk di atas, buatkan TEPAT 3 script/dialog. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
-    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience-nya masing-masing: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat. KARENA ADA BEBERAPA PRODUK SEKALIGUS DI BATCH INI: HOOK tiap produk WAJIB beda gaya/pola pembuka satu sama lain — JANGAN pakai struktur kalimat atau kata pembuka yang sama persis/mirip untuk lebih dari 1 produk (misal jangan semua produk dibuka dengan "pernah gak sih" atau pola tanya yang identik), supaya kalau dibaca berurutan tidak kedengaran seperti hasil copy-paste satu rumus.\n'
-    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
-    +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
-    +'4. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
-    +'5. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
-    +'ATURAN WAJIB tiap script: kasih skrip antara '+range.min+'-'+range.max+' kata aja. Bahasa Indonesia casual sehari-hari (bukan baku), natural, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip. Script harus spesifik merujuk ke JENIS produknya masing-masing (jangan generik/tertukar antar produk), TAPI dengan kata-kata natural buatanmu sendiri — bukan menyalin persis teks nama produk yang diberikan di daftar atas apa adanya.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu, untuk SETIAP produk): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA VARIASI HOOK ANTAR PRODUK: bandingkan HOOK semua produk di batch ini satu sama lain, DAN bandingkan juga dengan daftar "HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA" (kalau ada) — kalau ada yang polanya sama/mirip (kata pembuka sama, struktur kalimat sama) baik sesama produk di batch ini maupun dengan hook dari batch sebelumnya, tulis ulang supaya tiap produk punya gaya pembuka yang beda & terasa segar, jangan sampai kedengaran seperti rumus yang ditempel berulang. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
-    // FIX (permintaan user, sama seperti mode single — lihat komentar
-    // lengkap di prompt single): minta AI verifikasi hitungan kata sendiri
-    // SEBELUM menjawab, bukan cuma dikasih tahu aturannya doang.
-    +'PENTING: kamu WAJIB balikin TEPAT '+batch.length+' object dalam array — SATU untuk SETIAP produk di daftar, jangan ada yang dilewati/digabung/dikurangi.\n\n'
-    +'Balas HANYA dengan JSON array berisi TEPAT '+batch.length+' object (satu per produk, urutan SAMA seperti daftar di atas), tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk 1","hook":"...","story":"...","cta":"..."}, {"produk":"nama produk 2","hook":"...","story":"...","cta":"..."}]';
+    +(_imgCounter>0?'Foto-foto yang dilampirkan supaya kamu tahu PERSIS jenis/tipe tiap produk (urutan sesuai "Gambar N" di daftar produk di atas).\n\n':'')
+    +'Ingat: WAJIB balikin TEPAT '+batch.length+' object dalam JSON array, satu untuk SETIAP produk di daftar di atas, urutan sama seperti daftar di atas.';
 
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
   // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
@@ -12484,7 +12659,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // (kalau disediakan pemanggil) — sama seperti mode single, hasil
   // streaming ini cuma PREVIEW. Retry/fallback thinkingConfig tetap sama
   // persis seperti sebelumnya, dibungkus di _vbStreamGeminiJSONWithRetry.
-  let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_promptParts,onPartial,onWait);
+  // _vbBulkSystemPrompt (bagian statis, lihat komentar di atas) dikirim
+  // sebagai blok "system" tersendiri supaya bisa kena prompt caching.
+  let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_promptParts,onPartial,onWait,_vbBulkSystemPrompt);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -12536,6 +12713,18 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   let finishReason=data.candidates?.[0]?.finishReason||'';
   if(!text)throw new Error('Respons AI kosong (finishReason: '+(finishReason||'unknown')+'). Coba lagi.');
   text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+  // BUG FIX (Sept 2026 — "Gagal baca hasil AI" padahal kredit sudah kepakai):
+  // Claude kadang membalas JSON yang isi string-nya mengandung karakter
+  // kontrol MENTAH (newline/tab sungguhan, bukan \n/\t ter-escape) — paling
+  // sering muncul kalau dialognya panjang/ada jeda kalimat. JSON.parse()
+  // menolak TOTAL karakter kontrol mentah di dalam string literal ("Bad
+  // control character in string literal"), dan fallback potong-substring di
+  // bawah pun ikut gagal karena sumber masalahnya sama. Padahal isi teksnya
+  // sendiri valid & lengkap (bukan soal token habis). _vbSanitizeJsonText
+  // meng-escape karakter kontrol itu HANYA kalau posisinya di dalam tanda
+  // kutip string JSON (bukan di luar, supaya newline/spasi pemisah antar
+  // token JSON yang memang valid tidak ikut diutak-atik).
+  text=_vbSanitizeJsonText(text);
   let arr;
   try{arr=JSON.parse(text);}catch(e1){
     let s=text.indexOf('['),en=text.lastIndexOf(']');
@@ -13942,20 +14131,20 @@ function _vbShowRegenChoice(msg,onAI,onMetaOnly,onCancel){
   document.addEventListener('keydown',_escH);
 }
 
-// Potong teks jadi maksimal N kata sesuai rentang nada bicara yang dipilih
-// (dipisah spasi) — dipakai buat "menahan" input user supaya tidak bisa
-// ketik lebih dari batas atas di kotak script manapun
+// FIX (permintaan user): dulu fungsi ini motong paksa skrip hasil AI ke
+// maksimal N kata sesuai rentang nada bicara yang dipilih. Sekarang
+// dimatikan — skrip dari AI dipakai APA ADANYA (utuh, tidak dipotong).
+// Nama fungsi & pemanggilnya dibiarkan sama supaya tidak perlu ubah kode
+// lain; cukup di sini saja logicnya dinonaktifkan.
 function _vbTruncate25Words(text){
-  let range=vbGetWordRange();
-  let words=(text||'').split(/\s+/).filter(Boolean);
-  if(words.length<=range.max)return text||'';
-  // Pertahankan spasi/whitespace asli sebisa mungkin: potong di kata terakhir yang masih diizinkan
-  let trimmed=words.slice(0,range.max).join(' ');
-  return trimmed;
+  return text||'';
 }
 
-// Dipanggil tiap user ngetik di textarea script bulk — update JSON-nya realtime
-// + tahan supaya tidak bisa lebih dari batas atas rentang kata
+// Dipanggil tiap user ngetik di textarea script bulk — update JSON-nya realtime.
+// FIX (permintaan user): dulu di sini ada pemotongan paksa kalau jumlah kata
+// lewat batas atas rentang nada bicara — sekarang dihapus, user bebas isi/edit
+// skrip sepanjang apa pun. Counter kata di bawah tetap tampil, cuma sebagai
+// info (bukan pembatas lagi).
 function vbBulkUpdateJson(i){
   let range=vbGetWordRange();
   let ta=document.getElementById('vb-bulk-script-'+i);
@@ -13963,14 +14152,6 @@ function vbBulkUpdateJson(i){
   let wcLabel=document.getElementById('vb-bulk-wc-'+i);
   if(!ta||!jsonBox)return;
   let words=ta.value.split(/\s+/).filter(Boolean);
-  if(words.length>range.max){
-    let pos=ta.selectionStart;
-    ta.value=words.slice(0,range.max).join(' ');
-    // Kalau kursor sempat lewat batas, taruh di akhir teks yang tersisa
-    let newPos=Math.min(pos,ta.value.length);
-    try{ta.setSelectionRange(newPos,newPos);}catch(e){}
-    words=ta.value.split(/\s+/).filter(Boolean);
-  }
   if(VB_BULK_ITEMS[i])VB_BULK_ITEMS[i].script=ta.value;
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
   jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i),_vbFotoCountVal(i),i);
@@ -14288,22 +14469,27 @@ async function vbGenerate3AI(){
   // FIX (permintaan user, Sept 2026 — sama seperti jalur bulk, lihat komentar
   // lengkap di _vbCallBulkBatch): instruksi contoh gaya per-opsi nada bicara
   // & aksen dihapus karena UI sekarang cuma punya 1 opsi masing-masing.
-  let prompt='Kamu adalah seorang yang sangat ahli dalam bidang menulis skrip konten.\n\n'
-    +'Nama produk: '+produkNama+' — nama ini HANYA supaya kamu paham jenis/konteks produknya (referensi internal), BUKAN teks yang wajib disalin persis apa adanya ke dalam script — terutama kalau nama produknya berupa deskripsi/kalimat panjang (bukan nama baku singkat), tulis ulang dengan bahasa natural sendiri yang tetap jelas merujuk ke jenis produknya, jangan asal tempel teks aslinya.\n'
-    +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
-    +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+'.\n'
-    +'Aksen karakter: '+(VB.accentLabel||VB.accent)+'.\n'
-    +'Target audience: '+targetAudience+'\n'
-    +(topikArah?'Arah pembahasan spesifik yang diminta user: '+topikArah+' — WAJIB jadi fokus utama STORY (boleh disinggung juga di HOOK), TAPI tetap 100% soal produk yang sama, JANGAN melenceng jadi cerita di luar arah ini.\n':'')
-    +(hookDirective?hookDirective:'')
-    +(VB.produkFotoBase64?'\nADA FOTO REFERENSI PRODUK ASLI TERLAMPIR — foto ini supaya kamu tahu PERSIS jenis/tipe produk apa yang dimaksud (misal kalau nama produknya generik seperti "tas", foto ini kasih tahu tas seperti apa yang sedang dieksekusi), supaya kamu tidak salah asumsi soal jenis produknya. BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 5 di bawah, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto.\n':'\n')
-    +'Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
-    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience ini: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat.\n'
-    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience: '+targetAudience+'). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
+  // FIX HEMAT BIAYA (permintaan user, Sept 2026): instruksi di bawah ini
+  // ISINYA SAMA PERSIS setiap kali generate — cuma detail produk/karakter
+  // per generate (nama produk, target audience, dst, lihat `promptDetail`
+  // di bawah) yang beda-beda. Supaya bisa kena prompt caching Anthropic
+  // (diskon ~90% baca ulang teks yang identik), bagian statis ini SENGAJA
+  // dipisah jadi blok "system" tersendiri (ditandai cache_control di
+  // _vbStreamGeminiJSONWithRetryModel) — bukan digabung jadi satu string
+  // panjang dengan detail dinamis seperti sebelumnya. Isi instruksinya
+  // TIDAK berubah, cuma dipindah lokasinya; dua tempat yang tadinya
+  // menyisipkan nilai dinamis langsung di sini (target audience di aturan
+  // STORY, rentang jumlah kata) sekarang menunjuk generik ke "yang
+  // disebutkan user di pesan berikutnya" — nilai aslinya tetap dikirim,
+  // cuma di pesan user (promptDetail), bukan di sini.
+  let _vbScript3SystemPrompt='Kamu adalah seorang yang sangat ahli dalam bidang menulis skrip konten.\n\n'
+    +'Kamu akan diberi detail produk, karakter, dan target audience oleh user di pesan berikutnya. Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera berdasarkan detail itu. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
+    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience yang disebutkan user: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat.\n'
+    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience yang disebutkan user). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
     +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
     +'4. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
     +'5. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
-    +'ATURAN WAJIB tiap script: kasih skrip antara '+range.min+'-'+range.max+' kata aja. Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
+    +'ATURAN WAJIB tiap script: jumlah kata WAJIB sesuai rentang yang disebutkan user di pesan berikutnya. Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
     +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
     // FIX (permintaan user: skrip beneran pas rentang target TANPA mengorbankan
     // kualitas): sebelumnya AI cuma diminta "HARUS tepat 25 kata" tanpa
@@ -14316,6 +14502,18 @@ async function vbGenerate3AI(){
     // hasil tempelan/potongan), dan proses potong/tulis-ulang di app cuma
     // jadi jaring pengaman kalau masih ada yang meleset dikit.
     +'Balas HANYA dengan JSON array berisi TEPAT 3 object, tanpa teks lain, tanpa markdown. Format: [{"role":"hook","script":"..."},{"role":"story","script":"..."},{"role":"cta","script":"..."}]';
+  // Bagian yang BEDA-BEDA tiap generate (produk/karakter/target audience
+  // spesifik kali ini) — ini yang jadi pesan user, TIDAK ikut di-cache
+  // (memang wajar beda tiap generate, jadi percuma di-cache).
+  let prompt='Nama produk: '+produkNama+' — nama ini HANYA supaya kamu paham jenis/konteks produknya (referensi internal), BUKAN teks yang wajib disalin persis apa adanya ke dalam script — terutama kalau nama produknya berupa deskripsi/kalimat panjang (bukan nama baku singkat), tulis ulang dengan bahasa natural sendiri yang tetap jelas merujuk ke jenis produknya, jangan asal tempel teks aslinya.\n'
+    +'Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
+    +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+'.\n'
+    +'Aksen karakter: '+(VB.accentLabel||VB.accent)+'.\n'
+    +'Target audience: '+targetAudience+'\n'
+    +'Rentang jumlah kata WAJIB tiap script: '+range.min+'-'+range.max+' kata.\n'
+    +(topikArah?'Arah pembahasan spesifik yang diminta user: '+topikArah+' — WAJIB jadi fokus utama STORY (boleh disinggung juga di HOOK), TAPI tetap 100% soal produk yang sama, JANGAN melenceng jadi cerita di luar arah ini.\n':'')
+    +(hookDirective?hookDirective:'')
+    +(VB.produkFotoBase64?'\nADA FOTO REFERENSI PRODUK ASLI TERLAMPIR — foto ini supaya kamu tahu PERSIS jenis/tipe produk apa yang dimaksud (misal kalau nama produknya generik seperti "tas", foto ini kasih tahu tas seperti apa yang sedang dieksekusi), supaya kamu tidak salah asumsi soal jenis produknya. BOLEH sebut bentuk/warna/motif/corak produk di dalam script KALAU memang terlihat jelas di fotonya (mis. "motif bunga", "warna hijau", "model tali silang") — TAPI JANGAN PERNAH sebut BAHAN/MATERIAL produk (lihat aturan 5 di instruksi utama, ini tetap berlaku mutlak sekalipun terlihat di foto) dan JANGAN mengarang detail yang TIDAK benar-benar terlihat di foto.\n':'\n');
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini) —
   // hanya disertakan kalau user memang upload foto referensi produk.
   let _vbPromptParts=[{text:prompt}];
@@ -14352,7 +14550,7 @@ async function vbGenerate3AI(){
       let alasan=_vbWaitReasonLabel(status);
       updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... Membuat 3 Script');
     };
-    let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait);
+    let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt);
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
     if(!resp.ok){
       let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -14378,6 +14576,10 @@ async function vbGenerate3AI(){
       throw new Error('Respons AI kosong (finishReason: '+(finishReason||'unknown')+'). Coba lagi.');
     }
     text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+    // BUG FIX (Sept 2026): sama seperti di _vbCallBulkBatch — sanitize karakter
+    // kontrol mentah di dalam string JSON sebelum di-parse, supaya hasil AI yang
+    // sudah lengkap & valid tidak gagal dibaca gara-gara "Bad control character".
+    text=_vbSanitizeJsonText(text);
     let arr;
     try{arr=JSON.parse(text);}catch(e1){
       let s=text.indexOf('['),en=text.lastIndexOf(']');
@@ -14770,7 +14972,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   let wcLabel=document.createElement('div');
   wcLabel.id='vb-bulk-wc-'+idx;
   let wc0=displayScript.trim().split(/\s+/).filter(Boolean).length;
-  let _wcWarnText=(!skipInitialFill&&_wasAutoTruncated)?' — dipotong otomatis dari '+_origWc+' kata, cek/edit lagi manual'
+  let _wcWarnText=(!skipInitialFill&&_wasAutoTruncated)?' — AI kasih '+_origWc+' kata (lewat rentang), cek/edit lagi manual kalau perlu'
     :(!skipInitialFill&&_wasStillShort)?' — AI cuma dapet '+_origWc+' kata (belum masuk rentang), cek/edit lagi manual'
     :'';
   wcLabel.textContent=wc0+'/'+_cardRange.min+'-'+_cardRange.max+' kata'+_wcWarnText;
