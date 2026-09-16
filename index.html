@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.93</div>
+  <div class="splash-version" id="splash-version">v5.94</div>
 </div>
 <script>
   (function(){
@@ -4037,7 +4037,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.93 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.94 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -19043,6 +19043,21 @@ window.addEventListener('load',function(){
       stack = [snap];
       pointer = 0;
       applySnapshot(snap);
+      // FIX AKAR MASALAH "Tunggu proses AI sebelumnya selesai dulu" NYANGKUT
+      // PERMANEN + toast "Selamat datang kembali" muncul padahal tidak ada
+      // proses apa pun yang jalan (audit Sept 2026): VAI ikut masuk daftar
+      // PB_UNDO_STATE_VARS supaya field produk/target audience dkk ikut
+      // tersimpan di draft — tapi itu artinya field RUNTIME SEMENTARA seperti
+      // _isGenerating & _lastGenTime IKUT tersimpan & DIPULIHKAN juga. Kalau
+      // draft terakhir kebetulan tersimpan pas status itu true (mis. app
+      // ditutup/di-kill PAS di tengah proses generate, sebelum sempat sampai
+      // finally), status "sedang generate" itu terbawa lagi ke SETIAP sesi
+      // berikutnya walau app sudah di-force-stop total — proses aslinya
+      // sendiri sudah pasti mati (network request putus begitu app di-kill),
+      // jadi tidak ada gunanya dipulihkan. Reset paksa di sini, SETELAH field
+      // lain selesai dipulihkan, supaya isian form tetap aman tapi status
+      // "generating" selalu mulai bersih tiap app dibuka.
+      if(typeof VAI!=='undefined' && VAI){ VAI._isGenerating=false; VAI._lastGenTime=0; }
       return true;
     }catch(e){ return false; }
   }
