@@ -9118,6 +9118,39 @@ const GEMINI_MODEL_FALLBACK='claude-haiku-4-5-20251001';
 // karena kunci Claude yang sesungguhnya sekarang disimpan aman di server
 // Worker (proxy), bukan di browser/perangkat user.
 var VAI={apiKey:'via-proxy',imageBase64:'',imageMime:'',adaProduk:'tidak',produkNama:'',produkUnggulan:'',produkTarget:'',tipeKonten:'',suaraKarakter:'',angleInterval:2,angleSlots:[],remajaTone:'',_scriptHistory:[],_isGenerating:false,_lastGenTime:0,_hasImage:false,_prevScript:'',_prevTipe:'',_imageBackup:'',_imageMimeBackup:''};
+// FIX BUG "Tunggu proses AI sebelumnya selesai dulu" NYANGKUT SELAMANYA
+// (audit Sept 2026): VAI._isGenerating cuma dijamin balik ke false lewat
+// blok finally di masing-masing fungsi generate. Kalau proses ke-suspend
+// total oleh OS/browser saat app di-background lama (WebView Android sering
+// membekukan/mematikan JS & koneksi network tanpa sempat memanggil
+// callback error apa pun), maka finally itu TIDAK PERNAH jalan — flag-nya
+// nyangkut true untuk SISA UMUR tab/WebView ini. Karena flag ini cuma
+// variabel JS di memori (bukan localStorage), harusnya reset sendiri kalau
+// app benar-benar di-kill & dibuka ulang dari nol — tapi kalau yang
+// terjadi cuma di-minimize (WebView Android TIDAK mereset JS saat itu,
+// lihat listener visibilitychange di atas yang memang sengaja
+// mempertahankan proses saat di-background), flag basi ini ikut terbawa
+// dan user kelihatan "macet permanen" walau sudah tutup-buka app.
+// _lastGenTime sendiri sebenarnya SUDAH ada dari awal di objek VAI di atas
+// tapi tidak pernah benar-benar dipakai di mana pun (field mati) — jadi
+// tidak ada mekanisme apa pun sebelumnya untuk mendeteksi/reset kondisi ini.
+// Sekarang: tiap kali VAI._isGenerating diset true, VAI._lastGenTime ikut
+// dicatat. Fungsi ini dipanggil di SETIAP gerbang "Tunggu proses AI..." —
+// kalau sudah lewat _VB_GEN_STALE_MS sejak proses terakhir mulai TAPI
+// masih ditandai "generating", anggap proses itu sudah mati beneran &
+// auto-reset supaya user bisa lanjut generate lagi tanpa perlu clear
+// cache/reinstall app.
+var _VB_GEN_STALE_MS=5*60*1000; // 5 menit — lebih lama dari retry otomatis normal manapun
+function _vbGuardGenerating(){
+  if(!VAI._isGenerating)return false;
+  if(VAI._lastGenTime && (Date.now()-VAI._lastGenTime)>_VB_GEN_STALE_MS){
+    console.warn('[_vbGuardGenerating] proses generate sebelumnya macet >'+(_VB_GEN_STALE_MS/1000)+'dtk tanpa selesai — auto-reset flag _isGenerating.');
+    VAI._isGenerating=false;
+    try{_vbReleaseWakeLock();}catch(e){}
+    return false;
+  }
+  return true;
+}
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 
 // ── GEN LOGO LOADING (VIDEO) — pakai animasi brand yang sama persis dengan
@@ -13401,7 +13434,7 @@ async function vbGenerateBulkAI(){
     setTimeout(()=>openApiKeyModal(),600);
     return;
   }
-  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
 
   // FITUR BARU (permintaan user): generate BARU dari awal selalu buang
   // dulu sisa sesi "Lanjutkan" lama kalau ada (mis. user ganti-ganti isi
@@ -13420,7 +13453,7 @@ async function vbGenerateBulkAI(){
 async function vbBulkResumeAI(){
   let ctx=VB_BULK_LAST_CONTEXT;
   if(!ctx){showToast('Tidak ada proses yang bisa dilanjutkan — generate dari awal ya.','error');return;}
-  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
   // FIX (lihat komentar lengkap di _vbRunBulkGenerate, dekat pemberian
   // _idx): dulu produk "sudah selesai" dicek CUMA lewat teks field "produk"
   // (nama yang AI tulis ulang sendiri, gampang beda dari p.nama asli) — jadi
@@ -13476,7 +13509,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   // tanpa foto tetap digabung sampai BATCH_SIZE seperti sebelumnya.
   let batches=_vbBuildPhotoAwareBatches(toProcess,BATCH_SIZE,function(x){return!!(x.p&&x.p.fotoBase64);});
 
-  VAI._isGenerating=true;
+  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
   let btn=document.getElementById('vb-bulk-btn');
   let genLogoState=startGenLogoBtn(btn,isResume?'Melanjutkan Sisa Produk...':'Membuat Prompt...');
@@ -14199,7 +14232,7 @@ function vbRemoveRevisiFoto(prodIdx){
 
 // Revisi 1 produk lewat AI (dipanggil dari panel revisi per-produk)
 async function vbRevisiProdukAI(prodIdx){
-  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
   // FITUR BARU (permintaan user, Sept 2026): revisi dibatasi MAKSIMAL 1x per
   // produk — kalau sudah ada backup tersimpan buat prodIdx ini artinya jatah
   // revisi sudah kepakai & belum di-undo, jadi diblok di sini (jaga-jaga
@@ -14225,7 +14258,7 @@ async function vbRevisiProdukAI(prodIdx){
   let undoBtn=document.getElementById('vb-revisi-undo-btn-'+prodIdx);
   let originalText=submitBtn?submitBtn.textContent:'';
   let revisiSucceeded=false; // dipakai finally di bawah buat memutuskan tombol direset atau dikunci
-  VAI._isGenerating=true;
+  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
   if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> Memproses...';}
   try{
@@ -14441,7 +14474,7 @@ function _vbSyncProdukFotoPreviews(){
 }
 
 async function vbRevisiSingleAI(){
-  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
   // FITUR BARU (permintaan user, Sept 2026): revisi mode single juga
   // dibatasi MAKSIMAL 1x — kalau VB_SINGLE_REVISI_BACKUP sudah keisi artinya
   // jatah revisi sudah kepakai & belum di-undo. Sama seperti bulk, ini
@@ -14500,7 +14533,7 @@ async function vbRevisiSingleAI(){
   let submitBtn=document.getElementById('vb-single-revisi-submit');
   let originalText=submitBtn?submitBtn.textContent:'';
   let revisiSucceeded=false; // dipakai finally di bawah buat memutuskan tombol direset atau dikunci
-  VAI._isGenerating=true;
+  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
   if(submitBtn){submitBtn.disabled=true;submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> Memproses...';}
   try{
@@ -14670,7 +14703,7 @@ function vbApplyMetadataOnly(s){
   showToast('Data diperbarui — teks script lama tetap seperti semula.','success');
 }
 async function vbRegenerateAllBulk(newSettings){
-  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
   if(!VB_BULK_PRODUCTS||VB_BULK_PRODUCTS.length===0){showToast('Data produk tidak ditemukan — generate bulk dari awal ya.','error');return;}
   let dlCheck=dlCheckBeforeCall();
   if(!dlCheck.ok){showToast(dlCheck.message,'error');return;}
@@ -14681,7 +14714,7 @@ async function vbRegenerateAllBulk(newSettings){
   VB.accent=newSettings.accent;VB.accentLabel=newSettings.accentLabel;
   VB.bulkTargetAudience=newSettings.targetAudience;
 
-  VAI._isGenerating=true;
+  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
   const BATCH_SIZE=3;
   // FIX BUG (ditemukan saat audit mendalam khusus builder video): "topik"
@@ -15124,7 +15157,7 @@ async function vbGenerate3AI(){
     setTimeout(()=>openApiKeyModal(),600);
     return;
   }
-  if(VAI._isGenerating){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+  if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
   // FIX: cek limit harian & RPM NYATA sebelum kirim request — sebelumnya
   // cuma tampilan, tidak pernah benar-benar menghentikan apapun
   let dlCheck=dlCheckBeforeCall();
@@ -15134,7 +15167,7 @@ async function vbGenerate3AI(){
     showToast(dlCheck.message,'error');
     return;
   }
-  VAI._isGenerating=true;
+  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
 
   let btn=document.getElementById('vb-ai-script-btn');
