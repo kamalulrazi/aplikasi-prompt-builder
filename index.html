@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.81</div>
+  <div class="splash-version" id="splash-version">v5.87</div>
 </div>
 <script>
   (function(){
@@ -4025,7 +4025,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.81 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.87 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9087,20 +9087,20 @@ function _pbGetDeviceId(){
     return id;
   }catch(e){return 'dev-unknown';}
 }
-// Kedua model ini bisa baca foto (vision) — dipakai sebagai primary &
-// fallback. GEMINI_MODEL_PRIMARY dipakai buat generate utama, dst,
-// GEMINI_MODEL_FALLBACK dipakai kalau primary gagal total — nama
-// konstanta sengaja TIDAK diganti biar tidak perlu ubah call-site lain
-// yang sudah memakainya.
-// FIX HEMAT BIAYA (permintaan user, Sept 2026): Haiku 4.5 dijadikan
-// PRIMARY (sebelumnya Sonnet) supaya prompt caching di bulk & revisi
-// (_vbBulkSystemPrompt, sudah lolos syarat minimum cache Haiku 4.096
-// token) beneran aktif setiap generate NORMAL, bukan cuma pas Sonnet
-// kebetulan gagal lalu jatuh ke fallback. Sonnet-5 dipindah jadi
-// FALLBACK — tetap jadi jaring pengaman kualitas/ketersediaan kalau
-// Haiku gagal total setelah retry habis.
+// FIX (permintaan user, Sept 2026): Sonnet-5 SEBAGAI CADANGAN DIMATIKAN
+// TOTAL — sebelumnya kalau Haiku gagal total setelah retry habis, app
+// otomatis pindah ke Sonnet-5. Sekarang HANYA Haiku 4.5 yang dipakai,
+// tidak ada lagi model lain. GEMINI_MODEL_FALLBACK SENGAJA disamakan
+// nilainya dengan GEMINI_MODEL_PRIMARY (bukan dihapus) supaya seluruh
+// call-site yang masih memanggil kedua konstanta ini (mis.
+// _vbStreamGeminiJSONWithRetry, _vbFetchWithGeminiFallback) TIDAK perlu
+// diubah satu-satu — "percobaan ke-2 pakai model fallback" itu sekarang
+// otomatis jadi percobaan ulang ke Haiku lagi (retry biasa), bukan
+// pindah ke AI lain. Kalau nanti mau benar-benar tidak ada percobaan
+// ke-2 sama sekali, itu perubahan terpisah di fungsi retry-nya, bukan
+// cukup ganti baris ini.
 const GEMINI_MODEL_PRIMARY='claude-haiku-4-5-20251001';
-const GEMINI_MODEL_FALLBACK='claude-sonnet-5';
+const GEMINI_MODEL_FALLBACK='claude-haiku-4-5-20251001';
 // apiKey diisi placeholder tetap ('via-proxy') — bukan API key asli lagi.
 // Cukup supaya semua pengecekan "if(!VAI.apiKey)" di bawah otomatis lolos,
 // karena kunci Claude yang sesungguhnya sekarang disimpan aman di server
@@ -11951,6 +11951,7 @@ function _vbRenderUsageBadge(s){
     el.addEventListener('dblclick',function(e){
       e.stopPropagation();
       _vbSaveUsageStats({hit:0,miss:0,noCache:0,inTok:0,outTok:0});
+      _vbSaveFixStats({calls:0,inTok:0,outTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0});
       _vbRenderUsageBadge(_vbLoadUsageStats());
     });
     document.body.appendChild(el);
@@ -11960,9 +11961,23 @@ function _vbRenderUsageBadge(s){
   if(!_vbUsageBadgeExpanded){
     el.innerHTML='Cache '+pct+'% <span class="pb-usage-badge-sub">('+s.hit+'/'+total+')</span>';
   }else{
+    // STAT REAL PERBAIKAN JUMLAH KATA (permintaan user, Sept 2026): dihitung
+    // dari token ASLI tiap panggilan _vbFixWordCountIfNeeded/Batch (lihat
+    // _vbTrackFixCall/_vbTrackFixOutcome) — bukan estimasi/perkiraan lagi.
+    var fs=_vbLoadFixStats();
+    var fixUsd=(fs.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(fs.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+    var fixIdr=Math.round(fixUsd*USD_TO_IDR);
+    var totalFinished=fs.attemptHist[1]+fs.attemptHist[2]+fs.attemptHist[3];
     el.innerHTML='Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Tanpa cache: '+s.noCache
       +'<br>Input total: '+s.inTok.toLocaleString('id-ID')
-      +'<br>Output total: '+s.outTok.toLocaleString('id-ID');
+      +'<br>Output total: '+s.outTok.toLocaleString('id-ID')
+      +'<br><br><b>Perbaikan jumlah kata (real):</b>'
+      +'<br>Panggilan AI: '+fs.calls
+      +'<br>Selesai di attempt: 1x='+fs.attemptHist[1]+', 2x='+fs.attemptHist[2]+', 3x='+fs.attemptHist[3]
+      +' (dari '+totalFinished+' script/produk)'
+      +'<br>Masih kurang kata walau sudah 3x: '+fs.stillShort
+      +'<br>Token: '+fs.inTok.toLocaleString('id-ID')+' in / '+fs.outTok.toLocaleString('id-ID')+' out'
+      +'<br>Biaya real: $'+fixUsd.toFixed(4)+' (≈Rp'+fixIdr.toLocaleString('id-ID')+', kurs perkiraan)';
   }
 }
 async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem){
@@ -12372,6 +12387,14 @@ async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
         // jadi 'length' biar konsisten dengan cek finishReason di pemanggil.
         let block=Array.isArray(g.content)?g.content.find(function(c){return c&&c.type==='text';}):null;
         let stopReason=g.stop_reason==='max_tokens'?'length':(g.stop_reason||'');
+        // TRACKING BIAYA REAL (permintaan user, Sept 2026): field "usage" asli
+        // dari API ({input_tokens,output_tokens,cache_creation_input_tokens,
+        // cache_read_input_tokens}) sebelumnya dibuang begitu saja di sini —
+        // padahal ini panggilan yang dipakai proses perbaikan jumlah kata
+        // (_vbFixWordCountIfNeeded/Batch), jadi biaya asli-nya tidak pernah
+        // kelihatan di badge usage manapun. Sekarang ditempel ke objek r
+        // yang dikembalikan (r.usage) supaya pemanggil bisa mencatatnya.
+        r.usage=g.usage||null;
         r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(block&&block.text)||''}]},finishReason:stopReason}]});
       }catch(e){/* bentuk balasan di luar dugaan — dibiarkan apa adanya */}
     }
@@ -12381,6 +12404,59 @@ async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
   if(r.resp.ok)return r;
   console.log('[_vbFetchWithGeminiFallback] '+GEMINI_MODEL_PRIMARY+' gagal (status '+r.resp.status+'), coba '+GEMINI_MODEL_FALLBACK);
   return await callClaude(GEMINI_MODEL_FALLBACK);
+}
+
+// ── STAT REAL PEMAKAIAN "PERBAIKAN JUMLAH KATA" (permintaan user, Sept 2026)
+// Sebelumnya estimasi biaya loop 3x percobaan ini cuma perkiraan kasar
+// (lihat obrolan) — sekarang dicatat dari angka token ASLI yang dikembalikan
+// API tiap kali _vbFixWordCountIfNeeded/_vbFixWordCountBatchIfNeeded benar-
+// benar memanggil AI (bukan estimasi). Harga per-token pakai tarif resmi
+// Claude Haiku 4.5 saat ini ($1/juta token input, $5/juta token output) —
+// kalau tarif berubah di masa depan, angka USD lama tetap akurat historis,
+// cuma proyeksi ke depan yang perlu update HAIKU_PRICE_* di bawah.
+var PB_FIXSTATS_KEY='pb_wordfix_stats_v1';
+var HAIKU_PRICE_IN_PER_MTOK=1.0;   // USD per 1,000,000 token input
+var HAIKU_PRICE_OUT_PER_MTOK=5.0;  // USD per 1,000,000 token output
+var USD_TO_IDR=16400; // kurs perkiraan, cuma buat tampilan kasar di badge
+function _vbLoadFixStats(){
+  try{
+    var s=JSON.parse(localStorage.getItem(PB_FIXSTATS_KEY)||'null');
+    if(s&&typeof s.calls==='number')return s;
+  }catch(e){}
+  // calls = total panggilan AI perbaikan (semua attempt, semua produk/script)
+  // attemptHist = distribusi berapa kali attempt dipakai sampai berhenti/pasrah
+  // stillShort = berapa KALI berhenti masih di bawah rentang minimum walau
+  //              sudah habis semua attempt (batas atas selalu 100% dijamin
+  //              di luar ini oleh _vbHardEnforceMaxWords, jadi tidak dicatat)
+  return{calls:0,inTok:0,outTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0};
+}
+function _vbSaveFixStats(s){
+  try{localStorage.setItem(PB_FIXSTATS_KEY,JSON.stringify(s));}catch(e){}
+}
+// Dipanggil sekali per PANGGILAN AI (bukan per attempt-loop selesai) dari
+// dalam _vbFixWordCountIfNeeded/_vbFixWordCountBatchIfNeeded.
+function _vbTrackFixCall(usage){
+  var s=_vbLoadFixStats();
+  s.calls++;
+  if(usage){
+    s.inTok+=(usage.input_tokens||0)+(usage.cache_creation_input_tokens||0)+(usage.cache_read_input_tokens||0);
+    s.outTok+=(usage.output_tokens||0);
+  }
+  _vbSaveFixStats(s);
+  _vbRenderFixBadgeIfExpanded();
+}
+// Dipanggil sekali per SCRIPT/PRODUK setelah loop attempt berhenti (baik
+// karena sudah pas, baik karena attempt habis) — buat catat di attempt
+// keberapa berhentinya, dan apakah masih kurang kata pas berhenti.
+function _vbTrackFixOutcome(attemptsUsed,stillShort){
+  var s=_vbLoadFixStats();
+  if(attemptsUsed>=1&&attemptsUsed<=3)s.attemptHist[attemptsUsed]=(s.attemptHist[attemptsUsed]||0)+1;
+  if(stillShort)s.stillShort++;
+  _vbSaveFixStats(s);
+  _vbRenderFixBadgeIfExpanded();
+}
+function _vbRenderFixBadgeIfExpanded(){
+  if(_vbUsageBadgeExpanded)_vbRenderUsageBadge(_vbLoadUsageStats());
 }
 
 // ── SANITIZER CTA — jaring pengaman KODE untuk frasa yang dilarang di
@@ -12467,50 +12543,81 @@ function _vbHardEnforceMaxWords(text,max){
   }
   return words.slice(0,max).join(' ')+'.';
 }
-// FIX HEMAT BIAYA (permintaan user, Sept 2026): auto-perbaikan jumlah kata
-// via panggilan AI TAMBAHAN ini DIMATIKAN — script dipakai apa adanya, cuma
-// disaring _vbHardEnforceMaxWords di atas supaya batas ATAS tetap terjamin
-// 100% TANPA panggilan API sama sekali. Batas BAWAH kalau kurang TIDAK lagi
-// ditambal otomatis di sini — andalkan instruksi wajib-hitung-sendiri di
-// system prompt (poin 17 _vbBulkSystemPrompt) supaya hasil pertama dari
-// generate awal sudah pas duluan. Logic asli (1x panggilan AI) dipindah ke
-// _vbFixWordCountIfNeededSingleCall_DISABLED di bawah (bukan dihapus, buat
-// jaga-jaga kalau mau dinyalakan lagi nanti).
+// FIX BIAYA (permintaan user, Sept 2026): DINYALAKAN LAGI tapi dibatasi
+// SATU kali panggilan AI saja (bukan sampai 2-3x percobaan seperti versi
+// lama di bawah) — biaya per script yang meleset jadi predictable (0 atau
+// 1 panggilan tambahan, tidak pernah lebih). Supaya hasil satu kali ini
+// tetap "pasti sesuai" rentang walau cuma 1 kesempatan:
+// 1) prompt minta AI hitung-draft-revisi dulu SEBELUM jawab (bukan tebak);
+// 2) apapun hasilnya (berhasil, gagal, limit, exception), SELALU disaring
+//    lewat _vbHardEnforceMaxWords di atas — jadi batas ATAS dijamin 100%
+//    tanpa panggilan API tambahan. Batas BAWAH tidak bisa dijamin sama
+//    persis (nambah kata butuh konten baru yang cuma AI bisa bikin
+//    natural) — kalau masih kurang, kartu tetap diberi tanda oranye di UI
+//    supaya user tahu perlu dicek manual, tidak dianggap sudah pas.
+// CATATAN BIAYA (permintaan user, Sept 2026): panggilan ini TIDAK memakai
+// field "system" sama sekali (lihat langsung di bawah — cuma "contents"
+// polos), jadi TIDAK PERNAH ditandai cache_control dan TIDAK PERNAH kena
+// diskon cache walau _vbBulkSystemPrompt yang di generate awal sudah lolos
+// threshold cache Haiku. Tiap kali retry ini kepakai, itu SELALU 1 panggilan
+// API tambahan dengan harga PENUH (input pendek — cuma fixPrompt + 1 script
+// — tapi tetap harga normal, bukan harga cache ~10%).
+// PENINGKATAN (permintaan user, Sept 2026): sebelumnya cuma 1x tembak AI —
+// kalau tembakan pertama masih meleset (terutama KURANG kata, karena
+// nambah kata butuh konten baru yang cuma AI bisa bikin natural), script
+// dibiarkan apa adanya + cuma ditandai oranye di UI. Sekarang di-LOOP
+// sampai MAX_FIX_ATTEMPTS kali (berhenti lebih awal begitu sudah masuk
+// rentang, jadi TIDAK selalu makan biaya penuh) supaya batas BAWAH juga
+// nyaris pasti kena, bukan cuma batas atas. Batas ATAS tetap 100% dijamin
+// oleh _vbHardEnforceMaxWords di SETIAP jalur keluar (tanpa panggilan API
+// tambahan) — jaring pengaman ini tidak berubah.
 async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
   let current=(scriptText||'').trim();
   let range=vbGetWordRange();
-  return _vbHardEnforceMaxWords(current,range.max);
-}
-async function _vbFixWordCountIfNeededSingleCall_DISABLED(scriptText,roleLabelPlain,produkNama){
-  let current=(scriptText||'').trim();
-  let range=vbGetWordRange();
-  let wc=current.split(/\s+/).filter(Boolean).length;
-  if((wc>=range.min&&wc<=range.max)||!current)return current;
-  let dlCheck=dlCheckBeforeCall();
-  if(!dlCheck.ok){console.warn('[_vbFixWordCountIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);return _vbHardEnforceMaxWords(current,range.max);}
-  let selisih=range.target-wc;
-  let arah=selisih>0
-    ?'Script ini KURANG kata (saat ini '+wc+'). TAMBAH sekitar '+selisih+' kata (detail natural yang relevan, jangan cuma ulang kata yang sudah ada).'
-    :'Script ini KELEBIHAN kata (saat ini '+wc+'). KURANGI sekitar '+Math.abs(selisih)+' kata (potong bagian paling tidak penting, jangan sampai kalimatnya jadi ganjil).';
-  let fixPrompt='Perbaiki script "'+roleLabelPlain+'"'+(produkNama?' untuk produk "'+produkNama+'"':'')+' supaya PERSIS masuk rentang '+range.min+'-'+range.max+' kata (idealnya '+range.target+', hitung tiap kata dipisah spasi — bukan karakter/suku kata). '+arah+' '
-    +'WAJIB: draft dulu di kepalamu, HITUNG sendiri jumlah katanya satu-satu, kalau belum masuk rentang REVISI lalu hitung ulang — baru tulis jawaban final. Jangan menebak/mengira-ngira jumlah kata.\n'
-    +'Pertahankan makna, topik, nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'", dan aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai — jangan diratakan jadi kalimat netral/formal. Tanpa emoji, tanpa tanda kutip.\n\n'
-    +'Script saat ini ('+wc+' kata): '+current+'\n\n'
-    +'Balas HANYA dengan teks script hasil perbaikan, tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
-  try{
-    let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
-    if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return _vbHardEnforceMaxWords(current,range.max);}
-    let data=JSON.parse(rawText);
-    if(data.error){console.warn('[_vbFixWordCountIfNeeded] error API:',data.error.message);return _vbHardEnforceMaxWords(current,range.max);}
-    let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
-    if(!text)return _vbHardEnforceMaxWords(current,range.max);
-    text=text.replace(/^```\s*/,'').replace(/\s*```$/,'').replace(/^["']+|["']+$/g,'').trim();
-    dlIncrement();
-    return _vbHardEnforceMaxWords(text,range.max);
-  }catch(e){
-    console.warn('[_vbFixWordCountIfNeeded] exception, dibiarkan apa adanya:',e);
-    return _vbHardEnforceMaxWords(current,range.max);
+  const MAX_FIX_ATTEMPTS=3;
+  let callsMade=0;
+  function _finish(text){
+    // Dipanggil di SETIAP jalur keluar fungsi ini — mencatat di attempt
+    // keberapa proses berhenti (0 = tidak sampai manggil AI sama sekali)
+    // dan apakah hasil akhirnya masih di bawah batas minimum, supaya badge
+    // usage bisa menampilkan angka REAL (bukan estimasi) ke user.
+    let finalWc=(text||'').split(/\s+/).filter(Boolean).length;
+    if(callsMade>0)_vbTrackFixOutcome(callsMade,finalWc<range.min);
+    return text;
   }
+  for(let attempt=0;attempt<MAX_FIX_ATTEMPTS;attempt++){
+    let wc=current.split(/\s+/).filter(Boolean).length;
+    if((wc>=range.min&&wc<=range.max)||!current)return _finish(current);
+    let dlCheck=dlCheckBeforeCall();
+    if(!dlCheck.ok){console.warn('[_vbFixWordCountIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);return _finish(_vbHardEnforceMaxWords(current,range.max));}
+    let selisih=range.target-wc;
+    let arah=selisih>0
+      ?'Script ini KURANG kata (saat ini '+wc+'). TAMBAH sekitar '+selisih+' kata (detail natural yang relevan, jangan cuma ulang kata yang sudah ada).'
+      :'Script ini KELEBIHAN kata (saat ini '+wc+'). KURANGI sekitar '+Math.abs(selisih)+' kata (potong bagian paling tidak penting, jangan sampai kalimatnya jadi ganjil).';
+    let fixPrompt='Perbaiki script "'+roleLabelPlain+'"'+(produkNama?' untuk produk "'+produkNama+'"':'')+' supaya PERSIS masuk rentang '+range.min+'-'+range.max+' kata (idealnya '+range.target+', hitung tiap kata dipisah spasi — bukan karakter/suku kata). '+arah+' '
+      +'WAJIB: draft dulu di kepalamu, HITUNG sendiri jumlah katanya satu-satu, kalau belum masuk rentang REVISI lalu hitung ulang — baru tulis jawaban final. Jangan menebak/mengira-ngira jumlah kata.\n'
+      +'Pertahankan makna, topik, nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'", dan aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai — jangan diratakan jadi kalimat netral/formal. Tanpa emoji, tanpa tanda kutip.\n\n'
+      +'Script saat ini ('+wc+' kata): '+current+'\n\n'
+      +'Balas HANYA dengan teks script hasil perbaikan, tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
+    try{
+      let{resp,rawText,usage}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
+      callsMade++;
+      _vbTrackFixCall(usage);
+      if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return _finish(_vbHardEnforceMaxWords(current,range.max));}
+      let data=JSON.parse(rawText);
+      if(data.error){console.warn('[_vbFixWordCountIfNeeded] error API:',data.error.message);return _finish(_vbHardEnforceMaxWords(current,range.max));}
+      let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+      if(!text)return _finish(_vbHardEnforceMaxWords(current,range.max));
+      text=text.replace(/^```\s*/,'').replace(/\s*```$/,'').replace(/^["']+|["']+$/g,'').trim();
+      dlIncrement();
+      current=text;
+      if(attempt===MAX_FIX_ATTEMPTS-1)return _finish(_vbHardEnforceMaxWords(current,range.max));
+    }catch(e){
+      console.warn('[_vbFixWordCountIfNeeded] exception, dibiarkan apa adanya:',e);
+      return _finish(_vbHardEnforceMaxWords(current,range.max));
+    }
+  }
+  return _finish(_vbHardEnforceMaxWords(current,range.max));
 }
 async function _vbFixWordCountIfNeededFULL_DISABLED(scriptText,roleLabelPlain,produkNama){
   let current=(scriptText||'').trim();
@@ -12583,11 +12690,101 @@ async function _vbFixWordCountIfNeededFULL_DISABLED(scriptText,roleLabelPlain,pr
 // 2x percobaan TOTAL per produk, bukan per script) — mengurangi jumlah
 // request sampai ~6x lipat tanpa mengorbankan akurasi tiap script. ──────
 async function _vbFixWordCountBatchIfNeeded(prod){
-  // FIX BIAYA (permintaan user, Sept 2026): sama seperti versi single di
-  // atas — auto-perbaikan jumlah kata via AI DIMATIKAN, script dipakai apa
-  // adanya. Logic aslinya dipindah ke _vbFixWordCountBatchIfNeededFULL_DISABLED
-  // di bawah (bukan dihapus) buat jaga-jaga kalau mau dinyalakan lagi nanti.
-  return {hook:(prod.hook||'').trim(),story:(prod.story||'').trim(),cta:(prod.cta||'').trim()};
+  // FIX BIAYA (permintaan user, Sept 2026): DINYALAKAN LAGI, dengan tujuan
+  // beda dari versi lama di FULL_DISABLED bawah — bukan buat akurasi
+  // (2-3x percobaan), tapi buat NGURANGIN JUMLAH PANGGILAN: kalau HOOK,
+  // STORY, DAN CTA sama-sama meleset, ini menggabungnya jadi SATU panggilan
+  // AI sekaligus (bukan 3 panggilan terpisah lewat _vbFixWordCountIfNeeded
+  // per bagian). Dibatasi SATU kali attempt saja (bukan 3x) — biaya per
+  // produk jadi predictable (0 atau 1 panggilan tambahan, tidak pernah
+  // lebih), sama seperti filosofi versi single. Sama seperti versi single
+  // juga: apapun hasilnya, SETIAP bagian yang tadinya meleset SELALU
+  // disaring _vbHardEnforceMaxWords di akhir — batas ATAS dijamin 100%
+  // tanpa panggilan API tambahan, batas BAWAH kalau masih kurang dibiarkan
+  // + ditandai di UI oleh pemanggilnya. CATATAN BIAYA: panggilan ini juga
+  // TIDAK pakai field "system"/cache_control (sama seperti versi single),
+  // jadi selalu harga PENUH — tapi karena digabung jadi 1 panggilan, worst
+  // case per produk turun dari 3 panggilan penuh jadi 1 panggilan penuh.
+  // PENINGKATAN (permintaan user, Sept 2026): sama seperti versi single —
+  // sebelumnya cuma 1x tembak per batch, sekarang di-LOOP sampai
+  // MAX_FIX_ATTEMPTS kali (berhenti lebih awal begitu SEMUA bagian yang
+  // tadinya meleset sudah masuk rentang), supaya batas BAWAH juga nyaris
+  // pasti kena. Batas ATAS tetap 100% dijamin _vbHardEnforceMaxWords di
+  // SETIAP jalur keluar — tidak berubah.
+  const ROLE_LABEL={hook:'Hook',story:'Cerita Produk (Story)',cta:'CTA Keranjang'};
+  const MAX_FIX_ATTEMPTS=3;
+  let range=vbGetWordRange();
+  let current={hook:(prod.hook||'').trim(),story:(prod.story||'').trim(),cta:(prod.cta||'').trim()};
+  let callsMade=0;
+  function _finish(result){
+    // Sama seperti _vbFixWordCountIfNeeded versi single: catat di attempt
+    // keberapa (per PRODUK, karena 3 bagian digabung 1 panggilan) proses
+    // berhenti, dan apakah ADA bagian yang masih di bawah minimum.
+    if(callsMade>0){
+      let stillShort=['hook','story','cta'].some(function(key){
+        let wc=(result[key]||'').split(/\s+/).filter(Boolean).length;
+        return wc>0&&wc<range.min;
+      });
+      _vbTrackFixOutcome(callsMade,stillShort);
+    }
+    return result;
+  }
+  for(let attempt=0;attempt<MAX_FIX_ATTEMPTS;attempt++){
+    let needFix=['hook','story','cta'].filter(function(key){
+      if(!current[key])return false;
+      let wc=current[key].split(/\s+/).filter(Boolean).length;
+      return wc<range.min||wc>range.max;
+    });
+    if(needFix.length===0)return _finish(current);
+    let dlCheck=dlCheckBeforeCall();
+    if(!dlCheck.ok){
+      console.warn('[_vbFixWordCountBatchIfNeeded] lewati perbaikan, limit tercapai:',dlCheck.message);
+      for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);
+      return _finish(current);
+    }
+    let listText=needFix.map(function(key){
+      let wc=current[key].split(/\s+/).filter(Boolean).length;
+      let selisih=range.target-wc;
+      let arah=selisih>0?'kurang dari target (rentang '+range.min+'-'+range.max+' kata), TAMBAH sekitar '+selisih+' kata':selisih<0?'lebih dari target (rentang '+range.min+'-'+range.max+' kata), KURANGI sekitar '+Math.abs(selisih)+' kata':'sesuaikan supaya masuk rentang '+range.min+'-'+range.max+' kata';
+      return '- "'+key+'" ('+ROLE_LABEL[key]+', saat ini '+wc+' kata — '+arah+'): '+current[key];
+    }).join('\n');
+    let fixPrompt='Perbaiki script-script berikut supaya masing-masing jumlah katanya masuk rentang '+range.min+'-'+range.max+' kata, idealnya sekitar '+range.target+' kata (hitung tiap kata dipisah spasi, bukan karakter). Tiap item sudah dikasih tahu arah perbaikannya (tambah/kurangi berapa kata) — ikuti sebagai panduan. '
+      +(prod.produk?'Ini untuk produk "'+prod.produk+'". ':'')
+      +'Pertahankan makna, topik, DAN terutama nada bicara "'+(VB.pitchLabel||VB.pitch||'casual')+'" serta aksen "'+(VB.accentLabel||VB.accent||'santai')+'" yang sudah dipakai di masing-masing teks aslinya — JANGAN diratakan jadi kalimat netral/formal, ciri khas nada & aksen itu (kata seru, istilah gaul, tingkat energi, dll) WAJIB tetap kerasa di hasil perbaikan. Jangan ganti topik. '
+      +'TIDAK boleh pakai emoji, TIDAK boleh pakai tanda kutip.\n\n'
+      +'Script yang perlu diperbaiki:\n'+listText+'\n\n'
+      +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (hitung ulang sendiri sampai masuk rentang '+range.min+'-'+range.max+' kata tiap-tiap sebelum menjawab), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
+    try{
+      let{resp,rawText,usage}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}},30000,1);
+      callsMade++;
+      _vbTrackFixCall(usage);
+      if(!resp.ok){console.warn('[_vbFixWordCountBatchIfNeeded] gagal panggil AI, dibiarkan apa adanya');for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);return _finish(current);}
+      let data=JSON.parse(rawText);
+      if(data.error){console.warn('[_vbFixWordCountBatchIfNeeded] error API:',data.error.message);for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);return _finish(current);}
+      let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
+      if(!text){for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);return _finish(current);}
+      text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+      let fixed;
+      try{fixed=JSON.parse(text);}catch(e1){
+        let s=text.indexOf('{'),en=text.lastIndexOf('}');
+        if(s!==-1&&en!==-1&&en>s){try{fixed=JSON.parse(text.substring(s,en+1));}catch(e2){fixed=null;}}
+      }
+      if(!fixed||typeof fixed!=='object'){console.warn('[_vbFixWordCountBatchIfNeeded] gagal baca JSON hasil, dibiarkan apa adanya');for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);return _finish(current);}
+      for(let key of needFix){
+        if(typeof fixed[key]==='string'&&fixed[key].trim()){
+          current[key]=fixed[key].trim().replace(/^```\s*/,'').replace(/\s*```$/,'').replace(/^["']+|["']+$/g,'').trim();
+        }
+      }
+      dlIncrement();
+      if(attempt===MAX_FIX_ATTEMPTS-1){for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);return _finish(current);}
+    }catch(e){
+      console.warn('[_vbFixWordCountBatchIfNeeded] exception, dibiarkan apa adanya:',e);
+      for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);
+      return _finish(current);
+    }
+  }
+  for(let key of ['hook','story','cta'])current[key]=_vbHardEnforceMaxWords(current[key],range.max);
+  return _finish(current);
 }
 async function _vbFixWordCountBatchIfNeededFULL_DISABLED(prod){
   // FIX (solusi konsistensi sama seperti _vbFixWordCountIfNeeded single):
@@ -15032,17 +15229,26 @@ async function vbGenerate3AI(){
     // finally di bawah) supaya tidak nabrak kalau user buru-buru generate
     // lagi sebelum proses rapi-rapi ini beres — tapi UI tombol sudah balik
     // normal dari sisi user, jadi tidak kelihatan seperti macet.
+    // FIX HEMAT BIAYA (permintaan user, Sept 2026): sebelumnya di sini ada
+    // loop yang manggil _vbFixWordCountIfNeeded SATU-SATU per bagian (bisa
+    // sampai 3 panggilan AI terpisah kalau HOOK, STORY, DAN CTA sama-sama
+    // meleset). Sekarang digabung jadi 1 panggilan lewat
+    // _vbFixWordCountBatchIfNeeded — worst case per produk turun dari 3
+    // panggilan penuh jadi 1 panggilan penuh (lihat komentar lengkap di
+    // definisi fungsinya).
+    let _fixedBatch=await _vbFixWordCountBatchIfNeeded({hook:scripts[0]||'',story:scripts[1]||'',cta:scripts[2]||'',produk:produkNama});
+    let _batchKeys=['hook','story','cta'];
     for(let si=0;si<scripts.length;si++){
-      let fixed=await _vbFixWordCountIfNeeded(scripts[si],_roleLabelsPlain[si]||('Script '+(si+1)),produkNama);
+      let fixed=_fixedBatch[_batchKeys[si]]!==undefined?_fixedBatch[_batchKeys[si]]:scripts[si];
       // FIX (akar masalah "keranjang kuning" lolos meski sudah ada sanitizer):
-      // _vbFixWordCountIfNeeded MANGGIL AI LAGI buat nulis ulang script biar
-      // pas 25 kata. Sanitizer yang jalan SEBELUM ini (di atas) cuma
-      // membersihkan hasil generate AWAL — begitu AI menulis ulang teksnya
-      // demi pas-in jumlah kata, dia bisa (dan pada kasus nyata TERBUKTI)
-      // menyisipkan lagi frasa terlarang seperti "keranjang kuning" karena
-      // prompt "rapikan kata" ini tidak mengulang larangan itu. Hasil rewrite
-      // sebelumnya dipakai APA ADANYA tanpa disaring ulang. Sekarang
-      // disaring lagi di sini sebelum dipakai.
+      // _vbFixWordCountBatchIfNeeded MANGGIL AI LAGI buat nulis ulang script
+      // biar pas jumlah katanya. Sanitizer yang jalan SEBELUM ini (di atas)
+      // cuma membersihkan hasil generate AWAL — begitu AI menulis ulang
+      // teksnya demi pas-in jumlah kata, dia bisa (dan pada kasus nyata
+      // TERBUKTI) menyisipkan lagi frasa terlarang seperti "keranjang
+      // kuning" karena prompt "rapikan kata" ini tidak mengulang larangan
+      // itu. Hasil rewrite sebelumnya dipakai APA ADANYA tanpa disaring
+      // ulang. Sekarang disaring lagi di sini sebelum dipakai.
       fixed=_vbSanitizeForbiddenPhrases(fixed);
       if(fixed!==scripts[si]){
         scripts[si]=fixed;
@@ -15060,9 +15266,9 @@ async function vbGenerate3AI(){
       // polos bikin user kira semuanya sudah pas.
       // PENTING: cek ini di LUAR if(fixed!==scripts[si]) di atas — kalau AI
       // GAGAL TOTAL memperbaiki (limit tercapai / exception / dlCheck gagal),
-      // _vbFixWordCountIfNeeded balikin teks yang SAMA PERSIS seperti input
-      // (fixed===scripts[si]), jadi blok if di atas dilewati — tapi teksnya
-      // tetap belum 25 kata dan user tetap wajib diberi tahu.
+      // _vbFixWordCountBatchIfNeeded balikin teks yang SAMA PERSIS seperti
+      // input (fixed===scripts[si]), jadi blok if di atas dilewati — tapi
+      // teksnya tetap belum 25 kata dan user tetap wajib diberi tahu.
       let _finalWc=fixed.trim().split(/\s+/).filter(Boolean).length;
       if(_finalWc<range.min||_finalWc>range.max){
         let wcLabelFinal=document.getElementById('vb-bulk-wc-'+si);
