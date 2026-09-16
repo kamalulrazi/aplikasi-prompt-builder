@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.87</div>
+  <div class="splash-version" id="splash-version">v5.89</div>
 </div>
 <script>
   (function(){
@@ -4025,7 +4025,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.87 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.89 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11932,12 +11932,74 @@ function _vbTrackUsage(usageInfo){
   s.outTok+=(usageInfo.output_tokens||0);
   _vbSaveUsageStats(s);
   _vbRenderUsageBadge(s);
+  _vbEnsureLiveIdrRate(); // prefetch kurs di background, gratis & bukan panggilan AI
 }
 // Badge dibuat sekali (lazy) pas generate pertama kali kejadi, lalu cuma
 // di-update isinya tiap generate berikutnya — tap buat toggle detail
 // (ringkas <-> lengkap), tap-tahan (long-press, via dblclick di desktop)
 // buat reset hitungan kalau mau mulai audit dari nol.
 var _vbUsageBadgeExpanded=false;
+// ── KURS USD→IDR REAL-TIME (permintaan user, Sept 2026) ──────────────────
+// Sebelumnya USD_TO_IDR di bawah cuma angka tetap yang diketik manual.
+// Sekarang badge coba ambil kurs asli dari API kurs publik GRATIS (tanpa
+// API key, tanpa panggilan AI/Claude sama sekali — cuma HTTP request biasa
+// ke penyedia kurs, jadi TIDAK menambah biaya token). Hasilnya disimpan di
+// cache 24 jam supaya tidak fetch berulang tiap kali badge dibuka — cukup
+// sekali sehari. Kalau fetch gagal (offline/API down), otomatis fallback
+// ke cache lama (walau sudah lewat 24 jam) atau ke USD_TO_IDR statis kalau
+// belum pernah berhasil fetch sama sekali — badge tetap jalan, cuma
+// labelnya berubah jadi "kurs perkiraan" bukan "kurs real-time".
+var PB_IDR_RATE_KEY='pb_idr_rate_cache_v1';
+var _vbLiveIdrRate=null;      // angka kurs terakhir yang berhasil didapat (live atau cache lama)
+var _vbLiveIdrIsFresh=false;  // true kalau umurnya masih di bawah 24 jam
+var _vbIdrFetchInFlight=false;
+function _vbLoadIdrCache(){
+  try{
+    var c=JSON.parse(localStorage.getItem(PB_IDR_RATE_KEY)||'null');
+    if(c&&typeof c.rate==='number'&&c.rate>0)return c;
+  }catch(e){}
+  return null;
+}
+function _vbEnsureLiveIdrRate(){
+  var cache=_vbLoadIdrCache();
+  var ONE_DAY=24*60*60*1000;
+  if(cache){
+    _vbLiveIdrRate=cache.rate;
+    _vbLiveIdrIsFresh=(Date.now()-cache.ts)<ONE_DAY;
+    if(_vbLiveIdrIsFresh)return; // masih segar, tidak perlu fetch lagi
+  }
+  if(_vbIdrFetchInFlight)return;
+  _vbIdrFetchInFlight=true;
+  // open.er-api.com: API kurs publik gratis, tanpa key, CORS diizinkan,
+  // update kursnya sekali sehari (sesuai kebutuhan kita — tidak perlu
+  // lebih sering dari itu untuk sekadar estimasi biaya).
+  var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+  var timer=ctrl?setTimeout(function(){ctrl.abort();},6000):null;
+  fetch('https://open.er-api.com/v6/latest/USD',ctrl?{signal:ctrl.signal}:{})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      var rate=data&&data.rates&&data.rates.IDR;
+      if(typeof rate==='number'&&rate>0){
+        _vbLiveIdrRate=rate;
+        _vbLiveIdrIsFresh=true;
+        try{localStorage.setItem(PB_IDR_RATE_KEY,JSON.stringify({rate:rate,ts:Date.now()}));}catch(e){}
+        // Refresh tampilan badge kalau lagi kebuka, supaya kurs baru
+        // langsung kelihatan tanpa perlu tap-tutup-buka lagi.
+        if(_vbUsageBadgeExpanded)_vbRenderUsageBadge(_vbLoadUsageStats());
+      }
+    })
+    .catch(function(e){/* offline/API down — diam saja, tetap pakai cache lama/fallback statis */})
+    .finally(function(){
+      _vbIdrFetchInFlight=false;
+      if(timer)clearTimeout(timer);
+    });
+}
+function _vbCurrentIdrRate(){
+  return _vbLiveIdrRate||USD_TO_IDR;
+}
+function _vbIdrRateLabel(){
+  return _vbLiveIdrRate?(_vbLiveIdrIsFresh?'kurs real-time':'kurs real-time terakhir, sedang refresh'):'kurs perkiraan';
+}
 function _vbRenderUsageBadge(s){
   var el=document.getElementById('pb-usage-badge');
   if(!el){
@@ -11946,6 +12008,7 @@ function _vbRenderUsageBadge(s){
     el.title='Tap: detail · Dobel-klik/tap-tahan: reset hitungan';
     el.addEventListener('click',function(){
       _vbUsageBadgeExpanded=!_vbUsageBadgeExpanded;
+      if(_vbUsageBadgeExpanded)_vbEnsureLiveIdrRate();
       _vbRenderUsageBadge(_vbLoadUsageStats());
     });
     el.addEventListener('dblclick',function(e){
@@ -11965,19 +12028,34 @@ function _vbRenderUsageBadge(s){
     // dari token ASLI tiap panggilan _vbFixWordCountIfNeeded/Batch (lihat
     // _vbTrackFixCall/_vbTrackFixOutcome) — bukan estimasi/perkiraan lagi.
     var fs=_vbLoadFixStats();
+    var idr=_vbCurrentIdrRate();
+    var idrLabel=_vbIdrRateLabel();
     var fixUsd=(fs.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(fs.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
-    var fixIdr=Math.round(fixUsd*USD_TO_IDR);
+    var fixIdr=Math.round(fixUsd*idr);
     var totalFinished=fs.attemptHist[1]+fs.attemptHist[2]+fs.attemptHist[3];
+    // BIAYA GENERATE UTAMA (permintaan user, Sept 2026): s.inTok/s.outTok di
+    // atas sudah mencakup SEMUA panggilan generate utama (Cerita Produk,
+    // Foto Referensi, dst) — termasuk token dari foto yang diupload user,
+    // karena foto ikut terhitung sebagai input_tokens oleh API Anthropic
+    // persis seperti teks. Model generate utama (GEMINI_MODEL_PRIMARY/
+    // FALLBACK) sama-sama Haiku, jadi tarif HAIKU_PRICE_* di bawah berlaku
+    // sama untuk bagian ini.
+    var mainUsd=(s.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(s.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+    var mainIdr=Math.round(mainUsd*idr);
+    var grandUsd=mainUsd+fixUsd;
+    var grandIdr=Math.round(grandUsd*idr);
     el.innerHTML='Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Tanpa cache: '+s.noCache
       +'<br>Input total: '+s.inTok.toLocaleString('id-ID')
       +'<br>Output total: '+s.outTok.toLocaleString('id-ID')
+      +'<br>Biaya real (generate, termasuk foto): $'+mainUsd.toFixed(4)+' (≈Rp'+mainIdr.toLocaleString('id-ID')+', '+idrLabel+')'
       +'<br><br><b>Perbaikan jumlah kata (real):</b>'
       +'<br>Panggilan AI: '+fs.calls
       +'<br>Selesai di attempt: 1x='+fs.attemptHist[1]+', 2x='+fs.attemptHist[2]+', 3x='+fs.attemptHist[3]
       +' (dari '+totalFinished+' script/produk)'
       +'<br>Masih kurang kata walau sudah 3x: '+fs.stillShort
       +'<br>Token: '+fs.inTok.toLocaleString('id-ID')+' in / '+fs.outTok.toLocaleString('id-ID')+' out'
-      +'<br>Biaya real: $'+fixUsd.toFixed(4)+' (≈Rp'+fixIdr.toLocaleString('id-ID')+', kurs perkiraan)';
+      +'<br>Biaya real: $'+fixUsd.toFixed(4)+' (≈Rp'+fixIdr.toLocaleString('id-ID')+', '+idrLabel+')'
+      +'<br><br><b>TOTAL SEMUA BIAYA:</b> $'+grandUsd.toFixed(4)+' (≈Rp'+grandIdr.toLocaleString('id-ID')+', '+idrLabel+')';
   }
 }
 async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem){
