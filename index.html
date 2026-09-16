@@ -11981,9 +11981,9 @@ function _vbLoadUsageLog(){
 function _vbSaveUsageLog(l){
   try{localStorage.setItem(PB_USAGE_LOG_KEY,JSON.stringify(l));}catch(e){}
 }
-function _vbLogUsageEvent(mode,inTok,outTok){
+function _vbLogUsageEvent(mode,tok,outTok){
   var l=_vbLoadUsageLog();
-  l.push({ts:Date.now(),mode:mode||'unknown',inTok:inTok||0,outTok:outTok||0});
+  l.push({ts:Date.now(),mode:mode||'unknown',noCacheInTok:(tok&&tok.noCacheInTok)||0,cacheWriteInTok:(tok&&tok.cacheWriteInTok)||0,cacheReadInTok:(tok&&tok.cacheReadInTok)||0,outTok:outTok||0});
   if(l.length>PB_USAGE_LOG_MAX)l=l.slice(l.length-PB_USAGE_LOG_MAX);
   _vbSaveUsageLog(l);
 }
@@ -12001,7 +12001,7 @@ function _vbLoadUsageStats(){
     var s=JSON.parse(localStorage.getItem(PB_USAGE_KEY)||'null');
     if(s&&typeof s.hit==='number')return s;
   }catch(e){}
-  return{hit:0,miss:0,noCache:0,inTok:0,outTok:0};
+  return{hit:0,miss:0,noCache:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0};
 }
 function _vbSaveUsageStats(s){
   try{localStorage.setItem(PB_USAGE_KEY,JSON.stringify(s));}catch(e){}
@@ -12011,11 +12011,19 @@ function _vbTrackUsage(usageInfo){
   if(usageInfo.cache_read_input_tokens>0)s.hit++;
   else if(usageInfo.cache_creation_input_tokens>0)s.miss++;
   else s.noCache++;
-  s.inTok+=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0);
+  // FIX AKURASI BIAYA (permintaan user, Sept 2026): dulu 3 jenis token input
+  // (biasa, cache_creation, cache_read) digabung jadi 1 angka lalu dihitung
+  // pakai tarif input FLAT — padahal Anthropic sebenarnya kasih diskon ~90%
+  // untuk cache_read dan markup +25% untuk cache_creation (lihat cacheStatus
+  // di bawah). Sekarang disimpan TERPISAH per jenis supaya biayanya bisa
+  // dihitung pakai tarif yang benar (lihat _vbCalcUsd).
+  s.noCacheInTok=(s.noCacheInTok||0)+(usageInfo.input_tokens||0);
+  s.cacheWriteInTok=(s.cacheWriteInTok||0)+(usageInfo.cache_creation_input_tokens||0);
+  s.cacheReadInTok=(s.cacheReadInTok||0)+(usageInfo.cache_read_input_tokens||0);
+  s.inTok+=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0); // tetap dijumlah kasar buat tampilan "Input total", TIDAK dipakai lagi buat hitung biaya
   s.outTok+=(usageInfo.output_tokens||0);
   _vbSaveUsageStats(s);
-  var _evInTok=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0);
-  _vbLogUsageEvent(_vbCurrentCallMode,_evInTok,usageInfo.output_tokens||0); // RIWAYAT PER-JAM: catat jam + mode + token asli panggilan ini (buat hitung biaya per baris)
+  _vbLogUsageEvent(_vbCurrentCallMode,{noCacheInTok:usageInfo.input_tokens||0,cacheWriteInTok:usageInfo.cache_creation_input_tokens||0,cacheReadInTok:usageInfo.cache_read_input_tokens||0},usageInfo.output_tokens||0); // RIWAYAT PER-JAM: catat jam + mode + token asli per-jenis panggilan ini (buat hitung biaya per baris yang akurat)
   _vbRenderUsageBadge(s);
   _vbEnsureLiveIdrRate(); // prefetch kurs di background, gratis & bukan panggilan AI
 }
@@ -12102,7 +12110,7 @@ function _vbRenderUsageBadge(s){
   var fs=_vbLoadFixStats();
   var idr=_vbCurrentIdrRate();
   var idrLabel=_vbIdrRateLabel();
-  var fixUsd=(fs.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(fs.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+  var fixUsd=_vbCalcUsd(fs.noCacheInTok,fs.cacheWriteInTok,fs.cacheReadInTok,fs.outTok);
   var fixIdr=Math.round(fixUsd*idr);
   var totalFinished=fs.attemptHist[1]+fs.attemptHist[2]+fs.attemptHist[3];
   // BIAYA GENERATE UTAMA (permintaan user, Sept 2026): s.inTok/s.outTok di
@@ -12112,7 +12120,7 @@ function _vbRenderUsageBadge(s){
   // persis seperti teks. Model generate utama (GEMINI_MODEL_PRIMARY/
   // FALLBACK) sama-sama Haiku, jadi tarif HAIKU_PRICE_* di bawah berlaku
   // sama untuk bagian ini.
-  var mainUsd=(s.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(s.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+  var mainUsd=_vbCalcUsd(s.noCacheInTok,s.cacheWriteInTok,s.cacheReadInTok,s.outTok);
   var mainIdr=Math.round(mainUsd*idr);
   var grandUsd=mainUsd+fixUsd;
   var grandIdr=Math.round(grandUsd*idr);
@@ -12126,7 +12134,7 @@ function _vbRenderUsageBadge(s){
   var logHtml=logShown.length
     ?logShown.map(function(e){
       var modeLabel=e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'?');
-      var evUsd=((e.inTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK)+((e.outTok||0)/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+      var evUsd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
       var evIdr=Math.round(evUsd*idr);
       return _vbFormatLogTime(e.ts)+' — '+modeLabel+' — $'+evUsd.toFixed(4)+' (≈Rp'+evIdr.toLocaleString('id-ID')+')';
     }).join('<br>')
@@ -12165,8 +12173,8 @@ function _vbToggleUsagePanel(){
 // Reset semua hitungan (dulu lewat dobel-klik/tap-tahan di badge melayang;
 // sekarang tombol biasa di dalam panel, lebih jelas buat tap di HP).
 function _vbResetUsageStats(){
-  _vbSaveUsageStats({hit:0,miss:0,noCache:0,inTok:0,outTok:0});
-  _vbSaveFixStats({calls:0,inTok:0,outTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0});
+  _vbSaveUsageStats({hit:0,miss:0,noCache:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0});
+  _vbSaveFixStats({calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0});
   _vbSaveUsageLog([]); // ikut kosongkan riwayat jam saat reset
   _vbRenderUsageBadge(_vbLoadUsageStats());
 }
@@ -12607,6 +12615,20 @@ async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
 var PB_FIXSTATS_KEY='pb_wordfix_stats_v1';
 var HAIKU_PRICE_IN_PER_MTOK=1.0;   // USD per 1,000,000 token input
 var HAIKU_PRICE_OUT_PER_MTOK=5.0;  // USD per 1,000,000 token output
+// FIX AKURASI BIAYA (permintaan user, Sept 2026): tarif resmi Anthropic untuk
+// prompt caching — token yang BARU ditulis ke cache (cache_creation) kena
+// markup +25% dari tarif input biasa, token yang DIBACA dari cache
+// (cache_read) didiskon jadi cuma 10% dari tarif input biasa (~90% lebih
+// murah). Dulu kedua jenis ini disamakan dengan token biasa (tarif flat),
+// sekarang dihitung terpisah lewat _vbCalcUsd di bawah.
+var HAIKU_PRICE_CACHE_WRITE_MULT=1.25;
+var HAIKU_PRICE_CACHE_READ_MULT=0.1;
+function _vbCalcUsd(noCacheTok,cacheWriteTok,cacheReadTok,outTok){
+  return((noCacheTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK)
+    +((cacheWriteTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK*HAIKU_PRICE_CACHE_WRITE_MULT)
+    +((cacheReadTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK*HAIKU_PRICE_CACHE_READ_MULT)
+    +((outTok||0)/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+}
 var USD_TO_IDR=16400; // kurs perkiraan, cuma buat tampilan kasar di badge
 function _vbLoadFixStats(){
   try{
@@ -12618,7 +12640,7 @@ function _vbLoadFixStats(){
   // stillShort = berapa KALI berhenti masih di bawah rentang minimum walau
   //              sudah habis semua attempt (batas atas selalu 100% dijamin
   //              di luar ini oleh _vbHardEnforceMaxWords, jadi tidak dicatat)
-  return{calls:0,inTok:0,outTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0};
+  return{calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0};
 }
 function _vbSaveFixStats(s){
   try{localStorage.setItem(PB_FIXSTATS_KEY,JSON.stringify(s));}catch(e){}
@@ -12629,6 +12651,9 @@ function _vbTrackFixCall(usage){
   var s=_vbLoadFixStats();
   s.calls++;
   if(usage){
+    s.noCacheInTok=(s.noCacheInTok||0)+(usage.input_tokens||0);
+    s.cacheWriteInTok=(s.cacheWriteInTok||0)+(usage.cache_creation_input_tokens||0);
+    s.cacheReadInTok=(s.cacheReadInTok||0)+(usage.cache_read_input_tokens||0);
     s.inTok+=(usage.input_tokens||0)+(usage.cache_creation_input_tokens||0)+(usage.cache_read_input_tokens||0);
     s.outTok+=(usage.output_tokens||0);
   }
