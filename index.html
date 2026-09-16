@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.90</div>
+  <div class="splash-version" id="splash-version">v5.93</div>
 </div>
 <script>
   (function(){
@@ -4011,6 +4011,18 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </p>
   </div>
 
+  <div class="rule"></div>
+  <!-- STATISTIK BIAYA & CACHE (permintaan user): dulu tampil sebagai badge
+       melayang (#pb-usage-badge) di pojok kiri bawah layar, nutupin konten.
+       Sekarang dipindah ke sini — cuma kelihatan kalau tombol di bawah
+       ditap. Rendernya tetap lewat _vbRenderUsageBadge() (lihat script di
+       bawah), cuma targetnya sekarang #pb-usage-panel, bukan bikin elemen
+       baru di <body>. -->
+  <div class="sec-title sec-title-sub">Statistik Biaya &amp; Cache</div>
+  <p class="sec-desc" style="margin-bottom:12px;">Cek jumlah cache hit, token, dan estimasi biaya real dari pemakaian generate kamu.</p>
+  <button id="pb-usage-toggle-btn" type="button" onclick="_vbToggleUsagePanel()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Lihat Statistik Biaya &amp; Cache</button>
+  <div id="pb-usage-panel" class="hidden"></div>
+
   <div style="text-align:center;padding:24px 20px 4px;margin-top:28px;border-top:1px solid var(--border);">
     <!-- ATURAN WAJIB UNTUK SIAPAPUN (AI/developer) YANG MENGEDIT FILE INI:
          setiap kali melakukan perubahan/update pada aplikasi ini — SEKECIL
@@ -4025,7 +4037,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.90 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.93 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11913,6 +11925,44 @@ function _vbGeminiPartsToClaudeContent(parts){
 // dipantau langsung tanpa DevTools. Ini MURNI monitoring — tidak mengubah
 // jumlah token yang benar-benar terpakai/tertagih sama sekali.
 var PB_USAGE_KEY='pb_usage_stats_v1';
+// ── RIWAYAT PEMAKAIAN PER-JAM (permintaan user, Sept 2026) ────────────────
+// Sebelumnya cuma ada TOTAL akumulasi (hit/miss/dst) tanpa jejak KAPAN dan
+// mode APA tiap panggilan terjadi — jadi user tidak bisa tahu "saya generate
+// bulk jam berapa aja hari ini". Sekarang tiap panggilan AI generate utama
+// (BUKAN panggilan perbaikan jumlah kata, itu sudah ada statistiknya
+// sendiri) dicatat 1 baris log: jam:menit + mode (Bulk/Single). _vbCurrentCallMode
+// ditandai oleh pemanggil (_vbCallBulkBatch='bulk', vbGenerate3AI='single')
+// TEPAT SEBELUM panggilan API, lalu dibaca di sini pas panggilan itu SUKSES.
+// Disimpan di localStorage, dibatasi 50 entri terakhir (log terlama dibuang)
+// supaya tidak membengkak — cukup untuk kebutuhan cek riwayat harian.
+var PB_USAGE_LOG_KEY='pb_usage_log_v1';
+var PB_USAGE_LOG_MAX=50;
+var _vbCurrentCallMode='unknown';
+function _vbLoadUsageLog(){
+  try{
+    var l=JSON.parse(localStorage.getItem(PB_USAGE_LOG_KEY)||'null');
+    if(Array.isArray(l))return l;
+  }catch(e){}
+  return[];
+}
+function _vbSaveUsageLog(l){
+  try{localStorage.setItem(PB_USAGE_LOG_KEY,JSON.stringify(l));}catch(e){}
+}
+function _vbLogUsageEvent(mode,inTok,outTok){
+  var l=_vbLoadUsageLog();
+  l.push({ts:Date.now(),mode:mode||'unknown',inTok:inTok||0,outTok:outTok||0});
+  if(l.length>PB_USAGE_LOG_MAX)l=l.slice(l.length-PB_USAGE_LOG_MAX);
+  _vbSaveUsageLog(l);
+}
+// Format jam:menit lokal HP user (bukan UTC) + tanggal singkat, dipakai di
+// tampilan riwayat supaya jelas kalau ada entri dari hari sebelumnya juga.
+function _vbFormatLogTime(ts){
+  var d=new Date(ts);
+  var jam=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  var today=new Date();
+  var isToday=d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();
+  return isToday?jam:(d.getDate()+'/'+(d.getMonth()+1)+' '+jam);
+}
 function _vbLoadUsageStats(){
   try{
     var s=JSON.parse(localStorage.getItem(PB_USAGE_KEY)||'null');
@@ -11931,14 +11981,15 @@ function _vbTrackUsage(usageInfo){
   s.inTok+=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0);
   s.outTok+=(usageInfo.output_tokens||0);
   _vbSaveUsageStats(s);
+  var _evInTok=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0);
+  _vbLogUsageEvent(_vbCurrentCallMode,_evInTok,usageInfo.output_tokens||0); // RIWAYAT PER-JAM: catat jam + mode + token asli panggilan ini (buat hitung biaya per baris)
   _vbRenderUsageBadge(s);
   _vbEnsureLiveIdrRate(); // prefetch kurs di background, gratis & bukan panggilan AI
 }
-// Badge dibuat sekali (lazy) pas generate pertama kali kejadi, lalu cuma
-// di-update isinya tiap generate berikutnya — tap buat toggle detail
-// (ringkas <-> lengkap), tap-tahan (long-press, via dblclick di desktop)
-// buat reset hitungan kalau mau mulai audit dari nol.
-var _vbUsageBadgeExpanded=false;
+// Dulu ada flag _vbUsageBadgeExpanded buat toggle ringkas<->lengkap di badge
+// melayang. Sekarang panelnya (#pb-usage-panel, di tab Panduan) cuma
+// dirender kalau sedang ditampilkan (dicek langsung dari class "hidden"-nya
+// di _vbRenderUsageBadge), jadi flag terpisah tidak diperlukan lagi.
 // ── KURS USD→IDR REAL-TIME (permintaan user, Sept 2026) ──────────────────
 // Sebelumnya USD_TO_IDR di bawah cuma angka tetap yang diketik manual.
 // Sekarang badge coba ambil kurs asli dari API kurs publik GRATIS (tanpa
@@ -11985,7 +12036,7 @@ function _vbEnsureLiveIdrRate(){
         try{localStorage.setItem(PB_IDR_RATE_KEY,JSON.stringify({rate:rate,ts:Date.now()}));}catch(e){}
         // Refresh tampilan badge kalau lagi kebuka, supaya kurs baru
         // langsung kelihatan tanpa perlu tap-tutup-buka lagi.
-        if(_vbUsageBadgeExpanded)_vbRenderUsageBadge(_vbLoadUsageStats());
+        _vbRenderUsageBadge(_vbLoadUsageStats()); // no-op sendiri kalau panel lagi ditutup
       }
     })
     .catch(function(e){/* offline/API down — diam saja, tetap pakai cache lama/fallback statis */})
@@ -12000,63 +12051,91 @@ function _vbCurrentIdrRate(){
 function _vbIdrRateLabel(){
   return _vbLiveIdrRate?(_vbLiveIdrIsFresh?'kurs real-time':'kurs real-time terakhir, sedang refresh'):'kurs perkiraan';
 }
+// PINDAH DARI BADGE MELAYANG KE TAB PANDUAN (permintaan user, Sept 2026):
+// dulu fungsi ini bikin & isi div #pb-usage-badge yang fixed di pojok layar
+// (nutupin konten pas di-expand). Sekarang targetnya #pb-usage-panel, yang
+// hidup di tab Panduan dan cuma kelihatan kalau tombol "Lihat Statistik
+// Biaya & Cache" ditap (lihat _vbToggleUsagePanel). Selalu render versi
+// LENGKAP (tidak ada lagi mode ringkas "Cache X%") karena panel ini memang
+// baru sengaja dibuka user buat lihat detail — beda dari badge lama yang
+// selalu nongol jadi perlu mode ringkas.
 function _vbRenderUsageBadge(s){
-  var el=document.getElementById('pb-usage-badge');
-  if(!el){
-    el=document.createElement('div');
-    el.id='pb-usage-badge';
-    el.title='Tap: detail · Dobel-klik/tap-tahan: reset hitungan';
-    el.addEventListener('click',function(){
-      _vbUsageBadgeExpanded=!_vbUsageBadgeExpanded;
-      if(_vbUsageBadgeExpanded)_vbEnsureLiveIdrRate();
-      _vbRenderUsageBadge(_vbLoadUsageStats());
-    });
-    el.addEventListener('dblclick',function(e){
-      e.stopPropagation();
-      _vbSaveUsageStats({hit:0,miss:0,noCache:0,inTok:0,outTok:0});
-      _vbSaveFixStats({calls:0,inTok:0,outTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0});
-      _vbRenderUsageBadge(_vbLoadUsageStats());
-    });
-    document.body.appendChild(el);
+  var el=document.getElementById('pb-usage-panel');
+  if(!el)return; // elemen belum ada di DOM (mis. dipanggil sebelum halaman siap)
+  if(el.classList.contains('hidden'))return; // hemat: tidak usah dihitung kalau panel lagi ditutup
+  // STAT REAL PERBAIKAN JUMLAH KATA (permintaan user, Sept 2026): dihitung
+  // dari token ASLI tiap panggilan _vbFixWordCountIfNeeded/Batch (lihat
+  // _vbTrackFixCall/_vbTrackFixOutcome) — bukan estimasi/perkiraan lagi.
+  var fs=_vbLoadFixStats();
+  var idr=_vbCurrentIdrRate();
+  var idrLabel=_vbIdrRateLabel();
+  var fixUsd=(fs.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(fs.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+  var fixIdr=Math.round(fixUsd*idr);
+  var totalFinished=fs.attemptHist[1]+fs.attemptHist[2]+fs.attemptHist[3];
+  // BIAYA GENERATE UTAMA (permintaan user, Sept 2026): s.inTok/s.outTok di
+  // atas sudah mencakup SEMUA panggilan generate utama (Cerita Produk,
+  // Foto Referensi, dst) — termasuk token dari foto yang diupload user,
+  // karena foto ikut terhitung sebagai input_tokens oleh API Anthropic
+  // persis seperti teks. Model generate utama (GEMINI_MODEL_PRIMARY/
+  // FALLBACK) sama-sama Haiku, jadi tarif HAIKU_PRICE_* di bawah berlaku
+  // sama untuk bagian ini.
+  var mainUsd=(s.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(s.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+  var mainIdr=Math.round(mainUsd*idr);
+  var grandUsd=mainUsd+fixUsd;
+  var grandIdr=Math.round(grandUsd*idr);
+  // RIWAYAT PER-JAM: tampilkan entri TERBARU dulu (paling atas), maksimal
+  // 30 baris (permintaan user, Sept 2026 — sebelumnya 10) — sisanya tetap
+  // tersimpan penuh (sampai PB_USAGE_LOG_MAX) walau tidak semua ditampilkan
+  // di sini.
+  var LOG_SHOW_MAX=30;
+  var logAll=_vbLoadUsageLog();
+  var logShown=logAll.slice(-LOG_SHOW_MAX).reverse();
+  var logHtml=logShown.length
+    ?logShown.map(function(e){
+      var modeLabel=e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'?');
+      var evUsd=((e.inTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK)+((e.outTok||0)/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+      var evIdr=Math.round(evUsd*idr);
+      return _vbFormatLogTime(e.ts)+' — '+modeLabel+' — $'+evUsd.toFixed(4)+' (≈Rp'+evIdr.toLocaleString('id-ID')+')';
+    }).join('<br>')
+    :'(belum ada riwayat)';
+  var logMoreNote=logAll.length>LOG_SHOW_MAX?'<br><span style="opacity:0.6">+'+(logAll.length-LOG_SHOW_MAX)+' entri lebih lama (tersimpan, tidak ditampilkan)</span>':'';
+  el.innerHTML='Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Tanpa cache: '+s.noCache
+    +'<br>Input total: '+s.inTok.toLocaleString('id-ID')
+    +'<br>Output total: '+s.outTok.toLocaleString('id-ID')
+    +'<br>Biaya real (generate, termasuk foto): $'+mainUsd.toFixed(4)+' (≈Rp'+mainIdr.toLocaleString('id-ID')+', '+idrLabel+')'
+    +'<br><br><b>Perbaikan jumlah kata (real):</b>'
+    +'<br>Panggilan AI: '+fs.calls
+    +'<br>Selesai di attempt: 1x='+fs.attemptHist[1]+', 2x='+fs.attemptHist[2]+', 3x='+fs.attemptHist[3]
+    +' (dari '+totalFinished+' script/produk)'
+    +'<br>Masih kurang kata walau sudah 3x: '+fs.stillShort
+    +'<br>Token: '+fs.inTok.toLocaleString('id-ID')+' in / '+fs.outTok.toLocaleString('id-ID')+' out'
+    +'<br>Biaya real: $'+fixUsd.toFixed(4)+' (≈Rp'+fixIdr.toLocaleString('id-ID')+', '+idrLabel+')'
+    +'<br><br><b>TOTAL SEMUA BIAYA:</b> $'+grandUsd.toFixed(4)+' (≈Rp'+grandIdr.toLocaleString('id-ID')+', '+idrLabel+')'
+    +'<br><br><b>Riwayat panggilan (terbaru dulu, maks '+LOG_SHOW_MAX+'):</b><br>'+logHtml+logMoreNote
+    +'<div style="margin-top:14px;"><button type="button" id="pb-usage-reset-btn" onclick="_vbResetUsageStats()">Reset Hitungan</button></div>';
+}
+// Toggle buka/tutup panel statistik di tab Panduan (dipanggil dari tombol
+// "Lihat Statistik Biaya & Cache"). Label tombol ikut berubah jadi "Tutup
+// ..." pas panel terbuka.
+function _vbToggleUsagePanel(){
+  var panel=document.getElementById('pb-usage-panel');
+  var btn=document.getElementById('pb-usage-toggle-btn');
+  if(!panel)return;
+  var willShow=panel.classList.contains('hidden');
+  panel.classList.toggle('hidden');
+  if(willShow){
+    _vbEnsureLiveIdrRate();
+    _vbRenderUsageBadge(_vbLoadUsageStats());
   }
-  var total=s.hit+s.miss+s.noCache;
-  var pct=total>0?Math.round((s.hit/total)*100):0;
-  if(!_vbUsageBadgeExpanded){
-    el.innerHTML='Cache '+pct+'% <span class="pb-usage-badge-sub">('+s.hit+'/'+total+')</span>';
-  }else{
-    // STAT REAL PERBAIKAN JUMLAH KATA (permintaan user, Sept 2026): dihitung
-    // dari token ASLI tiap panggilan _vbFixWordCountIfNeeded/Batch (lihat
-    // _vbTrackFixCall/_vbTrackFixOutcome) — bukan estimasi/perkiraan lagi.
-    var fs=_vbLoadFixStats();
-    var idr=_vbCurrentIdrRate();
-    var idrLabel=_vbIdrRateLabel();
-    var fixUsd=(fs.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(fs.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
-    var fixIdr=Math.round(fixUsd*idr);
-    var totalFinished=fs.attemptHist[1]+fs.attemptHist[2]+fs.attemptHist[3];
-    // BIAYA GENERATE UTAMA (permintaan user, Sept 2026): s.inTok/s.outTok di
-    // atas sudah mencakup SEMUA panggilan generate utama (Cerita Produk,
-    // Foto Referensi, dst) — termasuk token dari foto yang diupload user,
-    // karena foto ikut terhitung sebagai input_tokens oleh API Anthropic
-    // persis seperti teks. Model generate utama (GEMINI_MODEL_PRIMARY/
-    // FALLBACK) sama-sama Haiku, jadi tarif HAIKU_PRICE_* di bawah berlaku
-    // sama untuk bagian ini.
-    var mainUsd=(s.inTok/1e6*HAIKU_PRICE_IN_PER_MTOK)+(s.outTok/1e6*HAIKU_PRICE_OUT_PER_MTOK);
-    var mainIdr=Math.round(mainUsd*idr);
-    var grandUsd=mainUsd+fixUsd;
-    var grandIdr=Math.round(grandUsd*idr);
-    el.innerHTML='Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Tanpa cache: '+s.noCache
-      +'<br>Input total: '+s.inTok.toLocaleString('id-ID')
-      +'<br>Output total: '+s.outTok.toLocaleString('id-ID')
-      +'<br>Biaya real (generate, termasuk foto): $'+mainUsd.toFixed(4)+' (≈Rp'+mainIdr.toLocaleString('id-ID')+', '+idrLabel+')'
-      +'<br><br><b>Perbaikan jumlah kata (real):</b>'
-      +'<br>Panggilan AI: '+fs.calls
-      +'<br>Selesai di attempt: 1x='+fs.attemptHist[1]+', 2x='+fs.attemptHist[2]+', 3x='+fs.attemptHist[3]
-      +' (dari '+totalFinished+' script/produk)'
-      +'<br>Masih kurang kata walau sudah 3x: '+fs.stillShort
-      +'<br>Token: '+fs.inTok.toLocaleString('id-ID')+' in / '+fs.outTok.toLocaleString('id-ID')+' out'
-      +'<br>Biaya real: $'+fixUsd.toFixed(4)+' (≈Rp'+fixIdr.toLocaleString('id-ID')+', '+idrLabel+')'
-      +'<br><br><b>TOTAL SEMUA BIAYA:</b> $'+grandUsd.toFixed(4)+' (≈Rp'+grandIdr.toLocaleString('id-ID')+', '+idrLabel+')';
-  }
+  if(btn)btn.innerHTML='<svg class="icon"><use href="#ic-sparkle"></use></svg> '+(willShow?'Tutup Statistik Biaya & Cache':'Lihat Statistik Biaya & Cache');
+}
+// Reset semua hitungan (dulu lewat dobel-klik/tap-tahan di badge melayang;
+// sekarang tombol biasa di dalam panel, lebih jelas buat tap di HP).
+function _vbResetUsageStats(){
+  _vbSaveUsageStats({hit:0,miss:0,noCache:0,inTok:0,outTok:0});
+  _vbSaveFixStats({calls:0,inTok:0,outTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0});
+  _vbSaveUsageLog([]); // ikut kosongkan riwayat jam saat reset
+  _vbRenderUsageBadge(_vbLoadUsageStats());
 }
 async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem){
   if(cacheSystem===undefined)cacheSystem=true;
@@ -12534,7 +12613,7 @@ function _vbTrackFixOutcome(attemptsUsed,stillShort){
   _vbRenderFixBadgeIfExpanded();
 }
 function _vbRenderFixBadgeIfExpanded(){
-  if(_vbUsageBadgeExpanded)_vbRenderUsageBadge(_vbLoadUsageStats());
+  _vbRenderUsageBadge(_vbLoadUsageStats()); // no-op sendiri kalau panel lagi ditutup
 }
 
 // ── SANITIZER CTA — jaring pengaman KODE untuk frasa yang dilarang di
@@ -12960,6 +13039,7 @@ function vbPickTargetAudiencePreset(inputId,presetKey){
 // berurutan dalam <5 menit yang beneran saling kena cache HIT.
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem){
   if(cacheSystem===undefined)cacheSystem=true;
+  _vbCurrentCallMode='bulk'; // LOG RIWAYAT (permintaan user, Sept 2026): tiap panggilan lewat jalur ini dicatat sebagai mode "Bulk" — lihat _vbTrackUsage & _vbLogUsageEvent.
   let range=vbGetWordRange();
   // Tandai produk yang punya foto referensi dengan nomor urut gambar
   // (Gambar 1, Gambar 2, dst — cuma dihitung dari produk yang benar-benar
@@ -15170,7 +15250,10 @@ async function vbGenerate3AI(){
     // sama sekali). Jalur bulk & revisi (_vbCallBulkBatch, pakai
     // _vbBulkSystemPrompt yang sudah lolos syarat) TIDAK disentuh di sini —
     // tetap default cacheSystem=true seperti sebelumnya.
-    let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt,false);
+    let{resp,rawText}=await(function(){
+      _vbCurrentCallMode='single'; // LOG RIWAYAT (permintaan user, Sept 2026): jalur ini (mode single/1 produk lewat wizard) dicatat sebagai "Single" — lihat _vbTrackUsage & _vbLogUsageEvent.
+      return _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt,false);
+    })();
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
     if(!resp.ok){
       let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -18739,8 +18822,21 @@ window.addEventListener('load',function(){
 /* ── BADGE PEMAKAIAN TOKEN (permintaan user, Sept 2026) ─────────────────
    Pojok kiri-bawah (undo-fab pakai kanan-bawah) — kecil & tidak
    mengganggu, cuma nongol setelah generate AI pertama kali terjadi. */
-#pb-usage-badge{position:fixed;left:12px;bottom:12px;z-index:99997;background:rgba(20,20,24,0.92);border:1px solid rgba(255,255,255,0.12);color:#cfcfd6;font-family:'Geist Mono',monospace;font-size:11px;line-height:1.6;padding:6px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.35);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;max-width:180px;}
-#pb-usage-badge .pb-usage-badge-sub{opacity:.6;}
+/* STATISTIK BIAYA & CACHE — dipindah dari badge melayang ke tab Panduan
+   (permintaan user, Sept 2026). Tombol togglenya pakai gaya yang sama
+   dengan #pb-tour-replay-btn biar konsisten; panelnya sendiri dark card
+   monospace kayak badge lama, cuma sekarang statis di dalam halaman. */
+#pb-usage-toggle-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;margin-top:4px;padding:12px;font-size:var(--fs-sm);font-weight:600;
+  color:var(--text);background:var(--surface2);border:1px solid var(--border-hi);
+  border-radius:var(--radius-sm);cursor:pointer;
+}
+#pb-usage-toggle-btn:active{background:var(--surface3);}
+#pb-usage-panel{margin-top:12px;background:rgba(20,20,24,0.92);border:1px solid rgba(255,255,255,0.12);color:#cfcfd6;font-family:'Geist Mono',monospace;font-size:11px;line-height:1.6;padding:14px 16px;border-radius:var(--radius);word-break:break-word;}
+#pb-usage-panel.hidden{display:none;}
+#pb-usage-reset-btn{background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);font-family:inherit;font-size:11px;padding:8px 14px;border-radius:var(--radius-sm);cursor:pointer;}
+#pb-usage-reset-btn:active{background:var(--surface3);}
 </style>
 <script>
 (function(){
