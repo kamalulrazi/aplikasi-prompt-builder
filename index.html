@@ -232,6 +232,19 @@
         console.info('Sinkron cloud belum aktif untuk sesi ini (tidak ada idToken/sesi Firebase yang cocok).');
         return;
       }
+      // PENTING: kalau uid yang login SEKARANG beda dari uid terakhir yang
+      // datanya nyangkut di localStorage perangkat ini (mis. ganti akun
+      // Google di browser/HP yang sama), bersihkan dulu PB_SYNC_KEYS supaya
+      // data akun LAMA tidak "kebawa"/kelihatan seolah milik akun BARU
+      // selama _pullAll() di bawah belum/tidak menemukan data cloud utk
+      // akun baru itu (mis. akun baru belum pernah nyimpan apa-apa).
+      var _lastUid = null;
+      try{ _lastUid = localStorage.getItem('pb_last_cloud_uid'); }catch(e){}
+      if(_lastUid && _lastUid !== window.pbCloudUid){
+        PB_SYNC_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+        try{ localStorage.removeItem('pb_vai_k'); }catch(e){}
+      }
+      try{ localStorage.setItem('pb_last_cloud_uid', window.pbCloudUid); }catch(e){}
       await _pullAll();
     }catch(e){ console.warn('pbCloudInit gagal:', e); }
   };
@@ -2236,7 +2249,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.98</div>
+  <div class="splash-version" id="splash-version">v5.99</div>
 </div>
 <script>
   (function(){
@@ -4060,7 +4073,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.98 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.99 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
