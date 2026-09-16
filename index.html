@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.94</div>
+  <div class="splash-version" id="splash-version">v5.95</div>
 </div>
 <script>
   (function(){
@@ -2502,14 +2502,30 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       return;
     }
 
-    // ── Jalur 1: di dalam app Android → tombol native, GIS dilewati. ──
+    // ── Jalur 1: di dalam app Android, TAPI HANYA kalau plugin native
+    // GoogleAuthNative benar-benar terpasang di sisi Kotlin (dicek lewat
+    // pbNativePlugin() + method login()-nya ada). Sebelumnya jalur ini
+    // langsung aktif hanya berdasar isNativePlatform() = true, tanpa cek
+    // pluginnya benar-benar ada atau belum — akibatnya di app yang cuma
+    // WebView polos (belum ada plugin Kotlin-nya) tombol native muncul
+    // tapi begitu ditekan langsung gagal dengan pesan "Fitur login native
+    // belum terpasang di app ini." (OPSI A, Sept 2026: kalau plugin belum
+    // ada, JANGAN mentok di sini — lanjut ke Jalur 2 di bawah supaya app
+    // tetap bisa login pakai GIS/web, tanpa perlu kode native apapun). ──
     if(pbIsInsideNativeApp()){
-      var nativeBtn = document.getElementById('login-btn-native');
-      if(nativeBtn) nativeBtn.classList.remove('hidden');
-      return;
+      var _nativePlugin = pbNativePlugin();
+      if(_nativePlugin && typeof _nativePlugin.login === 'function'){
+        var nativeBtn = document.getElementById('login-btn-native');
+        if(nativeBtn) nativeBtn.classList.remove('hidden');
+        return;
+      }
+      // Plugin belum terpasang → sengaja TIDAK return di sini, lanjut ke
+      // Jalur 2 (GIS) persis seperti kalau dibuka di browser biasa.
     }
 
-    // ── Jalur 2: dibuka di browser biasa → pakai GIS seperti biasa. ──
+    // ── Jalur 2: dibuka di browser biasa, ATAU di dalam app native yang
+    // belum punya plugin GoogleAuthNative → pakai GIS (Google Identity
+    // Services versi web) seperti biasa. ──
     if(GOOGLE_CLIENT_ID.indexOf('GANTI_DENGAN_CLIENT_ID_ANDA') === 0){
       pbShowLoginError('Login Google belum disetel — developer app ini perlu memasukkan Client ID dari Google Cloud Console terlebih dahulu.');
       return;
@@ -4037,7 +4053,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.94 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.95 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
