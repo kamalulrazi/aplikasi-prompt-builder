@@ -2236,7 +2236,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.95</div>
+  <div class="splash-version" id="splash-version">v5.97</div>
 </div>
 <script>
   (function(){
@@ -2399,13 +2399,18 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   }
 
   // ── JEMBATAN KE APP ANDROID (CAPACITOR) ──────────────────────────────
-  // App ini dibungkus pakai Capacitor. Sisi native akan punya SATU
-  // Capacitor Plugin bernama "GoogleAuthNative" dengan 2 method: login()
+  // App ini dibungkus pakai Capacitor. Sisi native SUDAH PUNYA plugin
+  // custom bernama "GoogleAuthNative" (lihat file GoogleAuthNativePlugin
+  // .java, sudah didaftarkan di MainActivity) dengan 2 method: login()
   // dan logout(). Capacitor otomatis menyediakan object
   // window.Capacitor.Plugins.GoogleAuthNative kalau plugin itu terpasang
-  // dan didaftarkan di MainActivity. Kalau object itu belum ada (plugin
-  // belum dipasang, atau lagi dibuka di browser biasa buat testing),
-  // kita fallback ke Google Identity Services (GIS) yang biasa.
+  // dan didaftarkan di MainActivity. Kalau object itu belum ada (misal
+  // dibuka di browser biasa buat testing), kita fallback ke Google
+  // Identity Services (GIS) — TAPI CATATAN PENTING (Sept 2026): GIS
+  // TERBUKTI TIDAK JALAN kalau dijalankan di dalam WebView app ini
+  // (Google memblokir flow OAuth berbasis browser dari embedded WebView
+  // — bukan soal konfigurasi, ini batasan resmi Google), jadi login DI
+  // DALAM APP wajib lewat jalur native/GoogleAuthNative ini, bukan GIS.
   function pbIsInsideNativeApp(){
     return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
   }
@@ -2422,11 +2427,14 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     }
     plugin.login().then(function(result){
       // FITUR SINKRON CLOUD: idToken dipakai buat login Firebase juga,
-      // supaya data bisa disinkron antar perangkat. Kalau plugin Kotlin
-      // kamu BELUM mengirim idToken di object result, tambahkan field itu
-      // di sisi native (biasanya sudah tersedia dari GoogleSignInAccount
-      // .getIdToken() / hasil authentication.idToken) — tanpa itu, login
-      // native tetap jalan normal, cuma sinkron cloud-nya belum aktif.
+      // supaya data bisa disinkron antar perangkat. Plugin Kotlin yang
+      // ada SEKARANG (GoogleAuthNativePlugin.java) BELUM mengirim
+      // idToken di object result (cuma email/name/photoUrl) — jadi
+      // login tetap jalan normal, cuma sinkron cloud-nya belum aktif
+      // sampai field idToken ditambahkan di sisi Kotlin (ambil dari
+      // account.getIdToken(), butuh .requestIdToken(WEB_CLIENT_ID) di
+      // GoogleSignInOptions — sudah ada, tinggal tambah
+      // ret.put("idToken", account.getIdToken()) di loginResult()).
       var _idTok = result && (result.idToken || (result.authentication && result.authentication.idToken));
       window.pbNativeLoginSuccess(result && result.email, result && result.name, result && result.photoUrl, _idTok);
     }).catch(function(err){
@@ -2503,15 +2511,14 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     }
 
     // ── Jalur 1: di dalam app Android, TAPI HANYA kalau plugin native
-    // GoogleAuthNative benar-benar terpasang di sisi Kotlin (dicek lewat
-    // pbNativePlugin() + method login()-nya ada). Sebelumnya jalur ini
-    // langsung aktif hanya berdasar isNativePlatform() = true, tanpa cek
-    // pluginnya benar-benar ada atau belum — akibatnya di app yang cuma
-    // WebView polos (belum ada plugin Kotlin-nya) tombol native muncul
-    // tapi begitu ditekan langsung gagal dengan pesan "Fitur login native
-    // belum terpasang di app ini." (OPSI A, Sept 2026: kalau plugin belum
-    // ada, JANGAN mentok di sini — lanjut ke Jalur 2 di bawah supaya app
-    // tetap bisa login pakai GIS/web, tanpa perlu kode native apapun). ──
+    // GoogleAuthNative (GoogleAuthNativePlugin.java) benar-benar
+    // terpasang & teregistrasi di MainActivity (dicek lewat
+    // pbNativePlugin() + method login()-nya ada). GIS/web TERBUKTI
+    // diblokir Google di dalam WebView Capacitor (bukan soal
+    // konfigurasi origin — itu sudah dicek benar), jadi jalur native
+    // ini WAJIB dipakai untuk login di dalam app. Kalau plugin belum
+    // sempat terdaftar, jangan mentok di sini — lanjut ke Jalur 2 (GIS)
+    // sebagai fallback supaya app tetap bisa dites di browser biasa. ──
     if(pbIsInsideNativeApp()){
       var _nativePlugin = pbNativePlugin();
       if(_nativePlugin && typeof _nativePlugin.login === 'function'){
@@ -4053,7 +4060,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.95 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.97 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
