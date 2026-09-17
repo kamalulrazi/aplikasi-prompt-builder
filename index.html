@@ -299,6 +299,40 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
   -webkit-overflow-scrolling:touch;
   overscroll-behavior-y:none;
 }
+/* ── PULL-TO-REFRESH CUSTOM (permintaan user) ──────────────────────────
+   Pull-to-refresh NATIVE browser sengaja dimatikan lewat
+   overscroll-behavior-y:none di atas (supaya app kelihatan native, lihat
+   komentar html,body di atas) — jadi swipe-ke-bawah butuh implementasi
+   sendiri di JS (cari "PULL-TO-REFRESH" di script paling bawah file ini).
+   Efeknya: konten (#app-shell) ikut turun sedikit mengikuti jari, logo P
+   branding (sama seperti loading generate) pecah→menyatu sesuai progres
+   tarikan, lalu getar kecil (navigator.vibrate) pas ambang refresh
+   tercapai, baru location.reload() beneran dipanggil. */
+#ptr-indicator{
+  position:fixed;top:0;left:0;right:0;
+  display:flex;align-items:center;justify-content:center;
+  padding-top:env(safe-area-inset-top,0px);
+  height:70px;
+  z-index:50;
+  opacity:0;
+  pointer-events:none;
+  will-change:transform,opacity;
+}
+#ptr-indicator .gen-logo-box{width:34px;height:34px;}
+#ptr-indicator .gen-logo-svg{width:26px;height:26px;overflow:visible;}
+/* Selama drag, posisi tiap keping logo P diatur manual per-frame lewat JS
+   (mengikuti jarak tarikan) — transition dimatikan supaya tidak "kejar-
+   kejaran" dengan sentuhan jari. Begitu jari dilepas & masuk mode
+   settle/loading, transition balik aktif. */
+#ptr-indicator .p-layer{transition:none;}
+#ptr-indicator.ptr-settle .p-layer{transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);}
+/* Dipasang pas ambang refresh tercapai (lepas jari) — logo lanjut pecah↔
+   menyatu terus-menerus selagi location.reload() diproses, pakai keyframes
+   pLoopBack/pLoopFront yang SAMA persis dengan loading generate (bukan
+   animasi baru). */
+#ptr-indicator.looping .p-layer-back{animation:pLoopBack 4.4s infinite;}
+#ptr-indicator.looping .p-layer-front{animation:pLoopFront 4.4s infinite;}
+#app-shell.ptr-settling{transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);}
 :root{
   /* Premium dark palette — deep charcoal with warm undertone */
   --bg:#08080A;
@@ -2249,7 +2283,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v5.99</div>
+  <div class="splash-version" id="splash-version">v6.02</div>
 </div>
 <script>
   (function(){
@@ -2581,6 +2615,23 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 <!-- APP SHELL — semua konten di-scroll di dalam sini, bukan di document root,
      supaya browser/WebView tidak menampilkan indikator scrollbar native-nya
      sendiri di tepi layar (yang bikin app kelihatan seperti "website"). -->
+<!-- Indikator pull-to-refresh — logo P branding, pecah saat mulai ditarik lalu
+     menyatu persis saat ambang refresh tercapai. Lihat CSS #ptr-indicator &
+     script "PULL-TO-REFRESH" di paling bawah file. -->
+<div id="ptr-indicator" aria-hidden="true">
+  <div class="gen-logo-box">
+    <svg class="gen-logo-svg" viewBox="0 0 642 635" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="ptrPGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#D9B876"/>
+          <stop offset="1" stop-color="#B8965F"/>
+        </linearGradient>
+      </defs>
+      <path class="p-layer p-layer-back" id="ptr-p-back" fill="url(#ptrPGrad)" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>
+      <path class="p-layer p-layer-front" id="ptr-p-front" fill="url(#ptrPGrad)" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>
+    </svg>
+  </div>
+</div>
 <div class="app-shell" id="app-shell">
 <!-- HEADER -->
 <div class="header">
@@ -4073,7 +4124,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v5.99 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.02 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -19319,63 +19370,156 @@ window.addEventListener('load',function(){
       // isi field-nya yang balik, tampilannya nyangkut di step
       // terakhir). Default-kan ke 'pbGoStep1' — step awal app ini —
       // supaya undo sampai titik ini benar-benar menampilkan ulang Step 1.
-      // Kalau ini refresh/reload sengaja dari user, hapus draft dulu
-      // (Riwayat/halaman tersimpan/preset TIDAK ikut terhapus — beda
-      // key). Kalau bukan reload (app baru dibuka lagi setelah
-      // ditutup), draft tetap dicoba dipulihkan seperti biasa.
-      //
-      // PENGECUALIAN (permintaan user, Sept 2026): kalau draft yang mau
-      // dihapus itu ternyata punya proses BULK VIDEO yang masih menggantung
-      // (sebagian produk sudah dapat script, sisanya belum — mis. 5 dari 10
-      // produk beres lalu user refresh), draft ini SENGAJA TIDAK dihapus
-      // walau ini reload sungguhan. Kalau dihapus, kolom skrip yang sudah
-      // jadi ikut hilang percuma padahal user cuma refresh, bukan minta
-      // mulai dari nol. Prosesnya sendiri TETAP berhenti total apa adanya
-      // (wajar — reload membuang seluruh request API yang sedang berjalan,
-      // tidak ada cara menyambungnya di tengah jalan), tapi begitu draft
-      // ini dipulihkan, kartu yang sudah selesai ditampilkan lagi persis
-      // seperti sebelum refresh + tombol "Lanjutkan Generate" muncul supaya
-      // user tinggal 1x tap untuk memproses SISA produk saja — TANPA
-      // mengulang/menimpa produk yang sudah jadi (lihat vbBulkResumeAI →
-      // _vbRunBulkGenerate, keduanya cuma mengirim produk yang belum ada di
-      // VB_BULK_LAST_CONTEXT.allResults).
-      var _rawDraftPeek=null;
-      try{ _rawDraftPeek = localStorage.getItem(DRAFT_KEY); }catch(e){}
-      var _draftPendingBulk=false;
-      try{
-        var _peekSnap = _rawDraftPeek ? JSON.parse(_rawDraftPeek) : null;
-        var _peekCtx = _peekSnap && _peekSnap.vars && _peekSnap.vars.VB_BULK_LAST_CONTEXT;
-        _draftPendingBulk = !!(_peekCtx && _peekCtx.produkList && _peekCtx.allResults
-          && _peekCtx.allResults.length < _peekCtx.produkList.length);
-      }catch(e){ _draftPendingBulk=false; }
+      // Kalau ini refresh/reload sengaja dari user (termasuk gesture
+      // pull-to-refresh), hapus draft wizard supaya app benar-benar
+      // "bersih seperti baru" (balik ke Step 1 kosong) — TIDAK ada
+      // pengecualian lagi buat proses bulk video yang masih menggantung
+      // (permintaan user, direvisi dari versi sebelumnya): progress bulk
+      // yang belum selesai IKUT hilang kalau user refresh di tengah
+      // proses, sama seperti field lain. Riwayat/halaman tersimpan/preset
+      // karakter/API key/sesi login TIDAK ikut terhapus — beda key sama
+      // sekali, itu data permanen bukan draft sesi. Kalau bukan reload
+      // (app baru dibuka lagi setelah ditutup total, bukan refresh),
+      // draft tetap dicoba dipulihkan seperti biasa.
       var _isReload = isReloadNavigation();
-      if(_isReload && !_draftPendingBulk) clearDraft();
+      if(_isReload) clearDraft();
       var restoredDraft = tryRestoreDraft();
       if(!restoredDraft){
         pendingStepCalls = [{fn:'pbGoStep1', args:[]}];
         pushSnapshot(); // baseline state paling awal
-      } else if(_isReload && _draftPendingBulk){
-        // Step render lewat pendingStepCalls (di atas, sudah jalan di dalam
-        // tryRestoreDraft→applySnapshot) cuma memulihkan KERANGKA wizard-nya
-        // (posisi step, isi field lewat restoreDom) — kartu-kartu skrip bulk
-        // di dalam #vb-multi-output BUKAN <input>/<textarea> biasa, jadi
-        // TIDAK ikut kepulihkan otomatis dari situ. Digambar ulang manual di
-        // sini dari VB_BULK_LAST_CONTEXT yang baru saja dipulihkan — pakai
-        // fungsi yang SAMA dengan yang dipakai halaman Riwayat untuk kasus
-        // serupa (lihat _vbRestoreLiveBulkOutput, dekat _pbRenderBuilderInto).
-        // Jeda sedikit (setelah restoring di-set false oleh applySnapshot)
-        // supaya tidak bentrok dengan proses restore yang masih berjalan.
-        setTimeout(function(){
-          try{
-            if(typeof _vbRestoreLiveBulkOutput==='function') _vbRestoreLiveBulkOutput();
-          }catch(e){ console.warn('Gagal memulihkan tampilan bulk yang menggantung setelah refresh:',e); }
-        }, 300);
       }
       // re-scan berkala (murah) buat nangkep fungsi step yang mungkin
       // baru "muncul" ke window belakangan (jarang terjadi, tapi aman)
       setInterval(wrapStepFns, 4000);
     }, 500);
   });
+})();
+</script>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// PULL-TO-REFRESH CUSTOM (permintaan user)
+// Native pull-to-refresh browser sengaja dimatikan lewat CSS
+// overscroll-behavior-y:none di #app-shell (biar app kelihatan native,
+// bukan halaman web biasa — lihat komentar di CSS html,body). Jadi
+// gesture "swipe ke bawah dari puncak halaman" diimplementasi ulang
+// manual di sini:
+//   - #app-shell ikut turun sedikit mengikuti jari (efek "ketarik")
+//   - logo P branding (sama seperti loading generate/splash) pecah lalu
+//     menyatu PERSIS mengikuti progres tarikan — bukan spinner generik
+//   - getar kecil (navigator.vibrate) begitu ambang refresh tercapai
+//   - setelah jari dilepas & ambang tercapai: getar konfirmasi lebih
+//     kuat, logo lanjut animasi pecah-menyatu loop, lalu location.reload()
+//     beneran dipanggil (app ini SUDAH punya logic isReloadNavigation()
+//     di script lain buat bedain reload sengaja vs buka app baru).
+// ════════════════════════════════════════════════════════════════════
+(function(){
+  var appShell = document.getElementById('app-shell');
+  var indicator = document.getElementById('ptr-indicator');
+  var backLayer = document.getElementById('ptr-p-back');
+  var frontLayer = document.getElementById('ptr-p-front');
+  if(!appShell || !indicator || !backLayer || !frontLayer) return;
+
+  var THRESHOLD = 58;   // px tarikan sampai logo menyatu penuh & refresh "bersenjata"
+  var MAX_PULL  = 88;   // px maksimum #app-shell boleh ikut turun (biar tidak berlebihan)
+  var RESISTANCE = 0.5; // makin kecil = makin "berat"/pelan responnya terhadap jari
+
+  // Titik pisah awal logo P — SAMA persis dengan .p-layer-back/.p-layer-front
+  // di CSS (state "pecah" default sebelum di-merge), supaya progres 0 pas
+  // baru mulai tarik terlihat identik dengan logo diam sehari-hari.
+  var BACK_FROM  = {x:165,  y:-185, r:10};
+  var FRONT_FROM = {x:-135, y:168,  r:-9};
+
+  var startY = 0, pulling = false, currentPull = 0, armed = false, refreshing = false;
+  var settleTimer = null;
+
+  function canStartPull(target){
+    if(refreshing) return false;
+    if(appShell.scrollTop > 0) return false;
+    // Jangan ganggu drag teks di textarea/input/elemen contenteditable
+    if(target && target.closest && target.closest('textarea, input, [contenteditable="true"]')) return false;
+    return true;
+  }
+
+  function vibrate(ms){
+    try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){}
+  }
+
+  function renderPull(pull){
+    var p = Math.max(0, Math.min(pull / THRESHOLD, 1)); // progres 0→1
+    var ease = 1 - p;
+    backLayer.style.transform = 'translate('+(BACK_FROM.x*ease)+'px,'+(BACK_FROM.y*ease)+'px) rotate('+(BACK_FROM.r*ease)+'deg)';
+    frontLayer.style.transform = 'translate('+(FRONT_FROM.x*ease)+'px,'+(FRONT_FROM.y*ease)+'px) rotate('+(FRONT_FROM.r*ease)+'deg)';
+    backLayer.style.opacity = 0.4 + 0.6*p;
+    indicator.style.opacity = Math.min(pull / 20, 1);
+    appShell.style.transform = 'translateY('+pull+'px)';
+
+    if(p >= 1 && !armed){
+      armed = true;
+      vibrate(10); // tick halus: "lepas sekarang buat refresh"
+    } else if(p < 1 && armed){
+      armed = false;
+    }
+  }
+
+  function resetPull(animate){
+    pulling = false; currentPull = 0; armed = false;
+    if(settleTimer) clearTimeout(settleTimer);
+    if(animate) appShell.classList.add('ptr-settling');
+    appShell.style.transform = 'translateY(0px)';
+    indicator.style.opacity = '0';
+    indicator.classList.remove('looping');
+    backLayer.style.transform = '';
+    frontLayer.style.transform = '';
+    backLayer.style.opacity = '';
+    settleTimer = setTimeout(function(){ appShell.classList.remove('ptr-settling'); }, 380);
+  }
+
+  function triggerRefresh(){
+    refreshing = true;
+    vibrate([12,30,12]); // getar konfirmasi — beda pola dari tick biasa
+    appShell.classList.add('ptr-settling');
+    appShell.style.transform = 'translateY(52px)';
+    backLayer.style.transform = ''; frontLayer.style.transform = '';
+    backLayer.style.opacity = '1';
+    indicator.style.opacity = '1';
+    indicator.classList.add('looping'); // lanjut animasi pecah↔menyatu (pLoopBack/pLoopFront)
+    setTimeout(function(){ location.reload(); }, 550);
+  }
+
+  appShell.addEventListener('touchstart', function(e){
+    if(e.touches.length !== 1) return;
+    if(!canStartPull(e.target)) { pulling = false; return; }
+    startY = e.touches[0].clientY;
+    pulling = true;
+    appShell.classList.remove('ptr-settling');
+  }, {passive:true});
+
+  appShell.addEventListener('touchmove', function(e){
+    if(!pulling || refreshing) return;
+    var deltaY = e.touches[0].clientY - startY;
+    if(deltaY <= 0){
+      if(currentPull > 0) resetPull(true);
+      return; // bukan menarik ke bawah (atau lagi scroll konten) — biarkan scroll normal
+    }
+    if(appShell.scrollTop > 0){ // sempat ke-scroll di tengah gesture — batalkan
+      if(currentPull > 0) resetPull(true);
+      return;
+    }
+    e.preventDefault(); // cegah bounce/scroll browser selama kita tangani manual
+    currentPull = Math.min(deltaY * RESISTANCE, MAX_PULL);
+    renderPull(currentPull);
+  }, {passive:false});
+
+  function onTouchEnd(){
+    if(!pulling) return;
+    pulling = false;
+    if(refreshing) return;
+    if(currentPull >= THRESHOLD) triggerRefresh();
+    else resetPull(true);
+  }
+  appShell.addEventListener('touchend', onTouchEnd, {passive:true});
+  appShell.addEventListener('touchcancel', onTouchEnd, {passive:true});
 })();
 </script>
 
