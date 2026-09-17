@@ -2144,6 +2144,32 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   animation:vbPulseYellow 1.1s ease-in-out infinite;
   background:#FFD640!important;color:#1a1a1a!important;
 }
+/* FITUR BARU (permintaan user): denyutan emas HALUS & LAMBAT (beda dari
+   vb-pulse-yellow di atas yang cepat & dipasang di tombol) pada KOTAK teks
+   kartu Hook itu sendiri (taWrap), supaya user makin yakin kotak MANA yang
+   isinya barusan disalin — dipasang bareng vb-pulse-yellow lewat
+   vbScriptReadyNext(), dilepas lagi begitu tombol Salin kartu Hook diklik
+   (lihat copyBtn.onclick di _vbBuildEditableCard). Pakai token --accent
+   (emas branding) supaya konsisten, BUKAN kuning terang seperti tombolnya —
+   biar beda tegas dari denyutan .just-revealed (dipakai global buat
+   pengganti auto-scroll) walau animasinya senada. */
+@keyframes vbBoxPulseGold{
+  0%,100%{box-shadow:0 0 0 0 var(--accent-glow);}
+  50%{box-shadow:0 0 0 5px var(--accent-glow);}
+}
+.vb-box-pulse-gold{
+  animation:vbBoxPulseGold 2.4s ease-in-out infinite;
+  border-radius:var(--radius-xs);
+}
+/* FITUR BARU (permintaan user): selama tur menunggu user klik "Salin" di
+   kartu Hook, tombol Salin di kartu LAIN (Cerita Produk/CTA) dikunci dulu —
+   dibuat non-interaktif & pudar — supaya user tidak salah klik Salin di
+   kartu yang bukan gilirannya. Dilepas lagi tepat begitu Hook selesai
+   disalin (lihat vbHookCopyLanjutClick()/copyBtn.onclick di
+   _vbBuildEditableCard), atau kalau tur di-skip.*/
+.vb-copy-locked{
+  opacity:0.4!important;pointer-events:none!important;cursor:not-allowed!important;
+}
 /* FITUR BARU (permintaan user): tanda kalau foto produk yang sudah diupload
    bisa di-tap buat diperbesar — lihat vbShowFotoZoom() & class "vbfoto-img". */
 .vbfoto-img{cursor:zoom-in;}
@@ -2283,7 +2309,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.02</div>
+  <div class="splash-version" id="splash-version">v6.03</div>
 </div>
 <script>
   (function(){
@@ -4124,7 +4150,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.02 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.03 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -15007,19 +15033,33 @@ function vbScriptReadyNext(){
   pbTourWaitingHookCopy=true;
   let hookCopyBtn=document.getElementById('vb-bulk-copy-0');
   if(hookCopyBtn) hookCopyBtn.classList.add('vb-pulse-yellow');
+  // FITUR BARU (permintaan user): kotak teks kartu Hook (idx 0) ikut diberi
+  // denyutan emas halus/lambat (beda dari kuning cepat di tombol) supaya
+  // user makin yakin KOTAK mana yang isinya baru disalin.
+  let hookTaWrap=document.getElementById('vb-ta-wrap-0');
+  if(hookTaWrap) hookTaWrap.classList.add('vb-box-pulse-gold');
+  // FITUR BARU (permintaan user): kunci tombol Salin di SEMUA kartu lain
+  // (Cerita Produk/CTA, idx>=1) selama nunggu Hook disalin, biar user tidak
+  // salah pencet. Dicari lewat pola id vb-bulk-copy-N, bukan angka tetap,
+  // supaya tetap aman kalau suatu saat ada >3 kartu (mis. mode bulk).
+  document.querySelectorAll('[id^="vb-bulk-copy-"]').forEach(function(btn){
+    if(btn.id!=='vb-bulk-copy-0') btn.classList.add('vb-copy-locked');
+  });
 }
-// FITUR BARU (permintaan user): notifikasi singkat begitu user benar-benar
-// klik "Salin" di kartu Hook — pesan lebih panjang dari toast biasa,
-// jadi dipakai durasi tampil yang lebih lama (5 detik) supaya sempat
-// terbaca, alih-alih memanggil showToast() biasa (2.5 detik).
+// FITUR BARU (permintaan user, direvisi): notifikasi begitu user benar-benar
+// klik "Salin" di kartu Hook. SEBELUMNYA dipakai toast hijau otomatis-hilang
+// (5 detik) — tapi keluhan user: warnanya hijau dan keburu hilang sebelum
+// sempat klik "Lanjut". Sekarang dipindah jadi kartu overlay PERSISTEN,
+// gaya sama seperti notifikasi "Prompt Video Siap" (vb-scriptready-overlay)
+// — tidak otomatis hilang, baru tertutup saat user klik "Mengerti" (lihat
+// markup #vb-hookcopied-overlay & vbCloseHookCopiedNotif() di bawah).
 function vbShowHookCopiedNotif(){
-  let t=document.getElementById('toast');
-  t.style.borderColor='var(--green)';t.style.color='var(--green)';
-  t.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc('Yang kakak salin itu adalah "prompt vidio" untuk hook (pembuka Vidio). Simpan baik-baik karna sekarang kita akan gunakan prompt-nya.');
-  t.style.transform='translateX(-50%) translateY(0)';
-  t.style.opacity='1';
-  clearTimeout(t._t);
-  t._t=setTimeout(()=>{t.style.transform='translateX(-50%) translateY(80px)';t.style.opacity='0';},5000);
+  let el=document.getElementById('vb-hookcopied-overlay');
+  if(el) el.classList.add('show');
+}
+function vbCloseHookCopiedNotif(){
+  let el=document.getElementById('vb-hookcopied-overlay');
+  if(el) el.classList.remove('show');
 }
 // FITUR BARU (permintaan user): dipicu tombol "Lanjut →" baru di bawah
 // kartu-kartu skrip (#vb-tour-hookcopy-actions) — INI yang sekarang
@@ -15693,6 +15733,13 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
       if(ii===0 && typeof pbTourWaitingHookCopy!=='undefined' && pbTourWaitingHookCopy){
         pbTourWaitingHookCopy=false;
         b.classList.remove('vb-pulse-yellow');
+        // FITUR BARU (permintaan user): lepas denyutan emas di kotak teks
+        // Hook & buka kunci tombol Salin kartu lain, persis saat Hook
+        // benar-benar sudah disalin — pasangan dari penguncian di
+        // vbScriptReadyNext().
+        let hookTaWrap=document.getElementById('vb-ta-wrap-0');
+        if(hookTaWrap) hookTaWrap.classList.remove('vb-box-pulse-gold');
+        document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
         vbShowHookCopiedNotif();
         let hcActions=document.getElementById('vb-tour-hookcopy-actions');
         if(hcActions) hcActions.classList.remove('hidden');
@@ -17260,6 +17307,22 @@ window.addEventListener('beforeunload', function(e){
   </div>
 </div>
 
+<!-- FITUR BARU (permintaan user, direvisi): notifikasi begitu user benar-benar
+     klik "Salin" di kartu Hook. Dulu toast hijau yang otomatis hilang dalam
+     5 detik — diganti kartu overlay persisten gaya sama seperti overlay
+     "Prompt Video Siap" di atas, supaya tidak keburu hilang sebelum user
+     sempat klik "Lanjut" di bawah kartu skrip. Ditutup lewat tombol
+     "Mengerti" (lihat vbCloseHookCopiedNotif() & pemicunya di
+     vbShowHookCopiedNotif(), dipanggil dari copyBtn.onclick di
+     _vbBuildEditableCard). -->
+<div id="vb-hookcopied-overlay" class="vb-scriptready-overlay">
+  <div class="vb-scriptready-card">
+    <div class="vb-scriptready-msg">Yang kakak salin itu adalah "prompt vidio" untuk hook (pembuka video).</div>
+    <div class="vb-scriptready-explain">Simpan baik-baik ya kak, karena sekarang kita akan pakai prompt ini. Kalau sudah, klik "Lanjut →" di bawah kartu-kartu skrip untuk masuk ke tahap berikutnya.</div>
+    <div class="vb-scriptready-actions vb-scriptready-actions-center"><button type="button" class="vb-scriptready-btn vb-scriptready-btn-sm" onclick="vbCloseHookCopiedNotif()">Mengerti</button></div>
+  </div>
+</div>
+
 <!-- FITUR BARU (permintaan user): "kolom baru" panduan Video AI — gaya
      kartu SAMA seperti panduan bikin Foto AI di Google Flow (pbGoStep6Ext,
      kartu bergambar bernomor), dibuka begitu user klik "Lanjut →" pada
@@ -17569,6 +17632,17 @@ function pbEndTour(){
   // yang disembunyikan sejak pbStartTour().
   let navEl=document.querySelector('.nav');
   if(navEl) navEl.classList.remove('pb-tour-navhide');
+  // FITUR BARU (permintaan user): kalau tur di-skip PERSIS saat masih
+  // menunggu klik Salin di kartu Hook (vb-pulse-yellow/vb-box-pulse-gold
+  // & kunci kartu lain masih aktif — lihat vbScriptReadyNext()), semua
+  // itu WAJIB dilepas di sini juga. Tanpa ini, kalau user skip di tengah,
+  // tombol Salin kartu Cerita Produk/CTA bisa nyangkut terkunci selamanya.
+  if(typeof pbTourWaitingHookCopy!=='undefined') pbTourWaitingHookCopy=false;
+  let hookCopyBtn=document.getElementById('vb-bulk-copy-0');
+  if(hookCopyBtn) hookCopyBtn.classList.remove('vb-pulse-yellow');
+  let hookTaWrap=document.getElementById('vb-ta-wrap-0');
+  if(hookTaWrap) hookTaWrap.classList.remove('vb-box-pulse-gold');
+  document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
 }
 // Cuma menyembunyikan tampilan tur (dipakai transisi antar-step,
 // termasuk "hilang total" di langkah 6→7) TANPA menandai tur sudah
