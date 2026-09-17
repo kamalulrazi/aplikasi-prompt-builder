@@ -2309,7 +2309,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.04</div>
+  <div class="splash-version" id="splash-version">v6.06</div>
 </div>
 <script>
   (function(){
@@ -4150,7 +4150,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.04 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.06 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -15033,11 +15033,13 @@ function vbScriptReadyNext(){
   pbTourWaitingHookCopy=true;
   let hookCopyBtn=document.getElementById('vb-bulk-copy-0');
   if(hookCopyBtn) hookCopyBtn.classList.add('vb-pulse-yellow');
-  // FITUR BARU (permintaan user): kotak teks kartu Hook (idx 0) ikut diberi
-  // denyutan emas halus/lambat (beda dari kuning cepat di tombol) supaya
-  // user makin yakin KOTAK mana yang isinya baru disalin.
-  let hookTaWrap=document.getElementById('vb-ta-wrap-0');
-  if(hookTaWrap) hookTaWrap.classList.add('vb-box-pulse-gold');
+  // FITUR DIREVISI (permintaan user): tadinya cuma kotak teks skrip
+  // (vb-ta-wrap-0) yang diberi denyutan emas halus/lambat. Sekarang
+  // dipindah ke SELURUH kartu Hook (vb-card-0) — jadi kotak skrip DAN
+  // kotak prompt/JSON di bawahnya sama-sama kena denyutan, biar user makin
+  // yakin KARTU mana yang isinya baru disalin, bukan cuma sebagian kotaknya.
+  let hookCard=document.getElementById('vb-card-0');
+  if(hookCard) hookCard.classList.add('vb-box-pulse-gold');
   // FITUR BARU (permintaan user): kunci tombol Salin di SEMUA kartu lain
   // (Cerita Produk/CTA, idx>=1) selama nunggu Hook disalin, biar user tidak
   // salah pencet. Dicari lewat pola id vb-bulk-copy-N, bukan angka tetap,
@@ -15684,6 +15686,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   let displayScript=skipInitialFill?'':initialScript;
   let jsonText=_vbBuildFlowText(displayScript,produkNamaForHistory,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
   let card=document.createElement('div');
+  card.id='vb-card-'+idx;
   card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);overflow:hidden;';
 
   let head=document.createElement('div');
@@ -15733,12 +15736,12 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
       if(ii===0 && typeof pbTourWaitingHookCopy!=='undefined' && pbTourWaitingHookCopy){
         pbTourWaitingHookCopy=false;
         b.classList.remove('vb-pulse-yellow');
-        // FITUR BARU (permintaan user): lepas denyutan emas di kotak teks
-        // Hook & buka kunci tombol Salin kartu lain, persis saat Hook
-        // benar-benar sudah disalin — pasangan dari penguncian di
-        // vbScriptReadyNext().
-        let hookTaWrap=document.getElementById('vb-ta-wrap-0');
-        if(hookTaWrap) hookTaWrap.classList.remove('vb-box-pulse-gold');
+        // FITUR BARU (permintaan user): lepas denyutan emas di seluruh
+        // kartu Hook (vb-card-0, pasangan dari vbScriptReadyNext()) & buka
+        // kunci tombol Salin kartu lain, persis saat Hook benar-benar
+        // sudah disalin.
+        let hookCard=document.getElementById('vb-card-0');
+        if(hookCard) hookCard.classList.remove('vb-box-pulse-gold');
         document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
         vbShowHookCopiedNotif();
         let hcActions=document.getElementById('vb-tour-hookcopy-actions');
@@ -17307,19 +17310,22 @@ window.addEventListener('beforeunload', function(e){
   </div>
 </div>
 
-<!-- FITUR BARU (permintaan user, direvisi): notifikasi begitu user benar-benar
-     klik "Salin" di kartu Hook. Dulu toast hijau yang otomatis hilang dalam
-     5 detik — diganti kartu overlay persisten gaya sama seperti overlay
-     "Prompt Video Siap" di atas, supaya tidak keburu hilang sebelum user
-     sempat klik "Lanjut" di bawah kartu skrip. Ditutup lewat tombol
-     "Mengerti" (lihat vbCloseHookCopiedNotif() & pemicunya di
-     vbShowHookCopiedNotif(), dipanggil dari copyBtn.onclick di
-     _vbBuildEditableCard). -->
+<!-- FITUR BARU (permintaan user, direvisi 2x): notifikasi begitu user
+     benar-benar klik "Salin" di kartu Hook. Awalnya toast hijau yang
+     otomatis hilang dalam 5 detik — diganti kartu overlay persisten gaya
+     sama seperti overlay "Prompt Video Siap" di atas. BUGFIX (dilaporkan
+     user): tombol "Mengerti" sempat cuma menutup overlay ini
+     (vbCloseHookCopiedNotif()) TANPA memicu lanjut ke tahap berikutnya —
+     padahal yang benar-benar melanjutkan tur adalah vbHookCopyLanjutClick()
+     yang dulu cuma terpasang di tombol "Lanjut →" TERPISAH di bawah
+     kartu skrip (gampang keluput karena ketutup overlay ini). Sekarang
+     "Mengerti" langsung memanggil KEDUANYA — menutup overlay lalu
+     melanjutkan tur — jadi satu klik saja sudah cukup. -->
 <div id="vb-hookcopied-overlay" class="vb-scriptready-overlay">
   <div class="vb-scriptready-card">
     <div class="vb-scriptready-msg">Yang kakak salin itu adalah "prompt vidio" untuk hook (pembuka video).</div>
-    <div class="vb-scriptready-explain">Simpan baik-baik ya kak, karena sekarang kita akan pakai prompt ini. Kalau sudah, klik "Lanjut →" di bawah kartu-kartu skrip untuk masuk ke tahap berikutnya.</div>
-    <div class="vb-scriptready-actions vb-scriptready-actions-center"><button type="button" class="vb-scriptready-btn vb-scriptready-btn-sm" onclick="vbCloseHookCopiedNotif()">Mengerti</button></div>
+    <div class="vb-scriptready-explain">Simpan baik-baik ya kak, karena sekarang kita akan pakai prompt ini.</div>
+    <div class="vb-scriptready-actions vb-scriptready-actions-center"><button type="button" class="vb-scriptready-btn vb-scriptready-btn-sm" onclick="vbCloseHookCopiedNotif();vbHookCopyLanjutClick();">Mengerti</button></div>
   </div>
 </div>
 
@@ -17640,7 +17646,7 @@ function pbEndTour(){
   if(typeof pbTourWaitingHookCopy!=='undefined') pbTourWaitingHookCopy=false;
   let hookCopyBtn=document.getElementById('vb-bulk-copy-0');
   if(hookCopyBtn) hookCopyBtn.classList.remove('vb-pulse-yellow');
-  let hookTaWrap=document.getElementById('vb-ta-wrap-0');
+  let hookTaWrap=document.getElementById('vb-card-0');
   if(hookTaWrap) hookTaWrap.classList.remove('vb-box-pulse-gold');
   document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
 }
