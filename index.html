@@ -610,6 +610,40 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
   100%{box-shadow:0 0 0 0 rgba(217,184,118,0);}
 }
 .just-revealed{animation:revealPulse 0.9s ease-out;border-radius:var(--radius);}
+/* FITUR BARU (permintaan user): denyutan singkat di thumbnail "Foto
+   Karakter Sheet" pada kartu ringkasan alur tur (Langkah 2), dipicu tepat
+   saat user menekan "Lanjut" dan tur akan membuka modal Karakter Sheet —
+   supaya kelihatan seolah thumbnail itu sendiri yang "ditekan" sebelum
+   modalnya kebuka. Beda dari .just-revealed (kilau border tipis) — ini
+   ada sedikit gerak mengecil-membesar (kayak tombol ditekan jari) DIGABUNG
+   kilau emas, lalu jadi diam lagi. Lihat pbGoStep2Next(). ───────────────── */
+@keyframes pbThumbTapPulse{
+  0%{transform:scale(1);box-shadow:0 0 0 0 rgba(217,184,118,0);}
+  35%{transform:scale(0.90);box-shadow:0 0 0 2px var(--accent-glow);}
+  65%{transform:scale(1.06);box-shadow:0 0 0 5px var(--accent-glow);}
+  100%{transform:scale(1);box-shadow:0 0 0 0 rgba(217,184,118,0);}
+}
+.pb-flow-thumb-tapped{animation:pbThumbTapPulse 0.55s ease-in-out;}
+/* FITUR BARU (permintaan user): modal Karakter Sheet (#cs-modal) sekarang
+   jadi wizard satu-halaman-per-langkah (Karakter → Negara → Penampilan →
+   Outfit) — lihat .cs-page di bawah & fungsi csGoPage() — bukan satu form
+   panjang yang di-scroll seperti sebelumnya. Tombol "Buat Prompt" (akhir
+   halaman Outfit) dan tombol "Salin" (di kartu Hasil Prompt) dikasih
+   denyutan halus lewat .cs-pulse-btn ini supaya user langsung sadar itu
+   tombol yang harus ditekan berikutnya, tanpa perlu teks tambahan.
+   Denyutan berhenti otomatis begitu tombol ditekan (class dilepas lewat
+   JS sebelum masuk state loading/"Tersalin", lihat csGeneratePrompt() &
+   csCopyPrompt()). */
+@keyframes csAttnPulse{
+  0%{box-shadow:0 0 0 0 rgba(217,184,118,0.55);}
+  70%{box-shadow:0 0 0 10px rgba(217,184,118,0);}
+  100%{box-shadow:0 0 0 0 rgba(217,184,118,0);}
+}
+.cs-pulse-btn{animation:csAttnPulse 1.6s ease-out infinite;}
+/* Tombol "Buat Prompt"/"Salin" SENGAJA tidak lagi selebar penuh (beda dari
+   .btn bawaan yang width:100%) supaya latar kuningnya tidak kelihatan jadi
+   bar panjang — cukup sepanjang teksnya, ditengah. */
+.cs-btn-compact{width:auto!important;min-width:168px;max-width:100%;padding:11px 26px!important;margin:18px auto 0!important;display:flex;}
 /* ICON — ukuran ikon SVG selalu ikut ukuran font teks di sebelahnya (1em),
    supaya proporsinya otomatis pas di badge kecil maupun tombol besar. */
 .icon{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;flex-shrink:0;}
@@ -2487,7 +2521,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.11</div>
+  <div class="splash-version" id="splash-version">v6.13</div>
 </div>
 <script>
   (function(){
@@ -2993,60 +3027,94 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   </div>
 
   <!-- MODAL KARAKTER SHEET -->
+  <!-- FITUR BARU (permintaan user, lanjutan dari denyutan thumbnail Langkah
+       2 — lihat pbFlowKsThumbTapThenOpen()/.pb-flow-thumb-tapped di atas):
+       modal ini sekarang wizard SATU HALAMAN PER LANGKAH (Karakter → Negara
+       → Penampilan → Outfit) — persis modelan "halaman satu-satu" di app
+       Google Flow, BUKAN satu form panjang yang di-scroll ke bawah seperti
+       sebelumnya. Tiap halaman (.cs-page) tampil bergantian lewat
+       csGoPage(n); cuma satu yang display-nya aktif, sisanya .hidden.
+       Field "Outfit" adalah field BARU — khusus gender Wanita cuma ada 1
+       chip ("Setelan abaya syar'i") + isi sendiri (lihat csRelabelOutfit()
+       yang menukar teks chip sesuai gender, sama pola dengan Penampilan).
+       Begitu halaman Outfit ini yang aktif, tombol "Buat Prompt" di
+       bawahnya otomatis denyut (.cs-pulse-btn, ditambahkan oleh csGoPage())
+       supaya user tahu itu yang harus ditekan berikutnya. -->
   <div id="cs-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9996;display:none;align-items:center;justify-content:center;padding:20px;">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:420px;max-height:calc(100vh - 40px);overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.6);">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;">
-        <div style="font-size:var(--fs-md);font-weight:700;">Karakter Sheet</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px;">
+        <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+          <button type="button" id="cs-back-btn" onclick="csGoBack()" style="display:none;flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;padding:2px;line-height:1;margin-left:-4px;" aria-label="Kembali"><svg class="icon" style="width:20px;height:20px;transform:rotate(90deg);"><use href="#ic-chevron-down"></use></svg></button>
+          <div style="font-size:var(--fs-md);font-weight:700;">Karakter Sheet</div>
+        </div>
         <img id="cs-modal-ks-thumb" alt="Contoh foto karakter sheet" style="width:38px;height:38px;object-fit:cover;border-radius:var(--radius-2xs);border:1px solid var(--border-hi);flex-shrink:0;">
       </div>
-      <p style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:16px;line-height:1.6;">Sekarang tinggal tentukan aja mau karakter AI seperti apa yang kakak inginkan.</p>
+      <div id="cs-page-label" style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:14px;font-weight:600;letter-spacing:0.2px;">Langkah 1 dari 4</div>
 
-      <label class="inplabel">Karakter</label>
-      <div class="chips" style="margin-bottom:14px;">
-        <div class="chip sel" id="cs-gender-wanita" onclick="csPickGender('wanita',this)">Wanita</div>
-        <div class="chip" id="cs-gender-lakilaki" onclick="csPickGender('laki-laki',this)">Laki-laki</div>
-      </div>
-
-      <div class="inplabel" style="margin-bottom:0;">
-        <button type="button" id="cs-usia-toggle" onclick="csToggleUsia()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;">+ Atur usia (opsional)</button>
-      </div>
-      <div id="cs-usia-box" class="hidden" style="margin-bottom:14px;margin-top:8px;">
-        <div class="inp-wrap">
-          <input class="inp" type="number" min="1" max="100" id="cs-usia-input" placeholder="Contoh: 25" />
+      <!-- HALAMAN 1 — Karakter (gender) + usia opsional -->
+      <div id="cs-page-1" class="cs-page">
+        <p style="font-size:var(--fs-xs2);color:var(--muted);margin:0 0 16px;line-height:1.6;">Sekarang tinggal tentukan aja mau karakter AI seperti apa yang kakak inginkan.</p>
+        <label class="inplabel">Karakter</label>
+        <div class="chips" style="margin-bottom:14px;">
+          <div class="chip sel" id="cs-gender-wanita" onclick="csPickGender('wanita',this)">Wanita</div>
+          <div class="chip" id="cs-gender-lakilaki" onclick="csPickGender('laki-laki',this)">Laki-laki</div>
         </div>
+        <div class="inplabel" style="margin-bottom:0;">
+          <button type="button" id="cs-usia-toggle" onclick="csToggleUsia()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;">+ Atur usia (opsional)</button>
+        </div>
+        <div id="cs-usia-box" class="hidden" style="margin-top:8px;">
+          <div class="inp-wrap">
+            <input class="inp" type="number" min="1" max="100" id="cs-usia-input" placeholder="Contoh: 25" />
+          </div>
+        </div>
+        <button type="button" class="btn" onclick="csGoPage(2)">Lanjut</button>
       </div>
 
-      <div class="rule" style="margin:10px 0 16px;"></div>
-
-      <label class="inplabel">Negara</label>
-      <div class="chips" id="cs-negara-chips" style="margin-bottom:6px;">
-        <div class="chip sel" onclick="csPickNegara('Indonesia',this)">Indonesia</div>
-        <div class="chip" onclick="csPickNegara('Mesir',this)">Mesir</div>
-        <div class="chip" onclick="csPickNegara('Arab Saudi',this)">Arab Saudi</div>
-      </div>
-      <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
-      <div class="inp-wrap" style="margin-bottom:16px;">
-        <input class="inp" id="cs-negara-custom" maxlength="60" placeholder="Contoh: Turki" oninput="csNegaraCustomInput()" onfocus="csNegaraCustomFocus()" onblur="csNegaraCustomBlur()" />
-      </div>
-
-      <div class="rule" style="margin:10px 0 16px;"></div>
-
-      <label class="inplabel">Penampilan</label>
-      <div class="chips" id="cs-penampilan-chips" style="margin-bottom:6px;">
-        <div class="chip sel" data-f="Cantik, Putih" data-m="Ganteng, Putih" onclick="csPickPenampilan(this)">Cantik, Putih</div>
-        <div class="chip" data-f="Cantik, Sawo Matang" data-m="Ganteng, Sawo Matang" onclick="csPickPenampilan(this)">Cantik, Sawo Matang</div>
-        <div class="chip" data-f="Biasa aja" data-m="Biasa aja" onclick="csPickPenampilan(this)">Biasa aja</div>
-        <div class="chip" data-f="Jelek" data-m="Jelek" onclick="csPickPenampilan(this)">Jelek</div>
-      </div>
-      <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
-      <div class="inp-wrap" style="margin-bottom:16px;">
-        <input class="inp" id="cs-penampilan-custom" maxlength="60" placeholder="Contoh: manis, kulit sawo matang" oninput="csPenampilanCustomInput()" onfocus="csPenampilanCustomFocus()" onblur="csPenampilanCustomBlur()" />
+      <!-- HALAMAN 2 — Negara -->
+      <div id="cs-page-2" class="cs-page hidden">
+        <label class="inplabel">Negara</label>
+        <div class="chips" id="cs-negara-chips" style="margin-bottom:6px;">
+          <div class="chip sel" onclick="csPickNegara('Indonesia',this)">Indonesia</div>
+          <div class="chip" onclick="csPickNegara('Mesir',this)">Mesir</div>
+          <div class="chip" onclick="csPickNegara('Arab Saudi',this)">Arab Saudi</div>
+        </div>
+        <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
+        <div class="inp-wrap">
+          <input class="inp" id="cs-negara-custom" maxlength="60" placeholder="Contoh: Turki" oninput="csNegaraCustomInput()" onfocus="csNegaraCustomFocus()" onblur="csNegaraCustomBlur()" />
+        </div>
+        <button type="button" class="btn" onclick="csGoPage(3)">Lanjut</button>
       </div>
 
-      <div style="display:flex;gap:8px;">
-        <button id="cs-close-btn" onclick="csCloseModal()" style="flex:1;background:none;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);cursor:pointer;font-family:'Geist',sans-serif;">Tutup</button>
-        <button id="cs-generate-btn" onclick="csGeneratePrompt()" style="flex:2;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;">Buat Prompt</button>
+      <!-- HALAMAN 3 — Penampilan -->
+      <div id="cs-page-3" class="cs-page hidden">
+        <label class="inplabel">Penampilan</label>
+        <div class="chips" id="cs-penampilan-chips" style="margin-bottom:6px;">
+          <div class="chip sel" data-f="Cantik, Putih" data-m="Ganteng, Putih" onclick="csPickPenampilan(this)">Cantik, Putih</div>
+          <div class="chip" data-f="Cantik, Sawo Matang" data-m="Ganteng, Sawo Matang" onclick="csPickPenampilan(this)">Cantik, Sawo Matang</div>
+          <div class="chip" data-f="Biasa aja" data-m="Biasa aja" onclick="csPickPenampilan(this)">Biasa aja</div>
+          <div class="chip" data-f="Jelek" data-m="Jelek" onclick="csPickPenampilan(this)">Jelek</div>
+        </div>
+        <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
+        <div class="inp-wrap">
+          <input class="inp" id="cs-penampilan-custom" maxlength="60" placeholder="Contoh: manis, kulit sawo matang" oninput="csPenampilanCustomInput()" onfocus="csPenampilanCustomFocus()" onblur="csPenampilanCustomBlur()" />
+        </div>
+        <button type="button" class="btn" onclick="csGoPage(4)">Lanjut</button>
       </div>
+
+      <!-- HALAMAN 4 — Outfit (field baru) → tombol "Buat Prompt" -->
+      <div id="cs-page-4" class="cs-page hidden">
+        <label class="inplabel">Outfit</label>
+        <div class="chips" id="cs-outfit-chips" style="margin-bottom:6px;">
+          <div class="chip sel" data-f="Setelan abaya syar'i" data-m="Outfit casual" onclick="csPickOutfit(this)">Setelan abaya syar'i</div>
+        </div>
+        <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
+        <div class="inp-wrap">
+          <input class="inp" id="cs-outfit-custom" maxlength="60" placeholder="Contoh: setelan gamis motif bunga" oninput="csOutfitCustomInput()" onfocus="csOutfitCustomFocus()" onblur="csOutfitCustomBlur()" />
+        </div>
+        <button type="button" id="cs-generate-btn" class="btn cs-btn-compact" onclick="csGeneratePrompt()">Buat Prompt</button>
+      </div>
+
+      <button id="cs-close-btn" onclick="csCloseModal()" style="display:block;width:100%;background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;text-decoration:underline;padding:16px 0 0;text-align:center;font-family:'Geist',sans-serif;">Tutup</button>
     </div>
   </div>
 
@@ -4328,7 +4396,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.11 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.13 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9019,11 +9087,21 @@ function _copyTextRobust(text,onOk,onFail){
 // 3 hal yang bisa diatur user (Karakter/Usia/Negara) — outfit,
 // ekspresi, angle, & background FIXED sesuai template.
 // ════════════════════════════════════════════════════════════════
-let csState={gender:'wanita',usia:null,negara:'Indonesia',penampilan:'Cantik, Putih'};
+let csState={gender:'wanita',usia:null,negara:'Indonesia',penampilan:'Cantik, Putih',outfit:"Setelan abaya syar'i"};
 let csLastPromptText='';
+// FITUR BARU (permintaan user): halaman aktif di wizard Karakter Sheet
+// (1=Karakter, 2=Negara, 3=Penampilan, 4=Outfit). Dipakai csGoPage()/
+// csGoBack() buat tahu harus render label "Langkah X dari 4" yang mana &
+// kapan tombol back (‹) ditampilkan.
+let csCurrentPage=1;
+const CS_TOTAL_PAGES=4;
 
 function csOpenModal(){
   document.getElementById('cs-modal').style.display='flex';
+  // Setiap modal dibuka (baik dari luar tur maupun dari tur), wizard SELALU
+  // mulai lagi dari halaman 1 (Karakter) — bukan nyangkut di halaman
+  // terakhir yang sempat dibuka sebelumnya.
+  csGoPage(1);
   // Pastikan tombol "Tutup" selalu kelihatan lagi di pemakaian normal
   // (di luar tur) — yang menyembunyikannya cuma alur tur Langkah 3
   // lewat pbOpenCharacterSheetFromTour(), lihat komentar di sana.
@@ -9033,11 +9111,37 @@ function csOpenModal(){
 function csCloseModal(){
   document.getElementById('cs-modal').style.display='none';
 }
+// ── FITUR BARU (permintaan user): navigasi wizard satu-halaman-per-langkah.
+// Sembunyikan semua .cs-page lalu tampilkan cs-page-<n> saja, update label
+// "Langkah X dari 4", tombol back (cs-back-btn) cuma kelihatan mulai
+// halaman ke-2, dan begitu masuk halaman 4 (Outfit) tombol "Buat Prompt"
+// otomatis dikasih denyutan (.cs-pulse-btn) supaya user sadar itu yang
+// harus ditekan. Konten modal juga di-scroll balik ke atas tiap pindah
+// halaman biar user selalu mulai lihat dari judul field, bukan nyangkut
+// di posisi scroll halaman sebelumnya. ─────────────────────────────────
+function csGoPage(n){
+  document.querySelectorAll('.cs-page').forEach(function(p){p.classList.add('hidden');});
+  let target=document.getElementById('cs-page-'+n);
+  if(target) target.classList.remove('hidden');
+  csCurrentPage=n;
+  let backBtn=document.getElementById('cs-back-btn');
+  if(backBtn) backBtn.style.display=(n>1)?'':'none';
+  let lbl=document.getElementById('cs-page-label');
+  if(lbl) lbl.textContent='Langkah '+n+' dari '+CS_TOTAL_PAGES;
+  let genBtn=document.getElementById('cs-generate-btn');
+  if(genBtn && n===4) genBtn.classList.add('cs-pulse-btn');
+  let scrollBox=document.getElementById('cs-modal').querySelector('div[style*="overflow-y"]');
+  if(scrollBox) scrollBox.scrollTop=0;
+}
+function csGoBack(){
+  if(csCurrentPage>1) csGoPage(csCurrentPage-1);
+}
 function csPickGender(val,el){
   csState.gender=val;
   document.querySelectorAll('#cs-gender-wanita,#cs-gender-lakilaki').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
   csRelabelPenampilan();
+  csRelabelOutfit();
 }
 // Ganti label chip Penampilan sesuai gender ("Cantik" utk wanita, "Ganteng"
 // utk laki-laki). Kalau chip yang sedang aktif (sel) adalah salah satu dari
@@ -9052,7 +9156,20 @@ function csRelabelPenampilan(){
     if(c.classList.contains('sel'))csState.penampilan=label;
   });
 }
+// ── Outfit — field BARU (permintaan user), sama pola dengan Penampilan di
+// atas: cuma 1 chip yang tampil sesuai gender ("Setelan abaya syar'i" utk
+// wanita, "Outfit casual" utk laki-laki) + isi sendiri. ─────────────────
+function csRelabelOutfit(){
+  let isLaki=csState.gender==='laki-laki';
+  document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>{
+    let label=isLaki?c.dataset.m:c.dataset.f;
+    if(!label)return;
+    c.textContent=label;
+    if(c.classList.contains('sel'))csState.outfit=label;
+  });
+}
 function csToggleUsia(){
+
   let box=document.getElementById('cs-usia-box');
   let btn=document.getElementById('cs-usia-toggle');
   let showing=!box.classList.contains('hidden');
@@ -9128,26 +9245,60 @@ function csPenampilanCustomInput(){
   csState.penampilan=v;
   document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
 }
+// ── Outfit — field BARU (permintaan user): pola sama dengan Negara/
+// Penampilan (pilih chip ATAU isi sendiri, live lewat oninput, tanpa
+// tombol "Pakai"). Bedanya cuma ada 1 chip yang tampil sesuai gender
+// (lihat csRelabelOutfit()). Nilainya dipakai gantiin outfit yang dulu
+// di-hardcode berdasarkan gender saja di csGeneratePrompt(). ──────────
+function csPickOutfit(el){
+  csState.outfit=el.textContent.trim();
+  document.getElementById('cs-outfit-custom').value='';
+  document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function csOutfitCustomFocus(){
+  document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>c.classList.remove('sel'));
+}
+function csOutfitCustomBlur(){
+  let v=(document.getElementById('cs-outfit-custom').value||'').trim();
+  if(v)return;
+  document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>{
+    if(c.textContent.trim()===csState.outfit)c.classList.add('sel');
+  });
+}
+function csOutfitCustomInput(){
+  let v=(document.getElementById('cs-outfit-custom').value||'').trim();
+  if(!v)return;
+  csState.outfit=v;
+  document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>c.classList.remove('sel'));
+}
 // ── Klik "Buat Prompt" — tombol diganti sementara jadi animasi logo "P"
 // (sama persis dengan loading Generate Prompt Foto di f-gen-btn: pecah
 // dulu lalu nyatu di ~650ms, total 2 detik) baru hasil promptnya
 // ditampilkan — supaya jeda generate di sini terasa konsisten sebagai
-// bagian dari branding aplikasi, bukan cuma teks yang muncul instan. ──
+// bagian dari branding aplikasi, bukan cuma teks yang muncul instan.
+// FITUR BARU (permintaan user): logo dibuat lebih besar supaya "terlihat
+// jelas" (48px, sebelumnya 40px bawaan .gen-logo-box) dan label teks
+// "Membuat Prompt..." DIHAPUS selama animasi ini berjalan — logo P sendiri
+// yang jadi fokus, tanpa teks apa pun di bawahnya. Denyutan .cs-pulse-btn
+// juga dilepas begitu tombol ditekan (biar tidak "berdenyut" bareng
+// animasi logo), dan dipasang lagi tiap kali user balik ke halaman Outfit
+// lewat csGoPage(). ─────────────────────────────────────────────────
 function csGeneratePrompt(){
   let genBtn=document.getElementById('cs-generate-btn');
   let genBtnOrigHTML=genBtn?genBtn.innerHTML:'';
   if(genBtn){
+    genBtn.classList.remove('cs-pulse-btn');
     genBtn.disabled=true;
     genBtn.classList.add('btn-loading');
-    genBtn.innerHTML='<div class="gen-logo-wrap" id="cs-gen-logo-wrap">'
-      +'<div class="gen-logo-box">'
-        +'<svg class="gen-logo-svg" viewBox="0 0 642 635" xmlns="http://www.w3.org/2000/svg">'
+    genBtn.innerHTML='<div class="gen-logo-wrap" id="cs-gen-logo-wrap" style="padding:4px 0;">'
+      +'<div class="gen-logo-box" style="width:48px;height:48px;">'
+        +'<svg class="gen-logo-svg" style="width:38px;height:38px;" viewBox="0 0 642 635" xmlns="http://www.w3.org/2000/svg">'
           +'<defs><linearGradient id="csGenPGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D9A0"/><stop offset="100%" stop-color="#B8965F"/></linearGradient></defs>'
           +'<path class="p-layer p-layer-back" fill="url(#csGenPGrad)" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>'
           +'<path class="p-layer p-layer-front" fill="url(#csGenPGrad)" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>'
         +'</svg>'
       +'</div>'
-      +'<span class="gen-logo-label">Membuat Prompt...</span>'
     +'</div>';
     void genBtn.offsetWidth;
     setTimeout(function(){
@@ -9166,12 +9317,12 @@ function _csDoGeneratePrompt(){
   let usiaVal=(!usiaBox.classList.contains('hidden'))?(document.getElementById('cs-usia-input').value||'').trim():'';
   csState.usia=usiaVal?usiaVal:null;
 
-  let outfit=csState.gender==='laki-laki'?'memakai outfit casual':'memakai abaya dan jilbab menutupi dada';
+  let outfitTxt=(csState.outfit||(csState.gender==='laki-laki'?'Outfit casual':"Setelan abaya syar'i")).toLowerCase();
   let usiaClause=csState.usia?('berusia '+csState.usia+' tahun '):'';
   let penampilanTxt=(csState.penampilan||'Cantik, Putih').toLowerCase();
   let text='buatkan aku foto karakter sheet multi angel lengkap dengan ekspresi dan beberapa angel mulai dari depan samping low angel, high angel, serta eye level. Karakter nya adalah seorang '
     +csState.gender+' '+usiaClause+'dengan penampilan '+penampilanTxt+' asal '+csState.negara
-    +', '+outfit+' dengan background putih bersih';
+    +', memakai '+outfitTxt+' dengan background putih bersih';
 
   csLastPromptText=text;
   csShowResultNotif(text);
@@ -9181,6 +9332,7 @@ function _csDoGeneratePrompt(){
 // user klik "Buat Prompt". Ada tombol kecil "Buat ulang" — kalau user mau
 // ganti-ganti pilihan dulu sebelum salin, tinggal tekan itu buat nutup
 // notifikasi ini aja (modal Karakter Sheet di belakang tetap ada & masih
+
 // bisa diedit, tinggal klik "Buat Prompt" lagi).
 function csShowResultNotif(text){
   let old=document.getElementById('cs-result-notif');
@@ -9202,13 +9354,23 @@ function csShowResultNotif(text){
   textBox.textContent=text;
   let copyBtn=document.createElement('button');
   copyBtn.id='cs-copy-btn';
+  copyBtn.className='cs-pulse-btn';
   copyBtn.textContent='Salin';
-  copyBtn.style.cssText="width:100%;background:var(--accent);color:var(--bg);border:none;padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;";
+  // FITUR BARU (permintaan user): tombol Salin dikasih denyutan
+  // (.cs-pulse-btn, dilepas otomatis begitu ditekan — lihat csCopyPrompt())
+  // dan latar kuningnya dibikin TIDAK selebar penuh lagi (beda dari
+  // sebelumnya width:100%) — cukup sepanjang teksnya, ditengah, biar lebih
+  // enak diliat.
+  copyBtn.style.cssText="width:auto;min-width:150px;max-width:100%;margin:0 auto;display:block;background:var(--accent);color:var(--bg);border:none;padding:10px 24px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;text-align:center;";
   copyBtn.onclick=csCopyPrompt;
   let redoBtn=document.createElement('button');
   redoBtn.textContent='Buat ulang';
   redoBtn.style.cssText="display:block;width:100%;background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;text-decoration:underline;padding:10px 0 0;text-align:center;font-family:'Geist',sans-serif;";
-  redoBtn.onclick=function(){overlay.remove();};
+  // FITUR BARU (permintaan user): "Buat ulang" sekarang beneran mengulang
+  // proses PEMBUATAN dari awal (halaman 1 — Karakter/jenis kelamin), bukan
+  // cuma menutup notifikasi hasil prompt & diam di halaman Outfit seperti
+  // sebelumnya. Modal Karakter Sheet di belakang TETAP terbuka.
+  redoBtn.onclick=function(){overlay.remove();csGoPage(1);};
   box.appendChild(label);box.appendChild(textBox);box.appendChild(copyBtn);box.appendChild(redoBtn);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
@@ -9238,6 +9400,7 @@ function csCopyPrompt(){
   let text=csLastPromptText||'';
   if(!text){showToast('Buat prompt-nya dulu ya','error');return;}
   function onOk(){
+    btn.classList.remove('cs-pulse-btn');
     btn.textContent='Tersalin!';
     setTimeout(()=>{btn.textContent='Salin';},2000);
     // Prompt karakter sheet sudah tersalin — tutup notifikasi hasil prompt +
@@ -18362,9 +18525,28 @@ var pbKsFotoDataUrl=null;
 // dari dalam pbShowSaveJsonNotif() (lihat komentar di sana).
 function pbGoStep2Next(){
   if(!pbProdukFotoUploaded){ pbGoStep2b(); }
-  else if(!pbKsFotoUploaded){ pbOpenCharacterSheetFromTour(); }
+  else if(!pbKsFotoUploaded){ pbFlowKsThumbTapThenOpen(); }
   else if(!pbFotoAiUploaded){ pbGoStep5(); }
   else { pbGoStep7VideoIntro(); }
+}
+// FITUR BARU (permintaan user): sebelum modal Karakter Sheet kebuka dari
+// tombol "Lanjut" di kartu ringkasan alur (Langkah 2), kasih denyutan
+// singkat dulu di thumbnail "Foto Karakter Sheet" (#pb-flow-ks-thumb) —
+// biar kelihatan seolah thumbnail itu yang "ditekan"/aktif sebelum
+// pindah ke modalnya, bukan cuma tiba-tiba ganti tampilan. Kalau elemen
+// thumbnail-nya entah kenapa tidak ketemu (mis. re-render tertunda),
+// langsung lanjut buka modal tanpa nunggu — supaya tombol "Lanjut" tidak
+// pernah kelihatan "diam"/tidak merespons. ─────────────────────────────
+function pbFlowKsThumbTapThenOpen(){
+  let thumbEl=document.getElementById('pb-flow-ks-thumb');
+  if(!thumbEl){ pbOpenCharacterSheetFromTour(); return; }
+  thumbEl.classList.remove('pb-flow-thumb-tapped');
+  void thumbEl.offsetWidth; // restart animasi kalau class-nya kebetulan masih nempel
+  thumbEl.classList.add('pb-flow-thumb-tapped');
+  setTimeout(function(){
+    thumbEl.classList.remove('pb-flow-thumb-tapped');
+    pbOpenCharacterSheetFromTour();
+  },380);
 }
 // ── LANGKAH BARU — pengenalan: Foto AI sudah lengkap, sekarang bikin
 // prompt VIDEO-nya dulu sebelum lanjut ke Google Flow/Veo. Modal biasa
