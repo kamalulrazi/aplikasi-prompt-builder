@@ -2521,7 +2521,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.23</div>
+  <div class="splash-version" id="splash-version">v6.27</div>
 </div>
 <script>
   (function(){
@@ -4413,7 +4413,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.23 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.27 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -6250,6 +6250,26 @@ function fKonfirmRef(){
   let _sedb=document.getElementById('summary-edit-done-btn');if(_sedb)_sedb.remove();
   if(!FS.subjek){showToast('Pilih subjek foto dulu di langkah pertama!','error');return;}
   if(FS.refs.length===0){showToast('Pilih minimal 1 foto dulu!','error');return;}
+  // FIX (permintaan user): SELAMA versi sederhana tur step 1 aktif
+  // (pbTourF1Active — chip "Wajah" berlabel "Karakter Sheet", lihat
+  // pbGoStep6()), sebelumnya user bisa tap "Karakter Sheet" doang lalu
+  // langsung "Selesai — Lanjut →" (validasi di atas cuma minta minimal 1
+  // foto APAPUN). Sekarang, KHUSUS selama tur ini, wajib ada refs bertipe
+  // 'wajah' (Karakter Sheet) DAN 'produk' sebelum boleh lanjut — supaya
+  // user benar-benar mengisi kedua bahan yang diminta di hint ("Tap bahan
+  // yang udah kakak siapkan, yaitu: karakter sheet dan produk."), bukan
+  // cuma salah satu. Di luar sesi tur ini (wizard normal), aturan lama
+  // (minimal 1 foto apapun) TETAP berlaku seperti biasa — supaya alur
+  // normal (mis. subjek 'produk'/Produk Saja yang memang tidak butuh
+  // Wajah) tidak ikut terkunci.
+  if(typeof pbTourF1Active!=='undefined' && pbTourF1Active){
+    let _hasKS=FS.refs.some(function(r){return r.type==='wajah';});
+    let _hasProdukTour=FS.refs.some(function(r){return r.type==='produk';});
+    if(!_hasKS || !_hasProdukTour){
+      showToast('Tap "Karakter Sheet" dan "Produk" dulu ya, baru bisa lanjut!','error');
+      return;
+    }
+  }
 
   // FIX IMPORT: dalam mode import, Foto Referensi cuma field yang berdiri
   // sendiri diakses dari Ringkasan — bukan bagian dari alur wizard
@@ -17552,6 +17572,28 @@ function fRenderSummary() {
 // kalau tidak (custom/dari prompt lama yang teksnya beda), kotak "tulis
 // sendiri" diisi otomatis dengan teks yang sudah ada.
 function fRestoreStepUI(cardNum) {
+  // FIX LANJUTAN (audit dari kasus Foto Referensi/f1 di bawah — user
+  // bertanya apakah kelas bug ini ada juga di tempat lain selama tur):
+  // step 0 (Subjek Foto) TERNYATA punya masalah PERSIS SAMA. Versi
+  // sederhananya (class pb-tour-f0-simple, teks f0Desc yang disederhanakan,
+  // badge "sedang membuat prompt") dipasang di pbGoStep5(), tapi begitu
+  // subjek dikonfirmasi step ini otomatis "selesai" dan versi sederhana itu
+  // TIDAK otomatis dipasang ulang kalau step ini dibuka lagi lewat whead
+  // click ATAU sheet "Lompat ke step" (keduanya berujung ke sini). Beda
+  // dengan alur "← Kembali" dari f1 ke f0 (_fSubjekAdvance, sudah lebih
+  // dulu di-fix — lihat pbTourStep56Active di sana), jalur reopen dari
+  // "Lompat ke step"/whead click ini belum ke-cover. Panggil ulang
+  // pbTourResetF0Ui()+pbGoStep5() di sini kalau sesi tur Langkah 5+6 masih
+  // berjalan (pbTourStep56Active — flag yang sama, tetap true sepanjang
+  // step 3-9 juga, lihat komentar di deklarasinya), supaya konsisten
+  // dengan perbaikan di cardNum===1 di bawah.
+  if (cardNum === 0) {
+    if (typeof pbTourStep56Active !== 'undefined' && pbTourStep56Active
+        && typeof pbTourResetF0Ui === 'function' && typeof pbGoStep5 === 'function') {
+      pbTourResetF0Ui();
+      pbGoStep5();
+    }
+  }
   if (cardNum === 1) {
     // FIX IMPORT: card Foto Referensi sebelumnya tidak punya restore logic —
     // saat dibuka ulang dalam mode import (foto asli tidak tersimpan, hanya
@@ -17607,6 +17649,26 @@ function fRestoreStepUI(cardNum) {
       let cntImp = document.getElementById('f1-produk-count');
       if (cntImp) cntImp.textContent = (FS.refs ? FS.refs.filter(function(r){return r.type!=='outfit_random';}).length : 0) || 1;
       if (typeof fSyncF1EditDoneBtn === 'function') fSyncF1EditDoneBtn();
+    }
+    // FIX (dilaporkan user): kalau step 1 (Foto Referensi) dibuka ulang
+    // untuk diedit SELAMA sesi tur diperpanjang masih berjalan (step 3-9,
+    // lihat pbTourExtActive) — baik lewat klik header step (done -> edit,
+    // whead click handler di doneCard()) MAUPUN lewat sheet "Lompat ke
+    // step" (fSummaryEdit(1), yang juga memanggil fRestoreStepUI ini) —
+    // tampilannya sebelumnya balik ke versi NORMAL (chip "Wajah", chip
+    // "Objek" muncul lagi, banner "Cek HP dulu" muncul lagi). Ini terjadi
+    // karena versi sederhana tur (class pb-tour-f1-simple, dkk) sudah
+    // dilepas begitu step ini PERTAMA KALI selesai — lihat pbTourResetF1Ui,
+    // dipanggil dari dalam pbGoStep6(). Padahal selama masih dalam sesi tur
+    // yang sama (belum sampai step 9/Mood & Tone selesai), versi sederhana
+    // INI yang seharusnya tetap dipakai tiap kali step 1 dibuka lagi.
+    // Panggil ulang pbGoStep6() di sini supaya versi sederhana (label
+    // "Karakter Sheet", chip Objek disembunyikan, banner tur, chip Outfit
+    // terkunci) terpasang lagi, dan supaya penyelesaian ulang step ini
+    // tetap terdeteksi dengan benar (di-arm ulang lewat pbArmDoneWait di
+    // dalam pbGoStep6() itu sendiri).
+    if (typeof pbTourExtActive !== 'undefined' && pbTourExtActive && typeof pbGoStep6 === 'function') {
+      pbGoStep6();
     }
   }
 
@@ -19504,7 +19566,7 @@ function pbShowOutfitHintNotif(){
   let box=document.createElement('div');box.className='confirm-box';
   let p=document.createElement('p');
   p.style.cssText='color:var(--text);font-size:var(--fs-sm);line-height:1.6;margin-bottom:16px;';
-  p.textContent='Kalo kakak mau atur outfit karakter sheet kakak, tinggal klik aja "Isi Outfit Karakter".';
+  p.textContent='Sekarang outfit foto AI akan mengikuti outfit foto karakter sheet kakak, kalo kakak mau ganti outfit karakter tinggal klik "Isi Outfit Karakter".';
   let okBtn=document.createElement('button');
   okBtn.textContent='Mengerti';
   okBtn.style.cssText="width:100%;background:var(--accent);color:var(--bg);border:none;padding:11px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;";
