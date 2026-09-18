@@ -71,7 +71,15 @@
     });
   }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- FIX (dilaporkan user, Sept 2026): sebelumnya link Google Fonts ini
+     RENDER-BLOCKING (browser wajib nunggu file CSS-nya kelar diunduh
+     sebelum boleh menggambar apa pun ke layar) — salah satu penyebab
+     jeda layar hitam sebelum splash screen (logo P) sempat muncul.
+     Dipakai teknik standar "preload lalu swap jadi stylesheet" di bawah
+     supaya font ini dimuat di LATAR BELAKANG tanpa menahan render
+     pertama; <noscript> jadi fallback kalau JS-nya somehow tidak jalan. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"></noscript>
 <!-- GOOGLE SIGN-IN — dipakai buat gerbang login sebelum masuk ke app.
      Lihat blok #login-gate di <body> untuk logic-nya. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -82,11 +90,26 @@
      sama. Login Google tetap pakai Google Identity Services (GIS) seperti
      sebelumnya — Firebase TIDAK menggantikan sistem login yang sudah ada,
      cuma dipakai buat nyimpen datanya di cloud. Lihat blok konfigurasi +
-     engine sinkronisasi di bawah ini untuk instruksi setup. -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script>
+     engine sinkronisasi di bawah ini untuk instruksi setup.
+     FIX (dilaporkan user, Sept 2026): PENYEBAB UTAMA jeda layar hitam
+     sebelum splash screen (logo P) muncul. Ketiga script di bawah ini
+     dulu TANPA atribut "defer" — artinya browser WAJIB berhenti total
+     mem-parsing sisa HTML (termasuk CSS besar & markup splash screen yang
+     letaknya jauh di bawah), lalu mengunduh + menjalankan 3 file JS dari
+     internet SATU PER SATU secara berurutan, baru boleh lanjut. Selama
+     proses unduh itu (apalagi kalau koneksi lambat), WebView belum
+     menggambar apa pun sama sekali → kelihatan sebagai layar hitam
+     kosong. Ditambahkan "defer" di ketiga tag INI, DAN di tag <script>
+     inline konfigurasinya tepat di bawah (yang memanggil
+     firebase.initializeApp(...)) — supaya urutan eksekusinya (device
+     script Firebase A → B → C → konfigurasi) TETAP SAMA PERSIS seperti
+     sebelumnya (script "defer" dijamin browser tetap jalan sesuai urutan
+     kemunculannya di HTML), TAPI sekarang semuanya dijalankan SETELAH
+     seluruh HTML/CSS selesai di-parsing, bukan sebelum/menghalanginya. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
+<script defer>
 (function(){
   // ── GANTI INI dengan config Firebase project kamu sendiri (gratis). ─────
   // Cara dapatnya (±5 menit):
@@ -2503,7 +2526,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.29</div>
+  <div class="splash-version" id="splash-version">v6.31</div>
 </div>
 <script>
   (function(){
@@ -4408,7 +4431,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.29 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.31 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
