@@ -83,10 +83,23 @@
      sebelumnya — Firebase TIDAK menggantikan sistem login yang sudah ada,
      cuma dipakai buat nyimpen datanya di cloud. Lihat blok konfigurasi +
      engine sinkronisasi di bawah ini untuk instruksi setup. -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
+<!-- FIX (Sept 2026): ketiga script Firebase di atas ditambah "defer" karena
+     sebelumnya blocking — browser wajib download+eksekusi ketiganya dulu
+     sebelum sempat parsing <style> & splash screen di <body>, yang
+     menyebabkan jeda layar hitam di pembukaan pertama app. Urutan eksekusi
+     tetap terjaga dengan defer (app → auth → firestore). Semua kode lain
+     yang bergantung pada Firebase sudah aman karena dipanggil di dalam
+     event listener 'load'/DOMContentLoaded, bukan langsung setelah tag ini. -->
+<script defer>
+// FIX (Sept 2026): script config/engine Firebase ini ikut diberi "defer"
+// supaya urutan eksekusinya tetap PERSIS setelah 3 SDK Firebase di atas
+// (yang sekarang juga defer) — firebase.initializeApp() di dalamnya butuh
+// objek `firebase` sudah ada. Sudah dicek: blok ini TIDAK menyentuh DOM
+// sama sekali di level atas (semua akses DOM ada di dalam fungsi yang
+// dipanggil belakangan), jadi aman dijadwal ulang ke akhir parsing HTML.
 (function(){
   // ── GANTI INI dengan config Firebase project kamu sendiri (gratis). ─────
   // Cara dapatnya (±5 menit):
@@ -2503,7 +2516,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.29</div>
+  <div class="splash-version" id="splash-version">v6.30</div>
 </div>
 <script>
   (function(){
@@ -4408,7 +4421,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.29 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.30 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
