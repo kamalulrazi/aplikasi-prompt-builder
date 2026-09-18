@@ -152,6 +152,25 @@
   window.pbCloudUid = null;
   var _timers = {};
 
+  // ── STATUS SINKRON RIWAYAT (ditampilkan di tab Riwayat) ────────────────
+  // state: unknown (belum ada info, disembunyikan) | connecting | syncing |
+  // ok | offline | error | off (sinkron tidak aktif di sesi ini).
+  var PB_SAVED_SYNC_KEY = 'pb_saved_pages_v1';
+  var _syncStatus = {state:'unknown', ts:0, msg:'', src:''};
+  window.pbSyncStatus = _syncStatus;
+  function _setSyncStatus(state, msg, src){
+    _syncStatus.state = state; _syncStatus.msg = msg || ''; _syncStatus.src = src || '';
+    if(state === 'ok') _syncStatus.ts = Date.now();
+    try{ if(typeof pbSyncRenderStatus === 'function') pbSyncRenderStatus(); }catch(e){}
+  }
+  function _syncErrMsg(e, size){
+    var m = String((e && (e.code || e.message)) || e || '');
+    if(/exceed|size|too large|invalid-argument|resource-exhausted/i.test(m)) return 'data terlalu besar' + (size ? ' (±' + Math.round(size/1024) + ' KB)' : '') + ' — hapus beberapa halaman tersimpan';
+    if(/unavailable|network|offline|deadline/i.test(m)) return 'tidak ada koneksi';
+    if(/permission|unauthenticated/i.test(m)) return 'akses ditolak — coba login ulang';
+    return 'coba lagi nanti';
+  }
+
   function _configured(){
     return PB_FIREBASE_CONFIG.apiKey.indexOf('GANTI_') !== 0;
   }
@@ -169,18 +188,35 @@
   // csSaveAll/historyAdd/pbSavedSetAll/tour-done, dst). Debounce
   // 800ms per key biar tidak nembak Firestore tiap ketikan/klik beruntun.
   window.pbCloudQueue = function(key){
-    if(!_fbReady || !window.pbCloudUid) return;
+    var isSaved = (key === PB_SAVED_SYNC_KEY);
+    if(!_fbReady || !window.pbCloudUid){ if(isSaved) _setSyncStatus('off'); return; }
+    if(isSaved) _setSyncStatus(navigator.onLine === false ? 'offline' : 'syncing');
     clearTimeout(_timers[key]);
     _timers[key] = setTimeout(function(){
       var ref = _docRef();
-      if(!ref) return;
+      if(!ref){ if(isSaved) _setSyncStatus('off'); return; }
       var val = null;
       try{ val = localStorage.getItem(key); }catch(e){}
-      if(val == null) return;
+      if(val == null){ if(isSaved) _setSyncStatus('ok'); return; }
       var patch = {}; patch[key] = val; patch._updatedAt = Date.now();
-      ref.set(patch, {merge:true}).catch(function(e){ console.warn('Sync gagal ('+key+'):', e); });
+      ref.set(patch, {merge:true}).then(function(){
+        if(isSaved) _setSyncStatus('ok');
+      }).catch(function(e){
+        console.warn('Sync gagal ('+key+'):', e);
+        if(isSaved) _setSyncStatus('error', _syncErrMsg(e, val.length), 'push');
+      });
     }, 800);
   };
+  // Tombol "Coba lagi" di tab Riwayat. Kalau yang gagal tadi AMBIL data dari
+  // cloud, ambil ulang (JANGAN push — data lokal bisa lebih lama dari cloud
+  // dan malah menimpanya). Kalau yang gagal KIRIM, kirim ulang.
+  window.pbCloudRetry = function(){
+    if(_syncStatus.src === 'pull') _pullAll();
+    else window.pbCloudQueue(PB_SAVED_SYNC_KEY);
+  };
+  window.addEventListener('online', function(){
+    if(_fbReady && window.pbCloudUid && _syncStatus.state === 'offline') window.pbCloudQueue(PB_SAVED_SYNC_KEY);
+  });
 
   // ── SINKRON KHUSUS UNTUK KEY COUNTER (PB_COUNTER_SYNC_KEYS) ─────────────
   // Lihat catatan panjang di dekat definisi PB_COUNTER_SYNC_KEYS. Intinya:
@@ -338,7 +374,7 @@
     var ref = _docRef(); if(!ref) return;
     try{
       var snap = await ref.get();
-      if(!snap.exists) return;
+      if(!snap.exists){ _setSyncStatus('ok'); return; }
       var data = snap.data() || {};
       PB_SYNC_KEYS.forEach(function(k){
         if(typeof data[k] === 'string'){ try{ localStorage.setItem(k, data[k]); }catch(e){} }
@@ -354,7 +390,8 @@
           if(typeof VAI !== 'undefined') VAI.apiKey = data.pb_api_key_plain;
         }catch(e){}
       }
-    }catch(e){ console.warn('Ambil data cloud gagal:', e); }
+      _setSyncStatus('ok');
+    }catch(e){ console.warn('Ambil data cloud gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); }
     // Segarkan tampilan yang mungkin sudah kadung dirender sebelum data
     // cloud ini turun (mis. riwayat/halaman tersimpan render kosong dulu
     // sebelum login selesai).
@@ -374,7 +411,8 @@
   // sebelumnya (Firebase menyimpan sesinya sendiri di IndexedDB, terpisah
   // dari localStorage STORAGE_KEY punya app ini).
   window.pbCloudInit = async function(user, idToken){
-    if(!_fbReady) return; // belum disetel di langkah 1-6 atas → tetap lokal
+    if(!_fbReady){ _setSyncStatus('off'); return; } // belum disetel di langkah 1-6 atas → tetap lokal
+    _setSyncStatus('connecting');
     try{
       if(idToken){
         var cred = firebase.auth.GoogleAuthProvider.credential(idToken);
@@ -398,6 +436,7 @@
         // komentar di dekat window.pbNativeLoginSuccess). App tetap jalan
         // normal, cuma sinkron antar-perangkat belum aktif utk sesi ini.
         console.info('Sinkron cloud belum aktif untuk sesi ini (tidak ada idToken/sesi Firebase yang cocok).');
+        _setSyncStatus('off');
         return;
       }
       // PENTING: kalau uid yang login SEKARANG beda dari uid terakhir yang
@@ -424,11 +463,12 @@
       }
       try{ localStorage.setItem('pb_last_cloud_uid', window.pbCloudUid); }catch(e){}
       await _pullAll();
-    }catch(e){ console.warn('pbCloudInit gagal:', e); }
+    }catch(e){ console.warn('pbCloudInit gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); }
   };
 
   window.pbCloudSignOut = function(){
     window.pbCloudUid = null;
+    _setSyncStatus('off');
     if(_fbReady){ try{ firebase.auth().signOut(); }catch(e){} }
   };
 })();
@@ -773,8 +813,10 @@ body input, body textarea, body [contenteditable="true"]{
 /* PAGE */
 @keyframes pageIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 .page{display:none;}
-.page.active{display:block;animation:pageIn 0.22s cubic-bezier(0.22,1,0.36,1) both;}
+.page.active{display:block;animation:pageIn 0.22s cubic-bezier(0.22,1,0.36,1) backwards;}
 .wrap{max-width:640px;margin:0 auto;padding:var(--space-8) var(--space-7) 100px;}
+/* Builder Foto & Video: kartu step pertama jangan terlalu mepet ke bar progress — jarak atas ikut tinggi layar */
+#foto .wrap,#video .wrap{padding-top:clamp(28px,7vh,60px);}
 
 /* SECTION */
 .sec-title{font-size:var(--fs-lg);font-weight:600;margin-bottom:3px;letter-spacing:-0.3px;}
@@ -1255,7 +1297,7 @@ body input, body textarea, body [contenteditable="true"]{
 .vstyle-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-4) var(--space-5);cursor:pointer;transition:all 0.15s;margin-bottom:0;}
 
 /* DAILY LIMIT WIDGET */
-#daily-limit-bar{position:fixed;bottom:calc(64px + var(--safe-b));right:12px;z-index:200;font-family:'Geist Mono',monospace;display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:none;}
+#daily-limit-bar{position:fixed;bottom:calc(96px + var(--safe-b));right:12px;z-index:200;font-family:'Geist Mono',monospace;display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:none;}
 #dlb-badge{pointer-events:auto;display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 9px 3px var(--space-2);cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:border-color 0.15s;user-select:none;touch-action:none;}
 #dlb-badge:hover{border-color:var(--border-hi);}
 #daily-limit-bar.dragging #dlb-badge{cursor:grabbing;}
@@ -4503,6 +4545,7 @@ body.pb-tour-result-simple #f-copy-btn{
 <div class="wrap">
   <div class="sec-title">Halaman Tersimpan</div>
   <p class="sec-desc" style="margin-bottom:12px;">Halaman foto/video yang kamu simpan manual (lengkap dengan skrip yang sudah dibuat AI) — tap ikon <svg class="icon" style="vertical-align:-0.15em;"><use href="#ic-save"></use></svg> di bawah garis step untuk menyimpan. Tersimpan di browser — tidak hilang saat aplikasi ditutup (kecuali mode incognito).</p>
+  <div id="pb-sync-status" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;"></div>
   <div id="history-list"><p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada halaman tersimpan. Generate prompt foto/video, lalu simpan halamannya lewat ikon di bawah garis step.</p></div>
   <button onclick="showConfirm('Hapus semua halaman tersimpan?',pbSavedClearAll,null,'Ya, Hapus Semua')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Geist',sans-serif;margin-top:4px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Halaman Tersimpan</button>
 </div>
@@ -10446,33 +10489,40 @@ function pbSaveCurrentPage(type,btnEl){
     videoText:resultVideo.text,
     videoState:stateVideo
   };
-  if(isUpdate){
-    arr[activeIdx]=entry;
-  } else {
-    arr.unshift(entry);
-    if(arr.length>PB_SAVED_MAX)arr=arr.slice(0,PB_SAVED_MAX);
-  }
-  try{
-    pbSavedSetAll(arr);
-  }catch(e){
-    // Kemungkinan besar kuota localStorage penuh (entri berisi HTML+base64
-    // foto bisa besar) — coba sekali lagi tanpa entri paling lama (cuma
-    // relevan buat kasus entri baru; kasus update ukurannya gak nambah
-    // jumlah entri jadi jarang kena ini).
+  // Simpan sungguhan. Dipisah jadi fungsi sendiri supaya bisa ditunda sampai
+  // user setuju kalau simpan ini akan membuang entri terlama (lihat bawah).
+  function _commitSave(){
+    if(isUpdate){
+      arr[activeIdx]=entry;
+    } else {
+      arr.unshift(entry);
+      if(arr.length>PB_SAVED_MAX)arr=arr.slice(0,PB_SAVED_MAX);
+    }
     try{
-      if(!isUpdate)arr=arr.slice(0,Math.max(1,arr.length-2));
       pbSavedSetAll(arr);
-    }catch(e2){
-      showToast('Gagal simpan — penyimpanan browser penuh. Hapus beberapa halaman tersimpan dulu.','error');
+    }catch(e){
+      // FIX (audit Riwayat): dulu di sini dicoba lagi sambil MEMBUANG 2 entri
+      // terlama secara diam-diam lalu toast tetap bilang "berhasil disimpan".
+      // Sekarang tidak ada yang dibuang otomatis — user diminta memilih
+      // sendiri entri mana yang dihapus.
+      showToast('Gagal simpan — penyimpanan browser penuh. Hapus beberapa halaman tersimpan dulu, lalu coba lagi.','error');
       return;
     }
+    if(btnEl){
+      btnEl.classList.add('saved-flash');
+      setTimeout(function(){btnEl.classList.remove('saved-flash');},1200);
+    }
+    showToast(isUpdate?'Perubahan disimpan (menimpa halaman di Riwayat)!':'Halaman disimpan ke Riwayat!','success');
+    pbSavedRender();
   }
-  if(btnEl){
-    btnEl.classList.add('saved-flash');
-    setTimeout(function(){btnEl.classList.remove('saved-flash');},1200);
+  // FIX (audit Riwayat): entri ke-(PB_SAVED_MAX+1) dulu langsung membuang
+  // entri terlama tanpa kabar. Sekarang minta persetujuan dulu.
+  if(!isUpdate && arr.length>=PB_SAVED_MAX){
+    let oldest=arr[arr.length-1]||{};
+    showConfirm('Riwayat sudah penuh ('+PB_SAVED_MAX+' halaman). Menyimpan halaman baru akan MENGHAPUS yang paling lama: "'+(oldest.label||'tanpa judul')+'". Lanjut?',_commitSave,null,'Ya, Simpan');
+    return;
   }
-  showToast(isUpdate?'Perubahan disimpan (menimpa halaman di Riwayat)!':'Halaman disimpan ke Riwayat!','success');
-  pbSavedRender();
+  _commitSave();
 }
 
 function pbSavedDelete(id){
@@ -10488,7 +10538,8 @@ function pbSavedDelete(id){
   pbSavedRender();
 }
 function pbSavedClearAll(){
-  try{localStorage.removeItem(PB_SAVED_KEY);if(typeof pbCloudQueue==='function')pbCloudQueue(PB_SAVED_KEY);}catch(e){}
+  // FIX (audit Riwayat): dulu removeItem — pbCloudQueue melewati key kosong sehingga cloud tidak pernah tahu, dan data lama bisa muncul lagi saat sinkron berikutnya. Simpan '[]' supaya ikut ter-push.
+  try{localStorage.setItem(PB_SAVED_KEY,'[]');if(typeof pbCloudQueue==='function')pbCloudQueue(PB_SAVED_KEY);}catch(e){}
   PB_ACTIVE_SAVED_ID=null;
   pbRemoveSavedBanners();
   pbSavedRender();
@@ -10524,10 +10575,10 @@ function _pbSavedRenderInto(wrap){
     let ts=document.createElement('span');ts.style.cssText='font-size:var(--fs-xs);color:var(--muted);font-family:"Geist Mono",monospace;';ts.textContent=tstr;
     head.appendChild(ts);
     let btns=document.createElement('div');btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
-    let openBtn=document.createElement('button');openBtn.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:600;padding:5px 12px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';openBtn.innerHTML='<svg class="icon"><use href="#ic-eye"></use></svg> Buka';
+    let openBtn=document.createElement('button');openBtn.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:600;padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';openBtn.innerHTML='<svg class="icon"><use href="#ic-eye"></use></svg> Buka';
     openBtn.onclick=(function(id){return function(){pbOpenSavedPage(id);};})(item.id);
-    let delBtn=document.createElement('button');delBtn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:5px 10px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';delBtn.innerHTML='<svg class="icon"><use href="#ic-close"></use></svg> Hapus';
-    delBtn.onclick=(function(id){return function(){pbSavedDelete(id);};})(item.id);
+    let delBtn=document.createElement('button');delBtn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';delBtn.innerHTML='<svg class="icon"><use href="#ic-close"></use></svg> Hapus';
+    delBtn.onclick=(function(id,label){return function(){showConfirm('Hapus halaman "'+(label||'tanpa judul')+'" dari Riwayat?',function(){pbSavedDelete(id);},null,'Ya, Hapus');};})(item.id,item.label);
     btns.appendChild(openBtn);btns.appendChild(delBtn);
     row.appendChild(head);row.appendChild(btns);
     wrap.appendChild(row);
@@ -10537,6 +10588,43 @@ function pbSavedRender(){
   _pbSavedRenderInto(document.getElementById('history-list'));
   _pbSavedRenderInto(document.getElementById('f-history-mini'));
   pbSyncContinueChips();
+  pbSyncRenderStatus();
+}
+
+// Indikator status sinkron cloud di tab Riwayat (data: window.pbSyncStatus,
+// diisi oleh blok sinkron di dekat awal file).
+function pbSyncRenderStatus(){
+  let el=document.getElementById('pb-sync-status');
+  if(!el)return;
+  let st=window.pbSyncStatus||{state:'unknown'};
+  if(st.state==='unknown'){el.style.display='none';return;}
+  let map={
+    connecting:['var(--muted)','Menyambungkan sinkron…'],
+    syncing:['var(--warning)','Mengirim ke cloud…'],
+    ok:['var(--green)','Tersinkron'],
+    offline:['var(--warning)','Offline — dikirim saat online lagi'],
+    error:['var(--red)','Gagal sinkron: '+(st.msg||'coba lagi nanti')],
+    off:['var(--warning)','Sinkron belum aktif — riwayat hanya tersimpan di HP ini']
+  };
+  let m=map[st.state]||map.off;
+  let text=m[1];
+  if(st.state==='ok'&&st.ts){
+    text+=' · '+new Date(st.ts).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  }
+  el.style.display='flex';
+  el.innerHTML='';
+  let dot=document.createElement('span');
+  dot.style.cssText='width:8px;height:8px;border-radius:50%;flex:none;background:'+m[0]+';';
+  let t=document.createElement('span');
+  t.textContent=text;t.style.cssText='flex:1;min-width:0;color:'+(st.state==='error'?'var(--red)':'var(--muted)')+';';
+  el.appendChild(dot);el.appendChild(t);
+  if(st.state==='error'){
+    let b=document.createElement('button');
+    b.textContent='Coba lagi';
+    b.style.cssText='background:none;border:1px solid var(--border);color:var(--text);font-size:var(--fs-xs2);padding:8px 14px;min-height:36px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Geist",sans-serif;';
+    b.onclick=function(){if(typeof pbCloudRetry==='function')pbCloudRetry();};
+    el.appendChild(b);
+  }
 }
 
 // Tampilkan/sembunyikan chip persisten "Lanjut Riwayat" (lihat komentar di
@@ -14717,6 +14805,44 @@ function _vbBuildProductMetaLookup(produkListMeta){
 // (skipHistory diabaikan) — pemanggil yang meng-await Promise return-nya lalu
 // mencatat Riwayat sendiri SETELAH animasi kelar, supaya urutannya konsisten
 // dengan mode single (lihat vbGenerateBulkAI/vbRegenerateAllBulk).
+// FIX (audit mode Bulk — foto/keunggulan di kolom skrip tidak sesuai produknya):
+// _vbBuildProductMetaLookup di atas mencocokkan hasil AI ke produk yang
+// diminta lewat NAMA saja (huruf kecil, tanpa spasi pinggir). Kalau dua
+// produk namanya sama — atau cuma beda kapital/spasi, mis. "Gamis Syari"
+// dan "gamis syari " — keduanya jatuh di key yang sama dan yang belakangan
+// MENIMPA yang duluan: SEMUA kartu kembar tampil dengan foto + keunggulan
+// produk TERAKHIR, dan data yang salah itu ikut terbawa ke Revisi & Generate
+// Ulang Semua (jadi skripnya pun ikut menyimpang dari fotonya). Fungsi ini
+// dipakai sebagai gantinya: (1) utamakan _idx (posisi asli produk di daftar
+// yang diminta, dicap saat batch balik lengkap — tidak bergantung nama
+// apa pun), (2) sisanya dicocokkan lewat nama tapi tiap entri daftar cuma
+// boleh dipakai SEKALI, berurutan, jadi nama kembar tetap dapat foto
+// masing-masing. Return: array sejajar dengan `products` (isi: meta / null).
+function _vbResolveProductMetas(products,produkListMeta){
+  let metas=produkListMeta||[];
+  let res=new Array(products.length).fill(null);
+  let used={};
+  products.forEach(function(p,k){
+    if(p&&p._idx!=null&&metas[p._idx]&&!used[p._idx]){res[k]=metas[p._idx];used[p._idx]=true;}
+  });
+  let queues={};
+  metas.forEach(function(m,i){
+    let key=((m&&m.nama)||'').trim().toLowerCase();
+    if(!key)return;
+    (queues[key]=queues[key]||[]).push(i);
+  });
+  products.forEach(function(p,k){
+    if(res[k])return;
+    let key=((p&&p.produk)||'').trim().toLowerCase();
+    let q=key?queues[key]:null;
+    if(!q)return;
+    for(let n=0;n<q.length;n++){
+      if(!used[q[n]]){res[k]=metas[q[n]];used[q[n]]=true;break;}
+    }
+  });
+  return res;
+}
+
 function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
@@ -14731,10 +14857,9 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   // FITUR BARU (permintaan user, Sept 2026): backup+jatah revisi per-produk
   // ikut dibuang di sini juga — sama alasannya seperti baris di atas.
   VB_BULK_REVISI_BACKUP={};
-  let metaLookup=_vbBuildProductMetaLookup(produkListMeta);
-  VB_BULK_PRODUCTS=products.map(function(p){
-    let key=(p.produk||'').trim().toLowerCase();
-    let meta=key?metaLookup[key]:null;
+  let _resolvedMetas=_vbResolveProductMetas(products,produkListMeta);
+  VB_BULK_PRODUCTS=products.map(function(p,_k){
+    let meta=_resolvedMetas[_k];
     // FIX BUG KRITIS FOTO (pasangan fix di _vbBuildProductMetaLookup di atas):
     // baris return di sini juga dulu cuma mengambil {nama,keunggulan} dari meta,
     // menjatuhkan fotoBase64/fotoMime walau lookup-nya sendiri sudah punya
@@ -15675,6 +15800,7 @@ async function vbRegenerateAllBulk(newSettings){
       // benar.
       if(batchArr.length===batches[b].length){
         for(let j=0;j<batchArr.length;j++){
+          batchArr[j]._idx=idxOffset+j; // posisi asli produk — dipakai _vbResolveProductMetas
           _vbUpdateProductCardsLive(idxOffset+j,batchArr[j]);
         }
       }
