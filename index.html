@@ -891,8 +891,7 @@ body input, body textarea, body [contenteditable="true"]{
 .chips{display:flex;flex-wrap:wrap;gap:var(--space-2);}
 /* LOKASI: baris tombol kategori (Kamar/Indoor/Outdoor) + grup chip yang
    muncul/hilang bergantian saat salah satu kategori diklik. */
-.lokasi-cat-row{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-5);}
-.lokasi-group{margin-top:var(--space-2);}
+
 .clabel{
   width:100%;
   font-size:var(--fs-xs);font-weight:500;
@@ -1994,6 +1993,48 @@ body input, body textarea, body [contenteditable="true"]{
 .pb-tour-desc:empty{display:none;margin-bottom:0;}
 .pb-tour-desc img{width:88%;max-width:88%;border-radius:var(--radius-sm);border:1px solid var(--border-hi);display:block;margin:8px auto 14px;}
 .pb-tour-desc ol{margin:0;padding-left:20px;}
+/* ── FRAME SCREENSHOT PANDUAN (permintaan user: screenshot polos+panah
+   coretan tangan kesannya "murahan"). Sekarang tiap screenshot dibungkus
+   kartu mini bergaya browser-window (chrome bar 3 titik) + shadow +
+   border accent tipis, biar terasa seperti tampilan yang didesain, bukan
+   foto asal tempel. Caption di bawah pakai teks alt yang sudah ada
+   (sebelumnya cuma dipakai buat aksesibilitas, sekarang ditampilkan). ── */
+.pb-shot{
+  width:92%;margin:10px auto 14px;border-radius:var(--radius-md,14px);
+  overflow:hidden;background:var(--surface2);
+  border:1px solid var(--border-hi);
+  box-shadow:0 10px 28px rgba(0,0,0,0.35),0 0 0 1px rgba(255,255,255,0.02) inset;
+}
+.pb-shot-chrome{
+  display:flex;align-items:center;gap:5px;padding:7px 10px;
+  background:linear-gradient(180deg,var(--surface3),var(--surface2));
+  border-bottom:1px solid var(--border);
+}
+.pb-shot-chrome span{width:7px;height:7px;border-radius:50%;background:var(--border-hi);}
+.pb-shot-chrome span:nth-child(1){background:#ff5f57;}
+.pb-shot-chrome span:nth-child(2){background:#febc2e;}
+.pb-shot-chrome span:nth-child(3){background:#28c840;}
+.pb-shot-imgwrap{position:relative;line-height:0;cursor:zoom-in;}
+.pb-shot-imgwrap img{width:100%;display:block;border-radius:0;border:none;margin:0;}
+.pb-shot-zoomhint{
+  position:absolute;right:8px;bottom:8px;width:26px;height:26px;
+  border-radius:50%;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px);
+  display:flex;align-items:center;justify-content:center;color:#fff;
+  font-size:13px;pointer-events:none;
+}
+.pb-shot-cap{
+  padding:8px 12px;font-size:var(--fs-xs2);color:var(--muted);
+  line-height:1.4;background:var(--surface2);
+}
+/* Lightbox tap-to-zoom — biar detail tombol kecil di screenshot desktop
+   tetap kebaca walau kartu tur di HP lebar-nya cuma ~300px. */
+#pb-shot-lightbox{
+  position:fixed;inset:0;z-index:10050;background:rgba(4,4,6,0.9);
+  display:none;align-items:center;justify-content:center;padding:24px;
+  cursor:zoom-out;
+}
+#pb-shot-lightbox.show{display:flex;}
+#pb-shot-lightbox img{max-width:100%;max-height:100%;border-radius:var(--radius-sm);box-shadow:0 20px 60px rgba(0,0,0,0.6);}
 .pb-tour-desc ol li{margin-bottom:4px;}
 .pb-tour-desc ol li:last-child{margin-bottom:0;}
 .pb-tour-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;}
@@ -2077,22 +2118,40 @@ body.pb-tour-blur-context .row-inline-mt{display:none;}
    yang pakai pola chip + isi sendiri (f3, f4, f5×2, f7, f8, f9, v3, v4, dst). */
 [data-role="mt12-confirm"]{display:none;}
 /* FITUR BARU (permintaan user): begitu step 9 (Mood & Tone) dikonfirmasi
-   di akhir sesi tur yang diperpanjang (lihat pbTourFinishExt()), seluruh
-   area Ringkasan/Karakter Sheet/Punya Prompt Lama/Generate Variasi diburamkan
-   dan tombol "Generate Prompt Foto" dipindah ke tengah layar supaya user
-   pemula fokus menekan satu tombol itu saja. Dilepas lagi begitu tombol
-   Generate ditekan (lihat awal fGenerate()). */
-body.pb-tour-final-blur .summary-card,
+   di akhir sesi tur (lihat pbTourFinishExt()), tampilan area Generate
+   TETAP tampak seperti biasa di luar tur (TIDAK diburamkan, tombol
+   Generate TIDAK dipindah ke tengah layar lagi) — supaya user pemula
+   tidak kaget lihat tampilan yang beda. Yang berubah cuma:
+   1) Isi kartu Ringkasan (warning + daftar rows) disembunyikan dulu,
+      baru kelihatan kalau headernya ditap — lihat pbToggleTourSummary()
+      & class .pb-tour-opened di bawah.
+   2) "Generate Beberapa Variasi Sekaligus" (#f-multishot-card), "Foto
+      Karakter Sheet" (#cs-entry-btn), & "Punya Prompt Lama?"
+      (#f-import-toggle-wrap) disembunyikan TOTAL supaya tidak
+      membingungkan pemula.
+   3) Tombol "Generate Prompt Foto" berdenyut halus (reuse animasi
+      csAttnPulse yang sudah ada) supaya user sadar itu tombol yang
+      harus ditekan berikutnya.
+   Semua dilepas lagi begitu tombol Generate ditekan (lihat awal
+   fGenerate()). */
 body.pb-tour-final-blur #f-multishot-card,
-body.pb-tour-final-blur .sec-title,
-body.pb-tour-final-blur .sec-desc,
 body.pb-tour-final-blur #cs-entry-btn,
 body.pb-tour-final-blur #f-import-toggle-wrap{
-  filter:blur(5px);pointer-events:none;user-select:none;
+  display:none!important;
 }
+body.pb-tour-final-blur .summary-card:not(.pb-tour-opened) .summary-warning,
+body.pb-tour-final-blur .summary-card:not(.pb-tour-opened) .summary-rows{
+  display:none!important;
+}
+body.pb-tour-final-blur .summary-card-head{cursor:pointer;}
+#summary-card-chevron{display:none;}
+body.pb-tour-final-blur #summary-card-chevron{
+  display:inline-block;margin-left:6px;font-size:var(--fs-xs2);color:var(--muted);
+  transition:transform .2s ease;
+}
+body.pb-tour-final-blur .summary-card.pb-tour-opened #summary-card-chevron{transform:rotate(180deg);}
 body.pb-tour-final-blur #f-gen-btn{
-  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-  z-index:10001;width:min(86vw,360px);box-shadow:var(--shadow-lg);
+  animation:csAttnPulse 1.6s ease-out infinite;
 }
 /* FITUR BARU (permintaan user): begitu tombol Generate BENERAN ditekan
    selama sesi tur (dulu cuma diburamkan lewat pb-tour-final-blur di atas,
@@ -2109,6 +2168,35 @@ body.pb-tour-result-simple .sec-desc,
 body.pb-tour-result-simple #cs-entry-btn,
 body.pb-tour-result-simple #f-import-toggle-wrap{
   display:none!important;
+}
+/* FITUR BARU (permintaan user): begitu hasil prompt (JSON) sudah tampil
+   selama pb-tour-result-simple, SELURUH halaman Foto (#foto) & nav bawah
+   dikunci total (pointer-events:none) — supaya user pemula tidak bisa
+   tap apa pun lagi selain tombol "Salin JSON" (klik ulang step, tekan
+   ulang Generate, ganti tab nav, dst semua tidak bereaksi). Isi kartu
+   hasil (#f-output-wrap) sendiri dikecualikan lewat pointer-events:auto
+   supaya tombol Salin JSON di dalamnya tetap bisa ditekan; tombol "Buat
+   Prompt Foto Baru" (.reset-btn) di kartu yang sama tetap dikunci ulang
+   & dipudarkan (pola sama seperti .vb-copy-locked di Builder Video) biar
+   tidak ketaptap tidak sengaja. Semua ini lepas otomatis begitu class
+   pb-tour-result-simple dicabut — lihat pbShowSaveJsonNotif(). */
+body.pb-tour-result-simple #foto,
+body.pb-tour-result-simple nav.nav{
+  pointer-events:none!important;
+}
+body.pb-tour-result-simple #f-output-wrap,
+body.pb-tour-result-simple #f-output-wrap *{
+  pointer-events:auto!important;
+}
+body.pb-tour-result-simple #f-output-wrap .reset-btn{
+  opacity:0.4!important;pointer-events:none!important;cursor:not-allowed!important;
+}
+/* FITUR BARU (permintaan user): tombol "Salin JSON" berdenyut halus
+   (reuse animasi csAttnPulse, sama seperti dipakai tombol Generate di
+   pb-tour-final-blur) supaya user sadar itu satu-satunya tombol yang
+   harus/bisa ditekan sekarang. */
+body.pb-tour-result-simple #f-copy-btn{
+  animation:csAttnPulse 1.6s ease-out infinite;
 }
 @media(min-width:769px){
   #pb-tour-card{width:min(30vw,340px);}
@@ -3454,34 +3542,14 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 
       <!-- PANEL NORMAL (karakter) -->
       <div id="f5-normal-panel">
-        <div class="lokasi-cat-row">
-          <div class="chip lokasi-cat" data-group="kamar" onclick="fToggleLokasiGroup('kamar')">Kamar</div>
-          <div class="chip lokasi-cat" data-group="indoor" onclick="fToggleLokasiGroup('indoor')">Indoor</div>
-          <div class="chip lokasi-cat" data-group="outdoor" onclick="fToggleLokasiGroup('outdoor')">Outdoor</div>
-        </div>
-        <div class="chips lokasi-group" id="f5-group-kamar" style="display:none;">
-          <div class="chip" onclick="fPickLokasi('aesthetic bedroom large window natural light streaming in',this,'Kamar Aesthetic')">Kamar aesthetic</div>
-          <div class="chip" onclick="fPickLokasi('minimalist modern bedroom crisp white walls clean geometric furniture',this,'Kamar Minimalis')">Kamar minimalis</div>
-          <div class="chip" onclick="fPickLokasi('cozy bedroom warm amber lamp glow fairy lights soft blankets',this,'Kamar Cozy')">Kamar cozy warm</div>
-          <div class="chip" onclick="fPickLokasi('dark moody bedroom deep charcoal walls dramatic bedside lamp',this,'Kamar Dark Moody')">Kamar dark moody</div>
-          <div class="chip" onclick="fPickLokasi('Korean style bedroom bookshelves soft warm lighting clean minimal decor',this,'Kamar Korean')">Kamar Korean style</div>
-          <div class="chip" onclick="fPickLokasi('aesthetic bedroom pink white floral wallpaper fairy lights',this,'Kamar Pink Aesthetic')">Kamar pink aesthetic</div>
+        <div class="chips" id="f5-group-kamar">
           <div class="chip" onclick="fPickLokasi('luxury bedroom opulent gold accents plush velvet headboard crystal chandelier marble floor rich drapes soft ambient glow',this,'Kamar Mewah')">Kamar mewah</div>
+          <div class="chip" onclick="fPickLokasi('aesthetic bedroom large window natural light streaming in',this,'Kamar Aesthetic')">Kamar aesthetic</div>
           <div class="chip" onclick="fPickLokasi('Spanish style bedroom warm terracotta walls ornate wooden furniture wrought iron details arched doorway patterned tiles warm golden light',this,'Kamar Spanyol')">Kamar ala Spanyol</div>
-        </div>
-        <div class="chips lokasi-group" id="f5-group-indoor" style="display:none;">
-          <div class="chip" onclick="fPickLokasi('minimalist white photo studio clean backdrop soft diffused light',this,'Studio Putih')">Studio putih</div>
-          <div class="chip" onclick="fPickLokasi('modern living room neutral tones large sofa indoor plants',this,'Ruang Tamu')">Ruang tamu modern</div>
-          <div class="chip" onclick="fPickLokasi('aesthetic cafe indoor plants rattan chairs warm ambient lighting',this,'Cafe Aesthetic')">Cafe aesthetic</div>
-          <div class="chip" onclick="fPickLokasi('cozy home library floor-to-ceiling bookshelves warm golden light',this,'Perpustakaan')">Perpustakaan</div>
-          <div class="chip" onclick="fPickLokasi('aesthetic kitchen pastel cabinets small plants marble countertop',this,'Dapur Aesthetic')">Dapur aesthetic</div>
           <div class="chip" onclick="fPickLokasi('luxury living room grand marble floors tall columns gold-trimmed furniture statement chandelier lush velvet sofas floor-to-ceiling windows opulent decor',this,'Ruang Tamu Mewah')">Ruang tamu mewah</div>
-          <div class="chip" onclick="fPickLokasi('Spanish colonial living room whitewashed walls exposed wooden beams colorful hand-painted tiles arched windows terracotta floor warm lantern light rustic elegant',this,'Ruang Tamu Spanyol')">Ruang tamu Spanyol</div>
-        </div>
-        <div class="chips lokasi-group" id="f5-group-outdoor" style="display:none;">
           <div class="chip" onclick="fPickLokasi('luxury home terrace, elegant marble flooring, upscale outdoor furniture, ornate railings, warm golden hour light, lush garden view in background, high-end architecture',this,'Teras Rumah Mewah')">Teras rumah mewah</div>
-          <div class="chip" onclick="fPickLokasi('luxury home front yard, manicured garden lawn, grand entrance with tall pillars, marble pathway, upscale landscaping, elegant fountain, golden hour natural light',this,'Halaman Rumah Mewah')">Halaman rumah mewah</div>
           <div class="chip" onclick="fPickLokasi('inside a luxury car interior, premium quilted leather seats, elegant ambient lighting, sophisticated modern automotive interior, soft natural light through window',this,'Di Dalam Mobil Mewah')">Di dalam mobil mewah</div>
+          <div class="chip" onclick="fPickLokasi('luxury upscale cafe interior, elegant marble tables, plush velvet seating, opulent chandelier lighting, gold accents, warm ambient glow',this,'Cafe Mewah')">Cafe mewah</div>
         </div>
         <div class="mt12">
           <label class="inplabel">Atau tulis sendiri</label>
@@ -3537,16 +3605,12 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <!-- PANEL NORMAL (karakter) -->
       <div id="f7-normal-panel">
         <div class="chips" id="f7-cahaya-chips-karakter">
-          <div class="clabel">Outdoor</div>
-          <div class="chip" onclick="fPickCahaya('golden hour natural sunlight — warm soft light from low sun, long gentle shadows, rich warm amber tones, no filter',this,'Golden Hour')">Golden Hour — Sore hangat</div>
           <div class="chip" onclick="fPickCahaya('bright natural midday daylight — crisp clean light, vivid natural colors, no filter',this,'Siang Cerah')">Siang Cerah</div>
-          <div class="chip" onclick="fPickCahaya('soft overcast natural light — evenly diffused cloud-filtered light, no harsh shadows, no filter',this,'Mendung Lembut')">Mendung Lembut</div>
+          <div class="chip" onclick="fPickCahaya('soft rainy day natural light — cool muted tones, diffused overcast glow, gentle rain atmosphere, no filter',this,'Hujan')">Hujan</div>
+          <div class="chip" onclick="fPickCahaya('soft overcast natural light — evenly diffused cloud-filtered light, no harsh shadows, no filter',this,'Mendung')">Mendung</div>
           <div class="chip" onclick="fPickCahaya('early morning soft natural light — cool fresh light, slight morning haze, no filter',this,'Pagi Hari')">Pagi Hari</div>
-          <div class="clabel">Indoor</div>
           <div class="chip" onclick="fPickCahaya('soft natural window light from the side — gentle indoor daylight, airy and bright, no filter',this,'Window Light Samping')">Cahaya Jendela — Samping</div>
           <div class="chip" onclick="fPickCahaya('natural window light from front — soft even indoor daylight on face, bright and fresh, no filter',this,'Window Light Depan')">Cahaya Jendela — Depan</div>
-          <div class="chip" onclick="fPickCahaya('warm natural indoor ambient light — afternoon sun through curtains, cozy warm indoor feel, no filter',this,'Indoor Hangat')">Indoor Hangat — Tirai Sore</div>
-          <div class="chip" onclick="fPickCahaya('bedroom natural light — daylight through window, clean white walls, airy and fresh, no filter',this,'Kamar Natural')">Kamar — Cahaya Siang</div>
         </div>
       </div>
 
@@ -3681,7 +3745,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <div class="chip chip-wide"
           onclick="fPickMood('clean, bright, airy — soft natural light, white tones, fresh and minimal, no dark shadows, high-key mood',this,'Clean Minimal')">
           <div>
-            <div class="text-title-sm">Clean Minimal <span class="badge-green-label">Terlaris</span></div>
+            <div class="text-title-sm">Clean Minimal</div>
             <div class="text-hint">Terang, bersih, ringan. Background putih/cream, cahaya soft. Paling versatile untuk produk apapun.</div>
           </div>
         </div>
@@ -3713,7 +3777,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <div class="chip chip-wide"
           onclick="fPickMood('natural candid lifestyle — unposed and authentic, real-life moment, organic and relaxed, no studio feel',this,'Natural Candid')">
           <div>
-            <div class="text-title-sm">Natural Candid</div>
+            <div class="text-title-sm">Natural Candid <span class="badge-green-label">Terlaris</span></div>
             <div class="text-hint">Terasa nyata, tidak kaku, seperti foto teman. Paling efektif untuk konten TikTok Shop.</div>
           </div>
         </div>
@@ -3722,6 +3786,13 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
           <div>
             <div class="text-title-sm">Warm Cozy</div>
             <div class="text-hint">Hangat, nyaman, intim. Tone kuning-amber, kesan rumahan. Cocok untuk busana kasual &amp; lifestyle.</div>
+          </div>
+        </div>
+        <div class="chip chip-wide"
+          onclick="fPickMood('low quality grainy phone camera photo, slightly blurry casual snapshot, visible noise and compression artifacts, harsh phone flash, authentic unedited everyday look',this,'Foto HP Burik')">
+          <div>
+            <div class="text-title-sm">Foto HP Burik</div>
+            <div class="text-hint">Kesan foto HP apa adanya — agak buram, noise, flash keras, terasa asli dan tidak diedit.</div>
           </div>
         </div>
 
@@ -3763,10 +3834,10 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   <div id="f-gen-area" class="hidden">
 
     <!-- RINGKASAN — cek semua pilihan sebelum generate (diisi oleh fRenderSummary()) -->
-    <div class="summary-card">
-      <div class="summary-card-head">
+    <div class="summary-card" id="summary-card">
+      <div class="summary-card-head" id="summary-card-head" onclick="pbToggleTourSummary()">
         <div>
-          <div class="summary-card-title"><span class="summary-card-title-dot"></span>Ringkasan<span class="summary-ok-badge" id="summary-ok-badge"><svg class="icon"><use href="#ic-check"></use></svg> Siap</span></div>
+          <div class="summary-card-title"><span class="summary-card-title-dot"></span>Ringkasan<span class="summary-ok-badge" id="summary-ok-badge"><svg class="icon"><use href="#ic-check"></use></svg> Siap</span><span id="summary-card-chevron">▾</span></div>
           <div class="summary-card-subtitle">CEK DULU SEBELUM GENERATE</div>
         </div>
       </div>
@@ -5730,11 +5801,11 @@ function fUpdateCounters(){
     let btn=document.getElementById('ftb-'+key);
     let sub=document.getElementById('fts-'+key);
     if(badge){
-      badge.textContent=count===0?'+':count;
+      badge.textContent=count===0?'+':'✓';
     }
     if(btn)btn.classList.toggle('has',count>0);
     if(sub){
-      sub.textContent=count===0?FCHIP_SUBLABEL[key]:'kamu punya '+count;
+      sub.textContent=count===0?FCHIP_SUBLABEL[key]:'Sudah dipilih';
     }
   });
 }
@@ -7187,27 +7258,6 @@ function fBack4(){
 }
 
 // STEP 5: LOKASI
-// Toggle kategori lokasi (Kamar/Indoor/Outdoor): klik satu kategori akan
-// menampilkan chip-chip di dalamnya dan menyembunyikan kategori lain yang
-// sedang terbuka. Klik kategori yang sama saat sedang terbuka akan
-// menutupnya kembali.
-function fToggleLokasiGroup(name){
-  let groups=['kamar','indoor','outdoor'];
-  let current=document.getElementById('f5-group-'+name);
-  let isOpen=current && current.style.display!=='none';
-  groups.forEach(function(g){
-    let el=document.getElementById('f5-group-'+g);
-    if(el) el.style.display='none';
-  });
-  document.querySelectorAll('#f5-normal-panel .lokasi-cat').forEach(function(b){
-    b.classList.remove('sel');
-  });
-  if(!isOpen){
-    if(current) current.style.display='flex';
-    let btn=document.querySelector('#f5-normal-panel .lokasi-cat[data-group="'+name+'"]');
-    if(btn) btn.classList.add('sel');
-  }
-}
 let _fLokasiCustomLock=false;
 function fPickLokasi(val,el,label){
   document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));
@@ -7670,6 +7720,8 @@ function fGenerate(){
   // bingung — lihat pbTourAfterGenActive & pbShowSaveJsonNotif() di bawah.
   let pbWasTourFinalBlur=document.body.classList.contains('pb-tour-final-blur');
   document.body.classList.remove('pb-tour-final-blur');
+  let pbSummaryCardEl=document.getElementById('summary-card');
+  if(pbSummaryCardEl) pbSummaryCardEl.classList.remove('pb-tour-opened');
   if(pbWasTourFinalBlur){
     document.body.classList.add('pb-tour-result-simple');
     if(typeof pbTourAfterGenActive!=='undefined') pbTourAfterGenActive=true;
@@ -15954,7 +16006,7 @@ function vbRenderVideoGuide(){
     // SETELAH gambar (bukan sebelum, seperti `body`) — dipakai untuk daftar
     // pengaturan atau catatan "Artinya: ..." yang memang harus tampil di
     // bawah foto contohnya.
-    if(bodyEl) bodyEl.innerHTML=item.body+(item.img?('<img src="'+item.img+'" alt="'+(item.alt||'')+'">'):'')+(item.afterBody||'');
+    if(bodyEl) bodyEl.innerHTML=item.body+(item.img?pbFrameShot(item.img,item.alt||''):'')+(item.afterBody||'');
     if(btn){ btn.textContent=isLast?'Selesai':'Lanjut →'; btn.onclick=isLast?vbVideoGuideFinish:vbVideoGuideNext; }
   } else {
     // Belum ada isinya sama sekali — kartu kosong siap dipakai.
@@ -18040,6 +18092,9 @@ window.addEventListener('beforeunload', function(e){
   </div>
 </div>
 
+<!-- Lightbox tap-to-zoom untuk screenshot panduan (lihat pbFrameShot). -->
+<div id="pb-shot-lightbox" onclick="pbCloseShotZoom()"><img id="pb-shot-lightbox-img" src="" alt=""></div>
+
 <!-- Notifikasi premium khusus Langkah 4 (pujian setelah upload foto) —
      lihat pbStep4PhotoPicked(). Terpisah dari #pb-tour-card supaya bisa
      tampil SETELAH kartu Langkah 4 disembunyikan. Di TENGAH layar, dan
@@ -18567,6 +18622,8 @@ function pbHideOverlay(){
   // fGenerate()) masih menyala, pastikan selalu dilepas juga.
   document.body.classList.remove('pb-tour-final-blur');
   document.body.classList.remove('pb-tour-result-simple');
+  let pbSkipSummaryCardEl=document.getElementById('summary-card');
+  if(pbSkipSummaryCardEl) pbSkipSummaryCardEl.classList.remove('pb-tour-opened');
   if(typeof pbTourAfterGenActive!=='undefined') pbTourAfterGenActive=false;
   // FIX (ditemukan saat audit): pbTourExtActive DULU tidak pernah direset
   // di sini. Kalau tur di-skip ("Lewati") persis di antara foto referensi
@@ -19015,7 +19072,7 @@ function pbRenderStep3(){
   let item=PB_STEP3_ITEMS[pbStep3Revealed-1];
   let isLast=(pbStep3Revealed>=PB_STEP3_ITEMS.length);
   let desc=item.body
-    + '<img src="'+item.img+'" alt="'+item.alt+'">'
+    + pbFrameShot(item.img,item.alt)
     + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.6;">'+item.note+'</p>'):'')
     + (pbStep3Revealed>1
         ? '<button type="button" onclick="pbStep3RevealBack()" style="display:block;width:100%;background:var(--surface2);color:var(--text);font-weight:700;font-size:var(--fs-sm);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px 14px;margin:14px 0 0;cursor:pointer;text-align:center;">Kembali ke langkah sebelumnya</button>'
@@ -19134,7 +19191,7 @@ function pbRenderStep6Ext(){
   let isLast=(pbStep6ExtIndex===PB_STEP6EXT_ITEMS.length-1);
   let n=pbStep6ExtIndex+1;
   let desc=item.body
-    + '<img src="'+item.img+'" alt="'+item.alt+'">'
+    + pbFrameShot(item.img,item.alt)
     + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.6;">'+item.note+'</p>'):'')
     + (pbStep6ExtIndex>0
         ? '<button type="button" onclick="pbStep6ExtBack()" style="display:block;width:100%;background:var(--surface2);color:var(--text);font-weight:700;font-size:var(--fs-sm);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px 14px;margin:14px 0 0;cursor:pointer;text-align:center;">Kembali ke langkah sebelumnya</button>'
@@ -19716,8 +19773,22 @@ function pbTourFinishExt(){
   pbTourStep56Active=false;
   if(typeof pbEndTour==='function') pbEndTour();
   setTimeout(function(){
+    // FITUR BARU (permintaan user): pastikan kartu Ringkasan mulai dalam
+    // keadaan tertutup (belum di-tap) setiap kali sesi tur sampai di sini —
+    // jaga-jaga kalau ada sisa class .pb-tour-opened dari sesi sebelumnya.
+    let sCard=document.getElementById('summary-card');
+    if(sCard) sCard.classList.remove('pb-tour-opened');
     document.body.classList.add('pb-tour-final-blur');
   },250);
+}
+// FITUR BARU (permintaan user): buka/tutup isi kartu Ringkasan (warning +
+// daftar rows) SELAMA tahap akhir tur (body.pb-tour-final-blur) — di luar
+// tur, kartu Ringkasan tetap selalu terbuka seperti biasa jadi tap di sini
+// tidak melakukan apa-apa. Lihat CSS .summary-card:not(.pb-tour-opened).
+function pbToggleTourSummary(){
+  if(!document.body.classList.contains('pb-tour-final-blur'))return;
+  let sCard=document.getElementById('summary-card');
+  if(sCard) sCard.classList.toggle('pb-tour-opened');
 }
 function pbLockChip(sel){
   let el=document.querySelector(sel);
@@ -19754,6 +19825,33 @@ function pbUnlockChip(sel){
   };
 })();
 // tombol "Lanjut" tur yang manual) ───────────────────────────────
+// ── HELPER (permintaan user: screenshot panduan kesannya "murahan") ──
+// Bungkus <img> polos jadi kartu mini gaya browser-window (chrome bar
+// titik tiga + shadow + caption) supaya konsisten sama gaya dark UI
+// aplikasi, dan biar detail kecil di screenshot desktop tetap kebaca —
+// tap gambarnya untuk zoom fullscreen (pbOpenShotZoom).
+function pbFrameShot(src,alt){
+  let safeAlt=(alt||'').replace(/'/g,"\\'");
+  return '<div class="pb-shot">'
+    + '<div class="pb-shot-chrome"><span></span><span></span><span></span></div>'
+    + '<div class="pb-shot-imgwrap" onclick="pbOpenShotZoom(\''+safeAlt+'\',this)">'
+    +   '<img src="'+src+'" alt="'+(alt||'')+'">'
+    +   '<div class="pb-shot-zoomhint">⤢</div>'
+    + '</div>'
+    + (alt?('<div class="pb-shot-cap">'+alt+'</div>'):'')
+    + '</div>';
+}
+function pbOpenShotZoom(alt,wrapEl){
+  let img=wrapEl.querySelector('img');
+  let lb=document.getElementById('pb-shot-lightbox');
+  let lbImg=document.getElementById('pb-shot-lightbox-img');
+  lbImg.src=img.src;
+  lbImg.alt=alt||'';
+  lb.classList.add('show');
+}
+function pbCloseShotZoom(){
+  document.getElementById('pb-shot-lightbox').classList.remove('show');
+}
 function pbShowModal(n,title,desc,btnLabel,onNext){
   pbCurrentSelector=null;
   pbSetPassive(false);
