@@ -83,10 +83,20 @@
      sebelumnya — Firebase TIDAK menggantikan sistem login yang sudah ada,
      cuma dipakai buat nyimpen datanya di cloud. Lihat blok konfigurasi +
      engine sinkronisasi di bawah ini untuk instruksi setup. -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
+<!-- FIX (Sept 2026): defer di 3 script Firebase di atas supaya browser
+     tidak wajib download+eksekusi ketiganya dulu sebelum sempat parsing
+     <style> & splash screen di <body> — sebelumnya ini penyebab jeda
+     layar hitam/kosong di pembukaan pertama app, dan juga bikin app
+     terasa lambat menampilkan fitur karena parsing HTML/CSS/markup app-shell
+     tertahan di belakang network request Firebase. -->
+<script defer>
+// FIX (Sept 2026): script config/engine Firebase di bawah ikut di-defer
+// supaya urutannya tetap PERSIS setelah 3 SDK Firebase di atas (yang juga
+// defer) — firebase.initializeApp() butuh objek `firebase` sudah ada.
+// Dicek: blok ini tidak menyentuh DOM di level atas, aman dijadwal ulang.
 (function(){
   // ── GANTI INI dengan config Firebase project kamu sendiri (gratis). ─────
   // Cara dapatnya (±5 menit):
@@ -2452,7 +2462,30 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
 .pb-saved-overlay-content textarea,.pb-saved-overlay-content input[type=text],.pb-saved-overlay-content input:not([type]){width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-2xs);color:inherit;font-family:inherit;font-size:var(--fs-sm);padding:8px;margin:4px 0;resize:vertical;box-sizing:border-box;}
 .pb-saved-overlay-autosaved{opacity:0;transition:opacity .3s;color:var(--accent-2);font-weight:600;}
 .pb-saved-overlay-autosaved.show{opacity:1;}
+
+/* FIX (Sept 2026): modal konfirmasi logout sendiri, ganti window.confirm()
+   bawaan browser — lihat komentar di window.pbLogout untuk alasannya. */
+#pb-logout-confirm{position:fixed;inset:0;z-index:9500;display:none;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;}
+#pb-logout-confirm.show{display:flex;}
+#pb-logout-confirm .pb-lc-backdrop{position:absolute;inset:0;background:rgba(8,8,10,0.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+#pb-logout-confirm .pb-lc-panel{position:relative;background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius);padding:20px;max-width:300px;width:100%;box-shadow:var(--shadow-sm);}
+#pb-logout-confirm .pb-lc-title{font-size:var(--fs-md2);font-weight:700;margin-bottom:6px;}
+#pb-logout-confirm .pb-lc-sub{font-size:var(--fs-sm);color:var(--muted);margin-bottom:16px;}
+#pb-logout-confirm .pb-lc-actions{display:flex;gap:8px;}
+#pb-logout-confirm .pb-lc-btn{flex:1;padding:10px;border-radius:var(--radius-xs);font-size:var(--fs-sm);font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface3);color:inherit;}
+#pb-logout-confirm .pb-lc-btn.pb-lc-danger{background:var(--red-dim);border-color:rgba(248,113,113,0.35);color:var(--red);}
 </style>
+<div id="pb-logout-confirm" role="dialog" aria-modal="true" aria-label="Konfirmasi keluar akun">
+  <div class="pb-lc-backdrop" onclick="pbCancelLogout()"></div>
+  <div class="pb-lc-panel">
+    <div class="pb-lc-title">Keluar dari akun ini?</div>
+    <div class="pb-lc-sub">Data yang belum sinkron ke cloud bisa hilang dari perangkat ini.</div>
+    <div class="pb-lc-actions">
+      <button type="button" class="pb-lc-btn" onclick="pbCancelLogout()">Batal</button>
+      <button type="button" class="pb-lc-btn pb-lc-danger" onclick="pbDoLogout()">Keluar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ICON SPRITE — set ikon SVG konsisten, menggantikan emoji/dingbat (✓ ✕ ✦ ✏ ↺ ⏳)
      yang sebelumnya dipakai. Emoji dirender beda-beda tergantung skin OS HP (MIUI,
@@ -2503,7 +2536,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.29</div>
+  <div class="splash-version" id="splash-version">v6.30</div>
 </div>
 <script>
   (function(){
@@ -2747,8 +2780,28 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   };
 
   // Tombol logout kecil di header (h-pill "pb-user-pill") manggil ini.
+  // FIX (Sept 2026, dilaporkan user "logout gak bisa"): sebelumnya pakai
+  // window.confirm() bawaan browser. Di WebView Capacitor app ini,
+  // window.confirm() TIDAK bisa dipastikan didukung (butuh WebChromeClient
+  // custom di sisi native buat nanganin dialog JS onJsConfirm — kalau
+  // belum diimplementasi di MainActivity, confirm() bisa balikin
+  // false/undefined tanpa dialog apa pun sempat muncul), jadi baris
+  // `if(!confirm(...)) return;` bisa langsung nge-block logout tanpa user
+  // pernah lihat konfirmasinya. Diganti pakai modal HTML sendiri
+  // (#pb-logout-confirm, markup-nya ada di <body> dekat pb-user-pill)
+  // supaya tidak bergantung sama dialog native WebView sama sekali.
   window.pbLogout = function(){
+    var modal = document.getElementById('pb-logout-confirm');
+    if(modal){ modal.classList.add('show'); return; }
+    // Fallback kalau markup modal entah kenapa tidak ada di DOM — tetap
+    // coba confirm() daripada user mentok tanpa cara logout sama sekali.
     if(!confirm('Keluar dari akun ini?')) return;
+    pbDoLogout();
+  };
+
+  window.pbDoLogout = function(){
+    var modal = document.getElementById('pb-logout-confirm');
+    if(modal) modal.classList.remove('show');
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     if(typeof pbCloudSignOut === 'function') pbCloudSignOut();
     if(pbIsInsideNativeApp()){
@@ -2762,6 +2815,11 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       }catch(e){}
     }
     location.reload();
+  };
+
+  window.pbCancelLogout = function(){
+    var modal = document.getElementById('pb-logout-confirm');
+    if(modal) modal.classList.remove('show');
   };
 
   // FIX (dilaporkan user, Sept 2026): sebelumnya SELURUH pbInitLogin
@@ -4408,7 +4466,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.29 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.30 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
