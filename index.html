@@ -2526,7 +2526,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.31</div>
+  <div class="splash-version" id="splash-version">v6.32</div>
 </div>
 <script>
   (function(){
@@ -2810,6 +2810,23 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     try{ saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }catch(e){}
     if(saved && saved.email){
       pbShowApp(saved);
+      // FIX (dilaporkan user, Sept 2026): pbShowApp() di atas manggil
+      // pbApplyUserToHeader(saved) LANGSUNG di titik ini — tapi elemen
+      // #pb-user-pill/#pb-user-name/#pb-user-avatar letaknya di markup
+      // yang BELUM di-parse browser sama sekali (baru muncul beberapa
+      // baris HTML di BAWAH script ini, karena kita sengaja jalankan
+      // pbTryRestoreSession() SECEPAT mungkin — lihat komentar di bawah
+      // dekat pemanggilannya — supaya tidak ada lagi kelip layar login).
+      // Akibatnya document.getElementById(...) di pbApplyUserToHeader
+      // pasti null di titik ini, jadi pill nama Gmail SELAMANYA tidak
+      // pernah ke-set (bukan cuma telat) — tidak ada kode lain yang
+      // nyoba ulang belakangan. Simpan usernya di variabel global di
+      // sini; ada <script> kecil TEPAT SETELAH markup pill (cari
+      // "_pbPendingHeaderUser" di bawah) yang manggil ulang
+      // pbApplyUserToHeader() begitu elemen itu sudah pasti ada di DOM
+      // — jalan sebagai script biasa (bukan defer/async), jadi tetap
+      // instan, tidak nunggu apa pun dari jaringan.
+      window._pbPendingHeaderUser = saved;
       // Tidak ada idToken segar di sini (sesi lama) — pbCloudInit akan
       // coba pakai sesi Firebase Auth yang sudah persist sebelumnya.
       if(typeof pbCloudInit === 'function') pbCloudInit(saved, null);
@@ -2921,6 +2938,17 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <img id="pb-user-avatar" src="" alt="" style="width:16px;height:16px;border-radius:50%;display:none;">
       <span id="pb-user-name" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     </div>
+    <script>
+      // FIX (dilaporkan user, Sept 2026): safety-net supaya pill nama Gmail
+      // di header kepasang, walaupun pbTryRestoreSession() (di script jauh
+      // di atas) sudah kejalan lebih dulu SEBELUM markup pill ini ada di
+      // DOM. Skrip biasa (bukan defer) langsung dieksekusi begitu parser
+      // sampai di sini — yaitu TEPAT SETELAH elemen pill di atas — jadi
+      // #pb-user-pill dkk dijamin sudah ada, tanpa nunggu jaringan apa pun.
+      if(window._pbPendingHeaderUser && typeof pbApplyUserToHeader === 'function'){
+        pbApplyUserToHeader(window._pbPendingHeaderUser);
+      }
+    </script>
     <!-- PROXY (Sep 2026): tombol ini dulu buka modal minta API Key user.
          Sekarang AI sudah otomatis tersambung lewat server proxy milik
          pemilik app — user tidak perlu isi apapun lagi, jadi tombol cukup
@@ -4431,7 +4459,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.31 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.32 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
