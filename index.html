@@ -1246,24 +1246,6 @@ body input, body textarea, body [contenteditable="true"]{
 /* VIDEO STYLE CARDS */
 .vstyle-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-4) var(--space-5);cursor:pointer;transition:all 0.15s;margin-bottom:0;}
 
-/* DAILY LIMIT WIDGET */
-#daily-limit-bar{position:fixed;bottom:calc(64px + var(--safe-b));right:12px;z-index:200;font-family:'Geist Mono',monospace;display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:none;}
-#dlb-badge{pointer-events:auto;display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 9px 3px var(--space-2);cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:border-color 0.15s;user-select:none;touch-action:none;}
-#dlb-badge:hover{border-color:var(--border-hi);}
-#daily-limit-bar.dragging #dlb-badge{cursor:grabbing;}
-#daily-limit-bar.dragging{transition:none!important;}
-.dlb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background 0.3s;}
-.dlb-dot.ok{background:var(--green);}
-.dlb-dot.warn{background:var(--warning);}
-.dlb-dot.empty{background:var(--red);}
-#dlb-count{font-size:var(--fs-xs);font-weight:500;color:var(--muted);line-height:1;}
-#dlb-panel{pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-3) var(--space-4);box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:160px;display:none;cursor:grab;}
-#daily-limit-bar.expanded #dlb-panel{display:block;}
-.dlb-panel-label{font-size:var(--fs-3xs);letter-spacing:0.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:var(--space-2);}
-.dlb-track{height:2px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-bottom:5px;}
-.dlb-fill{height:100%;border-radius:2px;transition:width 0.4s ease,background 0.4s ease;}
-#dlb-reset{font-size:var(--fs-2xs);color:var(--muted2);line-height:1.7;}
-
 /* VSTYLE */
 .vstyle-card:hover{border-color:var(--border-hi);background:var(--surface3);}
 .vstyle-card.sel{border-color:var(--border-hi);background:var(--surface3);}
@@ -2521,7 +2503,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.27</div>
+  <div class="splash-version" id="splash-version">v6.28</div>
 </div>
 <script>
   (function(){
@@ -2935,19 +2917,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
   </div>
 </div>
 
-<!-- DAILY LIMIT WIDGET -->
-<div id="daily-limit-bar">
-  <div id="dlb-panel">
-    <div class="dlb-panel-label">AI Limit Harian</div>
-    <div class="dlb-track"><div class="dlb-fill" id="dlb-fill" style="width:100%;background:var(--green);"></div></div>
-    <span id="dlb-reset">— / —</span>
-  </div>
-  <div id="dlb-badge">
-    <span class="dlb-dot ok" id="dlb-dot"></span>
-    <span id="dlb-count">— / —</span>
-  </div>
-</div>
-
 <!-- ============================================================ -->
 <!-- TAB FOTO -->
 <!-- ============================================================ -->
@@ -3111,7 +3080,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         </div>
         <label class="inplabel" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
         <div class="inp-wrap">
-          <input class="inp" id="cs-outfit-custom" maxlength="60" placeholder="Contoh: setelan gamis motif bunga" oninput="csOutfitCustomInput()" onfocus="csOutfitCustomFocus()" onblur="csOutfitCustomBlur()" />
+          <input class="inp" id="cs-outfit-custom" maxlength="60" data-ph-f="Contoh: setelan gamis motif bunga" data-ph-m="Contoh: kemeja flanel kotak-kotak" placeholder="Contoh: setelan gamis motif bunga" oninput="csOutfitCustomInput()" onfocus="csOutfitCustomFocus()" onblur="csOutfitCustomBlur()" />
         </div>
         <button type="button" id="cs-generate-btn" class="btn cs-btn-compact" onclick="csGeneratePrompt()">Buat Prompt</button>
       </div>
@@ -4413,7 +4382,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.27 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.28 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -5333,6 +5302,11 @@ const FTYPE_FRIENDLY={
 
 // OUTFIT RANDOM MODAL
 function fOpenOutfitRandom(){
+  // FITUR BARU (permintaan user): Outfit Random (versi "isi sendiri"/AI)
+  // juga maksimal 1 kali — sama seperti Wajah/Produk/Objek. Kalau sudah
+  // ada outfit_random, modal ini tidak usah dibuka lagi (diam-diam, tanpa
+  // toast).
+  if(FS.refs.some(function(r){return r.type==='outfit_random';})) return;
   let modal=document.getElementById('outfit-random-modal');
   if(!modal)return;
   document.getElementById('outfit-random-input').value='';
@@ -5442,6 +5416,13 @@ function fAddRef(typeKey){
   if(!_fAddRefLastTimeByType) _fAddRefLastTimeByType={};
   if(now-(_fAddRefLastTimeByType[typeKey]||0)<400)return;
   _fAddRefLastTimeByType[typeKey]=now;
+
+  // FITUR BARU (permintaan user): setiap tipe foto (Wajah/Outfit/Produk/
+  // Objek) sekarang maksimal 1 kali — tidak ada lagi Wajah 2x, Produk 3x,
+  // dst. Kalau tipe ini sudah ada di FS.refs, diam-diam tidak menambahkan
+  // apa-apa (tanpa toast/pemberitahuan, karena aturannya memang sekarang
+  // "cukup 1 doang" — bukan situasi error yang perlu dijelaskan ke user).
+  if(FS.refs.some(function(r){return r.type===typeKey;})) return;
 
   // FIX #11: Cegah penambahan foto jika sudah mencapai batas maksimum
   if(FS.refs.length>=F_MAX_REFS){
@@ -5683,6 +5664,27 @@ function fRemoveRef(id){
   fRenderPreview();
 }
 
+// FITUR BARU (permintaan user): urutan tampil & urutan di JSON hasil
+// generate WAJIB tetap 1) Wajah/Karakter, 2) Outfit (termasuk versi AI/
+// outfit_random), 3) Produk/Objek — apa pun urutan asli user menap chip
+// di Step 1 (mis. tap "Produk" duluan, baru "Wajah"). Dipakai bareng di
+// fRenderList() (nomor F1/F2/F3 yang tampil) dan _fBuildPromptJSON()
+// (urutan reference_photos di JSON) supaya keduanya selalu konsisten satu
+// sama lain — tidak ada lagi kartu tampil F1=Produk padahal di JSON hasil
+// generate fotonya jadi nomor 2. Array.sort JS stabil (ES2015+), jadi
+// antar-foto dengan prioritas SAMA tetap sesuai urutan asli (walau sejak
+// fitur "1 per tipe" di atas, kasus ini praktis sudah tidak akan terjadi).
+function fRefOrderPriority(type){
+  if(type==='wajah') return 0;
+  if(type==='outfit'||type==='atasan'||type==='bawahan'||type==='aksesori'||type==='outfit_random') return 1;
+  return 2; // produk, objek, dan tipe lain
+}
+function fSortRefsForOrder(refs){
+  return refs.slice().sort(function(a,b){
+    return fRefOrderPriority(a.type)-fRefOrderPriority(b.type);
+  });
+}
+
 // Sub-label default per tipe chip (yang butuh foto fisik)
 const FCHIP_SUBLABEL={
   wajah:'Apakah kamu punya fotonya di galeri?',
@@ -5729,7 +5731,7 @@ function fRenderList(){
   if(confirm)confirm.classList.remove('hidden');
 
   let _num=0;
-  list.innerHTML=FS.refs.map(r=>{
+  list.innerHTML=fSortRefsForOrder(FS.refs).map(r=>{
     let def=FTYPE[r.type];
     if(!def)return'';
     let friendly=FTYPE_FRIENDLY[r.type];
@@ -6277,7 +6279,7 @@ function fKonfirmRef(){
   // pindah ke step lain (itu punya wizard normal); cukup simpan & kembali
   // ke Ringkasan.
   if(FS.importActive){
-    let typesImp=[...new Set(FS.refs.map(r=>FTYPE[r.type]?FTYPE[r.type].label:r.type))];
+    let typesImp=[...new Set(fSortRefsForOrder(FS.refs).map(r=>FTYPE[r.type]?FTYPE[r.type].label:r.type))];
     doneCard('f1','fa1', FS.refs.length+' foto ('+typesImp.join(', ')+')');
     let gaImp=document.getElementById('f-gen-area');
     if(gaImp){gaImp.classList.remove('hidden');fRunAIConflictCheck(true);}
@@ -6285,7 +6287,9 @@ function fKonfirmRef(){
     return;
   }
 
-  let types=[...new Set(FS.refs.map(r=>FTYPE[r.type].label))];
+  // Urutan label ini pun disamakan (Wajah/Outfit/Produk) supaya badge
+  // ringkasan "2 foto (...)" tidak beda urutan dari nomor F1/F2/F3 di atasnya.
+  let types=[...new Set(fSortRefsForOrder(FS.refs).map(r=>FTYPE[r.type].label))];
   let summary=FS.refs.length+' foto ('+types.join(', ')+')';
   doneCard('f1','fa1',summary);
 
@@ -7987,7 +7991,16 @@ function _fBuildImportedPromptJSON(ov){
     // dipakai jalur normal (_fBuildPromptJSON) dan yang sudah dipakai untuk
     // generated_outfit di bawah — photo_number di-renumber ulang.
     ...(function(){
-      let realRefsImp = FS.refs ? FS.refs.filter(function(r){return r.type!=='outfit_random';}) : [];
+      // FITUR BARU (permintaan user): jalur import (tempel JSON prompt lama)
+      // WAJIB pakai urutan yang SAMA dengan jalur normal — 1) Wajah/Karakter,
+      // 2) Outfit, 3) Produk/Objek — bukan urutan mentah FS.refs. Sebelumnya
+      // fungsi ini TIDAK memanggil fSortRefsForOrder() sama sekali, jadi
+      // hasil generate lewat "Import Prompt Lama" bisa punya urutan foto
+      // berbeda dari yang tampil di Step 1 (F1/F2/F3) maupun dari jalur
+      // generate normal (_fBuildPromptJSON) — padahal urutan ini menentukan
+      // urutan upload foto ke Google Flow, jadi kalau salah, hasil fotonya
+      // ikut salah juga.
+      let realRefsImp = FS.refs ? fSortRefsForOrder(FS.refs.filter(function(r){return r.type!=='outfit_random';})) : [];
       let photoCounterImp = 0;
       let refPhotosImp = realRefsImp.map(function(r){
         let def = FTYPE[r.type];
@@ -8077,7 +8090,7 @@ function _fBuildImportedPromptJSON(ov){
   // memperbaiki notice multi-shot untuk prompt hasil impor: FS.refs sudah
   // difilter sesuai excludeRefTypes shot yang bersangkutan oleh pemanggil
   // (_fDoGenerateMultiShot) sebelum fungsi ini dipanggil.
-  let realRefsImp = FS.refs ? FS.refs.filter(function(r){return r.type!=='outfit_random';}) : [];
+  let realRefsImp = FS.refs ? fSortRefsForOrder(FS.refs.filter(function(r){return r.type!=='outfit_random';})) : [];
   let randomRefsImp = FS.refs ? FS.refs.filter(function(r){return r.type==='outfit_random';}) : [];
   return {fullJson, realRefs: realRefsImp, randomRefs: randomRefsImp, subjekLabel};
 }
@@ -8416,19 +8429,17 @@ function _fBuildPromptJSON(ov){
   // foto nyata    = semua tipe selain outfit_random (ada foto fisik yang di-upload)
   let realRefs   = FS.refs.filter(r => r.type !== 'outfit_random');
   let randomRefs = FS.refs.filter(r => r.type === 'outfit_random');
-  // FITUR BARU (permintaan user): Karakter Sheet (tipe 'wajah') SELALU jadi
-  // foto referensi PERTAMA di JSON — apapun urutan chip yang ditap user di
-  // Step 1 (mis. tap "Produk" duluan, baru "Karakter Sheet" belakangan).
-  // Foto referensi 1 biasanya jadi acuan utama wajah/karakter buat AI image
-  // generator, jadi urutannya penting supaya hasil konsisten. Array.sort JS
-  // stabil (ES2015+) — tipe selain 'wajah' tetap sesuai urutan asli user
-  // menambahkannya, cuma 'wajah' yang dipindah ke depan. Notifikasi "Urutan
-  // Foto" (fBuildUploadNotice) otomatis ikut benar karena dipanggil dengan
-  // realRefs yang sudah diurutkan ulang ini (lihat _fDoGenerate).
-  realRefs = realRefs.slice().sort(function(a,b){
-    let aw=a.type==='wajah'?0:1, bw=b.type==='wajah'?0:1;
-    return aw-bw;
-  });
+  // FITUR BARU (permintaan user): urutan foto referensi di JSON WAJIB tetap
+  // 1) Wajah/Karakter, 2) Outfit, 3) Produk/Objek — apapun urutan chip yang
+  // ditap user di Step 1 (mis. tap "Produk" duluan, baru "Karakter Sheet"
+  // belakangan). Pakai fRefOrderPriority/fSortRefsForOrder yang sama dengan
+  // fRenderList() (nomor F1/F2/F3 yang tampil di layar), supaya urutan yang
+  // dilihat user di Step 1 selalu konsisten dengan urutan di JSON hasil
+  // generate — tidak ada lagi kartu tampil F1=Produk padahal di JSON fotonya
+  // jadi nomor 2. Notifikasi "Urutan Foto" (fBuildUploadNotice) otomatis
+  // ikut benar karena dipanggil dengan realRefs yang sudah diurutkan ulang
+  // ini (lihat _fDoGenerate).
+  realRefs = fSortRefsForOrder(realRefs);
 
   // Build reference_photos — HANYA dari foto nyata, renumber 1..N
   let photoCounter = 0;
@@ -9204,6 +9215,13 @@ function csRelabelOutfit(){
     c.textContent=label;
     if(c.classList.contains('sel'))csState.outfit=label;
   });
+  // Placeholder "Atau isi sendiri" juga ikut disesuaikan gender — contoh
+  // "gamis" gak relevan buat laki-laki, jadi diganti contoh outfit cowok.
+  let customInp=document.getElementById('cs-outfit-custom');
+  if(customInp){
+    let ph=isLaki?customInp.dataset.phM:customInp.dataset.phF;
+    if(ph)customInp.placeholder=ph;
+  }
 }
 function csToggleUsia(){
 
@@ -17878,7 +17896,7 @@ function fSummaryEdit(cardNum) {
         if (cardNum === 2) cardEl.style.setProperty('display', 'none', 'important');
       }
       if (cardNum === 1 && FS.refs && FS.refs.length > 0) {
-        let types = [...new Set(FS.refs.map(r => FTYPE[r.type] ? FTYPE[r.type].label : r.type))];
+        let types = [...new Set(fSortRefsForOrder(FS.refs).map(r => FTYPE[r.type] ? FTYPE[r.type].label : r.type))];
         let fa1 = document.getElementById('fa1');
         if (fa1) fa1.textContent = FS.refs.length + ' foto (' + types.join(', ') + ')';
       }
@@ -19679,10 +19697,12 @@ function pbUnlockChip(sel){
   if(el) el.classList.remove('pb-locked');
 }
 // ── Wrapper fAddRef(): SELAMA Langkah 6 tur (pb-tour-f1-simple) aktif —
-// 1) Karakter Sheet & Produk masing-masing HANYA boleh ditambah 1x —
-//    tap ke-2/ke-4 dst pada chip yang sama diabaikan (bukan menambah
-//    foto baru), supaya user tidak bingung ada beberapa kartu Karakter
-//    Sheet/Produk sekaligus.
+// 1) Karakter Sheet & Produk masing-masing HANYA boleh ditambah 1x — ini
+//    sekarang ditangani langsung di dalam fAddRef() itu sendiri (berlaku
+//    di luar tur juga, diam-diam tanpa toast — lihat komentar "FITUR BARU"
+//    di awal fAddRef()), jadi wrapper ini TIDAK perlu cek duplikat sendiri
+//    lagi (dulu ada toast "cukup 1 foto aja ya" di sini, sekarang dihapus
+//    supaya konsisten "tanpa pemberitahuan" seperti di luar tur).
 // 2) Panel "atur detail" TIDAK dibuka otomatis lagi — tetap disembunyikan
 //    sampai user sendiri yang tap tombolnya (sama seperti di luar tur).
 // 3) Begitu Karakter Sheet DAN Produk sudah sama-sama ada (2 bahan
@@ -19691,11 +19711,6 @@ function pbUnlockChip(sel){
 (function(){
   let _pbOrigFAddRef=fAddRef;
   fAddRef=function(typeKey){
-    if(pbTourF1Active && (typeKey==='wajah'||typeKey==='produk') &&
-       FS.refs.some(function(r){return r.type===typeKey;})){
-      showToast((typeKey==='wajah'?'Karakter Sheet':'Produk')+' cukup 1 foto aja ya','error');
-      return;
-    }
     let before=FS.refs.length;
     _pbOrigFAddRef.apply(this,arguments);
     if(pbTourF1Active && FS.refs.length>before){
@@ -19908,12 +19923,6 @@ window.addEventListener('load',function(){
          oleh JS).
      ══════════════════════════════════════════════════════════════════ -->
 <style>
-#pb-undo-fab-wrap{position:fixed;right:16px;bottom:16px;z-index:99997;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
-#pb-undo-fab-wrap button{pointer-events:auto;width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,24,0.92);color:#fff;font-size:19px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,0.35);opacity:0;transform:translateY(8px) scale(0.9);transition:opacity .18s ease,transform .18s ease;-webkit-tap-highlight-color:transparent;}
-#pb-undo-fab-wrap button.show{opacity:1;transform:translateY(0) scale(1);}
-#pb-undo-fab-wrap button:disabled{opacity:.28!important;pointer-events:none;}
-#pb-undo-fab-wrap button:active{transform:scale(0.88);}
-@media(min-width:900px){ #pb-undo-fab-wrap{display:none;} } /* di laptop cukup Ctrl+Z / Ctrl+Shift+Z */
 /* ── BADGE PEMAKAIAN TOKEN (permintaan user, Sept 2026) ─────────────────
    Pojok kiri-bawah (undo-fab pakai kanan-bawah) — kecil & tidak
    mengganggu, cuma nongol setelah generate AI pertama kali terjadi. */
@@ -20258,17 +20267,6 @@ window.addEventListener('load',function(){
     r.disabled = pointer>=stack.length-1;
   }
 
-  function buildFab(){
-    var wrap = document.createElement('div');
-    wrap.id = 'pb-undo-fab-wrap';
-    wrap.innerHTML =
-      '<button id="pb-undo-fab-redo" type="button" aria-label="Redo" title="Redo">&#8635;</button>'+
-      '<button id="pb-undo-fab-undo" type="button" aria-label="Undo" title="Undo">&#8634;</button>';
-    document.body.appendChild(wrap);
-    document.getElementById('pb-undo-fab-undo').addEventListener('click', function(){ window.pbUndo(); });
-    document.getElementById('pb-undo-fab-redo').addEventListener('click', function(){ window.pbRedo(); });
-  }
-
   // ── Ketik/centang langsung di field (yang tidak selalu memicu fungsi
   // render tertentu) tetap ikut kejadwal jadi snapshot lewat listener
   // delegasi generik ini. ──────────────────────────────────────────────
@@ -20310,7 +20308,6 @@ window.addEventListener('load',function(){
   window.addEventListener('load', function(){
     setTimeout(function(){
       wrapStepFns();
-      buildFab();
       // BUG FIX (Sept 2026): snapshot baseline diambil SEBELUM pengguna
       // memicu fungsi step manapun, jadi `lastStepFn` masih kosong
       // (null). Kalau dibiarkan null, nanti pas user undo balik sampai
