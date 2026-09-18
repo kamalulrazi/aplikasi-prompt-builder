@@ -71,15 +71,7 @@
     });
   }
 </script>
-<!-- FIX (dilaporkan user, Sept 2026): sebelumnya link Google Fonts ini
-     RENDER-BLOCKING (browser wajib nunggu file CSS-nya kelar diunduh
-     sebelum boleh menggambar apa pun ke layar) — salah satu penyebab
-     jeda layar hitam sebelum splash screen (logo P) sempat muncul.
-     Dipakai teknik standar "preload lalu swap jadi stylesheet" di bawah
-     supaya font ini dimuat di LATAR BELAKANG tanpa menahan render
-     pertama; <noscript> jadi fallback kalau JS-nya somehow tidak jalan. -->
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- GOOGLE SIGN-IN — dipakai buat gerbang login sebelum masuk ke app.
      Lihat blok #login-gate di <body> untuk logic-nya. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -90,26 +82,11 @@
      sama. Login Google tetap pakai Google Identity Services (GIS) seperti
      sebelumnya — Firebase TIDAK menggantikan sistem login yang sudah ada,
      cuma dipakai buat nyimpen datanya di cloud. Lihat blok konfigurasi +
-     engine sinkronisasi di bawah ini untuk instruksi setup.
-     FIX (dilaporkan user, Sept 2026): PENYEBAB UTAMA jeda layar hitam
-     sebelum splash screen (logo P) muncul. Ketiga script di bawah ini
-     dulu TANPA atribut "defer" — artinya browser WAJIB berhenti total
-     mem-parsing sisa HTML (termasuk CSS besar & markup splash screen yang
-     letaknya jauh di bawah), lalu mengunduh + menjalankan 3 file JS dari
-     internet SATU PER SATU secara berurutan, baru boleh lanjut. Selama
-     proses unduh itu (apalagi kalau koneksi lambat), WebView belum
-     menggambar apa pun sama sekali → kelihatan sebagai layar hitam
-     kosong. Ditambahkan "defer" di ketiga tag INI, DAN di tag <script>
-     inline konfigurasinya tepat di bawah (yang memanggil
-     firebase.initializeApp(...)) — supaya urutan eksekusinya (device
-     script Firebase A → B → C → konfigurasi) TETAP SAMA PERSIS seperti
-     sebelumnya (script "defer" dijamin browser tetap jalan sesuai urutan
-     kemunculannya di HTML), TAPI sekarang semuanya dijalankan SETELAH
-     seluruh HTML/CSS selesai di-parsing, bukan sebelum/menghalanginya. -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
-<script defer>
+     engine sinkronisasi di bawah ini untuk instruksi setup. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
 (function(){
   // ── GANTI INI dengan config Firebase project kamu sendiri (gratis). ─────
   // Cara dapatnya (±5 menit):
@@ -1268,6 +1245,24 @@ body input, body textarea, body [contenteditable="true"]{
 
 /* VIDEO STYLE CARDS */
 .vstyle-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-4) var(--space-5);cursor:pointer;transition:all 0.15s;margin-bottom:0;}
+
+/* DAILY LIMIT WIDGET */
+#daily-limit-bar{position:fixed;bottom:calc(64px + var(--safe-b));right:12px;z-index:200;font-family:'Geist Mono',monospace;display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:none;}
+#dlb-badge{pointer-events:auto;display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 9px 3px var(--space-2);cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:border-color 0.15s;user-select:none;touch-action:none;}
+#dlb-badge:hover{border-color:var(--border-hi);}
+#daily-limit-bar.dragging #dlb-badge{cursor:grabbing;}
+#daily-limit-bar.dragging{transition:none!important;}
+.dlb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background 0.3s;}
+.dlb-dot.ok{background:var(--green);}
+.dlb-dot.warn{background:var(--warning);}
+.dlb-dot.empty{background:var(--red);}
+#dlb-count{font-size:var(--fs-xs);font-weight:500;color:var(--muted);line-height:1;}
+#dlb-panel{pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-3) var(--space-4);box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:160px;display:none;cursor:grab;}
+#daily-limit-bar.expanded #dlb-panel{display:block;}
+.dlb-panel-label{font-size:var(--fs-3xs);letter-spacing:0.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:var(--space-2);}
+.dlb-track{height:2px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-bottom:5px;}
+.dlb-fill{height:100%;border-radius:2px;transition:width 0.4s ease,background 0.4s ease;}
+#dlb-reset{font-size:var(--fs-2xs);color:var(--muted2);line-height:1.7;}
 
 /* VSTYLE */
 .vstyle-card:hover{border-color:var(--border-hi);background:var(--surface3);}
@@ -2526,42 +2521,10 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.33</div>
+  <div class="splash-version" id="splash-version">v6.27</div>
 </div>
 <script>
   (function(){
-    // FIX AKAR MASALAH SEBENARNYA (dilaporkan user, Sept 2026): kenapa
-    // tombol Foto/Video/Riwayat/Panduan baru "muncul" setelah nunggu lama,
-    // padahal SEBELUM script Firebase dibikin defer, hal ini tidak pernah
-    // kejadian? Jawabannya: splash screen NATIF Android bawaan Capacitor
-    // (beda dari splash custom logo-P di HTML ini) diam-diam menutupi
-    // SELURUH layar sampai event window.load selesai — dan browser
-    // memberi PRIORITAS FETCH LEBIH RENDAH ke script yang ditandai
-    // "defer" dibanding script blocking biasa. Jadi walau kita bikin
-    // Firebase "defer" supaya TIDAK menghalangi HTML/CSS dirender (fix
-    // sebelumnya, itu berhasil untuk splash custom kita) — event
-    // window.load itu sendiri malah jadi LEBIH LAMBAT dari sebelumnya,
-    // karena unduhan Firebase yang deprioritized itu buat window.load
-    // nunggu lebih lama, otomatis nahan splash native lebih lama juga.
-    // Simpelnya: fix sebelumnya benar untuk splash HTML kita, tapi malah
-    // memperlambat splash NATIF yang terpisah dan tidak kita sadari ada.
-    //
-    // Perbaikan SEBENARNYA: putuskan total ketergantungan splash native
-    // ke window.load. Panggil langsung API hide()-nya di SINI — baris
-    // paling awal yang dieksekusi browser (script biasa, bukan defer,
-    // langsung jalan begitu parser sampai sini, jauh sebelum Firebase
-    // atau apa pun dari jaringan selesai) — supaya splash native
-    // ketutup SECEPAT mungkin, sepenuhnya independen dari cepat/lambatnya
-    // internet ke server Google. Aman dipanggil walau plugin-nya belum
-    // ada (mis. dibuka di browser biasa buat testing) karena dibungkus
-    // pengecekan & try/catch.
-    try{
-      if(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen
-         && typeof window.Capacitor.Plugins.SplashScreen.hide === 'function'){
-        window.Capacitor.Plugins.SplashScreen.hide();
-      }
-    }catch(e){}
-
     var wrap = document.getElementById('splash-logo-wrap');
     var title = document.getElementById('splash-title');
     var ver = document.getElementById('splash-version');
@@ -2819,55 +2782,19 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     location.reload();
   };
 
-  // FIX (dilaporkan user, Sept 2026): sebelumnya SELURUH pbInitLogin
-  // (termasuk cek sesi tersimpan) nunggu event window 'load' — yaitu
-  // nunggu SEMUA resource (gambar, script GIS dari accounts.google.com,
-  // dll) kelar dimuat. Efeknya, user yang SEBENARNYA sudah login tetap
-  // sempat melihat kelip (flash) layar login-gate kosong selama beberapa
-  // saat sebelum app-nya kebuka, padahal login-nya sendiri aman-aman
-  // saja. Root cause: HANYA cek localStorage yang butuh dijalankan
-  // secepatnya (elemen #login-gate sudah pasti ada di DOM di titik ini
-  // karena script ini letaknya SETELAH markup login-gate) — bagian yang
-  // benar-benar butuh nunggu 'load' cuma render opsi login (native/GIS),
-  // karena itu perlu script GIS eksternal sudah siap. Makanya dipisah
-  // jadi 2 fungsi: pbTryRestoreSession() jalan LANGSUNG (sync, tanpa
-  // nunggu apapun), dan pbInitLoginOptions() (isi function lama, minus
-  // bagian cek sesi) baru dipanggil nunggu 'load' — TAPI HANYA kalau
-  // sesi tersimpan tadi TIDAK ditemukan, supaya user yang sudah login
-  // tidak pernah melihat login-gate sama sekali, walau sekejap.
-  function pbTryRestoreSession(){
+  function pbInitLogin(){
     // Kalau sesi login sebelumnya masih ada di perangkat ini, langsung
     // buka app tanpa nyuruh login ulang.
     var saved = null;
     try{ saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }catch(e){}
     if(saved && saved.email){
       pbShowApp(saved);
-      // FIX (dilaporkan user, Sept 2026): pbShowApp() di atas manggil
-      // pbApplyUserToHeader(saved) LANGSUNG di titik ini — tapi elemen
-      // #pb-user-pill/#pb-user-name/#pb-user-avatar letaknya di markup
-      // yang BELUM di-parse browser sama sekali (baru muncul beberapa
-      // baris HTML di BAWAH script ini, karena kita sengaja jalankan
-      // pbTryRestoreSession() SECEPAT mungkin — lihat komentar di bawah
-      // dekat pemanggilannya — supaya tidak ada lagi kelip layar login).
-      // Akibatnya document.getElementById(...) di pbApplyUserToHeader
-      // pasti null di titik ini, jadi pill nama Gmail SELAMANYA tidak
-      // pernah ke-set (bukan cuma telat) — tidak ada kode lain yang
-      // nyoba ulang belakangan. Simpan usernya di variabel global di
-      // sini; ada <script> kecil TEPAT SETELAH markup pill (cari
-      // "_pbPendingHeaderUser" di bawah) yang manggil ulang
-      // pbApplyUserToHeader() begitu elemen itu sudah pasti ada di DOM
-      // — jalan sebagai script biasa (bukan defer/async), jadi tetap
-      // instan, tidak nunggu apa pun dari jaringan.
-      window._pbPendingHeaderUser = saved;
       // Tidak ada idToken segar di sini (sesi lama) — pbCloudInit akan
       // coba pakai sesi Firebase Auth yang sudah persist sebelumnya.
       if(typeof pbCloudInit === 'function') pbCloudInit(saved, null);
-      return true;
+      return;
     }
-    return false;
-  }
 
-  function pbInitLoginOptions(){
     // ── Jalur 1: di dalam app Android, TAPI HANYA kalau plugin native
     // GoogleAuthNative (GoogleAuthNativePlugin.java) benar-benar
     // terpasang & teregistrasi di MainActivity (dicek lewat
@@ -2916,17 +2843,10 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     }
   }
 
-  // Cek sesi tersimpan SEKARANG JUGA (sync, tanpa nunggu apapun) — ini
-  // yang menghilangkan kelip layar login buat user yang sudah login.
-  var _pbSessionRestored = pbTryRestoreSession();
-
-  // Render opsi login (native/GIS) HANYA kalau memang belum ada sesi.
   // Skrip GIS dimuat async — tunggu window 'load' supaya object `google`
   // sudah pasti tersedia sebelum dipakai.
-  if(!_pbSessionRestored){
-    if(document.readyState === 'complete'){ pbInitLoginOptions(); }
-    else{ window.addEventListener('load', pbInitLoginOptions); }
-  }
+  if(document.readyState === 'complete'){ pbInitLogin(); }
+  else{ window.addEventListener('load', pbInitLogin); }
 })();
 </script>
 
@@ -2970,17 +2890,6 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       <img id="pb-user-avatar" src="" alt="" style="width:16px;height:16px;border-radius:50%;display:none;">
       <span id="pb-user-name" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     </div>
-    <script>
-      // FIX (dilaporkan user, Sept 2026): safety-net supaya pill nama Gmail
-      // di header kepasang, walaupun pbTryRestoreSession() (di script jauh
-      // di atas) sudah kejalan lebih dulu SEBELUM markup pill ini ada di
-      // DOM. Skrip biasa (bukan defer) langsung dieksekusi begitu parser
-      // sampai di sini — yaitu TEPAT SETELAH elemen pill di atas — jadi
-      // #pb-user-pill dkk dijamin sudah ada, tanpa nunggu jaringan apa pun.
-      if(window._pbPendingHeaderUser && typeof pbApplyUserToHeader === 'function'){
-        pbApplyUserToHeader(window._pbPendingHeaderUser);
-      }
-    </script>
     <!-- PROXY (Sep 2026): tombol ini dulu buka modal minta API Key user.
          Sekarang AI sudah otomatis tersambung lewat server proxy milik
          pemilik app — user tidak perlu isi apapun lagi, jadi tombol cukup
@@ -3023,6 +2932,19 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
         <div class="wback hidden"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- DAILY LIMIT WIDGET -->
+<div id="daily-limit-bar">
+  <div id="dlb-panel">
+    <div class="dlb-panel-label">AI Limit Harian</div>
+    <div class="dlb-track"><div class="dlb-fill" id="dlb-fill" style="width:100%;background:var(--green);"></div></div>
+    <span id="dlb-reset">— / —</span>
+  </div>
+  <div id="dlb-badge">
+    <span class="dlb-dot ok" id="dlb-dot"></span>
+    <span id="dlb-count">— / —</span>
   </div>
 </div>
 
@@ -4491,7 +4413,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.33 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.27 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
