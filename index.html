@@ -2503,7 +2503,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.28</div>
+  <div class="splash-version" id="splash-version">v6.29</div>
 </div>
 <script>
   (function(){
@@ -2764,7 +2764,23 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     location.reload();
   };
 
-  function pbInitLogin(){
+  // FIX (dilaporkan user, Sept 2026): sebelumnya SELURUH pbInitLogin
+  // (termasuk cek sesi tersimpan) nunggu event window 'load' — yaitu
+  // nunggu SEMUA resource (gambar, script GIS dari accounts.google.com,
+  // dll) kelar dimuat. Efeknya, user yang SEBENARNYA sudah login tetap
+  // sempat melihat kelip (flash) layar login-gate kosong selama beberapa
+  // saat sebelum app-nya kebuka, padahal login-nya sendiri aman-aman
+  // saja. Root cause: HANYA cek localStorage yang butuh dijalankan
+  // secepatnya (elemen #login-gate sudah pasti ada di DOM di titik ini
+  // karena script ini letaknya SETELAH markup login-gate) — bagian yang
+  // benar-benar butuh nunggu 'load' cuma render opsi login (native/GIS),
+  // karena itu perlu script GIS eksternal sudah siap. Makanya dipisah
+  // jadi 2 fungsi: pbTryRestoreSession() jalan LANGSUNG (sync, tanpa
+  // nunggu apapun), dan pbInitLoginOptions() (isi function lama, minus
+  // bagian cek sesi) baru dipanggil nunggu 'load' — TAPI HANYA kalau
+  // sesi tersimpan tadi TIDAK ditemukan, supaya user yang sudah login
+  // tidak pernah melihat login-gate sama sekali, walau sekejap.
+  function pbTryRestoreSession(){
     // Kalau sesi login sebelumnya masih ada di perangkat ini, langsung
     // buka app tanpa nyuruh login ulang.
     var saved = null;
@@ -2774,9 +2790,12 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
       // Tidak ada idToken segar di sini (sesi lama) — pbCloudInit akan
       // coba pakai sesi Firebase Auth yang sudah persist sebelumnya.
       if(typeof pbCloudInit === 'function') pbCloudInit(saved, null);
-      return;
+      return true;
     }
+    return false;
+  }
 
+  function pbInitLoginOptions(){
     // ── Jalur 1: di dalam app Android, TAPI HANYA kalau plugin native
     // GoogleAuthNative (GoogleAuthNativePlugin.java) benar-benar
     // terpasang & teregistrasi di MainActivity (dicek lewat
@@ -2825,10 +2844,17 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     }
   }
 
+  // Cek sesi tersimpan SEKARANG JUGA (sync, tanpa nunggu apapun) — ini
+  // yang menghilangkan kelip layar login buat user yang sudah login.
+  var _pbSessionRestored = pbTryRestoreSession();
+
+  // Render opsi login (native/GIS) HANYA kalau memang belum ada sesi.
   // Skrip GIS dimuat async — tunggu window 'load' supaya object `google`
   // sudah pasti tersedia sebelum dipakai.
-  if(document.readyState === 'complete'){ pbInitLogin(); }
-  else{ window.addEventListener('load', pbInitLogin); }
+  if(!_pbSessionRestored){
+    if(document.readyState === 'complete'){ pbInitLoginOptions(); }
+    else{ window.addEventListener('load', pbInitLoginOptions); }
+  }
 })();
 </script>
 
@@ -4382,7 +4408,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.28 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.29 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
