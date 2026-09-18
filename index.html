@@ -2526,10 +2526,42 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.32</div>
+  <div class="splash-version" id="splash-version">v6.33</div>
 </div>
 <script>
   (function(){
+    // FIX AKAR MASALAH SEBENARNYA (dilaporkan user, Sept 2026): kenapa
+    // tombol Foto/Video/Riwayat/Panduan baru "muncul" setelah nunggu lama,
+    // padahal SEBELUM script Firebase dibikin defer, hal ini tidak pernah
+    // kejadian? Jawabannya: splash screen NATIF Android bawaan Capacitor
+    // (beda dari splash custom logo-P di HTML ini) diam-diam menutupi
+    // SELURUH layar sampai event window.load selesai — dan browser
+    // memberi PRIORITAS FETCH LEBIH RENDAH ke script yang ditandai
+    // "defer" dibanding script blocking biasa. Jadi walau kita bikin
+    // Firebase "defer" supaya TIDAK menghalangi HTML/CSS dirender (fix
+    // sebelumnya, itu berhasil untuk splash custom kita) — event
+    // window.load itu sendiri malah jadi LEBIH LAMBAT dari sebelumnya,
+    // karena unduhan Firebase yang deprioritized itu buat window.load
+    // nunggu lebih lama, otomatis nahan splash native lebih lama juga.
+    // Simpelnya: fix sebelumnya benar untuk splash HTML kita, tapi malah
+    // memperlambat splash NATIF yang terpisah dan tidak kita sadari ada.
+    //
+    // Perbaikan SEBENARNYA: putuskan total ketergantungan splash native
+    // ke window.load. Panggil langsung API hide()-nya di SINI — baris
+    // paling awal yang dieksekusi browser (script biasa, bukan defer,
+    // langsung jalan begitu parser sampai sini, jauh sebelum Firebase
+    // atau apa pun dari jaringan selesai) — supaya splash native
+    // ketutup SECEPAT mungkin, sepenuhnya independen dari cepat/lambatnya
+    // internet ke server Google. Aman dipanggil walau plugin-nya belum
+    // ada (mis. dibuka di browser biasa buat testing) karena dibungkus
+    // pengecekan & try/catch.
+    try{
+      if(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen
+         && typeof window.Capacitor.Plugins.SplashScreen.hide === 'function'){
+        window.Capacitor.Plugins.SplashScreen.hide();
+      }
+    }catch(e){}
+
     var wrap = document.getElementById('splash-logo-wrap');
     var title = document.getElementById('splash-title');
     var ver = document.getElementById('splash-version');
@@ -4459,7 +4491,7 @@ body.pb-tour-result-simple #f-import-toggle-wrap{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.32 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.33 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
