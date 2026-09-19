@@ -3280,7 +3280,7 @@ body.pb-tour-result-simple #f-copy-btn{
     </div>
     <div class="wbody">
       <p class="desc-block" id="f0-desc-text">
-        Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.
+        Pilih jenis kelamin karakter sheet kakak/mau bikin produk aja tanpa karakter.
       </p>
       <div style="display:grid;gap:10px;">
         <div class="subjek-card" id="sk-hijab" onclick="fPickSubjek('hijab',this)">
@@ -6457,6 +6457,18 @@ function fBack1(){
     if(f0ProcessBadgeBack) f0ProcessBadgeBack.style.display='flex';
     fShowConfirm('f0', selEl, function(){ _fSubjekAdvance(prevSubjek); });
   }
+  // FIX (dilaporkan user): selama sesi tur Langkah 5+6 masih berjalan, klik
+  // "← Kembali" dari f1 ke f0 dulu menampilkan deskripsi versi BIASA (teks
+  // default Subjek Foto), bukan versi tur ("untuk membuat si karakter
+  // memegang/memakai produk kita butuh prompt ..."). Penyebab: waktu subjek
+  // dikonfirmasi, _fSubjekAdvance() memanggil pbTourResetF0Ui() yang
+  // mengembalikan teks & tampilan f0 ke default, lalu fBack1() ini cuma
+  // membuka kembali f0 tanpa memasang ulang versi tur-nya. Jalur lain yang
+  // membuka ulang f0 (fRestoreStepUI(0)) sudah memanggil pbGoStep5() lagi —
+  // sekarang jalur "← Kembali" ini disamakan.
+  if(typeof pbTourStep56Active!=='undefined' && pbTourStep56Active && typeof pbGoStep5==='function'){
+    pbGoStep5();
+  }
   setTimeout(()=>f0&&f0.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 
@@ -7487,6 +7499,13 @@ function fBack4(){
   } else {
     fBackTo(4,1);
     fUpdateProgress(1,'Foto Referensi');
+    // FIX (audit kelas bug yang sama seperti fBack1/fBack2/fBack3): kalau di
+    // step 1 user cuma pilih Karakter Sheet tanpa foto Produk, f2 & f3
+    // dilewati (produkMode='tidak') dan "← Kembali" dari Pose langsung
+    // balik ke f1 lewat cabang ini — dulu tampilan versi tur f1 tidak
+    // dipasang ulang (label kembali "Wajah", banner "Cek HP dulu" muncul
+    // lagi, chip Objek/Outfit kebuka) padahal sesi tur masih berjalan.
+    if(typeof pbTourStep56Active!=='undefined' && pbTourStep56Active && typeof pbGoStep6==='function') pbGoStep6();
   }
   let ga=document.getElementById('f-gen-area');if(ga)ga.classList.add('hidden');
 }
@@ -20368,7 +20387,7 @@ function pbTourResetF0Ui(){
   let f0=document.getElementById('f0');
   if(f0) f0.classList.remove('pb-tour-f0-simple');
   let f0Desc=document.getElementById('f0-desc-text');
-  if(f0Desc) f0Desc.textContent='Siapa yang akan muncul dalam foto ini? Pilihan ini akan menyesuaikan pose secara otomatis.';
+  if(f0Desc) f0Desc.textContent='Pilih jenis kelamin karakter sheet kakak/mau bikin produk aja tanpa karakter.';
   // FITUR BARU (permintaan user): badge "sedang membuat prompt" TIDAK lagi
   // dilepas di sini begitu subjek dikonfirmasi & lanjut ke f1 — badge ini
   // sekarang PERMANEN selama seluruh sesi Langkah 5 (f0 s.d. f1 selesai),
