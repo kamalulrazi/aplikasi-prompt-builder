@@ -2740,7 +2740,7 @@ body.pb-tour-result-simple #f-copy-btn{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.40</div>
+  <div class="splash-version" id="splash-version">v6.41</div>
 </div>
 <script>
   (function(){
@@ -4496,7 +4496,7 @@ body.pb-tour-result-simple #f-copy-btn{
 <div class="wrap">
   <div class="sec-title">Cara Pakai</div>
   <p class="sec-desc">Baca sekali, pakai berkali-kali.</p>
-  <button id="pb-tour-replay-btn" onclick="pbStartTour(true)"><svg class="icon"><use href="#ic-sparkle"></use></svg> Lihat Tur Panduan Lagi</button>
+  <button id="pb-tour-replay-btn" onclick="pbReplayTour()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Lihat Tur Panduan Lagi</button>
   <div class="rule"></div>
   <div class="sec-title sec-title-sub">Karakter Sheet &amp; Prompt Lama</div>
   <p class="sec-desc" style="margin-bottom:12px;">Dipindahkan ke sini dari Tab Foto — pakai kalau perlu.</p>
@@ -4670,7 +4670,7 @@ body.pb-tour-result-simple #f-copy-btn{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.40 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.41 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9803,7 +9803,12 @@ function fReset(){
   let hasOutput=(document.getElementById('f-json-output')?.style.display!=='none')||(document.getElementById('f-multi-output')?.style.display==='flex');
   let confirmMsg='Semua data foto akan dihapus dan kamu mulai dari awal.';
   if(hasOutput){confirmMsg='Semua data foto akan dihapus dan kamu mulai dari awal.<br><span style="font-size:var(--fs-xs2);color:var(--accent);">Tip: Salin prompt dulu sebelum reset jika masih dibutuhkan.</span>';}
-  showConfirm(confirmMsg,function(){
+  showConfirm(confirmMsg,fResetNow);
+}
+// Inti reset wizard Foto TANPA dialog konfirmasi — dipanggil fReset() (setelah
+// user konfirmasi) dan pbReplayTour() (tur ulang butuh wizard yang bersih).
+function fResetNow(){
+  (function(){
     fResetFrom(0);
     document.querySelectorAll('.f-shot-check').forEach(cb=>cb.checked=false);
     document.querySelectorAll('.f-shot-panel').forEach(p=>{p.style.display='none';p.innerHTML='';p.removeAttribute('data-built');});
@@ -9850,7 +9855,7 @@ function fReset(){
     let _appShellReset=document.querySelector('.app-shell');
     if(_appShellReset) _appShellReset.scrollTo({top:0,behavior:'smooth'});
     if(typeof pbResetProgress==='function') pbResetProgress();
-  });
+  })();
 }
 
 // ============================================================
@@ -17729,7 +17734,12 @@ function _vbMirrorBuildPrompt(){
 }
 
 function vbReset(){
-  showConfirm('Semua data video akan dihapus dan kamu mulai dari awal.',function(){
+  showConfirm('Semua data video akan dihapus dan kamu mulai dari awal.',vbResetNow);
+}
+// Inti reset wizard Video TANPA dialog konfirmasi (dipakai vbReset() &
+// pbReplayTour()).
+function vbResetNow(){
+  (function(){
     // Buang juga sisa "step yang ketutup sementara karena lagi diedit" —
     // sama seperti fResetFrom() di tab Foto, biar tidak ada entri nyangkut
     // yang salah unhide di sesi berikutnya.
@@ -17852,7 +17862,7 @@ function vbReset(){
     let _appShellVReset=document.querySelector('.app-shell');
     if(_appShellVReset) _appShellVReset.scrollTo({top:0,behavior:'smooth'});
     if(typeof pbResetProgress==='function') pbResetProgress();
-  });
+  })();
 }
 
 
@@ -19071,6 +19081,45 @@ function pbStartTour(force){
   pbTourProgressHide();
   let shell=pbPrepTourUiShell();
   setTimeout(function(){ pbGoStep1(); },shell?120:0);
+}
+
+// FIX (tur ulang melompati Karakter Sheet): state tur — terutama 3 flag
+// foto (produk / karakter sheet / foto AI) — SEBELUMNYA tidak pernah
+// direset saat tur diulang. Padahal pbGoStep2Next() memilih langkah
+// berikutnya dari flag itu: kalau produk & karakter sheet sudah "true"
+// dari putaran tur pertama, tombol Lanjut di Langkah 2 langsung loncat
+// ke pbGoStep5() (prompt Foto AI) dan modal Karakter Sheet tidak pernah
+// dibuka. Fungsi ini mengembalikan semua state tur ke kondisi user baru.
+// Namanya SENGAJA tanpa kata "Step"/"Render" supaya tidak ikut dibungkus
+// sistem undo (lihat PB_UNDO_STEP_FN_REGEX).
+function pbResetTourFlow(){
+  pbProdukFotoUploaded=false; pbProdukFotoDataUrl=null;
+  pbKsFotoUploaded=false;     pbKsFotoDataUrl=null;
+  pbFotoAiUploaded=false;     pbFotoAiDataUrl=null;
+  pbStep3Revealed=1;
+  pbStep6ExtIndex=0;
+  pbTourStep56Active=false; pbTourExtActive=false; pbTourAfterGenActive=false;
+  pbTourF1Active=false;     pbTourOutfitHintShown=false;
+}
+// Dipanggil tombol "Lihat Tur Panduan Lagi" (tab Panduan). Tur butuh
+// wizard Foto & Video yang bersih (kalau sisa isian tur/pekerjaan lama
+// masih ada, kartu Subjek Foto sudah "selesai & tersembunyi" sehingga tur
+// menunggu klik yang tidak pernah bisa terjadi), jadi ada konfirmasi dulu
+// kalau memang ada isian yang akan terhapus.
+function pbReplayTour(){
+  function mulai(){
+    pbResetTourFlow();
+    if(typeof fResetNow==='function') fResetNow();
+    if(typeof vbResetNow==='function') vbResetNow();
+    pbStartTour(true);
+  }
+  let adaProgres=false;
+  try{ adaProgres = typeof window.pbHasUnsavedProgress==='function' && !!window.pbHasUnsavedProgress(); }catch(e){}
+  if(adaProgres && typeof pbAskConfirm==='function'){
+    pbAskConfirm('Tur akan mengosongkan isian Foto & Video yang sedang ada supaya bisa berjalan dari awal. Lanjutkan?','Ya, Mulai Tur',mulai,null);
+  } else {
+    mulai();
+  }
 }
 
 // FITUR BARU (permintaan user): mencatat step tur mana yang TERAKHIR
