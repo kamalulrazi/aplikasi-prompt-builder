@@ -207,16 +207,18 @@
     var isSaved = (key === PB_SAVED_SYNC_KEY);
     if(!_fbReady || !window.pbCloudUid){ if(isSaved) _setSyncStatus('off'); return; }
     if(isSaved) _setSyncStatus(navigator.onLine === false ? 'offline' : 'syncing');
+    try{ localStorage.setItem('__dirty_'+key, '1'); }catch(e){}
     clearTimeout(_timers[key]);
     _timers[key] = setTimeout(function(){
       var ref = _docRef();
       if(!ref){ if(isSaved) _setSyncStatus('off'); return; }
       var val = null;
       try{ val = localStorage.getItem(key); }catch(e){}
-      if(val == null){ if(isSaved) _setSyncStatus('ok'); return; }
+      if(val == null){ if(isSaved) _setSyncStatus('ok'); try{ localStorage.removeItem('__dirty_'+key); }catch(e){} return; }
       var patch = {}; patch[key] = val; patch._updatedAt = Date.now();
       ref.set(patch, {merge:true}).then(function(){
         if(isSaved) _setSyncStatus('ok');
+        try{ localStorage.removeItem('__dirty_'+key); }catch(e){}
       }).catch(function(e){
         console.warn('Sync gagal ('+key+'):', e);
         if(isSaved) _setSyncStatus('error', _syncErrMsg(e, val.length), 'push');
@@ -393,6 +395,9 @@
       if(!snap.exists){ _setSyncStatus('ok'); return; }
       var data = snap.data() || {};
       PB_SYNC_KEYS.forEach(function(k){
+        var isDirty = false;
+        try{ isDirty = !!localStorage.getItem('__dirty_'+k); }catch(e){}
+        if(isDirty){ window.pbCloudQueue(k); return; } // ada perubahan lokal yg belum ke-push, jangan ditimpa — push dulu
         if(typeof data[k] === 'string'){ try{ localStorage.setItem(k, data[k]); }catch(e){} }
       });
       // FIX BUG SINKRON: pb_usage_stats_v1/pb_wordfix_stats_v1 TIDAK ditimpa
@@ -2593,6 +2598,36 @@ body.pb-tour-result-simple #f-copy-btn{
     <div class="login-footnote">Sesi login tersimpan di perangkat ini sampai kamu keluar.</div>
   </div>
 </div>
+<script>
+  // FIX REFRESH: gerbang login sebelumnya baru disembunyikan di window.load
+  // (pbInitLogin), jadi tiap refresh layar "Masuk dengan Google" sempat
+  // KEDIP walau user sudah login. Kalau sesi tersimpan ada, sembunyikan
+  // sekarang juga, sebelum browser sempat menggambar layar pertama.
+  (function(){
+    try{
+      var u = JSON.parse(localStorage.getItem('pb_auth_user') || 'null');
+      if(u && u.email){
+        var g = document.getElementById('login-gate');
+        if(g) g.classList.add('hidden');
+        // Nama/avatar di header juga diisi lebih awal (DOMContentLoaded),
+        // supaya tidak "muncul telat" setelah window.load.
+        document.addEventListener('DOMContentLoaded', function(){
+          try{
+            var nameEl = document.getElementById('pb-user-name');
+            var avatarEl = document.getElementById('pb-user-avatar');
+            var pill = document.getElementById('pb-user-pill');
+            if(nameEl) nameEl.textContent = (u.name || u.email || '').split(' ')[0];
+            if(avatarEl){
+              if(u.picture){ avatarEl.src = u.picture; avatarEl.style.display = 'block'; }
+              else{ avatarEl.style.display = 'none'; }
+            }
+            if(pill) pill.style.display = 'flex';
+          }catch(e){}
+        });
+      }
+    }catch(e){}
+  })();
+</script>
 
 <!-- ═══════════════════════════════════════════════════════════════════
      OVERLAY HALAMAN TERSIMPAN — full-screen, dipicu tombol "Buka" di
@@ -2690,7 +2725,7 @@ body.pb-tour-result-simple #f-copy-btn{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.37</div>
+  <div class="splash-version" id="splash-version">v6.38</div>
 </div>
 <script>
   (function(){
@@ -2958,6 +2993,19 @@ body.pb-tour-result-simple #f-copy-btn{
   window.pbLogout = function(){
     if(!confirm('Keluar dari akun ini?')) return;
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    // FIX BUG (Ringan #8): dialog "Leave site?" bawaan browser sebelumnya
+    // sempat muncul di sini walau user sudah konfirmasi keluar lewat
+    // confirm() di atas — beforeunload tidak tahu itu, cek pbHasUnsavedProgress
+    // masih bisa true. Sama seperti triggerRefresh() di PTR, tandai dulu
+    // supaya reload langsung jalan tanpa tanya-tanya lagi.
+    window._pbSkipUnloadWarn = true;
+    // Sisa key tur (in-progress + langkah terakhir) juga wajib ikut
+    // dibersihkan di sini — kalau tidak, akun berikutnya yang login di
+    // perangkat yang sama bisa kebawa status tur akun sebelumnya.
+    try{
+      localStorage.removeItem('pb_tour_in_progress');
+      localStorage.removeItem('pb_tour_last_step');
+    }catch(e){}
     if(typeof pbCloudSignOut === 'function') pbCloudSignOut();
     if(pbIsInsideNativeApp()){
       var plugin = pbNativePlugin();
@@ -3080,6 +3128,20 @@ body.pb-tour-result-simple #f-copy-btn{
       <img id="pb-user-avatar" src="" alt="" style="width:16px;height:16px;border-radius:50%;display:none;">
       <span id="pb-user-name" style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     </div>
+    <script>
+      // Isi nama/avatar SEKETIKA setelah elemennya ada di halaman (sebelum
+      // layar pertama digambar) kalau sesi login tersimpan.
+      (function(){
+        try{
+          var u = JSON.parse(localStorage.getItem('pb_auth_user') || 'null');
+          if(!u || !u.email) return;
+          document.getElementById('pb-user-name').textContent = (u.name || u.email || '').split(' ')[0];
+          var a = document.getElementById('pb-user-avatar');
+          if(u.picture){ a.src = u.picture; a.style.display = 'block'; }
+          document.getElementById('pb-user-pill').style.display = 'flex';
+        }catch(e){}
+      })();
+    </script>
     <!-- PROXY (Sep 2026): tombol ini dulu buka modal minta API Key user.
          Sekarang AI sudah otomatis tersambung lewat server proxy milik
          pemilik app — user tidak perlu isi apapun lagi, jadi tombol cukup
@@ -4576,7 +4638,7 @@ body.pb-tour-result-simple #f-copy-btn{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.37 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.38 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -9755,6 +9817,7 @@ function fReset(){
     // scrollIntoView(), supaya tidak ikut kena override itu.
     let _appShellReset=document.querySelector('.app-shell');
     if(_appShellReset) _appShellReset.scrollTo({top:0,behavior:'smooth'});
+    if(typeof pbResetProgress==='function') pbResetProgress();
   });
 }
 
@@ -11168,12 +11231,15 @@ document.addEventListener('keydown',function(e){
 // dipulihkan hidup (dipakai pemanggil kalau perlu tahu).
 // Gambar ulang kartu-kartu skrip bulk yang SUDAH SELESAI (dari
 // VB_BULK_LAST_CONTEXT.allResults) + tombol "Lanjutkan Generate" untuk
-// sisanya, tanpa mengganggu apa pun yang sudah jadi. Dipakai di 2 tempat:
-// (1) _pbRenderBuilderInto di bawah, saat membuka entri Riwayat yang masih
-// ada proses bulk menggantung, dan (2) window.load di IIFE undo/redo (dekat
-// akhir file) saat RELOAD/refresh browser mendapati draft otomatis punya
-// proses bulk yang belum tuntas — supaya kedua jalur ini konsisten & tidak
-// dobel logic. Return true kalau berhasil dipulihkan hidup.
+// sisanya, tanpa mengganggu apa pun yang sudah jadi. Dipakai HANYA di 1
+// tempat: _pbRenderBuilderInto di bawah, saat membuka entri Riwayat yang
+// masih ada proses bulk menggantung. CATATAN (audit Sept 2026, Ringan #9):
+// versi komentar sebelumnya di sini juga menyebut window.load (IIFE
+// undo/redo) memanggil fungsi ini saat reload mendapati draft bulk belum
+// tuntas — itu TIDAK PERNAH DIIMPLEMENTASIKAN, dan sesuai perilaku yang
+// sudah direvisi jadi "hilang" (permintaan user), refresh di tengah proses
+// bulk memang sengaja TIDAK memunculkan tombol "Lanjutkan" lagi. Return
+// true kalau berhasil dipulihkan hidup.
 function _vbRestoreLiveBulkOutput(){
   if(!(typeof VB_BULK_LAST_CONTEXT!=='undefined' && VB_BULK_LAST_CONTEXT
      && VB_BULK_LAST_CONTEXT.produkList && VB_BULK_LAST_CONTEXT.allResults
@@ -14683,12 +14749,18 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // jadi tanpa panggilan eksplisit ini draft bisa saja masih yang LAMA
       // (sebelum batch ini) kalau user refresh tepat setelah satu batch
       // beres. Dengan ini, tiap kali satu batch produk selesai, progresnya
-      // (kolom skrip yang sudah jadi) langsung aman tersimpan — kalau user
-      // refresh di tengah proses, produk yang sudah selesai TETAP ada,
-      // proses generate-nya sendiri berhenti total (wajar, reload membuang
-      // request API yang sedang berjalan), dan tombol "Lanjutkan Generate"
-      // akan muncul lagi untuk memproses SISA produk saja (lihat window.load
-      // & _vbRestoreLiveBulkOutput di IIFE undo/redo).
+      // (kolom skrip yang sudah jadi) langsung aman tersimpan di draft.
+      // CATATAN (audit Sept 2026, Ringan #9): komentar versi sebelumnya di
+      // sini menyebut tombol "Lanjutkan Generate" bakal muncul lagi setelah
+      // refresh lewat _vbRestoreLiveBulkOutput() — itu TIDAK PERNAH BENERAN
+      // TERJADI karena fungsi itu tidak pernah dipanggil dari window.load,
+      // dan reload menghapus draft wizard duluan (lihat isReloadNavigation
+      // di IIFE undo/redo). Sesuai perilaku yang sudah direvisi jadi
+      // "hilang" (permintaan user): kalau user refresh di tengah proses
+      // bulk, progres yang sudah selesai memang TIDAK BISA dilanjutkan lagi
+      // otomatis — panggilan draft-save di sini cuma memastikan datanya
+      // tersimpan (jaga-jaga fitur lanjut-generate ditambahkan lagi nanti),
+      // bukan aktif memulihkan tombol "Lanjutkan" saat ini.
       if(typeof window.pbForceSaveDraftNow==='function')window.pbForceSaveDraftNow();
       // FIX SCRIPT YANG SUDAH JADI TAPI KOLOMNYA MASIH KOSONG: sebelumnya di
       // sini TIDAK ADA update UI sama sekali begitu satu batch selesai —
@@ -17552,6 +17624,7 @@ function vbReset(){
     // dikosongkan).
     let _appShellVReset=document.querySelector('.app-shell');
     if(_appShellVReset) _appShellVReset.scrollTo({top:0,behavior:'smooth'});
+    if(typeof pbResetProgress==='function') pbResetProgress();
   });
 }
 
@@ -18221,6 +18294,9 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 window.addEventListener('beforeunload', function(e){
+  // FIX REFRESH: reload yang SUDAH dikonfirmasi user (pull-to-refresh / logout)
+  // menandai _pbSkipUnloadWarn — jangan tanya lagi lewat dialog bawaan browser.
+  if(window._pbSkipUnloadWarn) return;
   // Guard: cegah close tab saat generate sedang berjalan
   if((VAI&&VAI._isGenerating)){
     e.preventDefault();
@@ -18786,17 +18862,45 @@ function pbSaveTourStepState(fnName){
 function pbClearSavedTourStep(){
   try{ localStorage.removeItem(PB_TOUR_STEP_KEY); }catch(e){}
 }
+// FIX BUG #4 (sisi desktop, ditemukan saat audit — belum sempat diperbaiki
+// sebelumnya): step tur yang AMAN dilanjutkan lewat pbResumeTourFromSavedStep()
+// KHUSUS di jalur reload beneran (F5/Ctrl+R di laptop, lihat pemanggilnya di
+// pbAutoStartTourOnLoad). Step 1 & 2 cuma menampilkan kartu pembuka & ringkasan
+// alur — Step 2 malah MEMBACA ULANG flag pbProdukFotoUploaded/pbKsFotoUploaded/
+// pbFotoAiUploaded setiap kali dirender, jadi otomatis tetap benar walau
+// flag-flag itu baru saja direset ke false. Step-step SETELAHNYA (2b dst)
+// mengandaikan flag itu SUDAH true dari langkah sebelumnya (baru "boleh"
+// tampil kalau user memang sudah sampai situ) — begitu wizard dipaksa reset,
+// asumsi itu tidak valid lagi, dan overlay tur yang tetap nongol di step
+// tsb bakal terasa nyasar karena tampilan di baliknya (kartu alur,
+// thumbnail dll) sudah balik kosong/Step 1.
+const PB_TOUR_STEPS_SAFE_POST_RELOAD={pbGoStep1:1,pbGoStep2:1};
 // Lanjutkan tur persis dari step terakhir yang tercatat (dipakai saat app
 // dibuka lagi setelah ditutup total, ATAU saat user memilih "Tidak" pada
 // peringatan refresh-di-tengah-tur). Kalau tidak ada step tersimpan/fungsi
 // step-nya sudah tidak ada, fallback aman: mulai dari awal.
-function pbResumeTourFromSavedStep(){
+// Parameter afterRealReload (opsional, default false/kosong): isi `true`
+// KHUSUS kalau pemanggilnya tahu pasti wizard baru saja dipaksa reset oleh
+// reload beneran (lihat isReloadNavigation() di script IIFE undo/redo —
+// SELALU clearDraft() tanpa pengecualian tiap reload, dan jalan lebih dulu/
+// lebih cepat [window.load+500ms] daripada confirm tur di sini yang baru
+// muncul setelah jeda 3.7 detik+). Kalau true DAN step tersimpan bukan
+// salah satu yang "aman" di atas, jangan paksa lanjut ke step lama itu —
+// mulai ulang tur dari awal supaya tur & tampilan wizard selalu sinkron.
+// Saat afterRealReload kosong (jalur app dibuka lagi, BUKAN reload), draft
+// & flag foto memang berhasil dipulihkan utuh lewat tryRestoreDraft() —
+// resume ke step manapun tetap aman di jalur itu, tidak perlu dibatasi.
+function pbResumeTourFromSavedStep(afterRealReload){
   let saved=null;
   try{
     let raw=localStorage.getItem(PB_TOUR_STEP_KEY);
     if(raw) saved=JSON.parse(raw);
   }catch(e){}
   if(!saved || !saved.fn || typeof window[saved.fn]!=='function'){
+    pbStartTour(true);
+    return;
+  }
+  if(afterRealReload && !PB_TOUR_STEPS_SAFE_POST_RELOAD[saved.fn]){
     pbStartTour(true);
     return;
   }
@@ -20334,9 +20438,20 @@ function pbAutoStartTourOnLoad(){
     return;
   }
   if(isReloadNavigationTour()){
+    let sudahDikonfirmasi=false;
+    try{ sudahDikonfirmasi = sessionStorage.getItem('pb_tour_reload_confirmed')==='1'; }catch(err){}
+    if(sudahDikonfirmasi){
+      try{ sessionStorage.removeItem('pb_tour_reload_confirmed'); }catch(err){}
+      pbStartTour(true);
+      return;
+    }
     let mulaiDariAwal = confirm('Tindakan ini akan memulai tur dari awal.\n\nLanjutkan?');
     if(mulaiDariAwal){ pbStartTour(true); }
-    else{ pbResumeTourFromSavedStep(); }
+    // afterRealReload=true: kita ADA di cabang isReloadNavigationTour(),
+    // jadi wizard sudah pasti direset (lihat catatan di
+    // PB_TOUR_STEPS_SAFE_POST_RELOAD/pbResumeTourFromSavedStep di atas) —
+    // biar tidak lompat ke step lama yang sudah tidak sinkron.
+    else{ pbResumeTourFromSavedStep(true); }
   } else {
     // Bukan reload — app ditutup total lalu dibuka lagi. Lanjutkan diam-diam.
     pbResumeTourFromSavedStep();
@@ -20452,6 +20567,7 @@ window.addEventListener('load',function(){
   var pointer = -1;      // index snapshot aktif di stack
   var timer = null;
   var restoring = false; // true selagi proses undo/redo jalan (biar tidak nyatet snapshot dari aksi restore itu sendiri)
+  var restoredDraft = false; // true kalau stack saat ini berasal dari draft yang dipulihkan (lihat tryRestoreDraft & pbHasUnsavedProgress)
   // BUG FIX (Sept 2026): sebelumnya cuma nyimpen SATU stepFn terakhir.
   // Kalau dalam satu jeda debounce ada beberapa aksi top-level TERPISAH
   // (bukan nested) — misal klik cepat berturut-turut — yang tersimpan
@@ -20459,6 +20575,16 @@ window.addEventListener('load',function(){
   // di-replay pas undo. Sekarang dikumpulkan jadi ARRAY, semua dipanggil
   // ulang berurutan pas restore.
   var pendingStepCalls = [];
+  // FIX BUG "posisi step tidak ikut tersimpan di draft": snapshotNow() cuma
+  // membawa stepCalls SEJAK snapshot sebelumnya (dibuang tiap kali dipanggil,
+  // lihat di bawah) — kalau snapshot TERAKHIR sebelum app ditutup dipicu oleh
+  // ketikan field (bukan pindah step), stepCalls-nya kosong dan draft yang
+  // dipulihkan cuma ngisi field tapi layar balik ke Step 1. lastNavCall
+  // menyimpan panggilan navigasi step TERAKHIR (bukan render pasif) dan tidak
+  // pernah dikosongkan oleh snapshotNow — jadi selalu ada di setiap snapshot,
+  // dipakai ulang khusus saat restore draft (lihat tryRestoreDraft).
+  var lastNavCall = null;
+  var PB_NAV_FN_REGEX = /Step/; // fungsi pindah step (pbGoStepN, fGoStepN, vbGoStepN, dst) — BUKAN yang berakhiran Render
 
   // BUG FIX (Sept 2026) — PENTING, soal memori: foto (base64) yang
   // nyempil di dalam VAI/VB/VB_BULK_PRODUCTS dkk bisa berukuran ratusan
@@ -20572,7 +20698,7 @@ window.addEventListener('load',function(){
   function snapshotNow(){
     var calls = pendingStepCalls.slice();
     pendingStepCalls = [];
-    return { stepCalls:calls, vars:captureVars(), dom:captureDom(), t:Date.now() };
+    return { stepCalls:calls, draftCall:lastNavCall, vars:captureVars(), dom:captureDom(), t:Date.now() };
   }
 
   function pushSnapshot(){
@@ -20604,7 +20730,19 @@ window.addEventListener('load',function(){
       if(!snap || typeof snap!=='object') return false;
       stack = [snap];
       pointer = 0;
-      applySnapshot(snap);
+      // FIX REFRESH: draft baseline (Step 1 kosong) SELALU tersimpan, jadi
+      // dulu tiap app dibuka ulang restoredDraft langsung true → pull-to-
+      // refresh selalu tanya "kamu masih mengisi..." padahal kosong. Sekarang
+      // bandingkan dulu isi draft dengan kondisi app-baru (sebelum dipulihkan):
+      // kalau sama persis, itu bukan progres.
+      restoredDraft = true;
+      try{
+        var _freshSig = JSON.stringify({v:captureVars(), d:captureDom()});
+        var _draftSig = JSON.stringify({v:snap.vars, d:snap.dom});
+        restoredDraft = (_freshSig !== _draftSig);
+      }catch(e){ restoredDraft = true; }
+      if(snap.draftCall) lastNavCall = snap.draftCall;
+      applySnapshot(snap, true);
       // FIX AKAR MASALAH "Tunggu proses AI sebelumnya selesai dulu" NYANGKUT
       // PERMANEN + toast "Selamat datang kembali" muncul padahal tidak ada
       // proses apa pun yang jalan (audit Sept 2026): VAI ikut masuk daftar
@@ -20620,6 +20758,62 @@ window.addEventListener('load',function(){
       // lain selesai dipulihkan, supaya isian form tetap aman tapi status
       // "generating" selalu mulai bersih tiap app dibuka.
       if(typeof VAI!=='undefined' && VAI){ VAI._isGenerating=false; VAI._lastGenTime=0; }
+      // FIX BUG "draft lintas sesi memulihkan flag tanpa data": foto
+      // (base64) di atas SKIP_STR_LEN dipangkas jadi SKIP_MARK saat
+      // disimpan (lihat cloneStrip/SKIP_STR_LEN) — mergeSkip lalu
+      // mempertahankan nilai "current" di tempatnya. Untuk undo/redo DALAM
+      // sesi yang sama itu benar (data foto asli masih ada di state yang
+      // sedang berjalan). Tapi di sini app BARU dibuka (state fresh, tidak
+      // ada apa-apa buat dipertahankan) — data foto beneran hilang, padahal
+      // flag boolean pasangannya ('...Uploaded', bukan string panjang jadi
+      // TIDAK ikut dipangkas) tetap ke-restore true. Akibatnya <img
+      // src="null"> dengan centang hijau "sudah disiapkan" dan step foto
+      // referensi ikut dilewati padahal fotonya kosong. Samakan lagi di sini.
+      var _photoFlagPairs = [
+        ['pbProdukFotoUploaded','pbProdukFotoDataUrl'],
+        ['pbKsFotoUploaded','pbKsFotoDataUrl'],
+        ['pbFotoAiUploaded','pbFotoAiDataUrl']
+      ];
+      for(var _pfi=0; _pfi<_photoFlagPairs.length; _pfi++){
+        try{
+          var _flagName = _photoFlagPairs[_pfi][0], _dataName = _photoFlagPairs[_pfi][1];
+          if(eval(_flagName)===true && !eval(_dataName)){ eval(_flagName+' = false;'); }
+        }catch(e){}
+      }
+      // FIX BUG #7 (cakupan tambahan — sebelumnya cuma nutup 3 pasangan flag
+      // top-level di atas): VB_BULK_PRODUCTS (mode bulk) adalah ARRAY produk,
+      // masing-masing entri punya pasangan {fotoBase64, fotoMime} SENDIRI,
+      // bukan flag boolean terpisah kayak foto tunggal di atas. fotoBase64
+      // yang panjang (>SKIP_STR_LEN) ikut kena SKIP_MARK saat disimpan (lihat
+      // cloneStrip) — sama seperti kasus di atas, draft lintas sesi = state
+      // runtime-nya fresh/kosong, jadi mergeSkip tidak punya apa-apa buat
+      // dipertahankan → fotoBase64 tiap entri berakhir `undefined`, sementara
+      // fotoMime (string pendek, TIDAK ikut dipangkas) tetap utuh nyangkut
+      // sendirian. Walau sebagian besar kode lain sudah aman lewat
+      // pengecekan `!!fotoBase64` sebelum dipakai, entri yang fotoMime-nya
+      // masih terisi padahal fotoBase64 sudah pasti hilang tetap metadata
+      // "yatim" yang menyesatkan. Samakan polanya dengan _photoFlagPairs di
+      // atas: kalau fotoBase64 kosong, ikut kosongkan fotoMime & pastikan
+      // fotoBase64 jadi string kosong (bukan literal undefined) biar
+      // konsisten sama representasi "belum ada foto" di seluruh app ini.
+      try{
+        if(typeof VB_BULK_PRODUCTS!=='undefined' && Array.isArray(VB_BULK_PRODUCTS)){
+          for(var _bi=0; _bi<VB_BULK_PRODUCTS.length; _bi++){
+            var _bp=VB_BULK_PRODUCTS[_bi];
+            if(_bp && typeof _bp==='object' && !_bp.fotoBase64){ _bp.fotoBase64=''; _bp.fotoMime=''; }
+          }
+        }
+      }catch(e){}
+      // VB_BULK_ROW_CACHE (cache isian form bulk sebelum di-generate) punya
+      // bentuk pasangan foto yang sama persis — kena masalah yang sama.
+      try{
+        if(typeof VB_BULK_ROW_CACHE!=='undefined' && Array.isArray(VB_BULK_ROW_CACHE)){
+          for(var _ri=0; _ri<VB_BULK_ROW_CACHE.length; _ri++){
+            var _rc=VB_BULK_ROW_CACHE[_ri];
+            if(_rc && typeof _rc==='object' && !_rc.fotoBase64){ _rc.fotoBase64=''; _rc.fotoMime=''; }
+          }
+        }
+      }catch(e){}
       return true;
     }catch(e){ return false; }
   }
@@ -20645,19 +20839,30 @@ window.addEventListener('load',function(){
   function scheduleSnapshot(){
     if(restoring) return;
     clearTimeout(timer);
-    timer = setTimeout(pushSnapshot, DEBOUNCE_MS);
+    // FIX: timer di-null begitu jalan, supaya `if(timer)` di pbUndo/flush
+    // benar-benar berarti "ada perubahan yang masih menggantung".
+    timer = setTimeout(function(){ timer = null; pushSnapshot(); }, DEBOUNCE_MS);
   }
 
-  function applySnapshot(snap){
+  function applySnapshot(snap, replayNav){
     restoring = true;
     try{
       restoreVars(snap.vars);
       var calls = snap.stepCalls || [];
+      var hasNavCall = false;
       for(var i=0;i<calls.length;i++){
         var call = calls[i];
         if(call && call.fn && typeof window[call.fn]==='function'){
+          if(PB_NAV_FN_REGEX.test(call.fn)) hasNavCall = true;
           try{ window[call.fn].apply(null, call.args||[]); }catch(e){}
         }
+      }
+      // FIX BUG "posisi step tidak ikut tersimpan di draft": kalau snapshot
+      // ini tidak bawa panggilan navigasi apa pun (mis. hanya dipicu ketikan
+      // field), pakai draftCall (nav terakhir yang tercatat, lihat lastNavCall)
+      // supaya layar kembali ke step yang benar, bukan Step 1.
+      if(replayNav && !hasNavCall && snap.draftCall && snap.draftCall.fn && typeof window[snap.draftCall.fn]==='function'){
+        try{ window[snap.draftCall.fn].apply(null, snap.draftCall.args||[]); }catch(e){}
       }
       restoreDom(snap.dom);
     } finally {
@@ -20704,7 +20909,20 @@ window.addEventListener('load',function(){
   // stack.length>1 artinya sudah ada snapshot di atas baseline Step 1 kosong
   // (persis logika yang sama dipakai updateFab() buat nampilin FAB undo/redo).
   window.pbHasUnsavedProgress = function(){
-    try{ return stack.length>1; }catch(e){ return false; }
+    try{ return stack.length>1 || restoredDraft; }catch(e){ return false; }
+  };
+  // FIX BUG "peringatan refresh salah di dua arah": dipanggil dari
+  // fReset()/vbReset() (setelah user KONFIRMASI mulai dari awal) supaya
+  // stack & flag restoredDraft benar-benar bersih — kalau tidak, PTR/F5
+  // berikutnya masih mengira ada progres yang belum tersimpan padahal
+  // wizard baru saja sengaja dikosongkan.
+  window.pbResetProgress = function(){
+    try{
+      stack = [];
+      pointer = -1;
+      restoredDraft = false;
+      clearDraft();
+    }catch(e){}
   };
   // FITUR BARU (permintaan user, Sept 2026): peringatan versi DESKTOP/LAPTOP.
   // Gesture pull-to-refresh custom (lihat IIFE PULL-TO-REFRESH di bawah)
@@ -20756,12 +20974,22 @@ window.addEventListener('load',function(){
   // 0 sebelum masuk) yang boleh nyatet lastStepFn/jadwal snapshot.
   // Pemanggilan nested di dalamnya dianggap "bagian dari" aksi luar itu.
   var PB_UNDO_STEP_FN_REGEX = /^(pb|f|cs|vb)[A-Za-z0-9_]*(Step|Render)/;
+  // FIX BUG (Ringan #10): regex di atas kepancing juga oleh fungsi render
+  // GLOBAL yang tidak ada hubungannya dengan step wizard manapun —
+  // csRenderAll/pbSavedRender/historyRender/dlRenderBar dipanggil oleh
+  // _pullAll() (lihat script sinkron cloud) tiap kali data cloud turun,
+  // BUKAN aksi user di wizard. Sebelumnya itu ikut tercatat sebagai
+  // "aksi terakhir" & memicu snapshot — bikin stack.length>1 padahal user
+  // tidak menyentuh apa pun ("snapshot hantu", lihat catatan di
+  // pbHasUnsavedProgress). Daftar ini sengaja dikecualikan dari pelacakan.
+  var PB_UNDO_EXCLUDE_FN = {csRenderAll:1, pbSavedRender:1, historyRender:1, dlRenderBar:1, pbSyncRenderStatus:1};
   var wrapDepth = 0;
   function wrapStepFns(){
     var names = Object.getOwnPropertyNames(window);
     for(var i=0;i<names.length;i++){
       var name = names[i];
       if(name.indexOf('pbUndo')===0 || name.indexOf('pbRedo')===0) continue;
+      if(PB_UNDO_EXCLUDE_FN[name]) continue;
       if(!PB_UNDO_STEP_FN_REGEX.test(name)) continue;
       if(typeof window[name] !== 'function') continue;
       if(window[name].__pbUndoWrapped) continue;
@@ -20778,6 +21006,7 @@ window.addEventListener('load',function(){
           if(!restoring && isOutermost){
             pendingStepCalls.push({fn:name, args:Array.prototype.slice.call(arguments)});
             if(pendingStepCalls.length>20) pendingStepCalls.shift(); // jaga-jaga, jangan sampai unbounded
+            if(PB_NAV_FN_REGEX.test(name)) lastNavCall = {fn:name, args:Array.prototype.slice.call(arguments)};
             scheduleSnapshot();
           }
           return ret;
@@ -20837,6 +21066,14 @@ window.addEventListener('load',function(){
     else if((k==='z' && e.shiftKey) || k==='y'){ e.preventDefault(); e.stopPropagation(); window.pbRedo(); }
   }, true);
 
+  // FIX REFRESH/CLOSE: ketikan terakhir (<450ms sebelum app ditutup atau
+  // pindah ke background) dulu tidak sempat masuk draft.
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden && timer && !restoring){ clearTimeout(timer); timer = null; pushSnapshot(); }
+  });
+  window.addEventListener('pagehide', function(){
+    if(timer && !restoring){ clearTimeout(timer); timer = null; pushSnapshot(); }
+  });
   window.addEventListener('load', function(){
     setTimeout(function(){
       wrapStepFns();
@@ -20867,29 +21104,37 @@ window.addEventListener('load',function(){
         pendingStepCalls = [{fn:'pbGoStep1', args:[]}];
         pushSnapshot(); // baseline state paling awal
       }
-      // FITUR BARU (permintaan user, Sept 2026): begitu user refresh saat
-      // sedang di tab Video (atau Foto), setelah reload app HARUS balik
-      // ke tab yang SAMA — bukan selalu ke tab Foto (default di markup
-      // HTML: <div id="foto" class="page active">). Ini SENGAJA dipisah
-      // total dari draft wizard di atas: isian/step tetap mulai dari 0
-      // seperti yang sudah disepakati (fungsinya sama), yang dipulihkan
-      // di sini CUMA tab mana yang kelihatan di layar — supaya user tidak
-      // merasa "kayak buka aplikasi dari awal" padahal cuma refresh biasa.
-      // Key 'pb_last_active_page_v1' ditulis di switchPage() (cari
-      // stringnya di sana) dan TIDAK ikut PB_SYNC_KEYS/terhapus oleh
-      // clearDraft() — murni penanda tab terakhir per perangkat ini.
-      try{
-        var _lastPage = localStorage.getItem('pb_last_active_page_v1');
-        if(_lastPage && _lastPage!=='foto'){
-          var _pageEl = document.getElementById(_lastPage);
-          var _btnEl = document.querySelector('.ntab[onclick*="switchPage(\''+_lastPage+'\'"]');
-          if(_pageEl && _btnEl) switchPage(_lastPage, _btnEl);
-        }
-      }catch(e){}
       // re-scan berkala (murah) buat nangkep fungsi step yang mungkin
       // baru "muncul" ke window belakangan (jarang terjadi, tapi aman)
       setInterval(wrapStepFns, 4000);
     }, 500);
+  });
+  // FITUR BARU (permintaan user, Sept 2026): begitu user refresh saat
+  // sedang di tab Video (atau Foto), setelah reload app HARUS balik
+  // ke tab yang SAMA — bukan selalu ke tab Foto (default di markup
+  // HTML: <div id="foto" class="page active">). Ini SENGAJA dipisah
+  // total dari draft wizard di atas: isian/step tetap mulai dari 0
+  // seperti yang sudah disepakati (fungsinya sama), yang dipulihkan
+  // di sini CUMA tab mana yang kelihatan di layar — supaya user tidak
+  // merasa "kayak buka aplikasi dari awal" padahal cuma refresh biasa.
+  // Key 'pb_last_active_page_v1' ditulis di switchPage() (cari
+  // stringnya di sana) dan TIDAK ikut PB_SYNC_KEYS/terhapus oleh
+  // clearDraft() — murni penanda tab terakhir per perangkat ini.
+  // FIX BUG "kedip tab salah setelah refresh": sebelumnya ini jalan di
+  // window.load + 500ms, padahal splash sudah dibuang jauh lebih awal
+  // (lihat baris ±2719) — tab Foto sempat kelihatan dulu (khususnya di
+  // file besar) baru loncat ke Video. Dipindah ke DOMContentLoaded:
+  // switchPage() dan elemen nav sudah tersedia di titik itu, dan ini
+  // jalan SEBELUM splash dibuang jadi user tidak pernah lihat tab yang salah.
+  document.addEventListener('DOMContentLoaded', function(){
+    try{
+      var _lastPage = localStorage.getItem('pb_last_active_page_v1');
+      if(_lastPage && _lastPage!=='foto'){
+        var _pageEl = document.getElementById(_lastPage);
+        var _btnEl = document.querySelector('.ntab[onclick*="switchPage(\''+_lastPage+'\'"]');
+        if(_pageEl && _btnEl) switchPage(_lastPage, _btnEl);
+      }
+    }catch(e){}
   });
 })();
 </script>
@@ -20928,7 +21173,8 @@ window.addEventListener('load',function(){
   var BACK_FROM  = {x:165,  y:-185, r:10};
   var FRONT_FROM = {x:-135, y:168,  r:-9};
 
-  var startY = 0, pulling = false, currentPull = 0, armed = false, refreshing = false;
+  var startY = 0, startX = 0, pulling = false, currentPull = 0, armed = false, refreshing = false;
+  var axisLocked = false; // true = sudah dipastikan ini gesture vertikal, bukan swipe horizontal
   var settleTimer = null;
 
   function canStartPull(target){
@@ -20936,6 +21182,20 @@ window.addEventListener('load',function(){
     if(appShell.scrollTop > 0) return false;
     // Jangan ganggu drag teks di textarea/input/elemen contenteditable
     if(target && target.closest && target.closest('textarea, input, [contenteditable="true"]')) return false;
+    // FIX BUG "modal ikut kena": #apikey-modal-overlay & #cs-modal ada di
+    // dalam #app-shell dan punya scroll sendiri — kalau salah satu lagi
+    // terbuka, gesture di dalamnya (termasuk scroll balik ke atas) tidak
+    // boleh ikut menarik #app-shell di belakangnya.
+    var apikeyModal = document.getElementById('apikey-modal-overlay');
+    var csModal = document.getElementById('cs-modal');
+    if(apikeyModal && apikeyModal.style.display !== 'none') return false;
+    if(csModal && csModal.style.display !== 'none') return false;
+    // Elemen (atau leluhurnya) yang scroll-nya sendiri sedang tidak di
+    // puncak — biarkan itu yang menangani gesture-nya sendiri.
+    if(target && target.closest){
+      var scroller = target.closest('[style*="overflow-y"], .preview-slots');
+      if(scroller && scroller !== appShell && scroller.scrollTop > 0) return false;
+    }
     return true;
   }
 
@@ -20988,19 +21248,45 @@ window.addEventListener('load',function(){
     // pas location.reload() beneran dipanggil.
     window._pbSkipUnloadWarn = true;
     setTimeout(function(){ location.reload(); }, 550);
+    // FIX BUG "bisa macet": kalau location.reload() di atas ternyata DIBATALKAN
+    // user lewat dialog beforeunload bawaan browser, refreshing & _pbSkipUnloadWarn
+    // tidak pernah kembali normal (tidak ada jalur lain yang mereset keduanya) —
+    // app macet: logo tetap berputar, PTR mati total, dan F5 berikutnya juga
+    // diam-diam tidak dikonfirmasi. Jaring pengaman: kalau setelah beberapa
+    // detik halaman ini MASIH ada (berarti reload batal/gagal), pulihkan semua.
+    setTimeout(function(){
+      refreshing = false;
+      window._pbSkipUnloadWarn = false;
+      resetPull(true);
+    }, 3000);
   }
 
   appShell.addEventListener('touchstart', function(e){
     if(e.touches.length !== 1) return;
     if(!canStartPull(e.target)) { pulling = false; return; }
     startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
     pulling = true;
+    axisLocked = false;
     appShell.classList.remove('ptr-settling');
   }, {passive:true});
 
   appShell.addEventListener('touchmove', function(e){
     if(!pulling || refreshing) return;
     var deltaY = e.touches[0].clientY - startY;
+    var deltaX = e.touches[0].clientX - startX;
+    // FIX BUG "tidak ada pengecekan sumbu": kunci dulu sumbu gesture-nya
+    // begitu ada gerakan yang jelas — kalau gerakan mendatar (mis. geser
+    // .preview-slots yang overflow-x:auto) lebih besar dari gerakan turun,
+    // ini SWIPE HORIZONTAL, bukan tarikan refresh. Batalkan & jangan pernah
+    // preventDefault gesture ini, biar scroll horizontal browser tetap jalan
+    // normal — cukup dicek sekali per gesture (axisLocked) biar tidak
+    // "flip-flop" kalau jari geser diagonal.
+    if(!axisLocked){
+      if(Math.abs(deltaX) < 6 && Math.abs(deltaY) < 6) return; // gerakan masih terlalu kecil buat ditentukan arahnya
+      axisLocked = true;
+      if(Math.abs(deltaX) >= Math.abs(deltaY)){ pulling = false; return; }
+    }
     if(deltaY <= 0){
       if(currentPull > 0) resetPull(true);
       return; // bukan menarik ke bawah (atau lagi scroll konten) — biarkan scroll normal
@@ -21047,6 +21333,11 @@ window.addEventListener('load',function(){
       if(tourAktif){
         var setujuTur = confirm('Tindakan ini akan memulai tur dari awal.\n\nLanjutkan?');
         if(!setujuTur){ resetPull(true); return; }
+        // FIX BUG "konfirmasi tur muncul dua kali": user sudah setuju di sini,
+        // tandai lewat sessionStorage (bertahan sampai reload beneran terjadi)
+        // supaya pbAutoStartTourOnLoad() setelah reload TIDAK tanya lagi hal
+        // yang sama dengan confirm() kedua — langsung mulai tur dari awal.
+        try{ sessionStorage.setItem('pb_tour_reload_confirmed','1'); }catch(err){}
         triggerRefresh();
         return;
       }
