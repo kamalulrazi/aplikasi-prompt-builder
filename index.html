@@ -2740,7 +2740,7 @@ body.pb-tour-result-simple #f-copy-btn{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.38</div>
+  <div class="splash-version" id="splash-version">v6.39</div>
 </div>
 <script>
   (function(){
@@ -4181,6 +4181,15 @@ body.pb-tour-result-simple #f-copy-btn{
           <textarea id="vb-mirrorselfie-action" rows="4" class="inp textarea-base" maxlength="500">Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.</textarea>
         </div>
         <p class="text-hint-mt">Karakter tidak bicara sama sekali di mode ini — cuma gerakan halus & natural. Teks di atas bisa diedit bebas sebelum generate. Tidak perlu isi Jenis Kelamin/Usia/Nada Bicara/Aksen atau Script — langsung generate dari sini.</p>
+        <!-- FITUR BARU (permintaan user): kolom "Isi" (teks overlay) juga di Mirror
+             Selfie supaya fitur ini benar-benar berlaku di SEMUA mode. Tidak dikirim
+             ke AI — cuma ditempel di akhir prompt (lihat _vbOverlaySentence). -->
+        <button type="button" id="vb-mirrorselfie-overlay-toggle" onclick="vbToggleMirrorOverlay()" style="background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;margin-top:10px;">+ Atur Detail (opsional)</button>
+        <div id="vb-mirrorselfie-overlay-box" class="hidden" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Isi</label>
+          <div class="inp-wrap"><input class="inp" id="vb-mirrorselfie-overlay-input" maxlength="60" placeholder="Contoh: sepatu futsal" oninput="vbMirrorOverlayInput()" /></div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kalau diisi, otomatis ditambahkan di akhir prompt: muncul tulisan kecil banget pada detik awal selama 2 detik di pojok kanan paling bawah. Tidak dikirim ke AI. Kosongkan kalau tidak perlu — fitur ini langsung mati.</p>
+        </div>
         <button class="btn sm" onclick="vbGenerateMirrorSelfie()" style="margin-top:10px;">Buat Prompt Mirror Selfie →</button>
       </div>
 
@@ -4361,7 +4370,13 @@ body.pb-tour-result-simple #f-copy-btn{
           <div id="vb-hook-custom-box" class="hidden" style="margin-top:8px;">
             <input class="inp" id="vb-hook-custom-input" maxlength="150" placeholder="Contoh: hook yang bikin penasaran soal isi paketnya" />
           </div>
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Tentukan gaya HOOK pembuka — kosongkan (jangan pilih apapun) kalau mau AI bebas nentukan sendiri.</p>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 14px;">Tentukan gaya HOOK pembuka — kosongkan (jangan pilih apapun) kalau mau AI bebas nentukan sendiri.</p>
+
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Isi</label>
+          <div class="inp-wrap">
+            <input class="inp" id="vb-overlay-input" maxlength="60" placeholder="Contoh: sepatu futsal" oninput="vbSingleOverlayInput()" />
+          </div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kalau diisi, otomatis ditambahkan di akhir prompt Hook: muncul tulisan kecil banget pada detik awal selama 2 detik di pojok kanan paling bawah. Tidak dikirim ke AI. Kosongkan kalau tidak perlu — fitur ini langsung mati.</p>
         </div>
         <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Buatkan 3 Script + JSON dengan AI</button>
         <div id="vb-ai-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
@@ -4655,7 +4670,7 @@ body.pb-tour-result-simple #f-copy-btn{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.38 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.39 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11655,7 +11670,8 @@ function _vbMode4BuildText(){
   if(VB_MODE4_OVERLAY_TEXT){
     // GANTI TOTAL (permintaan user, Sept 2026) — samakan kalimatnya dengan
     // versi baru di _vbBuildFlowText (lihat catatan lengkap di sana).
-    txt+='. Muncul tulisan kecil banget bertuliskan "'+VB_MODE4_OVERLAY_TEXT+'" di pojok kanan paling bawah layar, tampil pada detik awal selama 2 detik lalu menghilang.';
+    // Prompt dasar Mode 4 sudah berakhir dengan titik, jadi titik pembuka kalimat overlay dibuang (hindari "..").
+    txt+=' '+_vbOverlaySentence(VB_MODE4_OVERLAY_TEXT).replace(/^\.\s*/,'');
   }
   return txt;
 }
@@ -11875,6 +11891,28 @@ function vbToggleTopik(){
   box.classList.toggle('hidden');
   if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur detail (opsional)';
   if(opening)document.getElementById('vb-topik-input').focus();
+}
+
+// FITUR BARU (permintaan user, Sept 2026): "Atur Hook" per PRODUK di mode Bulk
+// (sama seperti "Atur Hook" di mode single, lihat vbPickHook & vbGenerate3AI).
+// Return string arahan gaya HOOK untuk SATU produk (kosong kalau user tidak
+// memilih apa-apa → AI bebas). Sengaja tidak pakai tanda kutip ganda supaya
+// tidak bentrok dengan aturan "TIDAK pakai tanda kutip" di system prompt.
+function _vbHookDirectiveInline(type,customText){
+  customText=String(customText||'').trim();
+  if(type==='psikologis'){
+    return 'HOOK PSIKOLOGIS — buka dengan kalimat yang menyentuh sisi psikologis manusia (rasa penasaran, insecure, FOMO/takut tertinggal, kebutuhan validasi/diakui, atau relate ke masalah sehari-hari) supaya audiens berhenti scroll karena merasa kena, bukan sekadar pertanyaan generik. Tetap ikuti nada bicara & aksen karakter yang sudah ditentukan.';
+  }
+  if(type==='murah'){
+    return 'HOOK HARGA MURAH — buka dengan kesan bahwa produk ini terjangkau/murah/hemat di kantong. JANGAN PERNAH sebut angka harga atau nominal apapun (jangan sebut Rp, nominal ribuan, atau harga spesifik dalam bentuk apapun) — cukup kesan murah/terjangkau/hemat secara umum lewat kata seperti murah, terjangkau, hemat di kantong, gak bikin kantong bolong, tanpa embel-embel angka sama sekali.';
+  }
+  if(type==='heboh'){
+    return 'HOOK SUPER HEBOH — buka dengan energi sangat tinggi & ekspresif, seolah lagi excited banget mau kasih tahu sesuatu, boleh pakai kata seru (wah, gila, gokil, parah, dst) dan kalimat bertenaga — tapi tetap jelas & tidak norak berlebihan sampai pesannya hilang.';
+  }
+  if(type==='custom'&&customText){
+    return 'arahan langsung dari user untuk HOOK: '+customText+' — pastikan HOOK benar-benar mengikuti arahan ini, tetap dalam nada bicara & aksen karakter yang sudah ditentukan.';
+  }
+  return '';
 }
 
 // Pilih gaya Hook pembuka (opsional) di mode Skrip dibantu AI (single produk).
@@ -12126,6 +12164,7 @@ function vbManualSetCount(){
 // selain di mode Raw Asset/kp, dan fungsi ini memang tidak pernah dipanggil
 // untuk kp), jadi aman diisi apa saja tanpa mengubah hasil prompt.
 function vbManualRenderGroups(count){
+  VB_SINGLE_OVERLAY=null;
   VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};
   _vbTypewriterReset();
   let multiWrap=document.getElementById('vb-multi-output');
@@ -12306,6 +12345,18 @@ function _vbFotoCountVal(idx){
   return VB_PRODUCT_FOTOCOUNT[prodIdx]||0;
 }
 
+// KALIMAT OVERLAY (permintaan user, Sept 2026): SATU sumber kalimat untuk semua
+// mode (Start Frame, Frame Asset, Raw Asset, Mirror/Ikuti Gerakan, single, bulk).
+// Teks isian user (kolom "Isi" di Atur Detail) TIDAK PERNAH dikirim ke AI —
+// cuma ditempel di AKHIR prompt Hook lewat fungsi ini. Format persis sesuai
+// permintaan: muncul tulisan kecil banget pada detik awal selama 2 detik di
+// pojok kanan paling bawah, tulisannya: <isi>
+function _vbOverlaySentence(txt){
+  txt=String(txt||'').trim();
+  if(!txt)return '';
+  return '. Muncul tulisan kecil banget pada detik awal selama 2 detik di pojok kanan paling bawah, tulisannya: '+txt+'.';
+}
+
 // FITUR BARU (permintaan user): "Atur Detail" → Teks Overlay di kartu Hook,
 // tampil di ATAS kartu Hook di SEMUA mode referensi foto (Mode 1/2/3) dan di
 // mode single maupun Bulk — beda dari _vbBuildProductFotoCountRow/VB_CARD_LOKASI
@@ -12315,6 +12366,26 @@ function _vbFotoCountVal(idx){
 // apapun ke prompt. Direset bareng di semua titik reset sesi yang sama
 // (lihat VB_CARD_TAMPIL dkk).
 let VB_HOOK_OVERLAY={};
+// FITUR BARU (permintaan user, Sept 2026): kolom "Isi" (teks overlay) di
+// "Atur detail" mode SINGLE AI (#vb-overlay-input). null = tidak ada output
+// single-AI yang sedang tampil (jadi tidak ada yang perlu disinkronkan);
+// string = nilai terkini ('' = kosong = fitur MATI, tidak ada kalimat overlay
+// sama sekali di prompt). Disinkronkan dua arah dengan panel "Atur Detail" di
+// atas kartu Hook (VB_HOOK_OVERLAY[0]) supaya kosongkan di mana pun = mati.
+let VB_SINGLE_OVERLAY=null;
+function vbSingleOverlayInput(){
+  // Baru berpengaruh live kalau output single-AI sudah tampil; kalau belum,
+  // nilainya dibaca saat user klik tombol generate (lihat vbGenerate3AI).
+  if(VB_SINGLE_OVERLAY===null)return;
+  let inp=document.getElementById('vb-overlay-input');
+  let val=inp?inp.value.trim():'';
+  VB_SINGLE_OVERLAY=val;
+  if(val)VB_HOOK_OVERLAY[0]=val;
+  else delete VB_HOOK_OVERLAY[0];
+  let cardInp=document.getElementById('vb-hookoverlay-input-0');
+  if(cardInp)cardInp.value=val;
+  if(document.getElementById('vb-bulk-script-0'))vbBulkUpdateJson(0);
+}
 // Helper kecil: ambil teks overlay Hook untuk kartu ke-idx. HANYA dipakai
 // oleh _vbBuildFlowText kalau kartu ini benar-benar Hook (idx%3===0) — kartu
 // Story/CTA tidak pernah dapat tambahan ini walau prodIdx sama.
@@ -12385,19 +12456,20 @@ function _vbBuildHookOverlayRow(prodIdx){
   btn.type='button';
   btn.id='vb-hookoverlay-toggle-'+prodIdx;
   btn.style.cssText='background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;';
-  btn.textContent='+ Atur Detail (opsional)';
+  let _ovPrefilled=!!(VB_HOOK_OVERLAY[prodIdx]||'').trim();
+  btn.textContent=_ovPrefilled?'– Sembunyikan detail':'+ Atur Detail (opsional)';
   btn.onclick=(function(pi){return function(){vbToggleHookOverlay(pi);};})(prodIdx);
   wrap.appendChild(btn);
 
   let box=document.createElement('div');
   box.id='vb-hookoverlay-box-'+prodIdx;
-  box.className='hidden';
+  box.className=_ovPrefilled?'':'hidden';
   box.style.cssText='margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;';
 
   let label=document.createElement('label');
   label.className='inplabel';
   label.style.cssText='font-size:var(--fs-2xs);';
-  label.textContent='Teks Overlay di Hook';
+  label.textContent='Isi (tulisan kecil di Hook)';
   box.appendChild(label);
 
   let inpWrap=document.createElement('div');
@@ -12441,6 +12513,15 @@ function vbHookOverlayInput(prodIdx){
   let val=inp?inp.value.trim():'';
   if(val)VB_HOOK_OVERLAY[prodIdx]=val;
   else delete VB_HOOK_OVERLAY[prodIdx];
+  // Sinkron ke data produk bulk (kalau ada) supaya Generate Ulang Semua /
+  // Revisi 1 Produk tidak mengembalikan isi lama dari form input.
+  if(typeof VB_BULK_PRODUCTS!=='undefined'&&VB_BULK_PRODUCTS[prodIdx])VB_BULK_PRODUCTS[prodIdx].overlay=val;
+  // Mode single AI: sinkronkan balik ke kolom Isi di form (dan state-nya).
+  if(prodIdx===0&&VB_SINGLE_OVERLAY!==null){
+    VB_SINGLE_OVERLAY=val;
+    let formInp=document.getElementById('vb-overlay-input');
+    if(formInp&&formInp.value.trim()!==val)formInp.value=val;
+  }
   let hookIdx=prodIdx*3;
   if(document.getElementById('vb-bulk-script-'+hookIdx))vbBulkUpdateJson(hookIdx);
 }
@@ -12508,12 +12589,69 @@ function vbBulkToggleTopik(i){
   if(!box)return;
   let opening=box.classList.contains('hidden');
   box.classList.toggle('hidden');
-  if(btn)btn.textContent=opening?'– Sembunyikan arah pembahasan':'+ Arah pembahasan (opsional)';
+  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur detail (opsional)';
   if(opening){
     let inp=document.getElementById('vb-bulk-topik-'+i);
     if(inp)inp.focus();
   }
   fFitWbody(box);
+}
+// FITUR BARU (permintaan user, Sept 2026): "Atur detail" per produk di mode Bulk
+// sekarang SAMA seperti "Atur detail" di mode single — isinya: Arah Pembahasan,
+// Atur Hook (4 chip + Isi Sendiri), dan kolom "Isi" (teks kecil di video).
+// - Arah Pembahasan & gaya Hook dikirim ke AI (lihat _vbCallBulkBatch).
+// - Kolom "Isi" TIDAK dikirim ke AI: cuma ditempel di akhir prompt Hook video
+//   (lihat _vbOverlaySentence & _vbBuildFlowText), berlaku di semua mode.
+// State hook (jenis chip) disimpan di VB_BULK_ROW_CACHE[i].hookType supaya
+// tidak hilang waktu jumlah produk diubah (vbBulkSetCount membangun ulang baris).
+function _vbBulkDetailInnerHtml(i,cached){
+  let hookOpts=[['psikologis','Hook Psikologis'],['murah','Hook Harga Murah'],['heboh','Hook Super Heboh'],['custom','Isi Sendiri']];
+  let chips=hookOpts.map(function(o){
+    return '<div class="chip'+(cached.hookType===o[0]?' sel':'')+'" onclick="vbBulkPickHook('+i+',\''+o[0]+'\',this)" style="min-height:32px;padding:5px 10px;font-size:var(--fs-2xs);">'+o[1]+'</div>';
+  }).join('');
+  let showCustom=(cached.hookType==='custom');
+  let inpStyle='font-size:var(--fs-xs2);padding:6px 8px;';
+  let lblStyle='font-size:var(--fs-2xs);margin-top:4px;';
+  return '<div style="display:flex;flex-direction:column;gap:6px;">'
+    +'<label class="inplabel" style="'+lblStyle+'">Arah Pembahasan</label>'
+    +'<input class="inp" id="vb-bulk-topik-'+i+'" maxlength="150" placeholder="Contoh: tas yang dipakai kalangan atas" style="'+inpStyle+'" value="'+esc(cached.topik||'')+'" />'
+    +'<label class="inplabel" style="'+lblStyle+'">Atur Hook</label>'
+    +'<div id="vb-bulk-hook-chips-'+i+'" style="display:flex;flex-wrap:wrap;gap:6px;">'+chips+'</div>'
+    +'<div id="vb-bulk-hook-custom-box-'+i+'" class="'+(showCustom?'':'hidden')+'">'
+    +'<input class="inp" id="vb-bulk-hook-custom-'+i+'" maxlength="150" placeholder="Contoh: hook yang bikin penasaran soal isi paketnya" style="'+inpStyle+'" value="'+esc(cached.hookCustom||'')+'" />'
+    +'</div>'
+    +'<label class="inplabel" style="'+lblStyle+'">Isi</label>'
+    +'<input class="inp" id="vb-bulk-overlay-'+i+'" maxlength="60" placeholder="Contoh: sepatu futsal" style="'+inpStyle+'" value="'+esc(cached.overlay||'')+'" />'
+    +'<p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0;line-height:1.5;">Kalau diisi, otomatis ditambahkan di akhir prompt Hook: muncul tulisan kecil banget pada detik awal selama 2 detik di pojok kanan paling bawah. Tidak dikirim ke AI. Kosongkan kalau tidak perlu.</p>'
+    +'</div>';
+}
+// Pilih gaya Hook untuk produk ke-i di form Bulk. Klik ulang chip yang sama =
+// batalkan (AI bebas menentukan sendiri), sama seperti vbPickHook di mode single.
+function vbBulkPickHook(i,val,el){
+  let cache=VB_BULK_ROW_CACHE[i];
+  if(!cache){cache={nama:'',keunggulan:'',topik:'',hookType:'',hookCustom:'',overlay:'',fotoBase64:'',fotoMime:''};VB_BULK_ROW_CACHE[i]=cache;}
+  let already=el.classList.contains('sel');
+  let wrap=document.getElementById('vb-bulk-hook-chips-'+i);
+  if(wrap)wrap.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
+  let customBox=document.getElementById('vb-bulk-hook-custom-box-'+i);
+  if(already){
+    cache.hookType='';
+    if(customBox)customBox.classList.add('hidden');
+    fFitWbody(el);
+    return;
+  }
+  el.classList.add('sel');
+  cache.hookType=val;
+  if(customBox){
+    if(val==='custom'){
+      customBox.classList.remove('hidden');
+      let ci=document.getElementById('vb-bulk-hook-custom-'+i);
+      if(ci)ci.focus();
+    }else{
+      customBox.classList.add('hidden');
+    }
+  }
+  fFitWbody(el);
 }
 // Bangun N baris input (Nama Produk *wajib + Keunggulan opsional + Foto opsional) sesuai jumlah yang dipilih user
 function vbBulkSetCount(){
@@ -12539,6 +12677,8 @@ function vbBulkSetCount(){
     let n=document.getElementById('vb-bulk-nama-'+i);
     let k=document.getElementById('vb-bulk-keunggulan-'+i);
     let t=document.getElementById('vb-bulk-topik-'+i);
+    let hc=document.getElementById('vb-bulk-hook-custom-'+i);
+    let ov=document.getElementById('vb-bulk-overlay-'+i);
     // FIX: baris ini dulu MENIMPA seluruh entri cache ({nama,keunggulan}
     // baru dibuat dari nol), jadi kalau ada foto yang sudah diupload &
     // tersimpan di VB_BULK_ROW_CACHE[i].fotoBase64 sebelumnya, foto itu ikut
@@ -12548,25 +12688,25 @@ function vbBulkSetCount(){
     // menimpa field foto yang sudah ada di cache.
     if(n){
       let existing=VB_BULK_ROW_CACHE[i]||{};
-      VB_BULK_ROW_CACHE[i]={nama:n.value,keunggulan:k?k.value:'',topik:t?t.value:(existing.topik||''),fotoBase64:existing.fotoBase64||'',fotoMime:existing.fotoMime||''};
+      VB_BULK_ROW_CACHE[i]={nama:n.value,keunggulan:k?k.value:'',topik:t?t.value:(existing.topik||''),hookType:existing.hookType||'',hookCustom:hc?hc.value:(existing.hookCustom||''),overlay:ov?ov.value:(existing.overlay||''),fotoBase64:existing.fotoBase64||'',fotoMime:existing.fotoMime||''};
     }
   }
 
   rows.innerHTML='';
   for(let i=0;i<count;i++){
-    let cached=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:'',topik:'',fotoBase64:'',fotoMime:''};
+    let cached=VB_BULK_ROW_CACHE[i]||{nama:'',keunggulan:'',topik:'',hookType:'',hookCustom:'',overlay:'',fotoBase64:'',fotoMime:''};
     let row=document.createElement('div');
     row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:7px 9px;margin-bottom:6px;';
     let hasFoto=!!cached.fotoBase64;
-    let hasTopik=!!cached.topik;
+    let hasTopik=!!(cached.topik||cached.hookType||cached.overlay); // "detail" terbuka kalau salah satu isian Atur Detail sudah terisi
     row.innerHTML='<div style="font-size:var(--fs-2xs);font-weight:700;color:var(--muted2);margin-bottom:4px;">PRODUK '+(i+1)+'</div>'
       +'<div style="display:flex;gap:6px;margin-bottom:0;align-items:flex-start;">'
       +'<div style="flex:1;display:flex;flex-direction:column;gap:6px;">'
       +'<input class="inp" id="vb-bulk-nama-'+i+'" maxlength="80" placeholder="Nama produk *wajib" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
       +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" maxlength="150" placeholder="Keunggulan (opsional)" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.keunggulan||'')+'" />'
-      +'<button type="button" onclick="vbBulkToggleTopik('+i+')" id="vb-bulk-topik-toggle-'+i+'" style="background:none;border:none;color:var(--accent);font-size:var(--fs-2xs);cursor:pointer;padding:0;font-weight:600;text-align:left;">'+(hasTopik?'– Sembunyikan arah pembahasan':'+ Arah pembahasan (opsional)')+'</button>'
+      +'<button type="button" onclick="vbBulkToggleTopik('+i+')" id="vb-bulk-topik-toggle-'+i+'" style="background:none;border:none;color:var(--accent);font-size:var(--fs-2xs);cursor:pointer;padding:0;font-weight:600;text-align:left;">'+(hasTopik?'– Sembunyikan detail':'+ Atur detail (opsional)')+'</button>'
       +'<div id="vb-bulk-topik-box-'+i+'" class="'+(hasTopik?'':'hidden')+'">'
-      +'<input class="inp" id="vb-bulk-topik-'+i+'" maxlength="150" placeholder="Contoh: tas yang dipakai kalangan atas" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.topik||'')+'" />'
+      +_vbBulkDetailInnerHtml(i,cached)
       +'</div>'
       +'</div>'
       +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="display:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
@@ -14199,6 +14339,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   let _imgCounter=0;
   let produkListText=batch.map((p,i)=>{
     let line=(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')+(p.topik?' — arah pembahasan: '+p.topik+' (WAJIB jadi fokus utama STORY produk ini, boleh disinggung juga di HOOK, tapi tetap 100% soal produk ini, jangan melenceng ke luar arah ini)':'');
+    // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
+    // form Bulk. HANYA gaya Hook yang dikirim ke AI — kolom "Isi" (teks
+    // overlay) sengaja TIDAK disertakan di sini, itu cuma ditempel di akhir
+    // prompt video (lihat _vbOverlaySentence).
+    let _hookDir=_vbHookDirectiveInline(p.hookType,p.hookCustom);
+    if(_hookDir)line+=' — gaya HOOK khusus produk ini (WAJIB dipakai HANYA untuk HOOK produk ini, jangan dipakai untuk produk lain di daftar): '+_hookDir;
     if(p.fotoBase64){
       _imgCounter++;
       line+=' (ADA FOTO REFERENSI PRODUK ASLI — lihat Gambar '+_imgCounter+' yang dilampirkan di bawah, ini HANYA supaya kamu tahu persis jenis produknya, BUKAN untuk dideskripsikan di script)';
@@ -14530,12 +14676,17 @@ async function vbGenerateBulkAI(){
       return;
     }
     let cachedFoto=VB_BULK_ROW_CACHE[i]||{};
-    produkList.push({nama:nama,keunggulan:keunggulanEl?keunggulanEl.value.trim():'',topik:topikEl?topikEl.value.trim():'',fotoBase64:cachedFoto.fotoBase64||'',fotoMime:cachedFoto.fotoMime||''});
+    let hookCustomEl=document.getElementById('vb-bulk-hook-custom-'+i);
+    let overlayEl=document.getElementById('vb-bulk-overlay-'+i);
+    produkList.push({nama:nama,keunggulan:keunggulanEl?keunggulanEl.value.trim():'',topik:topikEl?topikEl.value.trim():'',
+      hookType:cachedFoto.hookType||'',hookCustom:hookCustomEl?hookCustomEl.value.trim():(cachedFoto.hookCustom||''),
+      overlay:overlayEl?overlayEl.value.trim():(cachedFoto.overlay||''),
+      fotoBase64:cachedFoto.fotoBase64||'',fotoMime:cachedFoto.fotoMime||''});
   }
   let targetAudience=document.getElementById('vb-bulk-target').value.trim();
   if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-bulk-target').focus();return;}
   VB.bulkTargetAudience=targetAudience;
-  VB_BULK_PRODUCTS=produkList.map(function(p){return{nama:p.nama,keunggulan:p.keunggulan,topik:p.topik,fotoBase64:p.fotoBase64,fotoMime:p.fotoMime};});
+  VB_BULK_PRODUCTS=produkList.map(function(p){return{nama:p.nama,keunggulan:p.keunggulan,topik:p.topik,hookType:p.hookType||'',hookCustom:p.hookCustom||'',overlay:p.overlay||'',fotoBase64:p.fotoBase64,fotoMime:p.fotoMime};});
 
   if(!VAI||!VAI.apiKey){
     try{
@@ -14934,7 +15085,7 @@ function _vbBuildProductMetaLookup(produkListMeta){
     // generate PERTAMA, lalu hilang permanen dari VB_BULK_PRODUCTS begitu
     // _vbRenderBulkOutput() jalan — Revisi 1 Produk & Generate Ulang Semua
     // jadi tidak pernah tahu topik itu lagi. Disamakan dengan foto: ikut dibawa.
-    if(key)map[key]={nama:x.nama||'',keunggulan:x.keunggulan||'',topik:x.topik||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};
+    if(key)map[key]={nama:x.nama||'',keunggulan:x.keunggulan||'',topik:x.topik||'',hookType:x.hookType||'',hookCustom:x.hookCustom||'',overlay:x.overlay||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};
   });
   return map;
 }
@@ -14987,6 +15138,7 @@ function _vbResolveProductMetas(products,produkListMeta){
 }
 
 function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
+  VB_SINGLE_OVERLAY=null;
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
   VB_CARD_LOKASI={};
@@ -15013,7 +15165,14 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
     // ikut dibawa di sini juga, sama seperti foto — supaya VB_BULK_PRODUCTS
     // yang dipakai vbRevisiProdukAI & vbRegenerateAllBulk tetap punya arahan
     // topik yang sama seperti yang diisi user di form Bulk.
-    return meta?{nama:meta.nama,keunggulan:meta.keunggulan,topik:meta.topik||'',fotoBase64:meta.fotoBase64||'',fotoMime:meta.fotoMime||''}:{nama:p.produk||'',keunggulan:'',topik:'',fotoBase64:'',fotoMime:''};
+    return meta?{nama:meta.nama,keunggulan:meta.keunggulan,topik:meta.topik||'',hookType:meta.hookType||'',hookCustom:meta.hookCustom||'',overlay:meta.overlay||'',fotoBase64:meta.fotoBase64||'',fotoMime:meta.fotoMime||''}:{nama:p.produk||'',keunggulan:'',topik:'',hookType:'',hookCustom:'',overlay:'',fotoBase64:'',fotoMime:''};
+  });
+  // FITUR BARU: isi kolom "Isi" (teks overlay) dari form Bulk dibawa ke state
+  // overlay per-produk (VB_HOOK_OVERLAY) — dipakai _vbBuildFlowText untuk
+  // menempelkan kalimat overlay di akhir prompt HOOK. Index = posisi produk di
+  // hasil (prodIdx), sama seperti panel "Atur Detail" di atas kartu Hook.
+  VB_BULK_PRODUCTS.forEach(function(bp,k){
+    if(bp&&bp.overlay)VB_HOOK_OVERLAY[k]=bp.overlay;
   });
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -15440,6 +15599,11 @@ async function vbRevisiProdukAI(prodIdx){
     // _vbRenderBulkOutput). Dipertahankan di sini supaya arahan topik yang
     // user isi di awal tidak hilang begitu saja tiap kali revisi 1 produk.
     let existingTopik=existingFoto.topik||'';
+    // Gaya Hook & isi overlay produk ini ikut dipertahankan saat revisi
+    // (overlay = nilai TERKINI di kartu, bisa sudah diedit user setelah generate).
+    let existingHookType=existingFoto.hookType||'';
+    let existingHookCustom=existingFoto.hookCustom||'';
+    let existingOverlay=(VB_HOOK_OVERLAY[prodIdx]||existingFoto.overlay||'');
     // FITUR BARU (permintaan user, Sept 2026): simpan backup KONDISI SEBELUM
     // revisi ini diterapkan (nama/keunggulan/topik/foto LAMA + ketiga script
     // yang SEDANG tampil di kartu) — dipakai vbUndoRevisiProduk() kalau hasil
@@ -15452,6 +15616,7 @@ async function vbRevisiProdukAI(prodIdx){
     });
     let _backupSnapshot={
       nama:existingFoto.nama||'',keunggulan:existingFoto.keunggulan||'',topik:existingTopik,
+      hookType:existingHookType,hookCustom:existingHookCustom,overlay:existingOverlay,
       fotoBase64:existingFoto.fotoBase64||'',fotoMime:existingFoto.fotoMime||'',
       scripts:_backupScripts
     };
@@ -15460,7 +15625,7 @@ async function vbRevisiProdukAI(prodIdx){
     // di atas), jadi cache_control di sini cuma bakal kena cache_creation
     // (+25%) tanpa pernah sempat kena cache_read (diskon 90%). Percuma &
     // malah nambah biaya, jadi dicabut khusus di jalur revisi ini.
-    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,topik:existingTopik,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
+    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,topik:existingTopik,hookType:existingHookType,hookCustom:existingHookCustom,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
       let alasan=_vbWaitReasonLabel(status);
@@ -15473,7 +15638,7 @@ async function vbRevisiProdukAI(prodIdx){
     // Foto yang barusan dipakai (lama ATAU hasil ganti di panel ini)
     // dipermanenkan di sini, supaya revisi/generate-ulang BERIKUTNYA ikut
     // memakai foto terbaru ini juga.
-    VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan,topik:existingTopik,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
+    VB_BULK_PRODUCTS[prodIdx]={nama:nama,keunggulan:keunggulan,topik:existingTopik,hookType:existingHookType,hookCustom:existingHookCustom,overlay:existingOverlay,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
     // FITUR BARU: thumbnail foto di header grup ikut disinkronkan ke foto
     // TERBARU ini (ganti/hapus lewat panel revisi) — tanpa ini thumbnail
     // akan basi, tetap nampilin foto lama walau datanya sudah berubah.
@@ -15528,7 +15693,10 @@ async function vbRevisiProdukAI(prodIdx){
 function vbUndoRevisiProduk(prodIdx){
   let backup=VB_BULK_REVISI_BACKUP[prodIdx];
   if(!backup){showToast('Tidak ada revisi untuk dibatalkan di produk ini.','error');return;}
-  VB_BULK_PRODUCTS[prodIdx]={nama:backup.nama,keunggulan:backup.keunggulan,topik:backup.topik,fotoBase64:backup.fotoBase64,fotoMime:backup.fotoMime};
+  VB_BULK_PRODUCTS[prodIdx]={nama:backup.nama,keunggulan:backup.keunggulan,topik:backup.topik,hookType:backup.hookType||'',hookCustom:backup.hookCustom||'',overlay:(VB_HOOK_OVERLAY[prodIdx]||''),fotoBase64:backup.fotoBase64,fotoMime:backup.fotoMime};
+  // CATATAN: overlay SENGAJA diambil dari nilai TERKINI di kartu (VB_HOOK_OVERLAY), bukan
+  // dari backup — revisi AI tidak mengubah kolom Isi, jadi edit user sesudah revisi
+  // tidak boleh kembali ke versi lama waktu Undo / Generate Ulang Semua.
   // Foto override panel (kalau sempat diganti user di panel revisi) juga
   // dibuang, supaya revisi BERIKUTNYA (setelah undo ini) tidak keliru masih
   // memakai foto pengganti yang barusan dibatalkan.
@@ -15883,7 +16051,7 @@ async function vbRegenerateAllBulk(newSettings){
   // "Generate Ulang Semua" lewat panel Ubah Suara/Target Audience diam-diam
   // mengirim ulang ke AI TANPA arahan topik yang sudah user isi sebelumnya
   // di form Bulk, walau produk itu sebenarnya masih punya topik tersimpan.
-  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,topik:x.topik||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
+  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,topik:x.topik||'',hookType:x.hookType||'',hookCustom:x.hookCustom||'',overlay:x.overlay||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
   // FIX 413 (sama seperti di _vbRunBulkGenerate — lihat komentar lengkap di
   // _vbBuildPhotoAwareBatches): produk yang punya foto referensi dipaksa
   // jadi batch sendiri isi 1, produk tanpa foto tetap digabung sampai
@@ -16497,6 +16665,10 @@ async function vbGenerate3AI(){
   // baru dijalankan SETELAH jawaban AI lengkap & sudah disaring (lihat
   // _vbRenderMultiOutput(...,true) di bawah) — supaya urutannya pasti
   // Hook → Story → CTA, satu-satu, bukan sekaligus.
+  // Kolom Isi (Atur detail) dibaca di sini; kosong/spasi doang = fitur mati.
+  // TIDAK ikut dikirim ke AI — cuma ditempel di akhir prompt Hook video.
+  let _ovFormEl=document.getElementById('vb-overlay-input');
+  VB_SINGLE_OVERLAY=_ovFormEl?_ovFormEl.value.trim():'';
   _vbRenderMultiOutputLive(produkNama);
 
   try{
@@ -17173,6 +17345,7 @@ function _vbRenderMultiOutputLive(produkNamaForHistory){
   VB_CARD_LOKASI={};
   VB_PRODUCT_FOTOCOUNT={};
   VB_HOOK_OVERLAY={};
+  if(VB_SINGLE_OVERLAY)VB_HOOK_OVERLAY[0]=VB_SINGLE_OVERLAY;
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -17205,6 +17378,9 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate,manualMode){
   VB_CARD_LOKASI={};
   VB_PRODUCT_FOTOCOUNT={};
   VB_HOOK_OVERLAY={};
+  // Jalur manual bukan bagian dari mode single AI — lepas sinkronisasi kolom Isi.
+  if(manualMode)VB_SINGLE_OVERLAY=null;
+  else if(VB_SINGLE_OVERLAY)VB_HOOK_OVERLAY[0]=VB_SINGLE_OVERLAY;
   VB_SINGLE_REVISI_BACKUP=null; // sesi generate baru — backup revisi lama sudah tidak relevan
   _vbTypewriterSequentialReset(); // buang animasi sequential sesi lama kalau masih jalan
   let multiWrap=document.getElementById('vb-multi-output');
@@ -17411,7 +17587,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   if(isHookCard){
     let overlayTxt=_vbHookOverlayText(idx);
     if(overlayTxt){
-      flowText+='. Muncul tulisan kecil banget bertuliskan "'+overlayTxt+'" di pojok kanan paling bawah layar, tampil pada detik awal selama 2 detik lalu menghilang.';
+      flowText+=_vbOverlaySentence(overlayTxt);
     }
   }
   // FITUR BARU (permintaan user): khusus mode Raw Asset (VB.refMode==='kp')
@@ -17459,6 +17635,7 @@ function _vbBuildMirrorSelfieFlowText(actionText,produkOverride){
 // Render output mode Mirror Selfie — SATU kartu saja (bukan 3 seperti Hook/
 // Story/CTA, karena memang tidak ada dialog buat dipecah 3 bagian).
 function _vbRenderMirrorSelfieOutput(promptText){
+  VB_SINGLE_OVERLAY=null;
   VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -17501,12 +17678,39 @@ function _vbRenderMirrorSelfieOutput(promptText){
   multiWrap.appendChild(resetBtn);
 }
 
+// Buka/tutup panel "Atur Detail" (Isi) khusus Mirror Selfie.
+function vbToggleMirrorOverlay(){
+  let box=document.getElementById('vb-mirrorselfie-overlay-box');
+  let btn=document.getElementById('vb-mirrorselfie-overlay-toggle');
+  if(!box)return;
+  let opening=box.classList.contains('hidden');
+  box.classList.toggle('hidden');
+  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
+  if(opening){let inp=document.getElementById('vb-mirrorselfie-overlay-input');if(inp)inp.focus();}
+}
+// Kalau hasil Mirror Selfie sudah tampil, ketikan/hapusan di kolom Isi langsung
+// menyegarkan prompt-nya (kosong = kalimat overlay hilang). Kalau belum ada
+// hasil, tidak melakukan apa-apa — nilainya dibaca saat tombol generate diklik.
+function vbMirrorOverlayInput(){
+  if(!document.getElementById('vb-mirrorselfie-output'))return;
+  _vbRenderMirrorSelfieOutput(_vbMirrorBuildPrompt().promptText); // tanpa toast/scroll biar tidak mengganggu saat mengetik
+}
 // Tombol "Buat Prompt Mirror Selfie →" — validasi minimal (nama produk
 // opsional, tidak ada Hook/Story/CTA ataupun Nada Bicara/Aksen yang perlu
 // dicek di mode tanpa dialog & self-contained ini — sama seperti Motion
 // Control, tidak ada langkah "selesai" lanjutan karena wizard V2-V5 memang
 // dilewati), lalu render 1 kartu output.
 function vbGenerateMirrorSelfie(){
+  let built=_vbMirrorBuildPrompt();
+  let produkNama=built.produkNama;
+  _vbRenderMirrorSelfieOutput(built.promptText);
+  _vbBuildCombinedHistoryEntry('Mirror Selfie'+(produkNama?' — '+produkNama:''));
+  setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
+  showToast('Prompt Mirror Selfie berhasil dibuat!','success');
+}
+// Bangun teks prompt Mirror Selfie dari isian form saat ini (tanpa efek samping
+// tampilan) — dipakai tombol generate DAN penyegaran live kolom Isi.
+function _vbMirrorBuildPrompt(){
   let produkEl=document.getElementById('vb-mirrorselfie-mode3-produk');
   let produkNama=produkEl?produkEl.value.trim():'';
   if(produkNama)VB.mode3Produk=produkNama;
@@ -17517,10 +17721,11 @@ function vbGenerateMirrorSelfie(){
   // dilarang (mis. klaim promo/stok terbatas).
   actionText=_vbSanitizeForbiddenPhrases(actionText);
   let promptText=_vbBuildMirrorSelfieFlowText(actionText,produkNama);
-  _vbRenderMirrorSelfieOutput(promptText);
-  _vbBuildCombinedHistoryEntry('Mirror Selfie'+(produkNama?' — '+produkNama:''));
-  setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
-  showToast('Prompt Mirror Selfie berhasil dibuat!','success');
+  // Kolom Isi (overlay) — kosong/spasi doang = fitur mati, tidak ada tambahan apapun.
+  let _mirrorOv=document.getElementById('vb-mirrorselfie-overlay-input');
+  let _mirrorOvSentence=_vbOverlaySentence(_mirrorOv?_mirrorOv.value:'');
+  if(_mirrorOvSentence)promptText=promptText.replace(/[.\s]+$/,'')+_mirrorOvSentence;
+  return {promptText:promptText,produkNama:produkNama};
 }
 
 function vbReset(){
@@ -17577,6 +17782,8 @@ function vbReset(){
     let vbTopikInp=document.getElementById('vb-topik-input'); if(vbTopikInp)vbTopikInp.value='';
     let vbTopikBox=document.getElementById('vb-topik-box'); if(vbTopikBox)vbTopikBox.classList.add('hidden');
     let vbTopikToggle=document.getElementById('vb-topik-toggle'); if(vbTopikToggle)vbTopikToggle.textContent='+ Atur detail (opsional)';
+    let vbOvFormInp=document.getElementById('vb-overlay-input'); if(vbOvFormInp)vbOvFormInp.value='';
+    VB_SINGLE_OVERLAY=null;
     VB_MODE4_OVERLAY_TEXT='';
     let vbM4OvInp=document.getElementById('vb-mode4-overlay-input'); if(vbM4OvInp)vbM4OvInp.value='';
     let vbM4OvBox=document.getElementById('vb-mode4-overlay-box'); if(vbM4OvBox)vbM4OvBox.classList.add('hidden');
@@ -17608,6 +17815,9 @@ function vbReset(){
     // isian field-nya sendiri biar tidak nyangkut ke sesi berikutnya.
     let mirrorProduk=document.getElementById('vb-mirrorselfie-mode3-produk'); if(mirrorProduk)mirrorProduk.value='';
     let mirrorFotoPanel=document.getElementById('vb-mirrorselfie-fotopanel'); if(mirrorFotoPanel)mirrorFotoPanel.classList.add('hidden');
+    let mirrorOvInp=document.getElementById('vb-mirrorselfie-overlay-input'); if(mirrorOvInp)mirrorOvInp.value='';
+    let mirrorOvBox=document.getElementById('vb-mirrorselfie-overlay-box'); if(mirrorOvBox)mirrorOvBox.classList.add('hidden');
+    let mirrorOvToggle=document.getElementById('vb-mirrorselfie-overlay-toggle'); if(mirrorOvToggle)mirrorOvToggle.textContent='+ Atur Detail (opsional)';
     let mirrorAction=document.getElementById('vb-mirrorselfie-action'); if(mirrorAction)mirrorAction.value='Dia sedang merekam dirinya sendiri pakai HP yang dipegang di tangannya, gaya mirror selfie, pose anggun dan elegan, dia tidak berbicara, cukup gerakan halus saja.';
     document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
     let bulkToggleReset=document.getElementById('vb-ai-bulk-toggle'); if(bulkToggleReset)bulkToggleReset.checked=false;
