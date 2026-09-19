@@ -1456,6 +1456,17 @@ body input, body textarea, body [contenteditable="true"]{
 .hidden{display:none!important;}
 .mt8{margin-top:var(--space-3);}.mt12{margin-top:var(--space-5);}.mt16{margin-top:var(--space-7);}
 .inp-wrap{position:relative;}
+/* Tombol simpan versi ikon (menggantikan tombol teks "Simpan yang kamu
+   isi supaya bisa dipakai berulang") — diletakkan di sisi paling kanan
+   baris kolom isi, sejajar dengan input-nya. */
+.cs-save-icon-btn{
+  flex-shrink:0;align-self:flex-start;width:40px;height:40px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface3);border:1px solid var(--border);color:var(--muted);
+  border-radius:var(--radius-md);cursor:pointer;font-size:16px;
+  transition:border-color .15s,color .15s;
+}
+.cs-save-icon-btn:hover{color:var(--text);border-color:rgba(217,184,118,0.4);}
 .inp-counter{font-family:'Geist Mono',monospace;font-size:var(--fs-2xs);color:var(--muted2);text-align:right;margin-top:var(--space-1);}
 .inp-counter.warn{color:var(--warning);}
 .inp-counter.over{color:var(--red);}
@@ -2179,7 +2190,8 @@ body.pb-tour-blur-context #f-import-toggle-wrap{
    pbGoStep5(), dilepas di pbTourFinishExt()/pbTourResetF1Ui() saat tur
    selesai/di-skip) — .row-inline-mt selalu berupa wrapper tombol Simpan
    ini di semua step foto (f3/f4/f5/f5k/f7/f8/f9). ────────────────────── */
-body.pb-tour-blur-context .row-inline-mt{display:none;}
+body.pb-tour-blur-context .row-inline-mt,
+body.pb-tour-blur-context .cs-save-icon-btn{display:none;}
 #pb-tour-replay-btn{
   display:flex;align-items:center;justify-content:center;gap:8px;
   width:100%;margin-top:18px;padding:12px;font-size:var(--fs-sm);font-weight:600;
@@ -2203,21 +2215,37 @@ body.pb-tour-blur-context .row-inline-mt{display:none;}
    sudah mengetik sesuatu di kolomnya. Ini berlaku generik untuk semua step
    yang pakai pola chip + isi sendiri (f3, f4, f5×2, f7, f8, f9, v3, v4, dst). */
 [data-role="mt12-confirm"]{display:none;}
+/* FITUR BARU (permintaan user): kartu Ringkasan SEKARANG defaultnya selalu
+   tertutup dulu (warning + daftar rows disembunyikan), baik di dalam
+   maupun di luar sesi tur — baru kelihatan kalau headernya ditap. Dulu
+   perilaku ini cuma berlaku selama tahap akhir tur (body.pb-tour-final-blur)
+   lewat pbToggleTourSummary() & class .pb-tour-opened; sekarang berlaku
+   permanen, jadi rule-rule di bawah ini TIDAK lagi di-scope ke body class
+   tsb. */
+.summary-card:not(.pb-tour-opened) .summary-warning,
+.summary-card:not(.pb-tour-opened) .summary-rows{
+  display:none!important;
+}
+.summary-card-head{cursor:pointer;}
+#summary-card-chevron{
+  display:inline-block;margin-left:6px;font-size:var(--fs-xs2);color:var(--muted);
+  transition:transform .2s ease;
+}
+.summary-card.pb-tour-opened #summary-card-chevron{transform:rotate(180deg);}
 /* FITUR BARU (permintaan user): begitu step 9 (Mood & Tone) dikonfirmasi
    di akhir sesi tur (lihat pbTourFinishExt()), tampilan area Generate
    TETAP tampak seperti biasa di luar tur (TIDAK diburamkan, tombol
    Generate TIDAK dipindah ke tengah layar lagi) — supaya user pemula
    tidak kaget lihat tampilan yang beda. Yang berubah cuma:
-   1) Isi kartu Ringkasan (warning + daftar rows) disembunyikan dulu,
-      baru kelihatan kalau headernya ditap — lihat pbToggleTourSummary()
-      & class .pb-tour-opened di bawah.
-   2) "Generate Beberapa Variasi Sekaligus" (#f-multishot-card), "Foto
+   1) "Generate Beberapa Variasi Sekaligus" (#f-multishot-card), "Foto
       Karakter Sheet" (#cs-entry-btn), & "Punya Prompt Lama?"
       (#f-import-toggle-wrap) disembunyikan TOTAL supaya tidak
       membingungkan pemula.
-   3) Tombol "Generate Prompt Foto" berdenyut halus (reuse animasi
+   2) Tombol "Generate Prompt Foto" berdenyut halus (reuse animasi
       csAttnPulse yang sudah ada) supaya user sadar itu tombol yang
       harus ditekan berikutnya.
+   (Kartu Ringkasan tertutup dulu sekarang jadi perilaku permanen — lihat
+   rule di atas — jadi tidak lagi disebut di sini.)
    Semua dilepas lagi begitu tombol Generate ditekan (lihat awal
    fGenerate()). */
 body.pb-tour-final-blur #f-multishot-card,
@@ -2225,17 +2253,6 @@ body.pb-tour-final-blur #cs-entry-btn,
 body.pb-tour-final-blur #f-import-toggle-wrap{
   display:none!important;
 }
-body.pb-tour-final-blur .summary-card:not(.pb-tour-opened) .summary-warning,
-body.pb-tour-final-blur .summary-card:not(.pb-tour-opened) .summary-rows{
-  display:none!important;
-}
-body.pb-tour-final-blur .summary-card-head{cursor:pointer;}
-#summary-card-chevron{display:none;}
-body.pb-tour-final-blur #summary-card-chevron{
-  display:inline-block;margin-left:6px;font-size:var(--fs-xs2);color:var(--muted);
-  transition:transform .2s ease;
-}
-body.pb-tour-final-blur .summary-card.pb-tour-opened #summary-card-chevron{transform:rotate(180deg);}
 body.pb-tour-final-blur #f-gen-btn{
   animation:csAttnPulse 1.6s ease-out infinite;
 }
@@ -3344,7 +3361,7 @@ body.pb-tour-result-simple #f-copy-btn{
         </div>
 
         <!-- CHIP SELECTOR — tap untuk toggle -->
-        <div id="f1-cekhp-banner" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-left:3px solid var(--warning);border-radius:var(--radius-xs);">
+        <div id="f1-cekhp-banner" style="display:none;align-items:center;gap:8px;padding:8px 10px;margin-bottom:12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-left:3px solid var(--warning);border-radius:var(--radius-xs);">
           <span style="font-size:var(--fs-sm);font-weight:700;color:var(--warning);letter-spacing:-0.2px;">Cek HP dulu</span>
           <span style="font-size:var(--fs-xs2);color:var(--text);line-height:1.4;">Tap sesuai foto yang kamu punya — jangan asal pilih</span>
         </div>
@@ -3360,10 +3377,10 @@ body.pb-tour-result-simple #f-copy-btn{
           <button class="f1chip" id="ftb-wajah" onclick="fAddRef('wajah')">
             <svg class="icon" style="font-size:var(--fs-base);flex-shrink:0;"><use href="#ic-face"></use></svg>
             <div class="col-tight">
-              <span id="ftb-wajah-label">Wajah</span>
+              <span id="ftb-wajah-label">Karakter Sheet</span>
               <span class="f1chip-sub" id="fts-wajah">Apakah kamu punya fotonya di galeri?</span>
             </div>
-            <span class="f1chip-badge" id="ftc-wajah">+</span>
+            <span class="f1chip-badge" id="ftc-wajah" style="display:none;">+</span>
           </button>
 
           <button class="f1chip" id="ftb-outfit" onclick="fAddRef('outfit')">
@@ -3372,7 +3389,7 @@ body.pb-tour-result-simple #f-copy-btn{
               <span>Outfit</span>
               <span class="f1chip-sub" id="fts-outfit">Apakah kamu punya fotonya di galeri?</span>
             </div>
-            <span class="f1chip-badge" id="ftc-outfit">+</span>
+            <span class="f1chip-badge" id="ftc-outfit" style="display:none;">+</span>
           </button>
 
           <button class="f1chip" id="ftb-produk" onclick="fAddRef('produk')">
@@ -3381,16 +3398,16 @@ body.pb-tour-result-simple #f-copy-btn{
               <span>Produk</span>
               <span class="f1chip-sub" id="fts-produk">Apakah kamu punya fotonya di galeri?</span>
             </div>
-            <span class="f1chip-badge" id="ftc-produk">+</span>
+            <span class="f1chip-badge" id="ftc-produk" style="display:none;">+</span>
           </button>
 
-          <button class="f1chip" id="ftb-objek" onclick="fAddRef('objek')">
+          <button class="f1chip" id="ftb-objek" onclick="fAddRef('objek')" style="display:none;">
             <svg class="icon" style="font-size:var(--fs-base);flex-shrink:0;"><use href="#ic-search"></use></svg>
             <div class="col-tight">
               <span>Objek</span>
               <span class="f1chip-sub" id="fts-objek">Apakah kamu punya fotonya di galeri?</span>
             </div>
-            <span class="f1chip-badge" id="ftc-objek">+</span>
+            <span class="f1chip-badge" id="ftc-objek" style="display:none;">+</span>
           </button>
 
           <button class="f1chip f1chip-special" id="ftb-outfit_random" onclick="fOpenOutfitRandom()">
@@ -3399,7 +3416,7 @@ body.pb-tour-result-simple #f-copy-btn{
               <span>Isi Outfit Karakter</span>
               <span style="font-size:var(--fs-2xs);color:var(--muted2);font-weight:400;line-height:1;">(boleh diabaikan)</span>
             </div>
-            <span class="f1chip-badge" id="ftc-outfit_random">+</span>
+            <span class="f1chip-badge" id="ftc-outfit_random" style="display:none;">+</span>
           </button>
 
         </div>
@@ -3407,10 +3424,7 @@ body.pb-tour-result-simple #f-copy-btn{
         <!-- FOTO DETAIL LIST — compact rows -->
         <div id="foto-ref-list"></div>
 
-        <!-- EMPTY HINT -->
-        <div id="f1-empty" style="padding:12px 0 4px;font-size:var(--fs-xs2);color:var(--muted2);">
-          Belum ada foto dipilih
-        </div>
+        <!-- EMPTY HINT (dihapus) -->
 
         <!-- CONFIRM -->
         <div id="f1-confirm" class="hidden" style="margin-top:8px;">
@@ -3502,12 +3516,14 @@ body.pb-tour-result-simple #f-copy-btn{
       </div>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
-        <div class="inp-wrap">
+        <div style="display:flex;gap:6px;">
+          <div class="inp-wrap" style="flex:1;">
           <input class="inp" id="f3-custom" maxlength="300" placeholder="Contoh: produk diletakkan di meja di depan karakter, produk ditaruh di lantai…" onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f3-counter')" />
           <div class="inp-counter" id="f3-counter">0 / 300</div>
+          </div>
+          <button onclick="csSave('f3')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="fPickHoldCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('f3')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f3" class="chip-row-hidden"></div>
       </div>
       <!-- BANNER PERINGATAN KONFLIK -->
@@ -3529,12 +3545,14 @@ body.pb-tour-result-simple #f-copy-btn{
       <div class="chips" id="f4-chips"></div>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
-        <div class="inp-wrap">
+        <div style="display:flex;gap:6px;">
+          <div class="inp-wrap" style="flex:1;">
           <input class="inp" id="f4-custom" maxlength="300" placeholder="Contoh: berdiri sambil memegang kopi, melihat ke samping..." onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f4-counter')" />
           <div class="inp-counter" id="f4-counter">0 / 300</div>
+          </div>
+          <button onclick="csSave('f4')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="fPickPoseCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('f4')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f4" class="chip-row-hidden"></div>
       </div>
     </div>
@@ -3575,12 +3593,14 @@ body.pb-tour-result-simple #f-copy-btn{
         </div>
         <div class="mt12">
           <label class="inplabel">Atau tulis sendiri</label>
-          <div class="inp-wrap">
+          <div style="display:flex;gap:6px;">
+            <div class="inp-wrap" style="flex:1;">
             <input class="inp" id="f5-custom" maxlength="300" placeholder="Contoh: marble surface with gold ring props, soft pink gradient backdrop..." onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f5-counter')" />
             <div class="inp-counter" id="f5-counter">0 / 300</div>
+            </div>
+            <button onclick="csSave('f5')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
           </div>
           <button class="btn sm" data-role="mt12-confirm" onclick="fPickLokasiCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('f5')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f5" class="chip-row-hidden"></div>
         </div>
       </div>
@@ -3598,12 +3618,14 @@ body.pb-tour-result-simple #f-copy-btn{
         </div>
         <div class="mt12">
           <label class="inplabel">Atau tulis sendiri</label>
-          <div class="inp-wrap">
+          <div style="display:flex;gap:6px;">
+            <div class="inp-wrap" style="flex:1;">
             <input class="inp" id="f5-custom-karakter" maxlength="300" placeholder="Contoh: Taman Nasional Komodo, Pantai Ora Maluku..." onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f5-counter-karakter')" />
             <div class="inp-counter" id="f5-counter-karakter">0 / 300</div>
+            </div>
+            <button onclick="csSave('f5k')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
           </div>
           <button class="btn sm" data-role="mt12-confirm" onclick="fPickLokasiCustomKarakter()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('f5k')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f5k" class="chip-row-hidden"></div>
         </div>
       </div>
@@ -3661,12 +3683,14 @@ body.pb-tour-result-simple #f-copy-btn{
 
       <div class="mt12">
         <label class="inplabel">Atau tulis sendiri</label>
-        <div class="inp-wrap">
+        <div style="display:flex;gap:6px;">
+          <div class="inp-wrap" style="flex:1;">
           <input class="inp" id="f7-custom" maxlength="300" placeholder="Contoh: neon light warna pink, lampu fairy lights warm, cahaya lilin..." onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f7-counter')" />
           <div class="inp-counter" id="f7-counter">0 / 300</div>
+          </div>
+          <button onclick="csSave('f7')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="fPickCahayaCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('f7')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f7" class="chip-row-hidden"></div>
       </div>
     </div>
@@ -3759,15 +3783,16 @@ body.pb-tour-result-simple #f-copy-btn{
       <!-- CUSTOM INPUT (shared) -->
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
-        <div class="inp-wrap">
+        <div style="display:flex;gap:6px;">
+          <div class="inp-wrap" style="flex:1;">
           <input class="inp" id="f8-custom" maxlength="300"
             placeholder="Contoh: bird eye view dari atas 45°, worm eye extreme, Dutch angle miring..."
             onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f8-counter')" />
           <div class="inp-counter" id="f8-counter">0 / 300</div>
+          </div>
+          <button onclick="csSave('f8')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
         </div>
-        <p class="text-hint-mt">Tulis dalam Bahasa Inggris. Contoh: <em>bird's eye view, overhead flat lay, Dutch angle</em></p>
         <button class="btn sm" data-role="mt12-confirm" onclick="fPickAngleCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('f8')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f8" class="chip-row-hidden"></div>
       </div>
     </div>
@@ -3783,10 +3808,9 @@ body.pb-tour-result-simple #f-copy-btn{
       <div class="wanswer" id="fa9"></div>
     </div>
     <div class="wbody">
-      <p class="desc-block">Pilih <em>feel</em> keseluruhan foto — ini yang paling menentukan karakter visual output AI.</p>
+      <p class="desc-block">Setiap yang kakak pilih akan menentukan feel foto AI.</p>
       <div class="chips" id="f9-chips">
 
-        <div class="clabel">Clean &amp; Bright</div>
         <div class="chip chip-wide"
           onclick="fPickMood('clean, bright, airy — soft natural light, white tones, fresh and minimal, no dark shadows, high-key mood',this,'Clean Minimal')">
           <div>
@@ -3802,7 +3826,6 @@ body.pb-tour-result-simple #f-copy-btn{
           </div>
         </div>
 
-        <div class="clabel">Bold &amp; Vibrant</div>
         <div class="chip chip-wide"
           onclick="fPickMood('vibrant and energetic — saturated colors, bold contrast, dynamic and lively, high energy visual feel',this,'Vibrant Energetic')">
           <div>
@@ -3818,7 +3841,6 @@ body.pb-tour-result-simple #f-copy-btn{
           </div>
         </div>
 
-        <div class="clabel">Natural &amp; Candid</div>
         <div class="chip chip-wide"
           onclick="fPickMood('natural candid lifestyle — unposed and authentic, real-life moment, organic and relaxed, no studio feel',this,'Natural Candid')">
           <div>
@@ -3841,7 +3863,6 @@ body.pb-tour-result-simple #f-copy-btn{
           </div>
         </div>
 
-        <div class="clabel">Dark &amp; Moody</div>
         <div class="chip chip-wide"
           onclick="fPickMood('dark moody cinematic — deep shadows, rich dark tones, dramatic and mysterious, cinematic quality, low-key lighting',this,'Dark Moody')">
           <div>
@@ -3850,7 +3871,6 @@ body.pb-tour-result-simple #f-copy-btn{
           </div>
         </div>
 
-        <div class="clabel"><svg class="icon"><use href="#ic-sparkle"></use></svg> Premium</div>
         <div class="chip chip-wide"
           onclick="fPickMood('luxury premium editorial — polished and refined, sophisticated elegance, premium quality feel, clean and elevated',this,'Luxury Premium')">
           <div>
@@ -3862,13 +3882,14 @@ body.pb-tour-result-simple #f-copy-btn{
       </div>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
-        <div class="inp-wrap">
+        <div style="display:flex;gap:6px;">
+          <div class="inp-wrap" style="flex:1;">
           <input class="inp" id="f9-custom" maxlength="300" placeholder="Contoh: retro vintage 90s, Korean soft aesthetic, industrial gritty..." onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f9-counter')" />
           <div class="inp-counter" id="f9-counter">0 / 300</div>
+          </div>
+          <button onclick="csSave('f9')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
         </div>
-        <p class="text-hint-mt">Tulis dalam Bahasa Inggris untuk hasil terbaik.</p>
         <button class="btn sm" data-role="mt12-confirm" onclick="fPickMoodCustom()">Konfirmasi →</button>
-          <div class="row-inline-mt"><button onclick="csSave('f9')" class="btn-outline-xs">Simpan yang kamu isi supaya bisa dipakai berulang</button></div>
           <div id="cs-list-f9" class="chip-row-hidden"></div>
       </div>
     </div>
@@ -4044,7 +4065,7 @@ body.pb-tour-result-simple #f-copy-btn{
   <div class="wcard" id="v1">
     <div class="whead"><div class="wnum">1</div><div class="wtitle">Mode Referensi Foto</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va1"></div><span id="vb-mode-difficulty" style="display:none;font-size:var(--fs-2xs);color:var(--muted);text-align:right;line-height:1.35;max-width:150px;">Tingkat kesulitan: sedang<br>Hasil bagus mengikuti foto AI</span></div>
     <div class="wbody">
-      <label class="inplabel">Pilih Frame Asset aja ya kak, cocok untuk pemula dengan kualitas bagus.</label>
+      <label class="inplabel">Pilih Start Frame aja ya kak, cocok untuk pemula dengan kualitas bagus.</label>
       <!-- Pengganti kartu instruksi tur + spotlight KHUSUS step "kunci
            Mode 2/3/4" di dalam tur panduan — pola sama seperti f1-tour-hint
            di tab Foto: teks abu-abu netral di dalam kartu asli, TANPA
@@ -4092,7 +4113,7 @@ body.pb-tour-result-simple #f-copy-btn{
               <input class="inp" id="vb-mode3-lokasi-custom" maxlength="120" placeholder="Contoh: balkon apartemen sore hari" />
             </div>
             <button class="btn sm" onclick="vbPickMode3LokasiCustom()" style="width:auto;flex-shrink:0;padding:0 14px;">Pakai</button>
-            <button onclick="csSave('vm3lok')" title="Simpan supaya bisa dipakai berulang" style="background:var(--surface3);border:1px solid var(--border);color:var(--muted);font-size:var(--fs-base);padding:0 12px;border-radius:var(--radius-md);cursor:pointer;flex-shrink:0;">Simpan</button>
+            <button onclick="csSave('vm3lok')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
           </div>
           <div id="cs-list-vm3lok" style="display:none;flex-wrap:wrap;gap:5px;margin-top:8px;"></div>
         </div>
@@ -4115,7 +4136,7 @@ body.pb-tour-result-simple #f-copy-btn{
               <input class="inp" id="vb-mode3-lighting-custom" maxlength="120" placeholder="Contoh: cahaya studio lembut dari samping" />
             </div>
             <button class="btn sm" onclick="vbPickMode3LightingCustom()" style="width:auto;flex-shrink:0;padding:0 14px;">Pakai</button>
-            <button onclick="csSave('vm3light')" title="Simpan supaya bisa dipakai berulang" style="background:var(--surface3);border:1px solid var(--border);color:var(--muted);font-size:var(--fs-base);padding:0 12px;border-radius:var(--radius-md);cursor:pointer;flex-shrink:0;">Simpan</button>
+            <button onclick="csSave('vm3light')" class="cs-save-icon-btn" title="Simpan supaya bisa dipakai berulang" aria-label="Simpan supaya bisa dipakai berulang"><svg class="icon"><use href="#ic-save"></use></svg></button>
           </div>
           <div id="cs-list-vm3light" style="display:none;flex-wrap:wrap;gap:5px;margin-top:8px;"></div>
         </div>
@@ -11697,7 +11718,7 @@ const VB_REF_MODE_TEXT={
   aset:'Gunakan foto yang dilampirkan sebagai frame awal untuk setiap pergantian scene. Scene yang diperlihatkan wajib 100% sama dengan foto yang dilampirkan. Kalo dalam foto tidak menampilkan wajah maka jangan buat menampilkan wajah, pokoknya wajib mengikuti setiap foto yang dilampirkan. Setiap pergantian scene wajib berurutan sesuai foto yang sudah dilampirkan.'
 };
 const VB_REF_MODE_DESC={
-  satu:'Foto dipakai sebagai satu acuan karakter, outfit, dan lokasi untuk seluruh video — dari awal sampai akhir.',
+  satu:'',
   aset:'Foto yang dilampirkan jadi frame awal SETIAP pergantian scene, scene wajib 100% sama dengan foto (kalau di foto tidak ada wajah, jangan dimunculkan wajah), dan urutan scene wajib berurutan sesuai foto yang dilampirkan.',
   kp:'Foto referensi 1 = karakter (wajah & outfit dipertahankan), foto referensi 2 = produk. Kamu pilih sendiri lokasi & lighting video-nya di bawah.',
   ikuti:'Foto yang dilampirkan mengikuti gerakan & transisi dari video referensi yang dilampirkan — lokasi, lighting, outfit, dan mood tetap wajib persis seperti foto. Tinggal salin promptnya, tidak perlu isi step lain.',
@@ -18496,6 +18517,19 @@ function fSummaryEdit(cardNum) {
   let cc = document.getElementById('ai-conflict-container');
   if (cc) cc.style.display = 'none';
 
+  // FITUR BARU (permintaan user): begitu user mulai edit dari Ringkasan,
+  // hasil prompt yang sudah pernah di-generate (kalau ada) langsung
+  // disembunyikan SAAT ITU JUGA — bukan menunggu sampai "Selesai Edit"
+  // ditekan — supaya user tidak salah kira hasil lama itu masih berlaku
+  // untuk pilihan barunya. Placeholder preview (khusus desktop) dimunculkan
+  // lagi menggantikan hasil yang disembunyikan.
+  let _seJo = document.getElementById('f-json-output');
+  if (_seJo) _seJo.style.display = 'none';
+  let _seMo = document.getElementById('f-multi-output');
+  if (_seMo) { _seMo.style.display = 'none'; _seMo.innerHTML = ''; }
+  let _sePh = document.getElementById('f-preview-placeholder');
+  if (_sePh) _sePh.style.removeProperty('display');
+
   // Undone HANYA card target — card lain tetap done
   let target = document.getElementById(targetId);
   if (target) {
@@ -20530,13 +20564,9 @@ function pbTourResetF1Ui(keepBlur){
     let f0ProcessBadge=document.getElementById('f0-tour-process-badge');
     if(f0ProcessBadge) f0ProcessBadge.style.display='none';
   }
-  // Kembalikan banner "Cek HP dulu" yang disembunyikan paksa di pbGoStep6().
-  let cekhpBanner=document.getElementById('f1-cekhp-banner');
-  if(cekhpBanner) cekhpBanner.style.display='flex';
-  let wajahLabel=document.getElementById('ftb-wajah-label');
-  if(wajahLabel) wajahLabel.textContent='Wajah';
-  let objekChip=document.getElementById('ftb-objek');
-  if(objekChip) objekChip.style.display='';
+  // Banner "Cek HP dulu", label "Wajah", dan chip "Objek" SEKARANG memang
+  // disembunyikan/diubah permanen di luar tur juga (bukan cuma selama tur),
+  // jadi TIDAK dikembalikan lagi di sini seperti sebelumnya.
   let tourHint=document.getElementById('f1-tour-hint');
   if(tourHint) tourHint.style.display='none';
   pbUnlockChip('#ftb-outfit');
@@ -20571,11 +20601,10 @@ function pbTourFinishExt(){
   },250);
 }
 // FITUR BARU (permintaan user): buka/tutup isi kartu Ringkasan (warning +
-// daftar rows) SELAMA tahap akhir tur (body.pb-tour-final-blur) — di luar
-// tur, kartu Ringkasan tetap selalu terbuka seperti biasa jadi tap di sini
-// tidak melakukan apa-apa. Lihat CSS .summary-card:not(.pb-tour-opened).
+// daftar rows) — SEKARANG berlaku selalu, baik di dalam maupun di luar
+// sesi tur (dulu cuma aktif selama body.pb-tour-final-blur). Lihat CSS
+// .summary-card:not(.pb-tour-opened).
 function pbToggleTourSummary(){
-  if(!document.body.classList.contains('pb-tour-final-blur'))return;
   let sCard=document.getElementById('summary-card');
   if(sCard) sCard.classList.toggle('pb-tour-opened');
 }
