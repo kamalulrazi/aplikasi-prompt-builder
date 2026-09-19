@@ -4249,6 +4249,35 @@ body.pb-tour-result-simple #f-copy-btn{
     </div>
   </div>
 
+  <!-- STEP 4 BARU: MOTION KARAKTER (permintaan user, Sept 2026) — untuk Start
+       Frame, Frame Asset, dan Raw Asset (ketiganya lewat wizard V2-V5; Motion
+       Control & Mirror Selfie self-contained dan tidak pernah sampai sini).
+       id="vmotion" (bukan v4) supaya id lama v4 (Aksen) & v5 (Script) TIDAK
+       perlu diganti — cuma nomor tampilan (wnum) & total progress yang digeser
+       jadi 6. Cuma 1 chip preset "Lebay Banget" + kolom isi sendiri + tombol
+       Lewati. TIDAK dikirim ke AI — hanya ditempel ke prompt akhir sebagai
+       "motion karakter: ..." (lihat _vbBuildFlowText). -->
+  <div class="wcard pending" id="vmotion">
+    <div class="whead"><div class="wnum">4</div><div class="wtitle">Motion Karakter</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vamotion"></div></div>
+    <div class="wbody">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Gaya gerak karakter di video — bisa dilewati kalau tidak perlu.</p>
+      <div class="chips">
+        <div class="chip" onclick="vbPickMotion('lebay banget',this,'Lebay Banget')">Lebay Banget</div>
+      </div>
+      <div class="mt12">
+        <label class="inplabel">Atau isi sendiri</label>
+        <div class="inp-wrap">
+          <input class="inp" id="vmotion-custom" maxlength="80" placeholder="Contoh: anggun dan kalem" oninput="fCountInp(this,'vmotion-counter')" />
+          <div class="inp-counter" id="vmotion-counter">0 / 80</div>
+        </div>
+        <button class="btn sm" data-role="mt12-confirm" onclick="vbPickMotionCustom()">Konfirmasi →</button>
+      </div>
+      <div style="margin-top:12px;text-align:right;">
+        <button type="button" onclick="vbSkipMotion()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xs2);cursor:pointer;padding:6px 0;text-decoration:underline;">Lewati, tanpa motion</button>
+      </div>
+    </div>
+  </div>
+
   <!-- V4: AKSEN (disederhanakan atas permintaan user, Sept 2026 — dulu ada
        beberapa chip aksen (Netral/Formal/Santai/Gaul-Kekinian) dengan
        instruksi contoh gaya bahasa panjang per aksen yang dikirim ke AI.
@@ -4258,7 +4287,7 @@ body.pb-tour-result-simple #f-copy-btn{
        cukup kirim apa adanya ke AI. Opsi "tulis sendiri" TETAP ada kalau
        user memang mau isi aksen custom manual. -->
   <div class="wcard pending" id="v4">
-    <div class="whead"><div class="wnum">4</div><div class="wtitle">Aksen</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va4"></div></div>
+    <div class="whead"><div class="wnum">5</div><div class="wtitle">Aksen</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va4"></div></div>
     <div class="wbody">
       <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Seberapa baku atau santai bahasanya.</p>
       <div class="chips">
@@ -4277,7 +4306,7 @@ body.pb-tour-result-simple #f-copy-btn{
 
   <!-- V5: SCRIPT DIALOG -->
   <div class="wcard pending" id="v5">
-    <div class="whead"><div class="wnum">5</div><div class="wtitle">Script / Dialog</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va5"></div></div>
+    <div class="whead"><div class="wnum">6</div><div class="wtitle">Script / Dialog</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va5"></div></div>
     <div class="wbody">
       <label class="inplabel">Karakter kakak nanti akan ngomong apa?</label>
       <div class="chips" style="margin-bottom:4px;">
@@ -5257,7 +5286,7 @@ function doneCard(id,ansId,text){
           // ATAU dibersihkan, jadi ada 2 sumber "hasil" yang tidak sinkron
           // sampai user generate ulang. Sekarang v5 ikut diperiksa sama
           // seperti v1-v4.
-          let _isVideoStep=/^v[1-5]$/.test(id);
+          let _isVideoStep=/^v(?:[1-5]|motion)$/.test(id);
           let _mo=_isVideoStep?document.getElementById('vb-multi-output'):null;
           let _moHasContent=_mo&&_mo.style.display!=='none'&&_mo.innerHTML.trim()!=='';
           if(_moHasContent){
@@ -11400,7 +11429,7 @@ function pbCloseActiveSavedPage(){
 // ============================================================
 // VIDEO BUILDER — Reference + Dialogue (voice_character)
 // ============================================================
-let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',produkFotoExtra:[],hookType:'',hookTypeLabel:''};
+let VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',motion:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',produkFotoExtra:[],hookType:'',hookTypeLabel:''};
 
 // FITUR BARU (permintaan user): klik foto produk yang sudah diupload (di
 // mana pun tampilnya di builder Video — slot foto tunggal AI/Manual, baris
@@ -11819,7 +11848,7 @@ function vbMode3LightingAdvance(val){
 }
 
 function vbUpdateProgress(stepNum,stepName){
-  let total=5;
+  let total=6;
   let pct=Math.round((stepNum/total)*100);
   let fill=document.getElementById('vb-progress-fill');
   let label=document.getElementById('vb-progress-label');
@@ -11992,15 +12021,42 @@ function vbPickPitch(val,el,label){
 function vbPickPitchConfirmed(val,label){
   VB.pitch=val;VB.pitchLabel=label;
   doneCard('v3','va3',label);
-  showCard('v4');
-  document.getElementById('v4').classList.remove('pending');
-  vbUpdateProgress(4,'Aksen');
+  showCard('vmotion');
+  document.getElementById('vmotion').classList.remove('pending');
+  vbUpdateProgress(4,'Motion Karakter');
 }
 function vbPickPitchCustom(){
   let val=document.getElementById('v3-custom').value.trim();
   if(!val){showToast('Isi dulu ya','error');return;}
   document.querySelectorAll('#v3 .chip').forEach(c=>c.classList.remove('sel'));
   vbPickPitchConfirmed(val,val.length>24?val.substring(0,24)+'...':val);
+}
+
+// ── STEP 4: MOTION KARAKTER (opsional) ──
+function vbPickMotion(val,el,label){
+  document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  fShowConfirm('vmotion', el, function(){ vbPickMotionConfirmed(val,label); });
+}
+function vbPickMotionConfirmed(val,label){
+  VB.motion=val;
+  doneCard('vmotion','vamotion',label);
+  showCard('v4');
+  document.getElementById('v4').classList.remove('pending');
+  vbUpdateProgress(5,'Aksen');
+}
+function vbPickMotionCustom(){
+  let val=document.getElementById('vmotion-custom').value.trim();
+  if(!val){showToast('Isi dulu ya','error');return;}
+  document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
+  vbPickMotionConfirmed(val,val.length>24?val.substring(0,24)+'...':val);
+}
+function vbSkipMotion(){
+  let old=document.getElementById('vmotion-confirmbar');if(old)old.remove();
+  document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
+  let inp=document.getElementById('vmotion-custom');
+  if(inp){inp.value='';fCountInp(inp,'vmotion-counter');}
+  vbPickMotionConfirmed('','Tanpa motion');
 }
 
 function vbPickAccent(val,el,label){
@@ -12013,7 +12069,7 @@ function vbPickAccentConfirmed(val,label){
   doneCard('v4','va4',label);
   showCard('v5');
   document.getElementById('v5').classList.remove('pending');
-  vbUpdateProgress(5,'Script / Dialog');
+  vbUpdateProgress(6,'Script / Dialog');
 }
 function vbPickAccentCustom(){
   let val=document.getElementById('v4-custom').value.trim();
@@ -12116,7 +12172,7 @@ function vbManualLiveInit(){
     vbManualRenderGroups(count);
   }
   doneCard('v5','va5','Isi manual sendiri');
-  vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
+  vbUpdateProgress(6,'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
   setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 // Cache PERSISTEN nama produk tiap grup manual (per index produk), bertahan
@@ -15000,7 +15056,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     await _vbRenderBulkOutput(allResults,produkList,true,false);
     _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     doneCard('v5','va5',(allResults.length*3)+' script bulk AI');
-    vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+    vbUpdateProgress(6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     if(allResults.length<produkList.length){
       // FITUR BARU (permintaan user): dulu di sini cuma toast "sisanya bisa
       // dicoba generate ulang" — maksudnya generate ULANG SEMUA dari nol,
@@ -16805,7 +16861,7 @@ async function vbGenerate3AI(){
     await _vbRenderMultiOutput(scripts,produkNama,true);
     _vbBuildCombinedHistoryEntry('3 script AI'+(produkNama?' — '+produkNama:''));
     doneCard('v5','va5','3 script AI');
-    vbUpdateProgress(5,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+    vbUpdateProgress(6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     showToast('3 script + JSON berhasil dibuat!','success');
     stopGenLogoBtn(btn,genLogoState);
     // FITUR BARU (permintaan user, Sept 2026): notifikasi "Prompt Video
@@ -17567,6 +17623,10 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // bukan persis 'male'/'female', prefix-nya jadi string kosong — nilai
   // custom yang diketik user hilang dari output. Sekarang nilai custom
   // (apa pun isinya) tetap dipakai apa adanya sebagai prefix.
+  // FITUR BARU: Motion Karakter (opsional) — ditempel di antara instruksi foto
+  // referensi dan blok "dialogue:". Kosong = output sama persis seperti sebelumnya.
+  let motionTxt=String(VB.motion||'').replace(/[.\s]+$/,'').trim();
+  if(motionTxt)instructionText=instructionText.replace(/\s+$/,'')+' motion karakter: '+motionTxt+'. ';
   let genderPrefix=VB.gender==='male'?'Male, ':VB.gender==='female'?'Female, ':(VB.gender?VB.gender+', ':'');
   let ageFull=genderPrefix+VB.age;
   // FORMAT OUTPUT (permintaan user, menggantikan format JSON lama): bukan JSON valid,
@@ -17749,7 +17809,7 @@ function vbResetNow(){
     // atas). Akibatnya setelah reset, VB.hookType/hookTypeLabel jadi
     // `undefined` alih-alih string kosong — bentuk objek jadi tidak
     // konsisten dengan state awal. Disamakan lagi di sini.
-    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',produkFotoExtra:[],hookType:'',hookTypeLabel:''};
+    VB={age:'',ageLabel:'',gender:'',genderLabel:'',pitch:'',pitchLabel:'',motion:'',accent:'',accentLabel:'',script:'',refMode:'satu',mode3Produk:'',mode3Lokasi:'',mode3LokasiLabel:'',mode3Lighting:'',mode3LightingLabel:'',bulkTargetAudience:'',produkFotoBase64:'',produkFotoMime:'',produkFotoExtra:[],hookType:'',hookTypeLabel:''};
     VB_BULK_PRODUCTS=[];
     // FIX BUG "SEMUA STEP VIDEO HILANG SELAMANYA SETELAH RESET": sama persis
     // dengan bug fResetFrom() di tab Foto — doneCard() SELALU menambahkan
@@ -17775,6 +17835,17 @@ function vbResetNow(){
     document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
     document.querySelectorAll('#v3 .chips .chip').forEach(c=>c.classList.remove('sel'));
     document.querySelectorAll('#v4 .chips .chip').forEach(c=>c.classList.remove('sel'));
+    // Step 4 Motion Karakter (id vmotion, di luar daftar v1-v5 di atas): reset kartu,
+    // pilihan chip, kolom isi sendiri, & counter-nya. VB.motion sudah '' lewat reset VB.
+    (function(){
+      let mc=document.getElementById('vmotion');
+      if(mc){mc.classList.remove('done','hidden');mc.classList.add('pending');}
+      let ma=document.getElementById('vamotion'); if(ma)ma.textContent='';
+      let mcb=document.getElementById('vmotion-confirmbar'); if(mcb)mcb.remove();
+      document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
+      let mi=document.getElementById('vmotion-custom'); if(mi)mi.value='';
+      let mcnt=document.getElementById('vmotion-counter'); if(mcnt){mcnt.textContent='0 / 80';mcnt.className='inp-counter';}
+    })();
     vbPickRefMode('satu');
     let m3lc=document.getElementById('vb-mode3-lokasi-custom'); if(m3lc)m3lc.value='';
     let m3ligc=document.getElementById('vb-mode3-lighting-custom'); if(m3ligc)m3ligc.value='';
