@@ -2740,7 +2740,7 @@ body.pb-tour-result-simple #f-copy-btn{
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.39</div>
+  <div class="splash-version" id="splash-version">v6.40</div>
 </div>
 <script>
   (function(){
@@ -4670,7 +4670,7 @@ body.pb-tour-result-simple #f-copy-btn{
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.39 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.40 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -19141,7 +19141,7 @@ function pbResumeTourFromSavedStep(afterRealReload){
 function pbEndTour(){
   pbMarkTourDone();
   pbClearSavedTourStep();
-  pbHideOverlay();
+  pbHideOverlay(true);
   // Tur benar-benar selesai — tampilkan lagi nav Foto/Video/Riwayat/Panduan
   // yang disembunyikan sejak pbStartTour().
   let navEl=document.querySelector('.nav');
@@ -19161,7 +19161,7 @@ function pbEndTour(){
 // Cuma menyembunyikan tampilan tur (dipakai transisi antar-step,
 // termasuk "hilang total" di langkah 6→7) TANPA menandai tur sudah
 // selesai — dipisah dari pbEndTour() supaya bisa dipanggil ulang.
-function pbHideOverlay(){
+function pbHideOverlay(endingTour){
   pbDisarmDoneWait();
   pbWaitingCopyClick=false;
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
@@ -19207,8 +19207,21 @@ function pbHideOverlay(){
   // kembali normal — jangan sampai nyangkut buram/tersembunyi walau
   // tur sudah tidak tampil. Fungsi ini aman dipanggil kapan pun
   // (idempotent) walau langkah tersebut belum pernah dibuka.
-  if(typeof pbTourResetF0Ui==='function') pbTourResetF0Ui();
-  if(typeof pbTourResetF1Ui==='function') pbTourResetF1Ui();
+  // FIX (dilaporkan user — kunci "Produk Saja" & teks tur Langkah 5
+  // hilang begitu buka Karakter Sheet dari Langkah 3): pbHideOverlay()
+  // ini TERNYATA juga dipanggil dari pbOpenCharacterSheetFromTour(),
+  // yang bukan penutupan tur sungguhan — cuma transisi buka modal. Kalau
+  // reset F0/F1 di bawah ini tetap jalan di situ, penguncian "Produk
+  // Saja" & tampilan sederhana Langkah 5/6 yang sedang berjalan ikut
+  // kehapus padahal sesi tur belum berakhir. Sekarang reset ini HANYA
+  // jalan kalau pbHideOverlay() dipanggil dengan endingTour=true (dari
+  // pbEndTour(), tur beneran ditutup/skip) — pemanggil lain (mis.
+  // pbOpenCharacterSheetFromTour()) memanggil tanpa argumen ini supaya
+  // status Langkah 5/6 tidak ikut ke-reset.
+  if(endingTour){
+    if(typeof pbTourResetF0Ui==='function') pbTourResetF0Ui();
+    if(typeof pbTourResetF1Ui==='function') pbTourResetF1Ui();
+  }
   document.getElementById('pb-tour-backdrop').classList.remove('show','pb-passive');
   document.getElementById('pb-tour-spot').classList.remove('show','pb-airy');
   document.getElementById('pb-tour-card').classList.remove('show');
