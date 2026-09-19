@@ -2599,6 +2599,21 @@ body.pb-tour-result-simple #f-copy-btn{
   </div>
 </div>
 <script>
+  // Dialog konfirmasi bermerek (pakai showConfirm milik app) menggantikan
+  // confirm() bawaan Android/browser yang tampilannya tidak sesuai branding.
+  // Fallback ke confirm() bawaan hanya kalau showConfirm belum tersedia.
+  window.pbAskConfirm = function(msg, okLabel, onOk, onCancel){
+    if(typeof showConfirm === 'function'){
+      showConfirm(msg, onOk, onCancel, okLabel);
+      try{
+        var all = document.querySelectorAll('.confirm-overlay');
+        var ov = all[all.length - 1];
+        if(ov) ov.style.zIndex = '100001'; // di atas lapisan tur (z-index s/d 10050)
+      }catch(e){}
+    } else {
+      if(confirm(msg)){ if(onOk) onOk(); } else if(onCancel){ onCancel(); }
+    }
+  };
   // FIX REFRESH: gerbang login sebelumnya baru disembunyikan di window.load
   // (pbInitLogin), jadi tiap refresh layar "Masuk dengan Google" sempat
   // KEDIP walau user sudah login. Kalau sesi tersimpan ada, sembunyikan
@@ -2991,7 +3006,9 @@ body.pb-tour-result-simple #f-copy-btn{
 
   // Tombol logout kecil di header (h-pill "pb-user-pill") manggil ini.
   window.pbLogout = function(){
-    if(!confirm('Keluar dari akun ini?')) return;
+    window.pbAskConfirm('Keluar dari akun ini?', 'Ya, Keluar', _pbDoLogout, null);
+  };
+  function _pbDoLogout(){
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
     // FIX BUG (Ringan #8): dialog "Leave site?" bawaan browser sebelumnya
     // sempat muncul di sini walau user sudah konfirmasi keluar lewat
@@ -3018,7 +3035,7 @@ body.pb-tour-result-simple #f-copy-btn{
       }catch(e){}
     }
     location.reload();
-  };
+  }
 
   function pbInitLogin(){
     // Kalau sesi login sebelumnya masih ada di perangkat ini, langsung
@@ -20445,13 +20462,11 @@ function pbAutoStartTourOnLoad(){
       pbStartTour(true);
       return;
     }
-    let mulaiDariAwal = confirm('Tindakan ini akan memulai tur dari awal.\n\nLanjutkan?');
-    if(mulaiDariAwal){ pbStartTour(true); }
-    // afterRealReload=true: kita ADA di cabang isReloadNavigationTour(),
-    // jadi wizard sudah pasti direset (lihat catatan di
-    // PB_TOUR_STEPS_SAFE_POST_RELOAD/pbResumeTourFromSavedStep di atas) —
-    // biar tidak lompat ke step lama yang sudah tidak sinkron.
-    else{ pbResumeTourFromSavedStep(true); }
+    // afterRealReload=true di jalur batal: wizard sudah pasti direset (reload
+    // sengaja), jadi tur dilanjutkan dari step utama terakhir yang aman.
+    pbAskConfirm('Tindakan ini akan memulai tur dari awal. Lanjutkan?', 'Ya, Mulai Ulang',
+      function(){ pbStartTour(true); },
+      function(){ pbResumeTourFromSavedStep(true); });
   } else {
     // Bukan reload — app ditutup total lalu dibuka lagi. Lanjutkan diam-diam.
     pbResumeTourFromSavedStep();
@@ -21331,20 +21346,22 @@ window.addEventListener('load',function(){
           && !localStorage.getItem('pb_tour_done');
       }catch(err){}
       if(tourAktif){
-        var setujuTur = confirm('Tindakan ini akan memulai tur dari awal.\n\nLanjutkan?');
-        if(!setujuTur){ resetPull(true); return; }
-        // FIX BUG "konfirmasi tur muncul dua kali": user sudah setuju di sini,
-        // tandai lewat sessionStorage (bertahan sampai reload beneran terjadi)
-        // supaya pbAutoStartTourOnLoad() setelah reload TIDAK tanya lagi hal
-        // yang sama dengan confirm() kedua — langsung mulai tur dari awal.
-        try{ sessionStorage.setItem('pb_tour_reload_confirmed','1'); }catch(err){}
-        triggerRefresh();
+        // Setuju → tandai lewat sessionStorage (bertahan sampai reload terjadi)
+        // supaya pbAutoStartTourOnLoad() setelah reload TIDAK tanya lagi.
+        pbAskConfirm('Tindakan ini akan memulai tur dari awal. Lanjutkan?', 'Ya, Mulai Ulang',
+          function(){
+            try{ sessionStorage.setItem('pb_tour_reload_confirmed','1'); }catch(err){}
+            triggerRefresh();
+          },
+          function(){ resetPull(true); });
         return;
       }
       var adaProgres = (typeof window.pbHasUnsavedProgress==='function') && window.pbHasUnsavedProgress();
       if(adaProgres){
-        var setuju = confirm('Kamu masih mengisi proses ini. Refresh akan menghapus isian yang belum di-generate dan wizard mulai lagi dari Step 1.\n\nLanjutkan refresh?');
-        if(!setuju){ resetPull(true); return; }
+        pbAskConfirm('Kamu masih mengisi proses ini. Refresh akan menghapus isian yang belum di-generate dan wizard mulai lagi dari Step 1. Lanjutkan refresh?', 'Ya, Refresh',
+          function(){ triggerRefresh(); },
+          function(){ resetPull(true); });
+        return;
       }
       triggerRefresh();
     }
