@@ -600,15 +600,13 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
   --accent-dim:#B8965F;
   --accent-glow:rgba(217,184,118,0.35);
   --accent-dim-bg:rgba(217,184,118,0.12);
-  /* Gradient "hitam campur gold" — KHUSUS kotak step utama (.wcard, kartu
-     besar bernomor spt "1 Foto Referensi"). Sengaja dibuat subtle/premium:
-     kilau gold cuma tipis di pojok atas lalu cepat meleleh ke hitam pekat
-     (--surface), bukan gradient tebal yang nutupin seluruh kotak — supaya
-     kesannya "dark premium dengan aksen gold", bukan norak/rame. Kotak
-     pilihan lain (.subjek-card/.chip/.ftype-btn/.produk-choice/
-     .vstyle-card/.ref-card) sengaja TIDAK dipakaikan ini, tetap flat
-     seperti desain asli. */
-  --card-gold-grad:linear-gradient(160deg,rgba(217,184,118,0.14) 0%,rgba(217,184,118,0.03) 20%,var(--surface) 48%);
+  /* Gold gelap dipadukan hitam + lapisan glossy — dipakai untuk .btn, .ntab.active, .copy-btn:hover */
+  --accent-dark-1:#2A2114;
+  --accent-dark-2:#151109;
+  --accent-dark-3:#0A0806;
+  --accent-text-on-dark:var(--accent-2);
+  --gloss-gradient:linear-gradient(135deg,var(--accent-dark-1) 0%,var(--accent-dark-2) 45%,#000 65%,var(--accent-dark-3) 100%);
+  --gloss-sheen:linear-gradient(180deg,rgba(255,255,255,0.22) 0%,rgba(255,255,255,0.06) 28%,rgba(255,255,255,0) 45%,rgba(0,0,0,0.25) 100%);
   --green:#34D399;
   --green-dim:rgba(52,211,153,0.15);
   --red:#F87171;
@@ -831,10 +829,18 @@ body input, body textarea, body [contenteditable="true"]{
   min-height:44px;
 }
 .ntab.active{
-  color:#141210;font-weight:700;
-  background:linear-gradient(135deg,var(--accent),var(--accent-dim));
-  box-shadow:0 3px 10px rgba(184,150,95,0.2);
+  position:relative;overflow:hidden;isolation:isolate;
+  color:var(--accent-text-on-dark);font-weight:700;
+  background:var(--gloss-gradient);
+  border:1px solid rgba(217,184,118,0.3);
+  box-shadow:0 3px 12px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.12);
+  text-shadow:0 1px 2px rgba(0,0,0,0.6);
 }
+.ntab.active::before{
+  content:"";position:absolute;inset:0;background:var(--gloss-sheen);
+  pointer-events:none;z-index:1;mix-blend-mode:overlay;border-radius:inherit;
+}
+.ntab.active>*{position:relative;z-index:2;}
 .ntab:hover:not(.active){color:var(--accent);background:var(--surface2);}
 .ntab:active{opacity:0.75;transform:scale(0.98);}
 /* FITUR BARU (permintaan user): tombol "Foto" & "Video" di nav bawah
@@ -867,10 +873,10 @@ body input, body textarea, body [contenteditable="true"]{
 
 /* WIZARD STEP */
 .wcard{
-  background:var(--card-gold-grad);border:1px solid rgba(217,184,118,0.14);
+  background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-lg);margin-bottom:var(--space-4);
   overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s;
-  box-shadow:var(--shadow-sm),inset 0 1px 0 rgba(217,184,118,0.1);
+  box-shadow:var(--shadow-sm);
 }
 .wcard.done{border-color:rgba(52,211,153,0.22);}
 /* PERMINTAAN USER (Sept 2026): teks "Tingkat kesulitan" di header kartu Mode
@@ -1151,23 +1157,39 @@ body input, body textarea, body [contenteditable="true"]{
 
 /* BUTTONS */
 .btn{
+  position:relative;overflow:hidden;isolation:isolate;
   width:100%;padding:var(--space-5);
-  background:linear-gradient(135deg,var(--accent),var(--accent-dim));
-  color:#171310;
-  border:none;border-radius:var(--radius);
+  background:var(--gloss-gradient);
+  border:1px solid rgba(217,184,118,0.35);
+  color:var(--accent-text-on-dark);
+  border-radius:var(--radius);
   font-size:var(--fs-base);font-weight:700;cursor:pointer;
   font-family:'Geist',sans-serif;transition:all 0.15s;
   display:flex;align-items:center;justify-content:center;gap:7px;
   margin-top:var(--space-4);letter-spacing:-0.2px;
-  box-shadow:0 4px 12px rgba(184,150,95,0.18);
+  box-shadow:0 4px 14px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.12);
   min-height:44px;
+  text-shadow:0 1px 2px rgba(0,0,0,0.6);
 }
-.btn:hover{filter:brightness(1.04);box-shadow:0 5px 14px rgba(184,150,95,0.22);}
-.btn:active{transform:scale(0.97);filter:brightness(0.97);}
+.btn::before{
+  content:"";position:absolute;inset:0;background:var(--gloss-sheen);
+  pointer-events:none;z-index:1;mix-blend-mode:overlay;
+}
+.btn::after{
+  content:"";position:absolute;left:6%;right:6%;top:6%;height:38%;
+  background:linear-gradient(180deg,rgba(255,255,255,0.35),rgba(255,255,255,0));
+  border-radius:999px 999px 60% 60%/100% 100% 20% 20%;
+  filter:blur(1px);pointer-events:none;z-index:1;opacity:0.65;
+}
+.btn>*{position:relative;z-index:2;}
+.btn:hover{filter:brightness(1.15);box-shadow:0 6px 18px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.16);}
+.btn:active{transform:scale(0.97);filter:brightness(0.9);}
 /* Saat tombol generate menampilkan logo P loading, hilangkan background gold panjang & shadow-nya — logo P tetap seperti semula */
 .btn.btn-loading,.btn:has(.gen-logo-wrap){background:transparent;box-shadow:none;}
+.btn.btn-loading::before,.btn:has(.gen-logo-wrap)::before,.btn.btn-loading::after,.btn:has(.gen-logo-wrap)::after{display:none;}
 .btn.sm{font-size:var(--fs-sm);padding:9px;min-height:44px;}
-.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border-hi);box-shadow:none;}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border-hi);box-shadow:none;text-shadow:none;}
+.btn.ghost::before,.btn.ghost::after{display:none;}
 .btn.ghost:hover{background:var(--surface2);filter:none;box-shadow:none;}
 .reset-btn{
   width:100%;padding:9px;background:transparent;
@@ -1305,7 +1327,8 @@ body input, body textarea, body [contenteditable="true"]{
 .out-head{background:var(--surface2);padding:11px var(--space-6);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
 .out-label{font-family:'Geist Mono',monospace;font-size:var(--fs-xs);color:var(--muted2);letter-spacing:0.3px;}
 .copy-btn{background:var(--surface3);color:var(--text);border:1px solid var(--border-hi);padding:var(--space-2) 13px;border-radius:var(--radius-pill);font-size:var(--fs-xs2);font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;font-family:'Geist',sans-serif;}
-.copy-btn:hover{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#171310;border-color:transparent;}
+.copy-btn:hover{background:var(--gloss-gradient);color:var(--accent-text-on-dark);border-color:rgba(217,184,118,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.6);position:relative;overflow:hidden;}
+.copy-btn:hover::before{content:"";position:absolute;inset:0;background:var(--gloss-sheen);pointer-events:none;mix-blend-mode:overlay;border-radius:inherit;}
 .copy-btn.copied{background:var(--green-dim);color:var(--green);border-color:rgba(52,211,153,0.3);}
 .out-tabs{display:flex;background:var(--surface2);border-bottom:1px solid var(--border);}
 .otab{padding:var(--space-3) var(--space-6);font-size:var(--fs-xs2);font-weight:500;color:var(--muted2);cursor:pointer;border:none;background:none;border-bottom:1.5px solid transparent;font-family:'Geist',sans-serif;transition:all 0.15s;}
@@ -1353,9 +1376,9 @@ body input, body textarea, body [contenteditable="true"]{
 
 /* VSTYLE */
 .vstyle-card:hover{border-color:var(--border-hi);background:var(--surface3);}
-.vstyle-card.sel{border-color:rgba(217,184,118,0.4);background:var(--accent-dim-bg);box-shadow:var(--shadow-glow);}
+.vstyle-card.sel{border-color:var(--border-hi);background:var(--surface3);}
 .vstyle-badge{font-size:var(--fs-2xs);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;padding:var(--space-1) 7px;background:var(--surface3);border-radius:var(--radius-2xs);color:var(--muted2);font-family:'Geist Mono',monospace;transition:all 0.15s;}
-.vstyle-card.sel .vstyle-badge{background:var(--accent);color:var(--bg);}
+.vstyle-card.sel .vstyle-badge{background:var(--text);color:var(--bg);}
 .vstyle-preview{background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:var(--space-4) var(--space-5);display:none;margin-bottom:var(--space-4);}
 .vstyle-card.sel+.vstyle-preview{display:block;}
 
@@ -1537,10 +1560,9 @@ body input, body textarea, body [contenteditable="true"]{
 
 /* ── INLINE WIZARD (v7 redesign) ── */
 .wcard{
-  background:var(--card-gold-grad);border:1px solid rgba(217,184,118,0.14);
+  background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-lg);margin-bottom:var(--space-2);
   overflow:hidden;transition:border-color 0.2s;
-  box-shadow:inset 0 1px 0 rgba(217,184,118,0.1);
 }
 .wcard.done{border-color:var(--border);}
 .wcard.done .whead{cursor:pointer;}
