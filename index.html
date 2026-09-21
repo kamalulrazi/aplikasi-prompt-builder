@@ -1948,100 +1948,59 @@ body input, body textarea, body [contenteditable="true"]{
    di localStorage), bisa di-skip kapan saja, dan bisa dipanggil
    ulang manual lewat tombol di tab Panduan.
    ============================================================ */
+/* ── MODE TUR = HALAMAN SENDIRI, BUKAN OVERLAY (permintaan user) ──────────
+   Sebelumnya tur tampil sebagai kartu kecil melayang di atas app yang
+   digelapkan + diburamkan (backdrop-filter:blur) + ada "spotlight" yang
+   menggelapkan layar lewat box-shadow raksasa. Sekarang tur adalah
+   HALAMAN penuh: latar solid (tanpa blur, tanpa transparansi, tanpa
+   dimming), isi rata tengah dalam satu kolom nyaman baca, tombol besar
+   menempel di bawah. Prinsip "tidak bikin mata lelah":
+   - teks tidak putih murni & tidak abu redup (kontras enak, ±10:1)
+   - ukuran teks 15px, jarak baris 1.75, kolom maksimal 440px
+   - tanpa glow / bayangan / blur / kedip di mana pun di mode tur
+   - tombol min. 50px supaya gampang ditekan jempol
+   #pb-tour-backdrop sekarang cuma latar solid; #pb-tour-spot disembunyikan
+   total (JS lama masih toggle class-nya, jadi elemennya dibiarkan ada). */
+:root{
+  --pb-tour-text:#CFCCD4;
+  --pb-tour-bar-h:0px;
+  --pb-tour-pad-top:calc(env(safe-area-inset-top,0px) + 22px);
+}
+/* Bar progres bintang sedang tampil → isi halaman mulai di bawahnya.
+   --pb-tour-bar-h diisi JS (pbTourProgressShow) dari tinggi bar aslinya. */
+body.pb-tour-bar-on{--pb-tour-pad-top:calc(var(--pb-tour-bar-h) + 22px);}
 #pb-tour-backdrop{
-  position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.55);
-  /* Blur tampilan app di belakang tur (langkah modal) — dinaikkan dari
-     0 ke var(--pb-tour-blur) lewat class .show, supaya app kelihatan
-     "premium blurred" persis kayak background sheet/modal iOS, bukan
-     cuma digelapkan doang. Dibikin transition-able (bukan langsung
-     nyala) biar smooth pas tur buka/tutup. */
-  --pb-tour-blur:14px;
-  backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);
-  opacity:0;pointer-events:none;
-  transition:opacity .25s ease,backdrop-filter .3s ease,-webkit-backdrop-filter .3s ease;
+  position:fixed;inset:0;z-index:9998;background:var(--bg);
+  opacity:0;pointer-events:none;transition:opacity .2s ease;
 }
-#pb-tour-backdrop.show{
-  opacity:1;pointer-events:auto;
-  backdrop-filter:blur(var(--pb-tour-blur));-webkit-backdrop-filter:blur(var(--pb-tour-blur));
-}
-/* PASSIVE MODE (step interaktif — subjek foto, foto referensi, cara tampil
-   produk): backdrop dibikin tembus pandang & tidak menghalangi klik sama
-   sekali, supaya elemen aslinya "kelihatan full" dan user bisa langsung
-   tap tanpa acara tur ikut menutupinya. Blur ikut dimatikan di sini —
-   kalau tetap nyala, elemen yang justru mau disentuh user ikut buram. */
-#pb-tour-backdrop.show.pb-passive{
-  opacity:0;pointer-events:none;
-  backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);
-}
-#pb-tour-spot{
-  position:fixed;z-index:9999;pointer-events:none;
-  border:2px solid var(--accent);border-radius:var(--radius-md);
-  box-shadow:0 0 0 9999px rgba(4,4,6,0.72),0 0 18px var(--accent-glow);
-  transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1),
-             width .28s cubic-bezier(.4,0,.2,1),height .28s cubic-bezier(.4,0,.2,1),
-             opacity .2s ease;
-  opacity:0;
-}
-#pb-tour-spot.show{opacity:1;}
-#pb-tour-spot.center-mode{
-  box-shadow:0 0 0 9999px rgba(4,4,6,0.72);border-color:transparent;
-}
-/* AIRY MODE — pasangan dari .pb-passive di atas: ganti box-shadow raksasa
-   yang menggelapkan seluruh layar dengan glow tipis di sekeliling border
-   saja, jadi bagian yang disorot benar-benar polos/full seperti biasa. */
-#pb-tour-spot.pb-airy{box-shadow:0 0 0 3px var(--accent-glow),0 0 16px var(--accent-glow);}
+#pb-tour-backdrop.show{opacity:1;pointer-events:auto;}
+#pb-tour-backdrop.show.pb-passive{opacity:0;pointer-events:none;}
+#pb-tour-spot{display:none!important;}
 #pb-tour-card{
-  position:fixed;z-index:10000;width:min(88vw,320px);
-  background:var(--surface);border:1px solid var(--border-hi);
-  border-radius:var(--radius);padding:16px 16px 14px;
-  box-shadow:var(--shadow-lg,0 16px 48px rgba(0,0,0,0.6));
-  opacity:0;transform:translateY(6px);
-  /* FIX (dilaporkan user): kartu ini sebelumnya cuma disembunyikan lewat
-     opacity:0, TANPA pointer-events:none. Akibatnya begitu tur selesai
-     (class 'show' dilepas), kartu jadi tak terlihat tapi elemennya tetap
-     "nempel" persis di posisi terakhir (tengah layar, dari step penutup
-     "Siap dipakai! 🎉") dan tetap menangkap klik — jadi kartu subjek foto
-     (Perempuan/Laki-laki) yang kebetulan ada di area itu tidak bisa diklik
-     sama sekali walau kartu tur sudah invisible. pointer-events:none di sini
-     + pointer-events:auto di .show memastikan kartu benar-benar tidak
-     menghalangi apa pun saat tidak sedang ditampilkan. */
-  pointer-events:none;
-  transition:opacity .22s ease,transform .22s ease,top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1);
-  /* Kartu langkah 9 (panduan Google Flow bergambar) jauh lebih tinggi
-     dari kartu step lain — dibatasi tinggi maksimum & discroll sendiri
-     supaya tidak keluar layar / ketutupan status bar-navbar HP. */
-  max-height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 24px);
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
+  position:fixed;inset:0;z-index:10000;
+  display:flex;flex-direction:column;align-items:center;
+  padding:var(--pb-tour-pad-top) 22px 0;
+  background:transparent;border:none;border-radius:0;box-shadow:none;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  /* Tidak tampil = benar-benar tidak menangkap sentuhan (lihat FIX lama:
+     kartu invisible sempat menghalangi klik kartu Subjek Foto). */
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .22s ease,visibility 0s linear .22s;
 }
-#pb-tour-card.show{opacity:1;transform:translateY(0);pointer-events:auto;}
-/* DOCKED MODE — dipakai khusus step INTERAKTIF (3, 4, 5-fase-B). Sebelumnya
-   kartu petunjuk dihitung posisinya "nempel" di atas/bawah elemen yang
-   disorot (lihat pbPositionSpot). Masalahnya: kalau elemen yang disorot
-   lebih tinggi dari layar (mis. #f1 di langkah 4 — isinya foto wajah, foto
-   produk, nama produk, outfit sekaligus), fallback-nya asal nempelin kartu
-   di bagian bawah layar, dan itu bisa pas menimpa field yang justru mau
-   diisi user (dilaporkan: field nama produk ketutupan, tidak bisa diisi).
-   DOCKED MODE membuat kartu selalu jadi banner tetap di ATAS layar — tidak
-   pernah lagi dihitung berdasarkan posisi elemen — jadi apa pun tinggi
-   elemen yang disorot, kartu ini TIDAK PERNAH menimpa field di dalamnya.
-   !important dipasang karena pbPositionSpot() lama masih set top/left/
-   transform lewat inline style untuk mode lain (step 7 dst) — di sini kita
-   mau selalu menang dari itu selama class ini terpasang. */
-#pb-tour-card.pb-docked{
-  top:calc(env(safe-area-inset-top,0px) + 10px) !important;
-  left:12px !important;
-  right:12px !important;
-  width:auto !important;
-  transform:none !important;
+#pb-tour-card.show{
+  opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .22s ease,visibility 0s;
 }
+/* Isi halaman: rata tengah vertikal kalau pendek, mulai dari atas &
+   bisa di-scroll kalau panjang (margin:auto 0 otomatis jadi 0 saat luber). */
+.pb-tour-body{width:100%;max-width:440px;margin:auto 0;padding:4px 0 28px;}
 .pb-tour-eyebrow{font-size:var(--fs-2xs);color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;}
 /* FITUR BARU (permintaan user): teks "Langkah n dari 10" dihapus total —
    diganti bar progres bintang (#pb-tour-progress) di bawah. pbSetLabel()
    sekarang mengosongkan elemen ini, dan :empty menyembunyikannya total
    supaya tidak nyisa jarak/margin kosong di kartu tur. */
 .pb-tour-eyebrow:empty{display:none;margin-bottom:0;}
-.pb-tour-title{font-size:var(--fs-md2);font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.3;}
+.pb-tour-title{font-size:22px;font-weight:700;color:var(--text);margin-bottom:14px;line-height:1.3;letter-spacing:-0.3px;}
 .pb-tour-title:empty{display:none;margin-bottom:0;}
 
 /* ── BAR PROGRES BINTANG (permintaan user, lihat foto coretan tangan) ──
@@ -2062,7 +2021,7 @@ body input, body textarea, body [contenteditable="true"]{
 #pb-tour-progress{
   position:fixed;top:0;left:0;right:0;z-index:10050;
   padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 12px;
-  background:linear-gradient(180deg,rgba(8,8,10,0.92),rgba(8,8,10,0.72) 70%,transparent);
+  background:var(--bg);border-bottom:1px solid var(--border);
   display:none;pointer-events:none;
 }
 #pb-tour-progress.show{display:block;}
@@ -2087,8 +2046,8 @@ body input, body textarea, body [contenteditable="true"]{
   transition:background .25s ease,border-color .25s ease,box-shadow .25s ease;
 }
 .pb-tour-progress-label{
-  font-size:var(--fs-3xs);color:var(--muted2);font-weight:600;text-align:center;
-  line-height:1.25;max-width:64px;opacity:0.55;
+  font-size:10px;color:var(--muted2);font-weight:600;text-align:center;
+  line-height:1.25;max-width:76px;opacity:0.7;
   transition:color .25s ease,opacity .25s ease;
 }
 .pb-tour-progress-node.pb-done .pb-tour-progress-diamond{
@@ -2097,7 +2056,7 @@ body input, body textarea, body [contenteditable="true"]{
 .pb-tour-progress-node.pb-done .pb-tour-progress-label{color:var(--muted);opacity:0.8;}
 .pb-tour-progress-node.active .pb-tour-progress-diamond{
   background:var(--accent);border-color:var(--accent);
-  box-shadow:0 0 0 4px var(--accent-glow),0 0 14px var(--accent-glow);
+  box-shadow:0 0 0 3px rgba(217,184,118,0.18);
 }
 .pb-tour-progress-node.active .pb-tour-progress-label{color:var(--text);opacity:1;}
 /* Nav bawah (Foto/Video/Riwayat/Panduan) disembunyikan selama tur
@@ -2117,10 +2076,18 @@ body.pb-tour-single-produk #vb-manual-count-wrap{display:none!important;}
    tur (pudar & tidak bisa ditekan, gaya sama seperti .chip.pb-locked) —
    pemula hanya boleh pakai "Kami Bantu Isi". Dilepas bareng class body ini. */
 body.pb-tour-single-produk #vb-mode-manual{opacity:0.35;pointer-events:none;filter:grayscale(0.6);}
-.pb-tour-desc{font-size:var(--fs-sm);color:var(--muted);line-height:1.55;margin-bottom:14px;}
-.pb-tour-desc:empty{display:none;margin-bottom:0;}
+.pb-tour-desc{font-size:15px;color:var(--pb-tour-text);line-height:1.75;margin-bottom:0;}
+.pb-tour-desc:empty{display:none;}
+.pb-tour-desc p{margin:0 0 14px;}
+.pb-tour-desc p:last-child{margin-bottom:0;}
+.pb-tour-desc strong{color:var(--text);font-weight:700;}
+.pb-tour-desc a{color:var(--accent-2);text-decoration:underline;text-underline-offset:3px;}
+/* Teks kecil yang di-inline-style di dalam isi tur (catatan, dsb) ikut dinaikkan
+   supaya tetap enak dibaca; tombol di dalam isi tur dibuat gampang ditekan. */
+.pb-tour-desc [style*="font-size"]{font-size:13px!important;}
+.pb-tour-desc button{min-height:46px;font-size:14px!important;}
 .pb-tour-desc img{width:88%;max-width:88%;border-radius:var(--radius-sm);border:1px solid var(--border-hi);display:block;margin:8px auto 14px;}
-.pb-tour-desc ol{margin:0;padding-left:20px;}
+.pb-tour-desc ol{margin:0;padding-left:22px;}
 /* ── FRAME SCREENSHOT PANDUAN (permintaan user: screenshot polos+panah
    coretan tangan kesannya "murahan"). Sekarang tiap screenshot dibungkus
    kartu mini bergaya browser-window (chrome bar 3 titik) + shadow +
@@ -2146,7 +2113,7 @@ body.pb-tour-single-produk #vb-mode-manual{opacity:0.35;pointer-events:none;filt
 .pb-shot-imgwrap img{width:100%;display:block;border-radius:0;border:none;margin:0;}
 .pb-shot-zoomhint{
   position:absolute;right:8px;bottom:8px;width:26px;height:26px;
-  border-radius:50%;background:rgba(0,0,0,0.55);backdrop-filter:blur(2px);
+  border-radius:50%;background:rgba(24,24,28,0.92);
   display:flex;align-items:center;justify-content:center;color:#fff;
   font-size:13px;pointer-events:none;
 }
@@ -2163,12 +2130,22 @@ body.pb-tour-single-produk #vb-mode-manual{opacity:0.35;pointer-events:none;filt
 }
 #pb-shot-lightbox.show{display:flex;}
 #pb-shot-lightbox img{max-width:100%;max-height:100%;border-radius:var(--radius-sm);box-shadow:0 20px 60px rgba(0,0,0,0.6);}
-.pb-tour-desc ol li{margin-bottom:4px;}
+.pb-tour-desc ol li{margin-bottom:8px;}
 .pb-tour-desc ol li:last-child{margin-bottom:0;}
-.pb-tour-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-.pb-tour-skip{font-size:var(--fs-xs2);color:var(--muted);background:none;border:none;cursor:pointer;padding:6px 2px;}
+.pb-tour-footer{
+  position:sticky;bottom:0;width:100%;max-width:440px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 0 calc(env(safe-area-inset-bottom,0px) + 18px);
+  background:var(--bg);
+}
+/* Pudar halus di atas footer supaya teks yang ter-scroll tidak "terpotong keras". */
+.pb-tour-footer::before{
+  content:'';position:absolute;left:0;right:0;top:-20px;height:20px;
+  background:linear-gradient(to top,var(--bg),rgba(8,8,10,0));pointer-events:none;
+}
+.pb-tour-skip{font-size:14px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0 14px;min-height:50px;}
 .pb-tour-skip:active{opacity:0.7;}
-.pb-tour-next{font-size:var(--fs-sm);font-weight:700;color:var(--bg);background:var(--accent);border:none;border-radius:var(--radius-pill);padding:8px 16px;cursor:pointer;}
+.pb-tour-next{flex:1;font-size:15px;font-weight:700;color:var(--bg);background:var(--accent);border:none;border-radius:var(--radius-pill);padding:0 24px;min-height:50px;cursor:pointer;}
 .pb-tour-next:active{opacity:0.85;}
 /* Badge "sedang membuat prompt" — lihat #f0-tour-process-badge (sekarang
    ditaruh di tab Foto, tepat di bawah garis progress "Step X dari Y"),
@@ -2203,7 +2180,10 @@ body.pb-tour-blur-context .sec-title,
 body.pb-tour-blur-context .sec-desc,
 body.pb-tour-blur-context #cs-entry-btn,
 body.pb-tour-blur-context #f-import-toggle-wrap{
-  filter:blur(5px);pointer-events:none;user-select:none;transition:filter .25s ease;
+  /* FIX (permintaan user): dulu diburamkan (filter:blur(5px)) — teks buram
+     bikin mata lelah. Sekarang disembunyikan total selama tur (sama seperti
+     yang sudah dilakukan pb-tour-result-simple di bawah). */
+  display:none!important;
 }
 /* ── TOUR — versi sederhana Langkah 6 (Foto Referensi): sembunyikan
    total banner "Cek HP dulu" & chip "Objek" (bukan cuma dikunci) biar
@@ -2339,9 +2319,6 @@ body.pb-tour-result-simple #f-output-wrap .reset-btn{
 body.pb-tour-result-simple #f-copy-btn{
   animation:csAttnPulse 1.6s ease-out infinite;
 }
-@media(min-width:769px){
-  #pb-tour-card{width:min(30vw,340px);}
-}
 
 /* ── NOTIFIKASI PREMIUM LANGKAH 4 ──────────────────────────────────
    Dipakai HANYA untuk pujian "foto berhasil diupload" di Langkah 4.
@@ -2395,6 +2372,104 @@ body.pb-tour-result-simple #f-copy-btn{
   box-shadow:0 4px 12px rgba(184,150,95,0.28);
 }
 .pb-pn-cta:active{opacity:0.88;filter:brightness(0.97);}
+
+/* ══ MODE TUR = HALAMAN (lanjutan) ═══════════════════════════════════════
+   Notifikasi pujian, notifikasi "Mengerti", kartu Prompt Video Siap &
+   panduan Video AI dulu melayang di atas layar yang digelapkan + diburamkan.
+   Sekarang semuanya tampil sebagai halaman penuh berlatar solid — gaya sama
+   seperti #pb-tour-card: isi di tengah, tombol besar di bawah. ─────────── */
+/* Notifikasi premium (pujian setelah upload foto) */
+#pb-premium-notif,#pb-premium-notif.show{
+  top:0;left:0;right:0;bottom:0;width:auto;transform:none;
+  border:none;border-radius:0;box-shadow:none;
+  background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;
+  align-items:center;gap:0;
+  padding:var(--pb-tour-pad-top) 22px calc(env(safe-area-inset-bottom,0px) + 18px);
+  transition:opacity .25s ease;
+}
+#pb-premium-notif .pb-pn-top{flex:1;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;width:100%;max-width:440px;}
+#pb-premium-notif .pb-pn-badge{width:64px;height:64px;border-radius:18px;}
+#pb-premium-notif .pb-pn-badge svg{width:34px;height:34px;}
+#pb-premium-notif .pb-pn-body{flex:none;}
+#pb-premium-notif .pb-pn-brand{justify-content:center;font-size:12px;margin-bottom:10px;}
+#pb-premium-notif .pb-pn-msg{font-size:18px;line-height:1.7;font-weight:500;color:var(--text);}
+#pb-premium-notif .pb-pn-cta{max-width:440px;min-height:50px;font-size:15px;box-shadow:none;background:var(--accent);}
+/* Dialog "Mengerti" milik tur (confirm-overlay + class pb-tour-notif) */
+.confirm-overlay.pb-tour-notif{
+  background:var(--bg);z-index:10003;flex-direction:column;align-items:center;justify-content:center;
+  padding:var(--pb-tour-pad-top) 22px calc(env(safe-area-inset-bottom,0px) + 18px);
+}
+.confirm-overlay.pb-tour-notif .confirm-box{
+  flex:1;display:flex;flex-direction:column;width:100%;max-width:440px;
+  background:transparent;border:none;border-radius:0;padding:0;text-align:left;
+}
+.confirm-overlay.pb-tour-notif .confirm-box p{
+  margin:auto 0!important;font-size:18px!important;line-height:1.7!important;
+  color:var(--text)!important;font-weight:500;
+}
+.confirm-overlay.pb-tour-notif .confirm-box button{
+  min-height:50px;padding:0 24px!important;font-size:15px!important;
+  border-radius:var(--radius-pill)!important;flex-shrink:0;
+}
+/* Kartu Prompt Video Siap / Hook disalin / Panduan Video AI */
+body.pb-tour-active .vb-scriptready-overlay{
+  background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;
+  flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  padding:var(--pb-tour-pad-top) 22px 0;
+}
+body.pb-tour-active .vb-scriptready-card{
+  flex:1 0 auto;display:flex;flex-direction:column;
+  width:100%;max-width:440px;
+  background:transparent;border:none;border-radius:0;box-shadow:none;
+  padding:0;transform:none;
+}
+body.pb-tour-active .vb-scriptready-card>:first-child{margin-top:auto;}
+body.pb-tour-active .vb-scriptready-msg{font-size:18px;line-height:1.6;font-weight:600;margin-bottom:12px;}
+body.pb-tour-active .vb-scriptready-explain{font-size:15px;line-height:1.75;color:var(--pb-tour-text);margin-bottom:18px;}
+body.pb-tour-active .vb-scriptready-hint{font-size:14px;margin-top:16px;}
+body.pb-tour-active .vb-fb{padding:10px 8px;}
+body.pb-tour-active .vb-fb .l{font-size:14px;}
+body.pb-tour-active .vb-fb .s{font-size:11px;margin-top:3px;}
+body.pb-tour-active .vb-fb-hero{width:170px;box-shadow:none;}
+body.pb-tour-active .vb-scriptready-card .pb-flow-arrow .tx{font-size:12px;}
+body.pb-tour-active .vb-scriptready-card .pb-flow-arrow .ic{font-size:16px;}
+body.pb-tour-active .vb-scriptready-actions{
+  position:sticky;bottom:0;margin-top:auto;justify-content:center;
+  padding:16px 0 calc(env(safe-area-inset-bottom,0px) + 18px);background:var(--bg);
+}
+body.pb-tour-active .vb-scriptready-btn,
+body.pb-tour-active .vb-scriptready-btn-sm{
+  width:100%;min-height:50px;font-size:15px;padding:0 24px;
+  background:var(--accent);
+}
+/* Preview zoom (tap gambar) — tetap gelap, tapi solid & tanpa blur */
+body.pb-tour-active #pb-flow-lightbox{background:rgba(8,8,10,0.97);backdrop-filter:none;-webkit-backdrop-filter:none;}
+body.pb-tour-active #pb-shot-lightbox{background:rgba(8,8,10,0.97);}
+body.pb-tour-active .pb-flow-lightbox-mute{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(24,24,28,0.95);}
+/* FIX (permintaan user, Sept 2026): teks skrip Video AI yang lagi diketik
+   otomatis (efek "masih proses" — lihat .vb-ta-wrap.vb-ta-loading di CSS
+   atas) sebelumnya tetap diburamkan (filter:blur(4px)) walau sesi tur aktif
+   (pbTourVideoScriptActive true) — bertentangan dengan prinsip "tanpa blur
+   di mana pun di mode tur". Sekarang blur-nya dimatikan khusus selama tur;
+   badge logo P kecil di pojok kartu (indikator "masih proses") tetap jalan
+   seperti biasa, cuma teksnya yang tidak lagi buram. */
+body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
+/* Screenshot panduan: penuh selebar kolom, datar (tanpa bayangan tebal) */
+.pb-shot{width:100%;box-shadow:none;}
+/* Diagram alur (Langkah 2): lebih besar & terbaca, hero tanpa glow */
+#pb-tour-card .pb-flow-row{gap:12px;margin:6px 0;}
+#pb-tour-card .pb-flow-box{width:124px;padding:9px;gap:6px;border-radius:12px;}
+#pb-tour-card .pb-flow-box.pb-flow-hero{width:140px;padding:9px;box-shadow:none;}
+#pb-tour-card .pb-flow-thumb{width:92px;height:92px;border-radius:8px;}
+#pb-tour-card .pb-flow-box.pb-flow-hero .pb-flow-thumb{width:108px;height:108px;}
+#pb-tour-card .pb-flow-label{font-size:13px;}
+#pb-tour-card .pb-flow-sub{font-size:11px;line-height:1.35;margin-top:-1px;}
+#pb-tour-card .pb-flow-arrow .ln{height:12px;}
+#pb-tour-card .pb-flow-arrow .ic{font-size:16px;}
+#pb-tour-card .pb-flow-arrow .tx{font-size:12px;margin-top:2px;}
+#pb-tour-card .pb-flow-divider{margin:18px 0;}
+#pb-tour-card .pb-flow-warn{font-size:13px;}
 
 /* ── DIAGRAM ALUR LANGKAH 2 ─────────────────────────────────────────
    Ringkasan visual "bahan → foto AI → video AI" pakai foto asli
@@ -9836,7 +9911,7 @@ function csShowResultNotif(text){
 // destruktif. ───────────────────────────────────────────────────────
 function csShowSavedNotif(onDone){
   let overlay=document.createElement('div');
-  overlay.className='confirm-overlay';
+  overlay.className='confirm-overlay pb-tour-notif';
   let box=document.createElement('div');box.className='confirm-box';
   let p=document.createElement('p');
   p.style.cssText='color:var(--text);font-size:var(--fs-sm);line-height:1.6;margin-bottom:16px;';
@@ -17727,6 +17802,7 @@ function vbVideoGuideFinish(){
   let navEl=document.querySelector('.nav');
   if(navEl) navEl.classList.remove('pb-tour-navhide');
   document.body.classList.remove('pb-tour-single-produk');
+  document.body.classList.remove('pb-tour-active');
 }
 // FITUR BARU (permintaan user): dipicu oleh entri {waitCopy:N} di
 // PB_STEPVIDEOAI_ITEMS — tutup overlay panduan Video AI, lalu beri
@@ -19811,9 +19887,11 @@ window.addEventListener('beforeunload', function(e){
 <div id="pb-tour-backdrop"></div>
 <div id="pb-tour-spot"></div>
 <div id="pb-tour-card">
-  <div class="pb-tour-eyebrow" id="pb-tour-step-label"></div>
-  <div class="pb-tour-title" id="pb-tour-title"></div>
-  <div class="pb-tour-desc" id="pb-tour-desc"></div>
+  <div class="pb-tour-body">
+    <div class="pb-tour-eyebrow" id="pb-tour-step-label"></div>
+    <div class="pb-tour-title" id="pb-tour-title"></div>
+    <div class="pb-tour-desc" id="pb-tour-desc"></div>
+  </div>
   <div class="pb-tour-footer">
     <button class="pb-tour-skip" onclick="pbTourProgressHide();pbEndTour()">Lewati</button>
     <button class="pb-tour-next" id="pb-tour-next-btn">Lanjut</button>
@@ -20249,6 +20327,13 @@ function pbTourProgressShow(activeIdx){
   let el=document.getElementById('pb-tour-progress');
   if(!el) return;
   el.classList.add('show');
+  // MODE HALAMAN: tandai tur aktif & ukur tinggi bar supaya isi halaman tur
+  // mulai persis di bawahnya (lihat --pb-tour-bar-h di CSS).
+  document.body.classList.add('pb-tour-active','pb-tour-bar-on');
+  document.documentElement.style.setProperty('--pb-tour-bar-h',el.offsetHeight+'px');
+  requestAnimationFrame(function(){
+    document.documentElement.style.setProperty('--pb-tour-bar-h',el.offsetHeight+'px');
+  });
   // FIX (permintaan user): selama tur masih jalan (bar bintang tampil),
   // nav bawah (Builder Prompt Foto/Video, Riwayat, Panduan) WAJIB tetap
   // tersembunyi — termasuk di rentang setelah pbEndTour() dipakai sebagai
@@ -20271,6 +20356,8 @@ function pbTourProgressHide(){
   PB_TOUR_STAR_STAGE=-1;
   let el=document.getElementById('pb-tour-progress');
   if(el) el.classList.remove('show');
+  document.body.classList.remove('pb-tour-bar-on');
+  document.documentElement.style.setProperty('--pb-tour-bar-h','0px');
 }
 function pbSetText(title,desc){
   document.getElementById('pb-tour-title').textContent=title;
@@ -20304,6 +20391,7 @@ function pbPrepTourUiShell(){
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
   clearInterval(pbCopyPollTimer);pbCopyPollTimer=null;
   document.getElementById('pb-tour-backdrop').classList.add('show');
+  document.body.classList.add('pb-tour-active');
   let navEl=document.querySelector('.nav');
   if(navEl) navEl.classList.add('pb-tour-navhide');
   return shell;
@@ -20447,6 +20535,7 @@ function pbEndTour(){
   let navEl=document.querySelector('.nav');
   if(navEl && PB_TOUR_STAR_STAGE<0) navEl.classList.remove('pb-tour-navhide');
   if(PB_TOUR_STAR_STAGE<0) document.body.classList.remove('pb-tour-single-produk');
+  if(PB_TOUR_STAR_STAGE<0) document.body.classList.remove('pb-tour-active');
   // FITUR BARU (permintaan user): kalau tur di-skip PERSIS saat masih
   // menunggu klik Salin di kartu Hook (vb-pulse-yellow/vb-box-pulse-gold
   // & kunci kartu lain masih aktif — lihat vbScriptReadyNext()), semua
@@ -21611,7 +21700,7 @@ function pbShowOutfitHintNotif(){
   if(pbTourOutfitHintShown)return;
   pbTourOutfitHintShown=true;
   let overlay=document.createElement('div');
-  overlay.className='confirm-overlay';
+  overlay.className='confirm-overlay pb-tour-notif';
   let box=document.createElement('div');box.className='confirm-box';
   let p=document.createElement('p');
   p.style.cssText='color:var(--text);font-size:var(--fs-sm);line-height:1.6;margin-bottom:16px;';
@@ -21640,7 +21729,7 @@ function pbShowOutfitHintNotif(){
 // sempat dibuat — sekarang urutannya dibetulkan supaya sesuai konteks.
 function pbShowSaveJsonNotif(){
   let overlay=document.createElement('div');
-  overlay.className='confirm-overlay';
+  overlay.className='confirm-overlay pb-tour-notif';
   let box=document.createElement('div');box.className='confirm-box';
   let p=document.createElement('p');
   p.style.cssText='color:var(--text);font-size:var(--fs-sm);line-height:1.6;margin-bottom:16px;';
@@ -21796,6 +21885,7 @@ function pbShowModal(n,title,desc,btnLabel,onNext){
   pbSetLabel(n);
   pbSetText(title,desc);
   document.getElementById('pb-tour-card').classList.remove('pb-docked');
+  document.getElementById('pb-tour-card').scrollTop=0; // halaman baru mulai dari atas
   let btn=document.getElementById('pb-tour-next-btn');
   btn.style.display='';
   btn.textContent=btnLabel||'Lanjut';
@@ -21903,13 +21993,11 @@ function pbPositionSpot(targetEl){
   let card=document.getElementById('pb-tour-card');
   let pad=6;
   if(!targetEl){
-    // Mode modal tengah (intro/penutup) — spotlight jadi backdrop polos.
-    spot.classList.add('center-mode');
-    spot.style.width='0px';spot.style.height='0px';
-    spot.style.top='50%';spot.style.left='50%';
-    card.style.top='50%';card.style.left='50%';
-    card.style.transform='translate(-50%,-50%)';
-    spot.classList.add('show');card.classList.add('show');
+    // MODE HALAMAN: posisi & ukuran kartu diatur penuh oleh CSS
+    // (#pb-tour-card = position:fixed;inset:0). Tidak ada lagi spotlight/dim,
+    // dan tidak ada lagi posisi inline yang menimpa CSS.
+    card.style.top='';card.style.left='';card.style.transform='';
+    card.classList.add('show');
     return;
   }
   spot.classList.remove('center-mode');
