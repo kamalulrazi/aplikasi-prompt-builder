@@ -854,6 +854,18 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
    .btn bawaan yang width:100%) supaya latar kuningnya tidak kelihatan jadi
    bar panjang — cukup sepanjang teksnya, ditengah. */
 .cs-btn-compact{width:auto!important;min-width:168px;max-width:100%;padding:11px 26px!important;margin:18px auto 0!important;display:flex;}
+/* PERMINTAAN USER: halaman "Hasil Prompt" (setelah klik Buat Prompt) juga
+   HALAMAN PENUH, bukan kartu kecil melayang di tengah layar yang gelap —
+   sama seperti wizard #cs-modal di belakangnya. Isi dirata-tengahkan
+   vertikal, gaya sama dengan halaman-halaman tur. */
+.confirm-overlay.cs-result-page{
+  background:var(--bg);align-items:stretch;justify-content:center;
+  padding:var(--pb-tour-pad-top) 22px calc(env(safe-area-inset-bottom,0px) + 18px);
+}
+.confirm-overlay.cs-result-page .confirm-box{
+  flex:1;display:flex;flex-direction:column;justify-content:center;
+  width:100%;background:transparent;border:none;border-radius:0;padding:0;
+}
 /* ICON — ukuran ikon SVG selalu ikut ukuran font teks di sebelahnya (1em),
    supaya proporsinya otomatis pas di badge kecil maupun tombol besar. */
 .icon{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;flex-shrink:0;}
@@ -2287,8 +2299,23 @@ body.pb-tour-single-produk #vb-mode-manual{opacity:0.35;pointer-events:none;filt
 }
 .pb-tour-skip{font-size:14px;color:var(--muted);background:none;border:none;cursor:pointer;padding:0 14px;min-height:50px;}
 .pb-tour-skip:active{opacity:0.7;}
-.pb-tour-next{flex:1;font-size:15px;font-weight:700;color:var(--bg);background:var(--accent);border:none;border-radius:var(--radius-pill);padding:0 24px;min-height:50px;cursor:pointer;}
-.pb-tour-next:active{opacity:0.85;}
+/* PERMINTAAN USER: tombol "Lanjut" di tur disamakan dengan tombol mode normal
+   (.btn) — isi gelap datar + garis emas tipis + teks champagne — BUKAN lagi
+   kuning terang penuh. Pakai token yang sama dengan .btn (--gloss-gradient,
+   --gloss-border, --accent-text-on-dark, --radius). Tanpa glow/bayangan
+   karena mode tur memang dibuat datar. */
+.pb-tour-next{flex:1;font-family:'Geist',sans-serif;font-size:15px;font-weight:700;letter-spacing:-0.2px;color:var(--accent-text-on-dark);background:var(--gloss-gradient);border:1px solid var(--gloss-border);border-radius:var(--radius);text-shadow:0 1px 2px rgba(0,0,0,0.5);padding:0 24px;min-height:50px;cursor:pointer;transition:all 0.15s;}
+.pb-tour-next:hover{filter:brightness(1.15);border-color:rgba(217,184,118,0.7);}
+.pb-tour-next:active{transform:scale(0.97);filter:brightness(0.92);}
+/* PERMINTAAN USER: tombol "Kembali" (mundur ke butir sebelumnya, dipakai di
+   proses install Google Flow / Langkah 3) diletakkan DI SAMPING "Lanjut"
+   di footer tur — bukan lagi tombol lebar penuh di dalam isi kartu.
+   Gayanya sama dengan tombol sekunder mode normal (.btn.ghost): latar
+   transparan + garis tipis + teks biasa. Default tersembunyi; dinyalakan
+   lewat pbTourShowBack() dan dimatikan lewat pbTourHideBack(). */
+.pb-tour-back{flex-shrink:0;font-family:'Geist',sans-serif;font-size:15px;font-weight:700;letter-spacing:-0.2px;color:var(--text);background:transparent;border:1px solid var(--border-hi);border-radius:var(--radius);padding:0 18px;min-height:50px;cursor:pointer;transition:all 0.15s;}
+.pb-tour-back:hover{background:var(--surface2);}
+.pb-tour-back:active{transform:scale(0.97);background:var(--surface2);}
 /* Badge "sedang membuat prompt" — lihat #f0-tour-process-badge (sekarang
    ditaruh di tab Foto, tepat di bawah garis progress "Step X dari Y"),
    dipasang di pbGoStep5(), dilepas lagi di pbTourResetF1Ui() begitu
@@ -2535,7 +2562,105 @@ body.pb-tour-result-simple #f-copy-btn{
 #pb-premium-notif .pb-pn-body{flex:none;}
 #pb-premium-notif .pb-pn-brand{justify-content:center;font-size:12px;margin-bottom:10px;}
 #pb-premium-notif .pb-pn-msg{font-size:18px;line-height:1.7;font-weight:500;color:var(--text);}
-#pb-premium-notif .pb-pn-cta{max-width:440px;min-height:50px;font-size:15px;box-shadow:none;background:var(--accent);}
+#pb-premium-notif .pb-pn-cta{max-width:440px;min-height:50px;font-size:15px;box-shadow:none;
+  font-family:'Geist',sans-serif;letter-spacing:-0.2px;color:var(--accent-text-on-dark);
+  background:var(--gloss-gradient);border:1px solid var(--gloss-border);border-radius:var(--radius);
+  text-shadow:0 1px 2px rgba(0,0,0,0.5);}
+#pb-premium-notif .pb-pn-cta:active{transform:scale(0.97);filter:brightness(0.92);opacity:1;}
+
+/* ══ TAMPILAN PERAYAAN NOTIFIKASI PUJIAN (permintaan user) ═══════════════
+   Logo "P" + tulisan "Prompt Builder" + jam "sekarang" sudah dihapus dari
+   HTML-nya. Sebagai gantinya notifikasi ini tampil MERIAH: hujan confetti
+   di belakang (elemen <i> dibuat lewat pbPnSpawnConfetti()), medali gold
+   dengan centang yang "meletus" masuk, gelombang cincin, kilau bintang,
+   dan judul pujian besar bergradasi emas. Semua animasi cuma jalan kalau
+   #pb-premium-notif punya class .show, jadi ikut ke-reset tiap kali
+   notifikasi dibuka ulang. Dipakai di DUA tempat yang sama polanya:
+   upload Karakter Sheet (Langkah 4) & upload Foto AI (Langkah 6). ─────── */
+.pb-pn-confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
+.pb-pn-confetti i{
+  position:absolute;top:-14%;width:9px;height:15px;border-radius:2px;opacity:0;
+  animation-name:pbPnFall;animation-timing-function:linear;animation-fill-mode:forwards;
+}
+@keyframes pbPnFall{
+  0%{opacity:0;transform:translate3d(0,-12vh,0) rotate(0deg);}
+  8%{opacity:1;}
+  85%{opacity:1;}
+  100%{opacity:0;transform:translate3d(var(--dx,0px),110vh,0) rotate(var(--rot,720deg));}
+}
+/* Isi notifikasi wajib di ATAS lapisan confetti */
+#pb-premium-notif .pb-pn-top,#pb-premium-notif .pb-pn-cta{position:relative;z-index:1;}
+
+/* Medali centang yang meletus — pengganti badge logo P */
+#pb-premium-notif .pb-pn-burst{
+  position:relative;width:110px;height:110px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.pb-pn-ring{
+  position:absolute;width:84px;height:84px;border-radius:50%;
+  border:2px solid var(--accent);opacity:0;pointer-events:none;
+}
+#pb-premium-notif.show .pb-pn-ring{animation:pbPnRing 1.7s cubic-bezier(.16,1,.3,1) .28s 2;}
+#pb-premium-notif.show .pb-pn-ring2{animation-delay:.72s;}
+@keyframes pbPnRing{
+  0%{transform:scale(.6);opacity:.8;}
+  70%{opacity:0;}
+  100%{transform:scale(1.65);opacity:0;}
+}
+.pb-pn-spark{
+  position:absolute;font-size:15px;color:var(--accent);opacity:0;pointer-events:none;
+  text-shadow:0 0 10px rgba(240,217,160,0.55);
+}
+.pb-pn-spark1{top:2px;right:12px;}
+.pb-pn-spark2{bottom:8px;left:6px;font-size:12px;}
+.pb-pn-spark3{top:22px;left:0;font-size:10px;}
+#pb-premium-notif.show .pb-pn-spark{animation:pbPnSpark 1.5s ease-out .5s infinite;}
+#pb-premium-notif.show .pb-pn-spark2{animation-delay:.9s;}
+#pb-premium-notif.show .pb-pn-spark3{animation-delay:1.3s;}
+@keyframes pbPnSpark{
+  0%{opacity:0;transform:scale(.4) rotate(0deg);}
+  35%{opacity:1;transform:scale(1.15) rotate(35deg);}
+  100%{opacity:0;transform:scale(.5) rotate(90deg);}
+}
+.pb-pn-core{
+  position:relative;width:82px;height:82px;border-radius:50%;
+  background:linear-gradient(145deg,#F6E4B4 0%,#E2C583 45%,#B8965F 100%);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 14px 34px rgba(184,150,95,0.42),0 0 0 9px rgba(184,150,95,0.12);
+  transform:scale(0);
+}
+#pb-premium-notif.show .pb-pn-core{animation:pbPnPop .75s cubic-bezier(.2,1.5,.35,1) .1s forwards;}
+@keyframes pbPnPop{
+  0%{transform:scale(0) rotate(-28deg);}
+  60%{transform:scale(1.14) rotate(5deg);}
+  100%{transform:scale(1) rotate(0deg);}
+}
+.pb-pn-core svg{width:44px;height:44px;color:#241d10;}
+.pb-pn-core svg path{stroke-dasharray:46;stroke-dashoffset:46;}
+#pb-premium-notif.show .pb-pn-core svg path{animation:pbPnCheck .5s ease .58s forwards;}
+@keyframes pbPnCheck{to{stroke-dashoffset:0;}}
+
+/* Judul pujian besar bergradasi emas + isi pesan, naik pelan bergantian */
+.pb-pn-title{
+  font-size:clamp(22px,6.4vw,28px);font-weight:800;letter-spacing:-0.5px;line-height:1.25;
+  margin:0 0 10px;color:#F0D9A0;
+  background:linear-gradient(95deg,#F0D9A0 0%,#FFF6DF 45%,#B8965F 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.pb-pn-title:empty{display:none;}
+#pb-premium-notif.show .pb-pn-title{animation:pbPnRise .6s cubic-bezier(.16,1,.3,1) .38s both;}
+#pb-premium-notif.show .pb-pn-msg{animation:pbPnRise .6s cubic-bezier(.16,1,.3,1) .52s both;}
+#pb-premium-notif.show .pb-pn-cta{animation:pbPnRise .6s cubic-bezier(.16,1,.3,1) .68s both;}
+@keyframes pbPnRise{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+@media (prefers-reduced-motion:reduce){
+  .pb-pn-confetti{display:none;}
+  #pb-premium-notif.show .pb-pn-core,#pb-premium-notif.show .pb-pn-ring,
+  #pb-premium-notif.show .pb-pn-spark,#pb-premium-notif.show .pb-pn-title,
+  #pb-premium-notif.show .pb-pn-msg,#pb-premium-notif.show .pb-pn-cta,
+  #pb-premium-notif.show .pb-pn-core svg path{animation:none;}
+  .pb-pn-core{transform:none;}
+  .pb-pn-core svg path{stroke-dashoffset:0;}
+}
 /* Dialog "Mengerti" milik tur (confirm-overlay + class pb-tour-notif) */
 .confirm-overlay.pb-tour-notif{
   background:var(--bg);z-index:10003;flex-direction:column;align-items:center;justify-content:center;
@@ -2551,8 +2676,12 @@ body.pb-tour-result-simple #f-copy-btn{
 }
 .confirm-overlay.pb-tour-notif .confirm-box button{
   min-height:50px;padding:0 24px!important;font-size:15px!important;
-  border-radius:var(--radius-pill)!important;flex-shrink:0;
+  border-radius:var(--radius)!important;flex-shrink:0;
+  background:var(--gloss-gradient)!important;color:var(--accent-text-on-dark)!important;
+  border:1px solid var(--gloss-border)!important;letter-spacing:-0.2px;
+  text-shadow:0 1px 2px rgba(0,0,0,0.5);
 }
+.confirm-overlay.pb-tour-notif .confirm-box button:active{transform:scale(0.97);filter:brightness(0.92);}
 /* Kartu Prompt Video Siap / Hook disalin / Panduan Video AI */
 body.pb-tour-active .vb-scriptready-overlay{
   background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;
@@ -2583,8 +2712,12 @@ body.pb-tour-active .vb-scriptready-actions{
 body.pb-tour-active .vb-scriptready-btn,
 body.pb-tour-active .vb-scriptready-btn-sm{
   width:100%;min-height:50px;font-size:15px;padding:0 24px;
-  background:var(--accent);
+  font-family:'Geist',sans-serif;letter-spacing:-0.2px;color:var(--accent-text-on-dark);
+  background:var(--gloss-gradient);border:1px solid var(--gloss-border);border-radius:var(--radius);
+  text-shadow:0 1px 2px rgba(0,0,0,0.5);
 }
+body.pb-tour-active .vb-scriptready-btn:active,
+body.pb-tour-active .vb-scriptready-btn-sm:active{transform:scale(0.97);filter:brightness(0.92);opacity:1;}
 /* Preview zoom (tap gambar) — tetap gelap, tapi solid & tanpa blur */
 body.pb-tour-active #pb-flow-lightbox{background:rgba(8,8,10,0.97);backdrop-filter:none;-webkit-backdrop-filter:none;}
 body.pb-tour-active #pb-shot-lightbox{background:rgba(8,8,10,0.97);}
@@ -2828,6 +2961,14 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
 .vb-copy-locked{
   opacity:0.4!important;pointer-events:none!important;cursor:not-allowed!important;
 }
+/* FITUR BARU (permintaan user): begitu skrip Hook/Story/CTA sudah selesai
+   ditampilkan dan tur menunggu user klik "Salin" di kartu Hook, tombol
+   "Revisi Script dengan AI" (single & per-produk Bulk) dan "Ubah Suara
+   Karakter/Target Audience" (Bulk) disembunyikan TOTAL — bukan cuma
+   dikunci seperti .vb-copy-locked di atas — supaya user fokus salin Hook
+   dulu. Dipasang pbLockScriptAreaExtras(), dilepas pbUnlockScriptAreaExtras()
+   (lihat copyBtn.onclick di _vbBuildEditableCard & pbHideOverlay()). */
+.pb-tour-hidden-extra{display:none!important;}
 /* FITUR BARU (permintaan user): tanda kalau foto produk yang sudah diupload
    bisa di-tap buat diperbesar — lihat vbShowFotoZoom() & class "vbfoto-img". */
 .vbfoto-img{cursor:zoom-in;}
@@ -4837,8 +4978,14 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
        Begitu halaman Outfit ini yang aktif, tombol "Buat Prompt" di
        bawahnya otomatis denyut (.cs-pulse-btn, ditambahkan oleh csGoPage())
        supaya user tahu itu yang harus ditekan berikutnya. -->
-  <div id="cs-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9996;display:none;align-items:center;justify-content:center;padding:20px;">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:420px;max-height:calc(100vh - 40px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 16px 48px rgba(0,0,0,0.6);">
+  <!-- PERMINTAAN USER: proses pembuatan Karakter Sheet = HALAMAN PENUH, bukan
+       overlay/kartu melayang di atas layar yang digelapkan. Latar solid
+       var(--bg) menutup seluruh layar, tanpa kartu/border/bayangan; isi
+       mulai di bawah bar progres tur (--pb-tour-pad-top) dan bisa di-scroll.
+       Div dalam SENGAJA tetap punya overflow-y inline: csGoPage() &
+       pull-to-refresh mencarinya lewat selector div[style*="overflow-y"]. -->
+  <div id="cs-modal" style="position:fixed;inset:0;background:var(--bg);z-index:9996;display:none;align-items:stretch;justify-content:center;padding:var(--pb-tour-pad-top) 22px calc(env(safe-area-inset-bottom,0px) + 18px);">
+    <div style="width:100%;max-width:440px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 0 8px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px;">
         <div style="display:flex;align-items:center;gap:6px;min-width:0;">
           <button type="button" id="cs-back-btn" onclick="csGoBack()" style="display:none;flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;padding:2px;line-height:1;margin-left:-4px;" aria-label="Kembali"><svg class="icon" style="width:20px;height:20px;transform:rotate(90deg);"><use href="#ic-chevron-down"></use></svg></button>
@@ -5512,6 +5659,14 @@ function doneCard(id,ansId,text){
   if(_sedbAny) _sedbAny.remove();
 
   let c=document.getElementById(id);
+  // FIX BUG "STEP TERTUMPUK" (Video): catat apakah step ini barusan dibuka
+  // ulang untuk DIEDIT (ditandai _doOpenEdit lewat data-reopened) — bukan
+  // step yang diselesaikan dalam alur maju biasa. Dikembalikan sebagai return
+  // value supaya pemanggil (vbConfirmRef, vbCheckV2Done, vbPick*Confirmed)
+  // tahu kapan TIDAK boleh membuka step berikutnya lagi — lihat
+  // vbAdvanceStep(). Flag langsung dibersihkan supaya tidak nyangkut.
+  let _wasReopened=!!(c&&c.dataset&&c.dataset.reopened==='1');
+  if(c&&c.dataset)delete c.dataset.reopened;
   if(c){
     c.classList.add('done');
     c.classList.remove('pending','hidden');
@@ -5528,6 +5683,14 @@ function doneCard(id,ansId,text){
         fPauseActiveStepForEdit(id);
         c.classList.remove('done');
         c.classList.remove('hidden','pending');
+        // Tandai: card ini dibuka ulang untuk diedit (dibaca doneCard()).
+        c.dataset.reopened='1';
+        // Video: samakan header progress ("Step X dari 6" + nama step)
+        // dengan step yang sedang diedit, bukan step terdepan yang tadi
+        // ditinggalkan.
+        if(typeof VB_STEP_META!=='undefined'&&VB_STEP_META[id]&&typeof vbUpdateProgress==='function'){
+          vbUpdateProgress(VB_STEP_META[id][0],VB_STEP_META[id][1]);
+        }
         // Buang sisa tombol konfirmasi kalau ada dari sesi sebelumnya
         let _oldCb=document.getElementById(id+'-confirmbar');
         if(_oldCb)_oldCb.remove();
@@ -5605,6 +5768,7 @@ function doneCard(id,ansId,text){
   // Step yang tadi ketutup sementara (karena user lagi edit step ini)
   // dimunculkan lagi sekarang, karena step ini sudah beres diedit.
   fResumePausedStep(fPageIdForStepId(id));
+  return _wasReopened;
 }
 
 // ── KONFIRMASI SEBELUM LANJUT ────────────────────────────────────────
@@ -8167,7 +8331,12 @@ function fOpenStepJump(pageId){
       let val=ansEl?ansEl.textContent.trim():'';
       let item=document.createElement('div');
       item.className='step-jump-item';
-      item.innerHTML='<div class="step-jump-num">'+(idx+1)+'</div>'+
+      // Video: pakai nomor step ASLI (VB_STEP_META), bukan urutan di daftar —
+      // kalau ada step di tengah yang lagi dibuka untuk diedit, dia tidak
+      // ikut terdaftar (bukan .done) dan nomor step sesudahnya jadi geser
+      // (mis. "Nada Bicara" tampil 2 padahal step 3).
+      let _num=(pageId==='video'&&typeof VB_STEP_META!=='undefined'&&VB_STEP_META[c.id])?VB_STEP_META[c.id][0]:(idx+1);
+      item.innerHTML='<div class="step-jump-num">'+_num+'</div>'+
         '<div class="step-jump-info"><div class="sjtitle"></div><div class="sjval"></div></div>';
       item.querySelector('.sjtitle').textContent=title;
       item.querySelector('.sjval').textContent=val;
@@ -9749,7 +9918,14 @@ function _copyTextRobust(text,onOk,onFail){
     }
   }
   if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(function(){if(onOk)onOk();}).catch(viaExec);
+    // FIX (bug kecil di _copyTextRobust): sebelumnya pakai
+    // .then(onOk).catch(viaExec) — kalau ada exception DI DALAM onOk
+    // sendiri, .catch itu ikut menangkapnya juga, jadi viaExec ikut jalan
+    // (menyalin kedua kali) dan onOk bisa terpanggil dua kali tanpa ada
+    // pesan error yang jelas. .then(onOk, viaExec) memastikan viaExec
+    // cuma jadi fallback untuk writeText() yang gagal, bukan untuk error
+    // di dalam onOk.
+    navigator.clipboard.writeText(text).then(function(){if(onOk)onOk();},viaExec);
   }else{
     viaExec();
   }
@@ -10019,19 +10195,19 @@ function csShowResultNotif(text){
   let old=document.getElementById('cs-result-notif');
   if(old)old.remove();
   let overlay=document.createElement('div');
-  overlay.className='confirm-overlay';
+  overlay.className='confirm-overlay cs-result-page';
   overlay.id='cs-result-notif';
   overlay.style.zIndex='9999';
   let box=document.createElement('div');
   box.className='confirm-box';
-  box.style.cssText='max-width:340px;text-align:left;';
+  box.style.cssText='max-width:440px;text-align:left;';
   let label=document.createElement('label');
   label.className='inplabel';
   label.style.cssText='margin-top:0;';
   label.textContent='Hasil Prompt';
   let textBox=document.createElement('div');
   textBox.id='cs-result-text';
-  textBox.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:var(--fs-xs);color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:12px;max-height:38vh;overflow-y:auto;';
+  textBox.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:var(--fs-xs);color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:12px;max-height:55vh;overflow-y:auto;';
   textBox.textContent=text;
   let copyBtn=document.createElement('button');
   copyBtn.id='cs-copy-btn';
@@ -13257,6 +13433,51 @@ function vbMode3LightingAdvance(){
   if(c){fFitWbody(c);setTimeout(()=>c.scrollIntoView({behavior:'smooth',block:'nearest'}),100);}
 }
 
+// Nomor & nama tiap step wizard Video (dipakai header progress).
+var VB_STEP_META={
+  v1:[1,'Mode Referensi Foto'],
+  v2:[2,'Jenis Kelamin & Usia'],
+  v3:[3,'Nada Bicara'],
+  vmotion:[4,'Motion Karakter'],
+  v4:[5,'Aksen'],
+  v5:[6,'Script / Dialog']
+};
+// FIX BUG "STEP JADI TERTUMPUK / KAYAK DIFOTO" (Video): user lagi di step N,
+// lalu lewat "Lompat ke step" balik edit step M (M < N-1). doneCard() akan
+// memunculkan lagi step N (yang tadi ditutup sementara), TAPI dulu pemanggil
+// masih menjalankan showCard(step M+1) seperti alur maju biasa — padahal
+// step M+1 itu sudah pernah selesai. Hasilnya 2 card kebuka sekaligus (step
+// M+1 lengkap dengan jawaban lama + step N), persis seperti di screenshot.
+// Sekarang: kalau step yang baru selesai itu hasil EDIT dan ada step aktif
+// yang dikembalikan, JANGAN buka step berikutnya — cukup kembali ke step
+// tadi & sinkronkan header progress. Kalau tidak ada step aktif yang
+// tertunda (mis. semua step sudah selesai), pakai alur lama: buka step
+// berikutnya.
+// Panggil SETELAH doneCard(); wasEdit = return value doneCard().
+function vbAdvanceStep(wasEdit,nextId,stepNum,stepName){
+  if(wasEdit){
+    let resumed=fFindActiveOpenCard('video','');
+    if(resumed){
+      let meta=VB_STEP_META[resumed.id];
+      if(meta)vbUpdateProgress(meta[0],meta[1]);
+      if(resumed.id==='v5'&&typeof vbSyncStep6Mode3==='function')vbSyncStep6Mode3();
+      if(typeof fScrollToCard==='function')setTimeout(function(){fScrollToCard(resumed);},80);
+      return;
+    }
+  }
+  let nextEl=document.getElementById(nextId);
+  // Alur lama (tidak ada step tertunda): step berikutnya mungkin sudah
+  // pernah selesai — bersihkan jawaban lama di header supaya tidak
+  // terlihat "nyangkut" saat card dibuka lagi.
+  if(nextEl&&nextEl.classList.contains('done')){
+    let ans=document.getElementById('va'+String(nextId).replace(/^v/,''));
+    if(ans)ans.textContent='';
+  }
+  showCard(nextId);
+  if(nextEl)nextEl.classList.remove('pending');
+  vbUpdateProgress(stepNum,stepName);
+}
+
 function vbUpdateProgress(stepNum,stepName){
   let total=6;
   let pct=Math.round((stepNum/total)*100);
@@ -13280,10 +13501,8 @@ function vbUpdateProgress(stepNum,stepName){
 
 function vbConfirmRef(){
   let modeLabel=VB.refMode==='kp'?'Raw Asset':(VB.refMode==='aset'?'Frame Asset':'Start Frame');
-  doneCard('v1','va1',modeLabel);
-  showCard('v2');
-  document.getElementById('v2').classList.remove('pending');
-  vbUpdateProgress(2,'Jenis Kelamin & Usia');
+  let _wasEdit=doneCard('v1','va1',modeLabel);
+  vbAdvanceStep(_wasEdit,'v2',2,'Jenis Kelamin & Usia');
   // Notifikasi "Urutan Foto Tidak Boleh Terbalik" DIHAPUS (permintaan user).
 }
 
@@ -13380,10 +13599,8 @@ function vbCheckV2Done(){
   if(!VB.gender||!VB.age)return;
   let anchorEl=document.getElementById('vb-age-chips')||document.getElementById('vb-gender-chips');
   fShowConfirm('v2', anchorEl, function(){
-    doneCard('v2','va2',VB.genderLabel+' · '+VB.ageLabel);
-    showCard('v3');
-    document.getElementById('v3').classList.remove('pending');
-    vbUpdateProgress(3,'Nada Bicara');
+    let _wasEdit=doneCard('v2','va2',VB.genderLabel+' · '+VB.ageLabel);
+    vbAdvanceStep(_wasEdit,'v3',3,'Nada Bicara');
   });
 }
 // PERMINTAAN USER (Sept 2026): kolom "Atau isi sendiri" untuk Jenis Kelamin
@@ -13422,10 +13639,8 @@ function vbPickPitch(val,el,label){
 }
 function vbPickPitchConfirmed(val,label){
   VB.pitch=val;VB.pitchLabel=label;
-  doneCard('v3','va3',label);
-  showCard('vmotion');
-  document.getElementById('vmotion').classList.remove('pending');
-  vbUpdateProgress(4,'Motion Karakter');
+  let _wasEdit=doneCard('v3','va3',label);
+  vbAdvanceStep(_wasEdit,'vmotion',4,'Motion Karakter');
 }
 function vbPickPitchCustom(){
   let val=document.getElementById('v3-custom').value.trim();
@@ -13442,10 +13657,8 @@ function vbPickMotion(val,el,label){
 }
 function vbPickMotionConfirmed(val,label){
   VB.motion=val;
-  doneCard('vmotion','vamotion',label);
-  showCard('v4');
-  document.getElementById('v4').classList.remove('pending');
-  vbUpdateProgress(5,'Aksen');
+  let _wasEdit=doneCard('vmotion','vamotion',label);
+  vbAdvanceStep(_wasEdit,'v4',5,'Aksen');
 }
 function vbPickMotionCustom(){
   let val=document.getElementById('vmotion-custom').value.trim();
@@ -13468,10 +13681,8 @@ function vbPickAccent(val,el,label){
 }
 function vbPickAccentConfirmed(val,label){
   VB.accent=val;VB.accentLabel=label;
-  doneCard('v4','va4',label);
-  showCard('v5');
-  document.getElementById('v5').classList.remove('pending');
-  vbUpdateProgress(6,'Script / Dialog');
+  let _wasEdit=doneCard('v4','va4',label);
+  vbAdvanceStep(_wasEdit,'v5',6,'Script / Dialog');
   vbSyncStep6Mode3();
 }
 function vbPickAccentCustom(){
@@ -17727,6 +17938,52 @@ function vbScriptReadyNext(){
   document.querySelectorAll('[id^="vb-bulk-copy-"]').forEach(function(btn){
     if(btn.id!=='vb-bulk-copy-0') btn.classList.add('vb-copy-locked');
   });
+  // FITUR BARU (permintaan user): begitu skrip sudah selesai ditampilkan
+  // di kolom skrip, kunci juga SEMUA tombol lain di kolom itu (Tampilan,
+  // Lokasi, "Buat Prompt Video Baru", dst) — satu-satunya yang tetap aktif
+  // cuma tombol Salin di kartu Hook. Dan KHUSUS 2 tombol ini, bukan cuma
+  // dikunci tapi disembunyikan total sampai Hook disalin: "Revisi Script
+  // dengan AI" (single & per-produk Bulk) dan "Ubah Suara Karakter/Target
+  // Audience" (Bulk) — supaya user difokuskan salin Hook dulu, tidak
+  // kegoda mengubah-ubah skrip duluan.
+  pbLockScriptAreaExtras();
+}
+// Kunci semua tombol di kolom skrip (selain Salin kartu Hook), dan
+// sembunyikan total tombol Revisi + Ubah Suara Karakter/Target Audience.
+// Dipanggil dari vbScriptReadyNext() di atas. Pasangan pembukanya:
+// pbUnlockScriptAreaExtras() (dipanggil begitu Hook benar-benar disalin,
+// lihat copyBtn.onclick di _vbBuildEditableCard, dan juga dari
+// pbHideOverlay() sebagai jaga-jaga kalau tur di-skip di tengah jalan).
+function pbLockScriptAreaExtras(exceptBtnId){
+  // FIX (bug "saat menunggu Salin kartu 1/2, tombol lain tidak dikunci"):
+  // dulu id tombol yang dikecualikan ('vb-bulk-copy-0') ditulis mati di
+  // sini, jadi fungsi ini cuma pernah dipakai buat tahap tunggu-Hook.
+  // Sekarang bisa dipanggil dengan tombol lain yang mau dikecualikan
+  // (mis. 'vb-bulk-copy-1' saat menunggu Salin kartu Cerita Produk) —
+  // default tetap 'vb-bulk-copy-0' kalau parameter tidak diisi, supaya
+  // semua pemanggil lama tidak perlu diubah.
+  if(!exceptBtnId) exceptBtnId='vb-bulk-copy-0';
+  let wrap=document.getElementById('vb-multi-output');
+  if(!wrap) return;
+  wrap.querySelectorAll('button').forEach(function(btn){
+    if(btn.id===exceptBtnId) return; // satu-satunya yang tetap aktif
+    btn.classList.add('vb-copy-locked');
+  });
+  // Sembunyikan total (bukan cuma dikunci) — mode single & Bulk sekaligus,
+  // supaya tetap aman kalau suatu saat mode Bulk ikut dipakai di tengah tur.
+  ['vb-single-revisi-btn','vb-single-revisi-undo-btn','vb-settings-btn'].forEach(function(id){
+    let el=document.getElementById(id);
+    if(el) el.classList.add('pb-tour-hidden-extra');
+  });
+  wrap.querySelectorAll('[id^="vb-revisi-btn-"]').forEach(function(el){
+    el.classList.add('pb-tour-hidden-extra');
+  });
+}
+// Buka kembali semua yang dikunci/disembunyikan pbLockScriptAreaExtras().
+function pbUnlockScriptAreaExtras(){
+  let wrap=document.getElementById('vb-multi-output');
+  if(wrap) wrap.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
+  document.querySelectorAll('.pb-tour-hidden-extra').forEach(function(el){el.classList.remove('pb-tour-hidden-extra');});
 }
 // FITUR BARU (permintaan user, direvisi): notifikasi begitu user benar-benar
 // klik "Salin" di kartu Hook. SEBELUMNYA dipakai toast hijau otomatis-hilang
@@ -17864,7 +18121,7 @@ var PB_STEPVIDEOAI_ITEMS=[
   },
   {
     title:'Prompt sudah tersalin',
-    body:'<p style="margin-top:0;">Kakak udah salin prompt-nya, tinggal salin aja di sana (tanda panah itu).</p>',
+    body:'<p style="margin-top:0;">Kakak udah salin prompt-nya, tinggal tempel aja di sana (tanda panah itu).</p>',
     img:PB_IMG_V10,
     alt:'Tempel prompt Hook di kolom Apa yang ingin Anda buat'
   },
@@ -17993,9 +18250,22 @@ function vbVideoGuideWaitCardCopy(cardIdx){
   if(copyBtn) copyBtn.classList.add('vb-pulse-yellow');
   let card=document.getElementById('vb-card-'+cardIdx);
   if(card) card.classList.add('vb-box-pulse-gold');
-  document.querySelectorAll('[id^="vb-bulk-copy-"]').forEach(function(btn){
-    if(btn.id!=='vb-bulk-copy-'+cardIdx) btn.classList.add('vb-copy-locked');
-  });
+  // FIX (bug "setelah waitCopy, kartu tidak di-scroll ke layar"): overlay
+  // ditutup dan tombol Salin mulai berdenyut, tapi halaman tidak dipindah
+  // ke kartu itu — di HP, kartu Cerita Produk/CTA bisa ada di bawah layar
+  // jadi user tidak melihat tombol yang harus ditekan. Scroll otomatis ke
+  // kartunya begitu overlay ditutup.
+  if(card) card.scrollIntoView({behavior:'smooth',block:'center'});
+  // FIX (bug "saat menunggu Salin kartu 1/2, tombol lain tidak dikunci"):
+  // sebelumnya di sini cuma tombol Salin kartu LAIN yang dikunci lewat
+  // querySelectorAll manual di bawah — berbeda dengan tahap Hook yang
+  // pakai pbLockScriptAreaExtras() dan ikut mengunci tombol Revisi,
+  // Tampilan, Lokasi, dan "Buat Prompt Video Baru". Kalau user menekan
+  // salah satu dari tombol itu selagi menunggu Salin kartu 1/2, kartu
+  // bisa dirender ulang, denyutan hilang, dan pbTourWaitingProdukCopy/
+  // pbTourWaitingCtaCopy jadi tidak sinkron dengan tampilan. Sekarang
+  // pakai fungsi yang sama, dengan tombol Salin kartu ini yang dikecualikan.
+  pbLockScriptAreaExtras('vb-bulk-copy-'+cardIdx);
 }
 // FITUR BARU (permintaan user): pasangan vbVideoGuideWaitCardCopy() — begitu
 // kartu target selesai disalin, lepas semua denyutan/kunci lalu LANJUTKAN
@@ -18302,29 +18572,17 @@ async function vbGenerate3AI(){
     vbUpdateProgress(6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     showToast('3 script + JSON berhasil dibuat!','success');
     stopGenLogoBtn(btn,genLogoState);
-    // FITUR BARU (permintaan user, Sept 2026): notifikasi "Prompt Video
-    // Siap" + kolom "Panduan Video AI" (18 foto) SEKARANG otomatis muncul
-    // persis di sini, begitu generate 3 script selesai — TAPI hanya kalau
-    // pbTourVideoScriptActive sedang true (artinya user memang lagi di
-    // dalam tur panduan pemula). Di mode biasa (bukan tur), flag ini false
-    // jadi tidak terjadi apa-apa di sini, sama seperti sebelumnya.
-    // Sebelumnya ini baru dipicu lewat klik tombol "Salin" di salah satu
-    // kartu Hook/Story/CTA (lihat _vbBuildEditableCard) — didesain begitu
-    // supaya notifikasi tidak muncul buat SEMUA user, tapi efek sampingnya
-    // trigger jadi bergantung ke aksi klik yang waktunya tidak pasti
-    // (user bisa menunda lama sebelum klik Salin). Sekarang triggernya
-    // dipindah ke sini — tetap digerbangi flag yang sama (jadi tidak
-    // muncul buat mode biasa), tapi tidak lagi menunggu klik apapun dari
-    // user, jadi kolom panduannya pasti muncul begitu user memang sedang
-    // dalam tur. Pemicu di copyBtn.onclick (_vbBuildEditableCard) sudah
-    // dilepas supaya tidak dobel.
-    if(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive){
-      pbTourVideoScriptActive=false;
-      pbTourWaitingVideoGuideEnd=true;
-      let bulkLabel=document.getElementById('vb-bulk-toggle-label');
-      if(bulkLabel) bulkLabel.classList.remove('hidden');
-      setTimeout(function(){ vbShowScriptReadyNotif(); },300);
-    }
+    // FIX (bug "salinan Hook bisa beda dengan yang tampil"): notifikasi
+    // "Prompt Video Siap" TIDAK lagi dipicu di sini. Sebelumnya ini muncul
+    // 300ms setelah animasi ketik selesai — PADAHAL _vbFixWordCountBatchIfNeeded
+    // di bawah masih jalan di background. Kalau user buru-buru klik
+    // Mengerti → Salin sebelum rapikan-kata itu selesai, yang ke-copy
+    // adalah skrip LAMA (belum dirapikan) — beberapa detik kemudian
+    // textarea & JSON diganti hasil rapikan, jadi isi clipboard beda dari
+    // yang tampil. Blok pemicu notifikasi ini DIPINDAH ke bawah, setelah
+    // loop rapikan-kata selesai total, supaya notifikasi (dan tombol
+    // Salin yang jadi aktif sesudahnya) baru muncul begitu skrip benar-
+    // benar final. Lihat blok yang sama persis di bawah, setelah for-loop.
 
     // ── Rapikan jumlah kata di BACKGROUND (senyap), SETELAH animasi ketik
     // selesai (lihat await di atas) — supaya tidak ada perubahan mendadak
@@ -18343,6 +18601,11 @@ async function vbGenerate3AI(){
     let _fixedBatch=await _vbFixWordCountBatchIfNeeded({hook:scripts[0]||'',story:scripts[1]||'',cta:scripts[2]||'',produk:produkNama});
     let _batchKeys=['hook','story','cta'];
     for(let si=0;si<scripts.length;si++){
+      // FIX (bug "salinan Hook bisa beda dengan yang tampil"): simpan
+      // teks ASLI (sebelum dirapikan) supaya nanti bisa dicek apakah user
+      // sudah mengedit textarea-nya sendiri sementara rapikan-kata ini
+      // masih berjalan di background.
+      let originalScript=scripts[si];
       let fixed=_fixedBatch[_batchKeys[si]]!==undefined?_fixedBatch[_batchKeys[si]]:scripts[si];
       // FIX (akar masalah "keranjang kuning" lolos meski sudah ada sanitizer):
       // _vbFixWordCountBatchIfNeeded MANGGIL AI LAGI buat nulis ulang script
@@ -18357,7 +18620,13 @@ async function vbGenerate3AI(){
       if(fixed!==scripts[si]){
         scripts[si]=fixed;
         let ta=document.getElementById('vb-bulk-script-'+si);
-        if(ta){ta.value=fixed;vbBulkUpdateJson(si);}
+        // FIX (bug "salinan Hook bisa beda dengan yang tampil"): dulu baris
+        // ini SELALU menimpa ta.value dengan hasil rapikan, walaupun user
+        // sudah sempat mengedit textarea itu sendiri sementara rapikan-kata
+        // berjalan di background — editan user hilang tanpa peringatan.
+        // Sekarang timpa HANYA kalau isi textarea masih sama persis dengan
+        // teks asli sebelum dirapikan (artinya user belum menyentuhnya).
+        if(ta && ta.value.trim()===(originalScript||'').trim()){ta.value=fixed;vbBulkUpdateJson(si);}
         if(VB_BULK_ITEMS[si])VB_BULK_ITEMS[si].script=fixed;
       }
       // FIX LANJUTAN (bug yang sama seperti BUG#19, tapi kejadian di titik
@@ -18381,6 +18650,26 @@ async function vbGenerate3AI(){
           wcLabelFinal.style.color='#e0a05c';
         }
       }
+    }
+
+    // FITUR BARU (permintaan user, Sept 2026): notifikasi "Prompt Video
+    // Siap" + kolom "Panduan Video AI" (18 foto) otomatis muncul begitu
+    // generate 3 script selesai — TAPI hanya kalau pbTourVideoScriptActive
+    // sedang true (artinya user memang lagi di dalam tur panduan pemula).
+    // Di mode biasa (bukan tur), flag ini false jadi tidak terjadi apa-apa
+    // di sini, sama seperti sebelumnya.
+    // FIX (bug "salinan Hook bisa beda dengan yang tampil"): blok ini
+    // DIPINDAH ke SINI — setelah loop rapikan-kata (_vbFixWordCountBatchIfNeeded)
+    // di atas selesai TOTAL — supaya notifikasi & tombol Salin baru aktif
+    // begitu skrip benar-benar final. Sebelumnya blok ini jalan 300ms
+    // setelah animasi ketik selesai, SEBELUM rapikan-kata beres, jadi user
+    // bisa keburu Salin skrip lama yang lalu ditimpa diam-diam.
+    if(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive){
+      pbTourVideoScriptActive=false;
+      pbTourWaitingVideoGuideEnd=true;
+      let bulkLabel=document.getElementById('vb-bulk-toggle-label');
+      if(bulkLabel) bulkLabel.classList.remove('hidden');
+      setTimeout(function(){ vbShowScriptReadyNotif(); },300);
     }
   }catch(err){
     console.error('vbGenerate3AI error:',err);
@@ -18496,6 +18785,10 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
         let hookCard=document.getElementById('vb-card-0');
         if(hookCard) hookCard.classList.remove('vb-box-pulse-gold');
         document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
+        // PERMINTAAN USER: tombol Revisi & Ubah Suara Karakter/Target
+        // Audience yang disembunyikan pbLockScriptAreaExtras() ditampilkan
+        // lagi persis begitu Hook benar-benar sudah disalin.
+        if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
         vbShowHookCopiedNotif();
         let hcActions=document.getElementById('vb-tour-hookcopy-actions');
         if(hcActions) hcActions.classList.remove('hidden');
@@ -18510,7 +18803,15 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
         b.classList.remove('vb-pulse-yellow');
         let produkCard=document.getElementById('vb-card-1');
         if(produkCard) produkCard.classList.remove('vb-box-pulse-gold');
-        document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
+        // FIX (bug "saat menunggu Salin kartu 1/2, tombol lain tidak
+        // dikunci"): karena vbVideoGuideWaitCardCopy() sekarang juga
+        // memanggil pbLockScriptAreaExtras() (yang ikut MENYEMBUNYIKAN
+        // tombol Revisi/Ubah Suara, bukan cuma mengunci), pembukanya juga
+        // harus lewat pbUnlockScriptAreaExtras() — bukan cuma menghapus
+        // class vb-copy-locked — supaya tombol yang disembunyikan tadi
+        // muncul lagi begitu kartu Cerita Produk selesai disalin.
+        if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
+        else document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
         vbVideoGuideResumeAfterCopy();
       }
       if(ii===2 && typeof pbTourWaitingCtaCopy!=='undefined' && pbTourWaitingCtaCopy){
@@ -18518,7 +18819,9 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
         b.classList.remove('vb-pulse-yellow');
         let ctaCard=document.getElementById('vb-card-2');
         if(ctaCard) ctaCard.classList.remove('vb-box-pulse-gold');
-        document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
+        // FIX (sama seperti di atas untuk kartu Cerita Produk).
+        if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
+        else document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
         vbVideoGuideResumeAfterCopy();
       }
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
@@ -19196,6 +19499,7 @@ function vbResetNow(){
     // wizard sudah "direset" ke Step 1. Sekarang 'hidden' selalu dilepas.
     ['v1','v2','v3','v4','v5'].forEach(function(id,i){
       let c=document.getElementById(id);
+      if(c&&c.dataset)delete c.dataset.reopened;
       if(c){c.classList.remove('done','hidden');if(i>0)c.classList.add('pending');else c.classList.remove('pending');}
       let ans=document.getElementById('va'+(i+1)); if(ans)ans.textContent='';
       let cb=document.getElementById(id+'-confirmbar'); if(cb)cb.remove();
@@ -19213,6 +19517,7 @@ function vbResetNow(){
     // pilihan chip, kolom isi sendiri, & counter-nya. VB.motion sudah '' lewat reset VB.
     (function(){
       let mc=document.getElementById('vmotion');
+      if(mc&&mc.dataset)delete mc.dataset.reopened;
       if(mc){mc.classList.remove('done','hidden');mc.classList.add('pending');}
       let ma=document.getElementById('vamotion'); if(ma)ma.textContent='';
       let mcb=document.getElementById('vmotion-confirmbar'); if(mcb)mcb.remove();
@@ -20067,6 +20372,7 @@ window.addEventListener('beforeunload', function(e){
   </div>
   <div class="pb-tour-footer">
     <button class="pb-tour-skip" onclick="pbTourSkip()">Lewati</button>
+    <button type="button" class="pb-tour-back" id="pb-tour-back-btn" style="display:none;" aria-label="Kembali ke langkah sebelumnya">Kembali</button>
     <button class="pb-tour-next" id="pb-tour-next-btn">Lanjut</button>
   </div>
 </div>
@@ -20079,16 +20385,28 @@ window.addEventListener('beforeunload', function(e){
      tampil SETELAH kartu Langkah 4 disembunyikan. Di TENGAH layar, dan
      TIDAK hilang sampai user tap tombol CTA di bawahnya. -->
 <div id="pb-premium-notif">
+  <!-- PERMINTAAN USER: logo "P", tulisan "Prompt Builder" & jam "sekarang"
+       DIHAPUS dari notifikasi ini. Gantinya tampilan perayaan — hujan
+       confetti + medali centang yang meletus + judul pujian besar,
+       supaya user merasa benar-benar dipuji begitu fotonya ter-upload.
+       Dipakai bareng oleh upload Karakter Sheet (pbStep4ShowSuccessNotif)
+       dan upload Foto AI (pbStep6ExtShowSuccessNotif). -->
+  <div class="pb-pn-confetti" id="pb-pn-confetti" aria-hidden="true"></div>
   <div class="pb-pn-top">
-    <div class="pb-pn-badge">
-      <svg viewBox="0 0 642 635" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="pbPNGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#F0D9A0"/><stop offset="100%" stop-color="#B8965F"/></linearGradient></defs>
-        <path fill="url(#pbPNGrad)" d="M146,92 L162,109 L179,119 L194,124 L206,126 L346,127 L373,134 L395,146 L386,133 L365,114 L343,102 L318,94 L306,92 Z M349,92 L361,96 L383,109 L401,126 L407,134 L417,154 L420,168 L431,184 L439,201 L444,219 L445,231 L481,231 L479,213 L470,183 L460,163 L443,140 L426,124 L402,108 L381,99 Z M253,195 L267,188 L293,183 L335,183 L345,185 L362,193 L375,205 L382,216 L387,229 L396,208 L399,184 L398,177 L379,162 L355,152 L331,149 L312,153 L285,166 L271,176 Z M291,150 L271,154 L251,161 L237,168 L216,182 L192,207 L182,223 L174,243 L169,271 L169,553 L203,534 L203,268 L208,239 L217,216 L233,192 L261,166 L277,156 Z M481,253 L445,253 L441,277 L435,293 L419,317 L403,333 L387,344 L370,352 L345,358 L279,359 L279,394 L325,394 L364,390 L391,381 L419,365 L447,339 L465,312 L477,281 Z"/>
-        <path fill="url(#pbPNGrad)" d="M415,201 L407,228 L397,245 L386,256 L383,267 L377,277 L360,293 L339,301 L259,302 L258,210 L243,224 L236,234 L227,254 L224,271 L224,519 L233,513 L249,497 L258,485 L258,337 L345,335 L364,330 L378,323 L393,312 L402,303 L413,287 L418,276 L423,257 L423,227 Z"/>
-      </svg>
+    <div class="pb-pn-burst">
+      <span class="pb-pn-ring"></span>
+      <span class="pb-pn-ring pb-pn-ring2"></span>
+      <span class="pb-pn-spark pb-pn-spark1">✦</span>
+      <span class="pb-pn-spark pb-pn-spark2">✦</span>
+      <span class="pb-pn-spark pb-pn-spark3">✦</span>
+      <span class="pb-pn-core">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 25 L21 32 L35 16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
     </div>
     <div class="pb-pn-body">
-      <div class="pb-pn-brand">Prompt Builder<span class="dot"></span><span class="time" id="pb-pn-time"></span></div>
+      <div class="pb-pn-title" id="pb-pn-title"></div>
       <div class="pb-pn-msg" id="pb-pn-msg"></div>
     </div>
   </div>
@@ -20441,7 +20759,10 @@ function pbTourWhenLoggedIn(cb){
 (function(){
   let _pbOrigDoneCard=doneCard;
   doneCard=function(id,ansId,text){
-    _pbOrigDoneCard(id,ansId,text);
+    // Return value doneCard asli (true = step ini barusan hasil EDIT, dipakai
+    // vbAdvanceStep) WAJIB diteruskan — kalau tidak, wrapper ini menelannya
+    // jadi undefined dan fix "step tertumpuk" tidak pernah aktif.
+    let _pbDoneRet=_pbOrigDoneCard(id,ansId,text);
     if(pbWaitDoneId && id===pbWaitDoneId){
       let waitId=pbWaitDoneId;
       // Beberapa alur (mis. fKonfirmRef utk f1) MEMANGGIL doneCard(id) DULU
@@ -20466,6 +20787,7 @@ function pbTourWhenLoggedIn(cb){
         if(cb) cb();
       },80);
     }
+    return _pbDoneRet;
   };
 })();
 function pbArmDoneWait(id,cb){ pbWaitDoneId=id; pbWaitDoneCb=cb; }
@@ -20819,11 +21141,15 @@ function pbEndTour(){
   let hookTaWrap=document.getElementById('vb-card-0');
   if(hookTaWrap) hookTaWrap.classList.remove('vb-box-pulse-gold');
   document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
+  // Jaga-jaga juga (permintaan user): kalau tur di-skip persis waktu
+  // tombol Revisi/Ubah Suara Karakter masih disembunyikan, tampilkan lagi.
+  if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
 }
 // Cuma menyembunyikan tampilan tur (dipakai transisi antar-step,
 // termasuk "hilang total" di langkah 6→7) TANPA menandai tur sudah
 // selesai — dipisah dari pbEndTour() supaya bisa dipanggil ulang.
 function pbHideOverlay(endingTour){
+  pbTourHideBack();
   pbDisarmDoneWait();
   pbWaitingCopyClick=false;
   clearInterval(pbGenPollTimer);pbGenPollTimer=null;
@@ -20891,6 +21217,7 @@ function pbHideOverlay(endingTour){
   // Langkah 4 masih tampil, pastikan ikut hilang juga.
   let pnEl=document.getElementById('pb-premium-notif');
   if(pnEl) pnEl.classList.remove('show');
+  if(typeof pbPnClearConfetti==='function') pbPnClearConfetti();
   // Jaga-jaga juga: kalau tur ditutup persis waktu lightbox preview
   // diagram Langkah 2 lagi kebuka.
   let lbEl=document.getElementById('pb-flow-lightbox');
@@ -20997,6 +21324,46 @@ function pbGoStep2(){
   // berhenti di sini, tapi lanjut ke langkah baru "bikin prompt video"
   // (lihat pbGoStep7VideoIntro).
   pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep2Next);
+  // PERMINTAAN USER: tiap kali user BALIK ke kartu "Ringkasan alurnya
+  // dulu, ya" (sesudah upload foto), tampilan pertamanya jangan mentok
+  // di atas — geser sedikit ke bawah supaya foto yang barusan ter-upload
+  // langsung kelihatan tanpa user perlu scroll sendiri.
+  pbStep2ScrollToUploaded();
+}
+// Geser isi kartu Langkah 2 ke thumbnail foto TERAKHIR yang sudah
+// di-upload. Urutannya ngikutin alur tur: Foto AI (paling akhir dibuat)
+// → Karakter Sheet → Produk. Kalau belum ada satupun yang ter-upload
+// (kunjungan pertama dari Langkah 1), kartu dibiarkan mulai dari atas
+// seperti biasa.
+function pbStep2ScrollToUploaded(){
+  let card=document.getElementById('pb-tour-card');
+  if(!card) return;
+  let id = (typeof pbFotoAiUploaded!=='undefined' && pbFotoAiUploaded) ? 'pb-flow-fotoai-thumb'
+         : ((typeof pbKsFotoUploaded!=='undefined' && pbKsFotoUploaded) ? 'pb-flow-ks-thumb'
+         : ((typeof pbProdukFotoUploaded!=='undefined' && pbProdukFotoUploaded) ? 'pb-flow-produk-thumb'
+         : null));
+  if(!id) return;
+  // Tunggu kartu benar-benar ke-render (pbShowModal baru saja mengganti
+  // isinya & mereset scrollTop=0) baru hitung posisinya, kalau tidak
+  // tinggi elemennya masih 0 dan hitungannya meleset.
+  requestAnimationFrame(function(){
+    setTimeout(function(){
+      let el=document.getElementById(id);
+      if(!el||!card) return;
+      let cardRect=card.getBoundingClientRect();
+      let elRect=el.getBoundingClientRect();
+      // Taruh thumbnail-nya sekitar sepertiga dari atas area kartu —
+      // jadi kotak di atasnya masih kelihatan sedikit (user tetap paham
+      // ini bagian dari alur), tapi fotonya sendiri sudah pasti masuk layar.
+      let target=card.scrollTop + (elRect.top-cardRect.top) - cardRect.height*0.32;
+      let max=card.scrollHeight-card.clientHeight;
+      if(target<0) target=0;
+      if(target>max) target=max;
+      if(target<=2) return;   // sudah kelihatan dari atas, tidak perlu digeser
+      try{ card.scrollTo({top:target,behavior:'smooth'}); }
+      catch(e){ card.scrollTop=target; }
+    },180);
+  });
 }
 // ── State: apakah foto produk sudah "disiapkan" lewat Langkah 3 baru
 // (siapkan foto produk) di bawah ini. Begitu true, thumbnail Foto Produk
@@ -21217,7 +21584,7 @@ function pbRenderStep2b(){
     + '</div>'
     + '<p style="margin-top:0;text-align:center;">Sekarang kakak siapkan foto produk.<br>Caranya cukup masuk ke toko di TikTok terus screenshot produknya.</p>'
     + '<div style="display:flex;justify-content:center;margin-top:16px;">'
-    + '<button type="button" onclick="pbGoStep2bCamera()" style="background:var(--accent);color:var(--bg);font-weight:700;font-size:var(--fs-sm);border:none;border-radius:var(--radius-sm);padding:11px 30px;cursor:pointer;">Udah?</button>'
+    + '<button type="button" onclick="pbGoStep2bCamera()" style="background:var(--gloss-gradient);color:var(--accent-text-on-dark);font-weight:700;font-size:var(--fs-sm);font-family:Geist,sans-serif;letter-spacing:-0.2px;text-shadow:0 1px 2px rgba(0,0,0,0.5);border:1px solid var(--gloss-border);border-radius:var(--radius);padding:11px 30px;cursor:pointer;">Udah?</button>'
     + '</div>';
   pbShowModal(3,'Siapkan foto produk',desc,'Lanjut',pbGoStep2Next);
   // Tombol "Lanjut" tur disembunyikan — di langkah ini user lanjut lewat
@@ -21372,11 +21739,12 @@ function pbRenderStep3(){
   let isLast=(pbStep3Revealed>=PB_STEP3_ITEMS.length);
   let desc=item.body
     + pbFrameShot(item.img,item.alt)
-    + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.6;">'+item.note+'</p>'):'')
-    + (pbStep3Revealed>1
-        ? '<button type="button" onclick="pbStep3RevealBack()" style="display:block;width:100%;background:var(--surface2);color:var(--text);font-weight:700;font-size:var(--fs-sm);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px 14px;margin:14px 0 0;cursor:pointer;text-align:center;">Kembali ke langkah sebelumnya</button>'
-        : '');
+    + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.6;">'+item.note+'</p>'):'');
   pbShowModal(4,pbStep3Revealed+'. '+item.title,desc,'Lanjut',isLast?pbGoStep4:pbStep3RevealNext);
+  // PERMINTAAN USER: tombol "Kembali" dipasang di footer tur, di samping
+  // "Lanjut" (bukan lagi tombol lebar penuh di bawah isi kartu). Muncul
+  // begitu bukan butir pertama.
+  if(pbStep3Revealed>1) pbTourShowBack(pbStep3RevealBack);
   // Kartu tur (#pb-tour-card) scroll sendiri kalau butirnya panjang
   // (overflow-y:auto) — begitu ganti butir, balikin ke atas dulu supaya
   // user tidak nyangkut di posisi scroll butir sebelumnya.
@@ -21480,6 +21848,15 @@ function pbGoStep6Ext(){
   // FITUR BARU (permintaan user): prompt Foto AI sudah jadi & disalin,
   // bar progres bintang lanjut menyala ke titik "Foto AI".
   pbTourProgressShow(2);
+  // PERMINTAAN USER: tutorial "Yuk, bikin foto AI-nya" tampil sebagai
+  // HALAMAN PENUH, bukan kartu melayang di atas layar wizard. Selama
+  // Langkah 5-6 (wizard) backdrop solid tur sengaja dilepas 'show'-nya
+  // (lihat pbGoStep5), dan tidak ada yang memasangnya lagi sebelum ini —
+  // makanya dulu kelihatan seperti overlay. Di sini backdrop-nya
+  // dinyalakan lagi supaya latarnya solid penuh persis seperti
+  // langkah-langkah tur lain.
+  let bd=document.getElementById('pb-tour-backdrop');
+  if(bd){ bd.classList.remove('pb-passive'); bd.classList.add('show'); }
   pbStep6ExtIndex=0;
   pbRenderStep6Ext();
 }
@@ -21492,11 +21869,17 @@ function pbRenderStep6Ext(){
   let n=pbStep6ExtIndex+1;
   let desc=item.body
     + pbFrameShot(item.img,item.alt)
-    + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.6;">'+item.note+'</p>'):'')
-    + (pbStep6ExtIndex>0
-        ? '<button type="button" onclick="pbStep6ExtBack()" style="display:block;width:100%;background:var(--surface2);color:var(--text);font-weight:700;font-size:var(--fs-sm);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px 14px;margin:14px 0 0;cursor:pointer;text-align:center;">Kembali ke langkah sebelumnya</button>'
-        : '');
+    + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.6;">'+item.note+'</p>'):'');
   pbShowModal(6,n+'. '+item.title,desc,isLast?'Selesai':'Lanjut',isLast?pbStep6ExtFinish:pbStep6ExtNext);
+  // PERMINTAAN USER: tombol "Kembali ke langkah sebelumnya" yang dulu
+  // tombol lebar penuh di dalam isi kartu, sekarang jadi tombol footer
+  // di SAMPING "Lanjut" dan tulisannya cukup "Kembali" saja — pola yang
+  // sama persis dengan Langkah 3 (lihat pbRenderStep3).
+  if(pbStep6ExtIndex>0) pbTourShowBack(pbStep6ExtBack);
+  // Butir baru selalu mulai dibaca dari atas, jangan nyangkut di posisi
+  // scroll butir sebelumnya.
+  let tourCard=document.getElementById('pb-tour-card');
+  if(tourCard) tourCard.scrollTop=0;
 }
 // Tombol "Lanjut" — pindah ke butir berikutnya (GANTI tampilan total,
 // bukan nambah di bawah butir sebelumnya).
@@ -21593,12 +21976,13 @@ function pbStep6ExtShowSuccessNotif(){
   window.removeEventListener('resize',pbRepositionCurrent);
   let shellEl=document.getElementById('app-shell');
   if(shellEl) shellEl.removeEventListener('scroll',pbRepositionCurrent);
-  let notif=document.getElementById('pb-premium-notif');
-  if(!notif) return;
-  document.getElementById('pb-pn-msg').textContent='Yeyyy Foto AI-nya jadi kak, simpan baik-baik karna ini yang bakal kita pakai buat bikin Video AI-nya nanti';
-  let timeEl=document.getElementById('pb-pn-time');
-  if(timeEl) timeEl.textContent='sekarang';
-  notif.classList.add('show');
+  // PERMINTAAN USER: sama persis seperti notifikasi Karakter Sheet —
+  // tampil meriah (confetti + medali centang + judul pujian), tanpa logo
+  // P / tulisan "Prompt Builder" / jam "sekarang".
+  pbPnShowCelebration(
+    'Mantap, kak! 🎊',
+    'Yeyyy Foto AI-nya jadi kak, simpan baik-baik karna ini yang bakal kita pakai buat bikin Video AI-nya nanti'
+  );
 }
 // ── State: apakah foto hasil Foto AI (dari Google Flow, sesudah tutorial
 // Langkah 6) sudah diupload lewat pbGoStep6ExtUpload() di atas. Begitu
@@ -21712,12 +22096,58 @@ function pbStep4ShowSuccessNotif(){
   let shellEl=document.getElementById('app-shell');
   if(shellEl) shellEl.removeEventListener('scroll',pbRepositionCurrent);
 
+  // PERMINTAAN USER: tampilannya sekarang meriah (confetti + medali
+  // centang + judul pujian), bukan lagi kartu bermerek berlogo P.
+  pbPnShowCelebration(
+    'Keren banget, kak! 🎉',
+    'Yeyyy fotonya bagus banget kak, simpan baik-baiknya karna kedepannya kita bakal pakek terus foto karakter sheet-nya'
+  );
+}
+// ── Tampilan perayaan notifikasi pujian (permintaan user) ───────────────
+// Satu pintu buat DUA tempat yang polanya sama: sesudah upload foto
+// Karakter Sheet (Langkah 4) dan sesudah upload foto AI (Langkah 6).
+// Isi judul + pesan di-set di sini, confetti-nya dibikin ulang tiap kali
+// supaya animasinya selalu mulai dari awal, baru notifikasi ditampilkan.
+function pbPnShowCelebration(title,msg){
   let notif=document.getElementById('pb-premium-notif');
   if(!notif) return;
-  document.getElementById('pb-pn-msg').textContent='Yeyyy fotonya bagus banget kak, simpan baik-baiknya karna kedepannya kita bakal pakek terus foto karakter sheet-nya';
-  let timeEl=document.getElementById('pb-pn-time');
-  if(timeEl) timeEl.textContent='sekarang';
+  let titleEl=document.getElementById('pb-pn-title');
+  if(titleEl) titleEl.textContent=title||'';
+  let msgEl=document.getElementById('pb-pn-msg');
+  if(msgEl) msgEl.textContent=msg||'';
+  pbPnSpawnConfetti();
+  // Lepas dulu class 'show' & paksa reflow — kalau notifikasi ini dibuka
+  // untuk KEDUA kalinya (Foto AI sesudah Karakter Sheet), animasi CSS-nya
+  // tidak akan jalan lagi tanpa reset ini.
+  notif.classList.remove('show');
+  void notif.offsetWidth;
   notif.classList.add('show');
+}
+// Bikin butiran confetti (elemen <i>) dengan posisi, warna, kecepatan,
+// putaran & jeda acak. Dibersihkan lagi lewat pbPnClearConfetti() begitu
+// notifikasi ditutup, supaya tidak ada animasi yang jalan sia-sia di
+// belakang layar.
+function pbPnSpawnConfetti(){
+  let box=document.getElementById('pb-pn-confetti');
+  if(!box) return;
+  box.innerHTML='';
+  let colors=['#F0D9A0','#B8965F','#FFF6DF','#E8C77A','#8FD6A8','#7FB6F0','#E88FA8'];
+  for(let i=0;i<48;i++){
+    let p=document.createElement('i');
+    p.style.left=(Math.random()*100).toFixed(2)+'%';
+    p.style.background=colors[i%colors.length];
+    p.style.setProperty('--dx',(Math.random()*180-90).toFixed(0)+'px');
+    p.style.setProperty('--rot',(Math.random()*900-300).toFixed(0)+'deg');
+    p.style.animationDuration=(2.6+Math.random()*2.4).toFixed(2)+'s';
+    p.style.animationDelay=(Math.random()*1.3).toFixed(2)+'s';
+    // Sebagian dibikin bulat kecil biar variasinya kelihatan alami
+    if(i%3===0){ p.style.width='8px'; p.style.height='8px'; p.style.borderRadius='50%'; }
+    box.appendChild(p);
+  }
+}
+function pbPnClearConfetti(){
+  let box=document.getElementById('pb-pn-confetti');
+  if(box) box.innerHTML='';
 }
 // Dipanggil HANYA saat user tap tombol CTA "Lanjut" di notifikasi —
 // menutup notifikasi lalu tur BALIK ke Langkah 2 (bukan lanjut ke
@@ -21726,6 +22156,9 @@ function pbStep4ShowSuccessNotif(){
 function pbStep4NotifTap(){
   let notif=document.getElementById('pb-premium-notif');
   if(notif) notif.classList.remove('show');
+  // Hentikan hujan confetti-nya supaya tidak ada animasi yang terus
+  // jalan di belakang layar sesudah notifikasi hilang.
+  if(typeof pbPnClearConfetti==='function') pbPnClearConfetti();
   // Jaga-jaga: pastikan backdrop tur tetap "show" (harusnya memang sudah,
   // karena tidak lagi dilepas saat notifikasi tampil) supaya Langkah 2
   // dst normal seperti biasa.
@@ -22151,7 +22584,22 @@ function pbOpenShotZoom(alt,wrapEl){
 function pbCloseShotZoom(){
   document.getElementById('pb-shot-lightbox').classList.remove('show');
 }
+// Tombol "Kembali" di footer tur (di samping "Lanjut"). Selalu disembunyikan
+// dulu tiap halaman tur baru dirender (pbShowModal/pbShowInteractive) &
+// saat tur ditutup (pbHideOverlay); halaman yang butuh (mis. butir 2+
+// install Google Flow) menyalakannya lagi lewat pbTourShowBack().
+function pbTourHideBack(){
+  let b=document.getElementById('pb-tour-back-btn');
+  if(b){b.style.display='none';b.onclick=null;}
+}
+function pbTourShowBack(onBack){
+  let b=document.getElementById('pb-tour-back-btn');
+  if(!b)return;
+  b.style.display='';
+  b.onclick=onBack;
+}
 function pbShowModal(n,title,desc,btnLabel,onNext){
+  pbTourHideBack();
   pbCurrentSelector=null;
   pbSetPassive(false);
   pbSetLabel(n);
@@ -22188,6 +22636,7 @@ function pbShowModal(n,title,desc,btnLabel,onNext){
 // backdrop transparan+tidak blocking, TANPA tombol "Lanjut" tur —
 // user melanjutkan lewat aksi asli di card tersebut) ─────────────
 function pbShowInteractive(n,title,desc,selector){
+  pbTourHideBack();
   pbCurrentSelector=selector;
   pbSetPassive(true);
   pbSetLabel(n);
