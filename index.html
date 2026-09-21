@@ -600,15 +600,15 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
   --accent-dim:#B8965F;
   --accent-glow:rgba(217,184,118,0.35);
   --accent-dim-bg:rgba(217,184,118,0.12);
-  /* Gold gelap dipadukan hitam (revisi 2 — lebih restrained) + highlight tipis — dipakai untuk .btn, .ntab.active, .copy-btn:hover */
-  --accent-dark-1:#5C4626;
-  --accent-dark-2:#3A2C16;
-  --accent-dark-3:#241A0C;
-  --accent-text-on-dark:var(--accent-2);
-  --gloss-gradient:linear-gradient(135deg,var(--accent-dark-1) 0%,var(--accent-dark-2) 60%,var(--accent-dark-3) 100%);
-  --gloss-sheen:linear-gradient(180deg,rgba(255,255,255,0.14) 0%,rgba(255,255,255,0) 22%);
-  --gloss-border:rgba(217,184,118,0.5);
-  --gloss-glow:0 0 0 1px rgba(217,184,118,0.12),0 2px 10px rgba(0,0,0,0.5),0 0 14px rgba(217,184,118,0.1);
+  /* Revisi 3 — hairline emas: isi gelap datar + garis emas tipis + teks champagne.
+     Gloss, gradasi diagonal, kilau putih, dan glow dibuang (terasa coklat kusam & gaya lama).
+     Tetap gelap dan redup, tidak ada yang terang. Nama token --gloss-* sengaja dipertahankan
+     supaya .btn, .ntab.active, dan .copy-btn:hover tidak perlu diubah satu-satu. */
+  --accent-text-on-dark:#E6CD97;
+  --gloss-gradient:#1E1911;
+  --gloss-sheen:none;
+  --gloss-border:#A98A52;
+  --gloss-glow:none;
   --green:#34D399;
   --green-dim:rgba(52,211,153,0.15);
   --red:#F87171;
@@ -834,7 +834,8 @@ body input, body textarea, body [contenteditable="true"]{
   position:relative;overflow:hidden;isolation:isolate;
   color:var(--accent-text-on-dark);font-weight:700;
   background:var(--gloss-gradient);
-  border:1px solid var(--gloss-border);
+  /* garis tab lebih tipis dari garis tombol, supaya tombol tetap jadi yang paling jelas */
+  border:1px solid rgba(217,184,118,0.32);
   box-shadow:var(--gloss-glow);
   text-shadow:0 1px 2px rgba(0,0,0,0.5);
 }
@@ -845,15 +846,11 @@ body input, body textarea, body [contenteditable="true"]{
 .ntab.active>*{position:relative;z-index:2;}
 .ntab:hover:not(.active){color:var(--accent);background:var(--surface2);}
 .ntab:active{opacity:0.75;transform:scale(0.98);}
-/* FITUR BARU (permintaan user): tombol "Foto" & "Video" di nav bawah
-   sekarang dua baris — baris kecil "Builder Prompt" di atas, label
-   "Foto"/"Video" di bawahnya — supaya jelas kedua tab itu satu grup
-   ("Builder Prompt"). Tombol "Riwayat" & "Panduan" tidak berubah
-   (tetap satu baris). */
-.ntab-grouped{flex-direction:column;gap:1px;line-height:1.15;}
-.ntab-eyebrow{font-size:var(--fs-2xs);font-weight:600;opacity:0.6;text-transform:uppercase;letter-spacing:0.4px;}
-.ntab.active .ntab-eyebrow{opacity:0.75;}
-.ntab-label{font-size:var(--fs-sm);}
+/* Tab nav bawah = IKON SAJA (permintaan user, gaya bottom-nav TikTok: garis tebal,
+   ujung membulat). Warna ikon ikut warna teks tab lewat currentColor — abu redup
+   saat tidak aktif, champagne saat aktif (lihat .ntab dan .ntab.active). Nama tab
+   tetap ada di aria-label/title tiap tombol supaya terbaca oleh screen reader. */
+.nav-ic{width:28px;height:28px;display:block;pointer-events:none;}
 
 /* PAGE */
 @keyframes pageIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
@@ -2107,6 +2104,19 @@ body input, body textarea, body [contenteditable="true"]{
    panduan aktif — dari pbStartTour() sampai pbEndTour() — supaya user
    fokus ke tur tanpa godaan pindah tab. */
 .nav.pb-tour-navhide{display:none;}
+/* FITUR BARU (permintaan user): selama tur panduan pemula di wizard Video,
+   pengaturan JUMLAH PRODUK disembunyikan total — baik jalur "Kami Bantu
+   Isi" (#vb-bulk-count) maupun "Tulis Manual Sendiri" (#vb-manual-count) —
+   supaya pemula cukup 1 produk saja. Class body ini dipasang di
+   pbStep7VideoDone() & dilepas saat tur benar-benar selesai/di-skip
+   (pbEndTour() kalau bar bintang sudah tidak aktif, vbVideoGuideFinish()). */
+body.pb-tour-single-produk #vb-bulk-count-label,
+body.pb-tour-single-produk #vb-bulk-count-row,
+body.pb-tour-single-produk #vb-manual-count-wrap{display:none!important;}
+/* FITUR BARU (permintaan user): chip "Tulis Manual Sendiri" dikunci selama
+   tur (pudar & tidak bisa ditekan, gaya sama seperti .chip.pb-locked) —
+   pemula hanya boleh pakai "Kami Bantu Isi". Dilepas bareng class body ini. */
+body.pb-tour-single-produk #vb-mode-manual{opacity:0.35;pointer-events:none;filter:grayscale(0.6);}
 .pb-tour-desc{font-size:var(--fs-sm);color:var(--muted);line-height:1.55;margin-bottom:14px;}
 .pb-tour-desc:empty{display:none;margin-bottom:0;}
 .pb-tour-desc img{width:88%;max-width:88%;border-radius:var(--radius-sm);border:1px solid var(--border-hi);display:block;margin:8px auto 14px;}
@@ -2767,6 +2777,12 @@ body.pb-tour-result-simple #f-copy-btn{
     <symbol id="ic-warning" viewBox="0 0 24 24"><path d="M12 3l10 18H2L12 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10v4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></symbol>
     <symbol id="ic-document" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6M9 17h4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="ic-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <!-- Ikon nav bawah (Foto / Video / Riwayat / Panduan): 24x24, garis 2.2, ujung membulat,
+         gaya bold ala TikTok. Panduan sengaja pakai ikon profil (permintaan user). -->
+    <symbol id="ic-nav-foto" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2"/><circle cx="8.8" cy="8.9" r="1.7" fill="currentColor" stroke="none"/><path d="M20.8 15.2l-3.4-3.4a2 2 0 0 0-2.8 0L8.4 20.8"/></g></symbol>
+    <symbol id="ic-nav-video" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="5.6" width="13" height="12.8" rx="3.6"/><path d="M15.6 10.3l4.4-2.6a1 1 0 0 1 1.5.9v6.8a1 1 0 0 1-1.5.9l-4.4-2.6"/></g></symbol>
+    <symbol id="ic-nav-riwayat" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></g></symbol>
+    <symbol id="ic-nav-profil" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.2" r="3.7"/><path d="M4.4 20.6v-.4c0-3.4 2.6-5.6 6-5.6h3.2c3.4 0 6 2.2 6 5.6v.4z"/></g></symbol>
   </defs>
 </svg>
 
@@ -4448,8 +4464,8 @@ body.pb-tour-result-simple #f-copy-btn{
         <div id="vb-ai-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
         </div>
         <div id="vb-bulk-area" style="margin-top:0;">
-          <label class="inplabel">Mau generate berapa produk? <span style="font-weight:400;color:var(--muted);">(isi 1 kalau cuma 1 produk)</span></label>
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <label class="inplabel" id="vb-bulk-count-label">Mau generate berapa produk? <span style="font-weight:400;color:var(--muted);">(isi 1 kalau cuma 1 produk)</span></label>
+          <div id="vb-bulk-count-row" style="display:flex;gap:8px;margin-bottom:12px;">
             <input type="number" id="vb-bulk-count" min="1" max="30" value="1" inputmode="numeric" class="inp" style="width:70px;flex:none;text-align:center;" oninput="vbBulkCountInput()" onblur="vbBulkSetCount()" />
           </div>
           <div id="vb-bulk-rows"></div>
@@ -9792,13 +9808,14 @@ function csShowResultNotif(text){
   let copyBtn=document.createElement('button');
   copyBtn.id='cs-copy-btn';
   copyBtn.className='cs-pulse-btn';
-  copyBtn.textContent='Salin';
+  copyBtn.textContent='Salin prompt';
   // FITUR BARU (permintaan user): tombol Salin dikasih denyutan
   // (.cs-pulse-btn, dilepas otomatis begitu ditekan — lihat csCopyPrompt())
   // dan latar kuningnya dibikin TIDAK selebar penuh lagi (beda dari
   // sebelumnya width:100%) — cukup sepanjang teksnya, ditengah, biar lebih
-  // enak diliat.
-  copyBtn.style.cssText="width:auto;min-width:150px;max-width:100%;margin:0 auto;display:block;background:var(--accent);color:var(--bg);border:none;padding:10px 24px;border-radius:var(--radius-md);font-size:var(--fs-sm);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;text-align:center;";
+  // enak diliat. UPDATE (permintaan user): tombol diperkecil sedikit
+  // (padding/min-width/font) dan labelnya jadi "Salin prompt".
+  copyBtn.style.cssText="width:auto;min-width:118px;max-width:100%;margin:0 auto;display:block;background:var(--accent);color:var(--bg);border:none;padding:8px 18px;border-radius:var(--radius-md);font-size:var(--fs-xs2);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;text-align:center;";
   copyBtn.onclick=csCopyPrompt;
   let redoBtn=document.createElement('button');
   redoBtn.textContent='Buat ulang';
@@ -9839,7 +9856,7 @@ function csCopyPrompt(){
   function onOk(){
     btn.classList.remove('cs-pulse-btn');
     btn.textContent='Tersalin!';
-    setTimeout(()=>{btn.textContent='Salin';},2000);
+    setTimeout(()=>{btn.textContent='Salin prompt';},2000);
     // Prompt karakter sheet sudah tersalin — tutup notifikasi hasil prompt +
     // modal Karakter Sheet, kasih tahu lewat notifikasi tengah bahwa yang
     // disalin itu "prompt" dan bakal dipakai di langkah berikutnya, lalu
@@ -17704,6 +17721,12 @@ function vbVideoGuideNext(){
 function vbVideoGuideFinish(){
   let el=document.getElementById('vb-videoguide-overlay');
   if(el) el.classList.remove('show');
+  // Ini titik akhir SEBENARNYA seluruh tur (tahap terakhir "Video AI") —
+  // sekarang nav bawah boleh muncul lagi (permintaan user).
+  PB_TOUR_STAR_STAGE=-1;
+  let navEl=document.querySelector('.nav');
+  if(navEl) navEl.classList.remove('pb-tour-navhide');
+  document.body.classList.remove('pb-tour-single-produk');
 }
 // FITUR BARU (permintaan user): dipicu oleh entri {waitCopy:N} di
 // PB_STEPVIDEOAI_ITEMS — tutup overlay panduan Video AI, lalu beri
@@ -19749,10 +19772,10 @@ window.addEventListener('beforeunload', function(e){
 <div id="toast"></div>
 
 <nav class="nav">
-  <button class="ntab ntab-grouped active" onclick="switchPage('foto',this)"><span class="ntab-eyebrow">Builder Prompt</span><span class="ntab-label">Foto</span></button>
-  <button class="ntab ntab-grouped" id="ntab-video" onclick="switchPage('video',this)"><span class="ntab-eyebrow">Builder Prompt</span><span class="ntab-label">Video</span></button>
-  <button class="ntab" onclick="switchPage('riwayat',this)">Riwayat</button>
-  <button class="ntab" onclick="switchPage('panduan',this)">Panduan</button>
+  <button class="ntab active" onclick="switchPage('foto',this)" aria-label="Builder Prompt Foto" title="Builder Prompt Foto"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-foto"></use></svg></button>
+  <button class="ntab" id="ntab-video" onclick="switchPage('video',this)" aria-label="Builder Prompt Video" title="Builder Prompt Video"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-video"></use></svg></button>
+  <button class="ntab" onclick="switchPage('riwayat',this)" aria-label="Riwayat" title="Riwayat"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-riwayat"></use></svg></button>
+  <button class="ntab" onclick="switchPage('panduan',this)" aria-label="Panduan" title="Panduan"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-profil"></use></svg></button>
 </nav>
 
 <!-- STEP JUMP BOTTOM SHEET — dipicu tap di progress bar (gantiin fungsi
@@ -20185,6 +20208,16 @@ function pbOpenInChrome(e,url){
       clearFallback();
     },900);
     document.addEventListener('visibilitychange',onVis);
+    // FIX (permintaan user): dialog bawaan browser "Konfirmasi Navigasi /
+    // Perubahan yang Anda lakukan mungkin tidak disimpan" muncul tiap link
+    // Play Store ditekan, karena window.location.href=intent://... dianggap
+    // browser sebagai navigasi keluar halaman (beforeunload, dipasang untuk
+    // tur aktif). Ini bukan reload/tutup tab beneran — cuma buka app Chrome —
+    // jadi peringatannya dilewati sebentar saja lalu dikembalikan seperti
+    // semula supaya proteksi refresh (F5/pull-to-refresh) tetap jalan.
+    var prevSkip=window._pbSkipUnloadWarn;
+    window._pbSkipUnloadWarn=true;
+    setTimeout(function(){ window._pbSkipUnloadWarn=prevSkip; },2500);
     try{
       window.location.href=intentUrl;
     }catch(err){
@@ -20216,6 +20249,12 @@ function pbTourProgressShow(activeIdx){
   let el=document.getElementById('pb-tour-progress');
   if(!el) return;
   el.classList.add('show');
+  // FIX (permintaan user): selama tur masih jalan (bar bintang tampil),
+  // nav bawah (Builder Prompt Foto/Video, Riwayat, Panduan) WAJIB tetap
+  // tersembunyi — termasuk di rentang setelah pbEndTour() dipakai sebagai
+  // transisi internal (mis. akhir wizard Foto → lanjut ke Foto AI).
+  let _navEl=document.querySelector('.nav');
+  if(_navEl) _navEl.classList.add('pb-tour-navhide');
   let nodes=el.querySelectorAll('.pb-tour-progress-node');
   nodes.forEach(function(node){
     let idx=parseInt(node.getAttribute('data-idx'),10);
@@ -20279,6 +20318,7 @@ function pbStartTour(force){
   // (termasuk replay lewat "Lihat Tur Panduan Lagi") — baru dinyalakan
   // lagi begitu user mencapai titik Karakter Sheet (pbOpenCharacterSheetFromTour).
   pbTourProgressHide();
+  document.body.classList.remove('pb-tour-single-produk');
   let shell=pbPrepTourUiShell();
   setTimeout(function(){ pbGoStep1(); },shell?120:0);
 }
@@ -20398,8 +20438,15 @@ function pbEndTour(){
   pbHideOverlay(true);
   // Tur benar-benar selesai — tampilkan lagi nav Foto/Video/Riwayat/Panduan
   // yang disembunyikan sejak pbStartTour().
+  // FIX (permintaan user): pbEndTour() juga dipanggil sebagai transisi
+  // di TENGAH alur (akhir wizard Foto, Salin JSON, dst) padahal tur belum
+  // selesai — bar bintang masih menunjukkan tahap aktif (PB_TOUR_STAR_STAGE
+  // >= 0). Selama itu nav TETAP disembunyikan; baru dimunculkan kalau tur
+  // di-skip (Lewati → bar disembunyikan dulu) atau panduan Video AI selesai
+  // (lihat vbVideoGuideFinish()).
   let navEl=document.querySelector('.nav');
-  if(navEl) navEl.classList.remove('pb-tour-navhide');
+  if(navEl && PB_TOUR_STAR_STAGE<0) navEl.classList.remove('pb-tour-navhide');
+  if(PB_TOUR_STAR_STAGE<0) document.body.classList.remove('pb-tour-single-produk');
   // FITUR BARU (permintaan user): kalau tur di-skip PERSIS saat masih
   // menunggu klik Salin di kartu Hook (vb-pulse-yellow/vb-box-pulse-gold
   // & kunci kartu lain masih aktif — lihat vbScriptReadyNext()), semua
@@ -20768,6 +20815,19 @@ function pbStep7VideoDone(){
   pbTourVideoScriptActive=true;
   let bulkLabel=document.getElementById('vb-bulk-toggle-label');
   if(bulkLabel) bulkLabel.classList.add('hidden');
+  // FITUR BARU (permintaan user): jumlah produk dikunci 1 selama tur —
+  // kotak pengaturannya disembunyikan lewat CSS (body.pb-tour-single-produk)
+  // dan nilainya dipaksa balik ke 1 (jaga-jaga kalau sempat diubah sebelum
+  // tur sampai di sini) untuk jalur "Kami Bantu Isi" & "Tulis Manual Sendiri".
+  document.body.classList.add('pb-tour-single-produk');
+  // Kalau jalur "Tulis Manual Sendiri" sempat terpilih sebelum tur sampai
+  // sini, paksa balik ke "Kami Bantu Isi" (chip manual sekarang dikunci CSS).
+  let _mm=document.getElementById('vb-mode-manual');
+  if(_mm && _mm.classList.contains('sel')){ try{ vbSelectScriptMode('ai'); }catch(e){} }
+  let _bc=document.getElementById('vb-bulk-count');
+  if(_bc){ _bc.value='1'; try{ vbBulkSetCount(); }catch(e){} }
+  let _mc=document.getElementById('vb-manual-count');
+  if(_mc) _mc.value='1';
 }
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
