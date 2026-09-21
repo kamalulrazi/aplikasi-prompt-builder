@@ -9381,6 +9381,14 @@ function _fDoGenerateMultiShot(checkedEls){
       let head = document.createElement('div');
       head.style.cssText='background:var(--surface3);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);';
       head.innerHTML = '<div style="font-size:var(--fs-sm);font-weight:700;">'+(i+1)+'. '+r.label+'</div>';
+      // FIX (audit susulan #3 — Riwayat): daftar "foto yang perlu diupload"
+      // untuk kartu ini dihitung & DITITIPKAN di sini sebagai teks polos
+      // (bukan foto/base64 — cuma label pendek macam "1. foto wajah
+      // karakter"), supaya kalau kartu ini nanti dibuka lagi dari Riwayat
+      // (di mana referensi FILE foto aslinya sudah tidak ada), notice
+      // "Urutan Foto Tidak Boleh Terbalik" tetap bisa ditampilkan dari teks
+      // yang dititip ini — lihat _pbInjectPerCardCopyButtons.
+      head.setAttribute('data-upload-notice',_fComputeUploadNoticeStr(r.realRefs,r.randomRefs));
       let copyBtn = document.createElement('button');
       copyBtn.className='copy-btn';
       copyBtn.textContent='Salin';
@@ -9430,20 +9438,21 @@ function _fDoGenerateMultiShot(checkedEls){
   showToast(results.length+' variasi prompt berhasil dibuat!','success');
 }
 
-function fBuildUploadNotice(realRefs, randomRefs){
+function _fComputeUploadNoticeStr(realRefs, randomRefs){
   if(realRefs && realRefs.length > 0){
-    _fUploadNoticeList = realRefs.map((r, i) => (i+1) + '. foto ' + FTYPE[r.type].label.toLowerCase()).join('  ·  ');
-    return;
+    return realRefs.map((r, i) => (i+1) + '. foto ' + FTYPE[r.type].label.toLowerCase()).join('  ·  ');
   }
   // FIX IMPORT: prompt yang diimpor tidak punya FS.refs/realRefs (tidak ada file
   // foto asli), tapi urutan fotonya tetap ada di FS.importRefPhotos (dari field
   // "reference_photos" JSON yang diimpor). Field .type di situ sudah berupa
   // label siap pakai (mis. "Wajah Karakter"), bukan key FTYPE — pakai apa adanya.
   if(FS.importActive && FS.importRefPhotos && FS.importRefPhotos.length > 0){
-    _fUploadNoticeList = FS.importRefPhotos.map((r, i) => (i+1) + '. foto ' + esc(String((r && r.type) || 'referensi').toLowerCase())).join('  ·  ');
-    return;
+    return FS.importRefPhotos.map((r, i) => (i+1) + '. foto ' + esc(String((r && r.type) || 'referensi').toLowerCase())).join('  ·  ');
   }
-  _fUploadNoticeList = '';
+  return '';
+}
+function fBuildUploadNotice(realRefs, randomRefs){
+  _fUploadNoticeList = _fComputeUploadNoticeStr(realRefs, randomRefs);
 }
 
 function fShowUploadNotice(){
@@ -10489,6 +10498,13 @@ function pbSaveIconClick(type,btnEl){
 // tersimpan disembunyikan, diganti SATU tombol "Salin Semua Teks" yang
 // aman (dibuat sendiri dari teks polos, lihat pbOpenSavedPage).
 function _pbCollectResult(type){
+  // FIX (audit susulan): Mode 4 (Ikuti Gerakan) & Mirror Selfie menaruh
+  // prompt di elemen sendiri, BUKAN di vb-multi-output — dulu Simpan hanya
+  // membaca vb-multi-output, jadi entrinya tersimpan sebagai DRAFT kosong.
+  if(type==='video'){
+    let sp=_pbCollectSpecialVideo();
+    if(sp)return sp;
+  }
   let sourceEls=[];
   if(type==='foto'){
     let multi=document.getElementById('f-multi-output');
@@ -10546,6 +10562,15 @@ function _pbCollectResult(type){
         cf.setAttribute('value',f.value);
       }
     });
+    // FIX (audit susulan — penyimpanan penuh): foto produk base64 dulu
+    // tersimpan berkali-kali di HTML (thumbnail header grup + preview di panel
+    // Revisi tersembunyi) padahal satu salinan sudah ada di state
+    // (VB_BULK_PRODUCTS). Buang dari HTML; thumbnail & panel Revisi dibangun
+    // ulang dari state saat Riwayat dibuka (lihat _pbEnhanceBulkGroups).
+    clone.querySelectorAll('[id^="vb-revisi-panel-"]').forEach(function(n){n.remove();});
+    clone.querySelectorAll('img').forEach(function(im){
+      if((im.getAttribute('src')||'').indexOf('data:')===0)im.remove();
+    });
     clone.removeAttribute('id');
     clone.querySelectorAll('[id]').forEach(function(n){n.removeAttribute('id');});
     // Lepas SEMUA atribut event inline (onclick, oninput, onchange, dst) —
@@ -10582,17 +10607,62 @@ function _pbCollectResult(type){
 // bulk-nya di-render ULANG secara hidup buat lanjut generate, isinya jadi
 // beda dari yang user atur — bisa salah lokasi/foto/overlay di skrip yang
 // dilanjutkan. Sekarang keempatnya ikut dipaketkan & dipulihkan.
+// FIX (audit susulan lanjutan — penyimpanan penuh): VB_BULK_LAST_CONTEXT
+// ({produkList,targetAudience,allResults}, dipakai tombol "Lanjutkan
+// Generate" buat bulk yang belum lengkap) menyimpan SALINAN KEDUA foto
+// base64 tiap produk di produkList[i].fotoBase64/fotoMime — padahal foto
+// yang SAMA PERSIS (index sama, sumbernya sama: VB_BULK_PRODUCTS=produkList
+// .map(...) saat generate dimulai) sudah tersimpan di VB_BULK_PRODUCTS. Dulu
+// dua-duanya ikut di-JSON.stringify apa adanya di _vbPackState() — begitu
+// user menekan Simpan SAAT proses bulk belum lengkap (sebagian gagal/masih
+// jalan), tiap foto produk kepakai storage 2x lipat. Sekarang foto dibuang
+// dari SALINAN yang di-stringify di sini saja (obj live VB_BULK_LAST_CONTEXT
+// sendiri TIDAK disentuh, supaya "Lanjutkan Generate" di halaman builder
+// asli tetap normal) — dipasang kembali dari VB_BULK_PRODUCTS begitu
+// entrinya dipulihkan (lihat _vbUnpackAttachLastContextFoto, dipanggil dari
+// _vbUnpackState & _pbRestorePreOpenSnapshot).
+function _vbPackLastContext(){
+  if(typeof VB_BULK_LAST_CONTEXT==='undefined'||!VB_BULK_LAST_CONTEXT)return null;
+  try{
+    return {
+      produkList:(VB_BULK_LAST_CONTEXT.produkList||[]).map(function(p){
+        let c={};
+        for(let k in p)if(k!=='fotoBase64'&&k!=='fotoMime')c[k]=p[k];
+        return c;
+      }),
+      targetAudience:VB_BULK_LAST_CONTEXT.targetAudience,
+      allResults:VB_BULK_LAST_CONTEXT.allResults
+    };
+  }catch(e){return VB_BULK_LAST_CONTEXT;}
+}
+// Pasangkan lagi fotoBase64/fotoMime ke VB_BULK_LAST_CONTEXT.produkList dari
+// VB_BULK_PRODUCTS (index sama persis, lihat catatan _vbPackLastContext) —
+// dipanggil setelah KEDUANYA (VB_BULK_LAST_CONTEXT & VB_BULK_PRODUCTS)
+// selesai dipulihkan dari state tersimpan.
+function _vbUnpackAttachLastContextFoto(){
+  if(typeof VB_BULK_LAST_CONTEXT==='undefined'||!VB_BULK_LAST_CONTEXT||!VB_BULK_LAST_CONTEXT.produkList)return;
+  if(typeof VB_BULK_PRODUCTS==='undefined')return;
+  VB_BULK_LAST_CONTEXT.produkList.forEach(function(p,i){
+    let src=VB_BULK_PRODUCTS[i];
+    p.fotoBase64=(src&&src.fotoBase64)||'';
+    p.fotoMime=(src&&src.fotoMime)||'';
+  });
+}
 function _vbPackState(){
   try{
     return JSON.stringify({
       VB:VB,
       VB_BULK_ITEMS:(typeof VB_BULK_ITEMS!=='undefined'?VB_BULK_ITEMS:[]),
       VB_BULK_PRODUCTS:(typeof VB_BULK_PRODUCTS!=='undefined'?VB_BULK_PRODUCTS:[]),
-      VB_BULK_LAST_CONTEXT:(typeof VB_BULK_LAST_CONTEXT!=='undefined'?VB_BULK_LAST_CONTEXT:null),
+      VB_BULK_LAST_CONTEXT:_vbPackLastContext(),
       VB_CARD_TAMPIL:(typeof VB_CARD_TAMPIL!=='undefined'?VB_CARD_TAMPIL:{}),
       VB_CARD_LOKASI:(typeof VB_CARD_LOKASI!=='undefined'?VB_CARD_LOKASI:{}),
       VB_PRODUCT_FOTOCOUNT:(typeof VB_PRODUCT_FOTOCOUNT!=='undefined'?VB_PRODUCT_FOTOCOUNT:{}),
-      VB_HOOK_OVERLAY:(typeof VB_HOOK_OVERLAY!=='undefined'?VB_HOOK_OVERLAY:{})
+      VB_HOOK_OVERLAY:(typeof VB_HOOK_OVERLAY!=='undefined'?VB_HOOK_OVERLAY:{}),
+      // Teks overlay Mode 4 (Ikuti Gerakan) & Mirror Selfie — sebelumnya TIDAK
+      // ikut dipaketkan (lihat _pbCollectSpecialVideo).
+      M4_OVERLAY:(typeof VB_MODE4_OVERLAY_TEXT!=='undefined'?VB_MODE4_OVERLAY_TEXT:''),
+      MIRROR_OVERLAY:_pbMirrorOvGet()
     });
   }catch(e){return '{}';}
 }
@@ -10607,6 +10677,9 @@ function _vbUnpackState(json){
     if(typeof VB_CARD_LOKASI!=='undefined')VB_CARD_LOKASI=obj.VB_CARD_LOKASI||{};
     if(typeof VB_PRODUCT_FOTOCOUNT!=='undefined')VB_PRODUCT_FOTOCOUNT=obj.VB_PRODUCT_FOTOCOUNT||{};
     if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=obj.VB_HOOK_OVERLAY||{};
+    if('M4_OVERLAY' in obj && typeof VB_MODE4_OVERLAY_TEXT!=='undefined')VB_MODE4_OVERLAY_TEXT=obj.M4_OVERLAY||'';
+    if('MIRROR_OVERLAY' in obj)_pbMirrorOvOpen=obj.MIRROR_OVERLAY||'';
+    _vbUnpackAttachLastContextFoto();
   }catch(e){}
 }
 
@@ -10622,6 +10695,7 @@ function _pbRestorePreOpenSnapshot(){
   if(_pbPreOpenSnapshot===null)return;
   let snap=_pbPreOpenSnapshot;
   _pbPreOpenSnapshot=null;
+  _pbMirrorOvOpen=null; // nilai overlay Mirror Selfie kembali dibaca dari kolom asli
   try{
     let fsData=JSON.parse(snap.fs||'{}');
     Object.keys(FS).forEach(function(k){delete FS[k];});
@@ -10640,6 +10714,7 @@ function _pbRestorePreOpenSnapshot(){
     if(typeof VB_CARD_LOKASI!=='undefined')VB_CARD_LOKASI=vbObj.VB_CARD_LOKASI||{};
     if(typeof VB_PRODUCT_FOTOCOUNT!=='undefined')VB_PRODUCT_FOTOCOUNT=vbObj.VB_PRODUCT_FOTOCOUNT||{};
     if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=vbObj.VB_HOOK_OVERLAY||{};
+    if('M4_OVERLAY' in vbObj && typeof VB_MODE4_OVERLAY_TEXT!=='undefined')VB_MODE4_OVERLAY_TEXT=vbObj.M4_OVERLAY||'';
   }catch(e){/* snapshot video korup — biarkan VB apa adanya daripada error */}
   // Sinkronkan ulang tampilan chip Mode Referensi Foto (V1) di wizard Video
   // supaya yang KELIHATAN tersorot juga balik cocok dengan VB.refMode yang
@@ -10697,6 +10772,10 @@ function pbSaveCurrentPage(type,btnEl){
     labelVideo='Video'+(jumlahProduk?' — '+jumlahProduk+' produk (bulk)':(VB.mode3Produk?' — '+VB.mode3Produk:''));
     stateVideo=_vbPackState();
   }catch(e){labelVideo='Video tersimpan';stateVideo='{}';}
+  if(type==='video'){
+    if(VB.refMode==='ikuti')labelVideo='Video — Ikuti Gerakan';
+    else if(VB.refMode==='mirrorselfie')labelVideo='Video — Mirror Selfie';
+  }
   let label=(type==='foto')?labelFoto:labelVideo;
   let html=(type==='foto')?resultFoto.html:resultVideo.html;
   let arr=pbSavedGet();
@@ -10718,7 +10797,11 @@ function pbSaveCurrentPage(type,btnEl){
     // masih baca item.html/item.text/item.state langsung).
     html:html,
     text:(type==='foto'?resultFoto.text:resultVideo.text),
-    state:(type==='foto'?stateFoto:stateVideo),
+    // FIX (penyimpanan penuh): dulu di sini menyalin fotoState/videoState
+    // sekali lagi (dobel — dan state Video membawa foto produk base64).
+    // Semua pembaca sudah memakai fotoState/videoState lebih dulu, field ini
+    // hanya fallback entri sangat lama, jadi dikosongkan.
+    state:'',
     // BARU: snapshot gabungan dua builder, dipakai pbOpenSavedPage supaya
     // builder yang tidak sedang dilihat saat Simpan ditekan tetap ikut balik.
     fotoHtml:resultFoto.html,
@@ -10978,6 +11061,19 @@ function pbShowSavedOverlay(item){
   });
   let anyRendered=false;
   sections.forEach(function(s){
+    // Entri LAMA Mode 4 / Mirror Selfie (disimpan sebelum perbaikan) tidak
+    // punya HTML hasil sama sekali — prompt-nya deterministik dari state, jadi
+    // dibangun ulang di sini supaya tidak lagi tampil kosong.
+    if(!s.html && s.type==='video' && _pbCanRebuildVideo(item) && typeof VB!=='undefined'
+       && (VB.refMode==='ikuti'||VB.refMode==='mirrorselfie')){
+      try{
+        let o=JSON.parse(_pbVideoStateOf(item)||'{}');
+        if(!('M4_OVERLAY' in o) && typeof VB_MODE4_OVERLAY_TEXT!=='undefined')VB_MODE4_OVERLAY_TEXT='';
+        if(!('MIRROR_OVERLAY' in o))_pbMirrorOvOpen='';
+      }catch(e){}
+      let sp=_pbCollectSpecialVideo();
+      if(sp){s.html=sp.html;s.text=sp.text;}
+    }
     if(!s.html)return; // tidak ada apa pun buat tipe ini saat disimpan
     anyRendered=true;
     let sec=document.createElement('div');
@@ -11014,6 +11110,16 @@ function pbShowSavedOverlay(item){
     // sini, bukan dipulihkan dari yang lama, jadi onclick-nya otomatis
     // aman/independen dari builder asli.
     _pbInjectPerCardCopyButtons(content);
+    // FITUR BARU (permintaan user): "Lihat Ringkasan" (pilihan wizard yang
+    // dipakai bikin entri Foto ini) + "Atur Variasi & Generate Ulang" (pilih
+    // ulang shot mana yang mau ada, generate ulang tanpa keluar dari
+    // Riwayat) — lihat _pbEnhanceFotoSummary/_pbEnhanceFotoVariations.
+    if(s.type==='foto')_pbEnhanceFotoSummary(head,sec,content);
+    if(s.type==='foto')_pbEnhanceFotoVariations(item,content,head,sec);
+    if(s.type==='video' && _pbCanRebuildVideo(item)){
+      content._pbRebuild=true;
+      if(!_pbEnhanceSpecialVideo(content))_pbEnhanceVideoContent(content);
+    }
     sec.appendChild(content);
     // Tombol "Lanjutkan Generate" — PERMINTAAN USER: mesin generate-nya
     // TETAP jalan di halaman Video asli (vb-multi-output) seperti biasa,
@@ -11103,7 +11209,11 @@ function _pbInjectPerCardCopyButtons(root){
       // tombol diklik — bukan dari <pre> yang beku.
       let liveTxt=txt;
       let ta=card.querySelector('textarea');
-      if(ta){
+      if(pre.dataset && pre.dataset.pbLive==='1'){
+        // Kartu hidup (lihat _pbEnhanceVideoContent): <pre> selalu dibangun
+        // ulang dari state terkini (skrip + Tampilan + Lokasi + dst).
+        liveTxt=pre.textContent||txt;
+      } else if(ta){
         // CATATAN (audit tambahan): pakai fungsi sebagai argumen ke-2
         // replace(), BUKAN string langsung — kalau skrip user kebetulan
         // mengandung karakter "$" (mis. "$1", "$&", harga dalam dolar),
@@ -11115,10 +11225,181 @@ function _pbInjectPerCardCopyButtons(root){
       _copyTextRobust(liveTxt,function(){
         btn.textContent='Tersalin!';
         setTimeout(function(){btn.textContent=defaultLabel;},1200);
+        // FIX (audit susulan #3): di halaman Foto asli, Salin per-kartu juga
+        // memunculkan notice "Urutan Foto Tidak Boleh Terbalik" berisi daftar
+        // foto yang perlu diupload (fShowUploadNotice) — sebelumnya di
+        // Riwayat notice ini tidak pernah muncul sama sekali karena
+        // referensi foto ASLI (File-nya) sudah tidak ada lagi begitu entri
+        // dibuka lagi besoknya. Sekarang dipakai daftar TEKS yang sudah
+        // dihitung & dititip di kartu saat prompt di-generate (lihat
+        // data-upload-notice di fRenderMultiOutput/_fComputeUploadNoticeStr)
+        // — kartu Video tidak punya atribut ini jadi otomatis dilewati.
+        let notice=head.getAttribute('data-upload-notice');
+        if(notice && typeof fShowUploadNotice==='function'){
+          _fUploadNoticeList=notice;
+          fShowUploadNotice();
+        }
       },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
     };
     head.appendChild(btn);
   });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FITUR BARU (permintaan user): "Lihat Ringkasan" — jawaban atas pertanyaan
+// "kalau buka Foto dari Riwayat, bisa edit ringkasan atau atur variasi?"
+// (jawabannya dulu TIDAK BISA sama sekali, ini bagian pertama yang dibangun
+// buat mengatasinya). Bagian ini murni BACA SAJA: menampilkan pilihan wizard
+// (Subjek/Foto Ref/Produk/Pose/Lokasi/Cahaya/Angle/Mood) yang dipakai saat
+// entri Foto ini pertama kali dibuat. Mengedit pilihan itu SENDIRI tetap
+// harus lewat wizard Foto yang aktif — bukan lingkup fitur ini (lihat
+// _pbEnhanceFotoVariations di bawah untuk bagian yang BISA mengubah hasil
+// tanpa keluar dari Riwayat).
+//
+// Dibangun dengan MEMAKAI ULANG fRenderSummary() yang sudah ada & teruji di
+// halaman Foto asli (elemen #summary-rows dkk selalu ada di DOM meski
+// sedang tersembunyi di balik overlay Riwayat) — bukan menulis ulang logika
+// label dari nol. FS (state wizard) sudah dipulihkan ke pilihan ENTRI INI
+// sejak pbOpenSavedPage (lihat Object.assign(FS,...)), jadi hasil render
+// summary-nya otomatis mencerminkan entri yang sedang dibuka. Tombol "Edit"
+// bawaan fRenderSummary dibuang di klonnya karena target Edit itu (kartu
+// step 1-9) hidup di halaman builder asli yang tertutup overlay ini.
+function _pbBuildFotoSummarySnapshot(){
+  if(typeof fRenderSummary!=='function')return null;
+  try{ fRenderSummary(); }catch(e){return null;}
+  let rows=document.getElementById('summary-rows');
+  if(!rows||!rows.innerHTML.trim())return null;
+  let clone=rows.cloneNode(true);
+  clone.querySelectorAll('button,.summary-edit').forEach(function(n){n.remove();});
+  clone.querySelectorAll('[onclick]').forEach(function(n){n.removeAttribute('onclick');});
+  return clone.innerHTML;
+}
+function _pbEnhanceFotoSummary(head,sec,content){
+  let sumBtn=document.createElement('button');
+  sumBtn.type='button';sumBtn.className='copy-btn';sumBtn.style.cssText='margin-left:8px;';
+  sumBtn.textContent='Lihat Ringkasan';
+  let panel=document.createElement('div');
+  panel.className='hidden';
+  panel.style.cssText='margin:0 0 10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-xs);font-size:var(--fs-xs2);';
+  sumBtn.onclick=function(){
+    if(panel.classList.contains('hidden')){
+      let html=_pbBuildFotoSummarySnapshot();
+      if(!html){showToast('Ringkasan tidak tersedia untuk entri ini (mungkin tersimpan sebelum fitur ini ada).','error');return;}
+      panel.innerHTML=html;
+      panel.classList.remove('hidden');
+      sumBtn.textContent='Sembunyikan Ringkasan';
+    } else {
+      panel.classList.add('hidden');
+      sumBtn.textContent='Lihat Ringkasan';
+    }
+  };
+  head.appendChild(sumBtn);
+  sec.appendChild(panel);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FITUR BARU (permintaan user): "Atur Variasi & Generate Ulang" — bagian
+// KEDUA dari jawaban "bisa atur variasi dari Riwayat?". Beda dari fitur
+// Revisi AI di Video (yang cuma mengubah TEKS via panggilan AI), mesin
+// generate Foto (fGenerate → _fDoGenerateMultiShot) itu 100% LOKAL &
+// deterministik dari state (FS) + checkbox shot yang dicentang — TIDAK ada
+// panggilan AI/jaringan sama sekali — jadi jauh lebih sederhana & aman untuk
+// dipicu ulang langsung dari sini.
+//
+// PENTING (dikomunikasikan juga ke user di UI): _fDoGenerateMultiShot SELALU
+// membangun ULANG SELURUH set shot yang dicentang dari nol (mesinnya
+// `multiWrap.innerHTML=''` dulu) — bukan "nambah" kartu baru di atas yang
+// lama. Jadi panel ini pre-centang shot yang SUDAH ada di entri ini
+// (dideteksi dari label kartu di teks tersimpan), user tinggal centang
+// tambahan atau uncek yang tidak mau dipertahankan, lalu "Generate Ulang"
+// akan MENGGANTI TOTAL kartu yang tampil sesuai centangan terbaru. Foto
+// referensi/pose/lokasi/cahaya/angle/mood tetap memakai FS yang sudah
+// dipulihkan dari entri ini (item.fotoState) — tidak berubah. Override detail
+// per-shot (opsional, lokasi/cahaya/dst custom per variasi) TIDAK disediakan
+// di panel ringkas ini — kalau itu dibutuhkan, tetap harus dari wizard Foto
+// yang aktif.
+const PB_FOTO_SHOT_LABELS={
+  bicara:'Bicara ke Kamera',
+  detailtangan:'Detail Produk + Tangan Karakter',
+  dipakai:'Produk Dipakai / Digunakan',
+  detail:'Detail Produk (tanpa karakter)',
+  lifestyle:'Lifestyle / Suasana'
+};
+function _pbFotoDetectCheckedFromText(text){
+  let out={};
+  text=text||'';
+  Object.keys(PB_FOTO_SHOT_LABELS).forEach(function(k){
+    if(text.indexOf(PB_FOTO_SHOT_LABELS[k])>=0)out[k]=true;
+  });
+  return out;
+}
+function _pbEnhanceFotoVariations(item,content,head,sec){
+  if(typeof F_SHOT_TYPES==='undefined'||typeof _fDoGenerateMultiShot!=='function')return;
+  let toggleBtn=document.createElement('button');
+  toggleBtn.type='button';toggleBtn.className='copy-btn';toggleBtn.style.cssText='margin-left:8px;';
+  toggleBtn.textContent='Atur Variasi';
+  let panel=document.createElement('div');
+  panel.className='hidden';
+  panel.style.cssText='margin:0 0 10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-xs);display:flex;flex-direction:column;gap:6px;';
+  let hint=document.createElement('div');
+  hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted);margin-bottom:2px;line-height:1.5;';
+  hint.textContent='Centang shot yang mau ada di halaman ini, lalu Generate Ulang. Ini MENGGANTI TOTAL kartu yang tampil sekarang dengan hasil baru sesuai centangan (bukan nambah di atas yang lama). Foto referensi/pose/lokasi/dst tetap pakai yang sama seperti pertama kali dibuat.';
+  panel.appendChild(hint);
+  let checkedNow=_pbFotoDetectCheckedFromText(content.textContent);
+  let checks={};
+  Object.keys(PB_FOTO_SHOT_LABELS).forEach(function(k){
+    let row=document.createElement('label');
+    row.style.cssText='display:flex;align-items:center;gap:7px;cursor:pointer;';
+    let cb=document.createElement('input');cb.type='checkbox';cb.checked=!!checkedNow[k];
+    cb.style.cssText='width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;';
+    let sp=document.createElement('span');sp.textContent=PB_FOTO_SHOT_LABELS[k];
+    row.appendChild(cb);row.appendChild(sp);
+    panel.appendChild(row);
+    checks[k]=cb;
+  });
+  let btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:8px;margin-top:4px;';
+  let genBtn=document.createElement('button');genBtn.type='button';genBtn.className='btn sm';genBtn.style.flex='1';
+  genBtn.textContent='Generate Ulang';
+  let cancelBtn=document.createElement('button');cancelBtn.type='button';cancelBtn.className='reset-btn sm';cancelBtn.style.flex='1';
+  cancelBtn.textContent='Batal';
+  btnRow.appendChild(genBtn);btnRow.appendChild(cancelBtn);
+  panel.appendChild(btnRow);
+  toggleBtn.onclick=function(){panel.classList.toggle('hidden');};
+  cancelBtn.onclick=function(){panel.classList.add('hidden');};
+  genBtn.onclick=function(){
+    let chosen=Object.keys(checks).filter(function(k){return checks[k].checked;});
+    if(!chosen.length){showToast('Centang minimal 1 variasi dulu','error');return;}
+    if(typeof VAI!=='undefined' && VAI._isGenerating){showToast('Tunggu proses sebelumnya selesai dulu.','error');return;}
+    let orig=genBtn.textContent;
+    genBtn.disabled=true;genBtn.textContent='Memproses...';
+    try{
+      document.querySelectorAll('.f-shot-check').forEach(function(cb){cb.checked=(chosen.indexOf(cb.value)>=0);});
+      let checkedEls=document.querySelectorAll('.f-shot-check:checked');
+      if(!checkedEls.length)throw new Error('Tidak ada shot yang cocok, coba lagi.');
+      _fDoGenerateMultiShot(checkedEls);
+      let fresh=_pbCollectResult('foto')||{html:content.innerHTML,text:''};
+      content.innerHTML=fresh.html;
+      _pbInjectPerCardCopyButtons(content);
+      let arr=pbSavedGet();
+      let idx=arr.findIndex(function(x){return x.id===item.id;});
+      if(idx>=0){
+        arr[idx].fotoHtml=fresh.html;
+        arr[idx].fotoText=fresh.text;
+        arr[idx].fotoState=JSON.stringify(FS);
+        if(arr[idx].type==='foto'){arr[idx].html=fresh.html;arr[idx].text=fresh.text;}
+        try{pbSavedSetAll(arr);}catch(e){/* kuota penuh dsb — biarkan, overlay tetap tampil hasil terbaru */}
+      }
+      panel.classList.add('hidden');
+      showToast('Variasi berhasil digenerate ulang!','success');
+    }catch(err){
+      console.error('generate ulang variasi Foto (Riwayat) error:',err);
+      showToast('Gagal generate ulang: '+(err&&err.message?err.message:'error tidak diketahui'),'error');
+    }finally{
+      genBtn.disabled=false;genBtn.textContent=orig;
+    }
+  };
+  head.appendChild(toggleBtn);
+  sec.appendChild(panel);
 }
 
 // Daftar fungsi "flush" autosave (satu per section foto/video yang sedang
@@ -11136,6 +11417,7 @@ function pbCloseSavedOverlay(){
   // ini dibuka lagi, isinya sudah pasti versi terakhir yang diketik.
   _pbSavedOverlayPendingFlushes.forEach(function(fn){fn();});
   _pbSavedOverlayPendingFlushes=[];
+  _pbMirrorOvOpen=null; // setelah flush (flush masih butuh nilainya)
   let overlay=document.getElementById('pb-saved-overlay');
   if(overlay){overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');}
   // FIX BUG (laporan user): dulu menutup overlay lewat × / backdrop / Esc
@@ -11159,6 +11441,742 @@ function pbCloseSavedOverlay(){
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// FIX BESAR (laporan user, Sept 2026): Riwayat entri Video mode RAW ASSET —
+// (1) tombol "Tampilan" & "Lokasi" per kartu HILANG, (2) mengedit tidak ada
+// efeknya. Akar masalahnya sama: _pbCollectResult membuang SEMUA <button> +
+// atribut onclick/oninput supaya HTML beku aman disimpan. Akibatnya tombol
+// Tampilan/Lokasi (dan "Atur Detail" Teks Overlay Hook, chip Jumlah Foto
+// Produk) lenyap atau jadi chip mati, panelnya tetap tersembunyi, dan <pre>
+// JSON di tiap kartu tidak pernah ikut berubah saat skrip diedit (listener
+// oninput-nya sudah dilepas) — jadi kelihatan "gak ngefek".
+//
+// Solusi: HTML beku cuma dipakai untuk kerangka kartu + isi textarea. Semua
+// kontrolnya DIBANGUN ULANG di sini dari STATE yang sudah tersimpan
+// (VB_CARD_TAMPIL / VB_CARD_LOKASI / VB_PRODUCT_FOTOCOUNT / VB_HOOK_OVERLAY,
+// yang sudah dipulihkan pbOpenSavedPage lewat _vbUnpackState). Sengaja TIDAK
+// memakai vbPickTampilProduk/vbPickLokasiCard/vbBulkUpdateJson asli, karena
+// fungsi-fungsi itu mencari elemen lewat id — dan id yang sama mungkin masih
+// dipakai builder Video asli di balik overlay. Versi di bawah bekerja
+// langsung pada elemen kartu di overlay (tanpa id sama sekali).
+// ════════════════════════════════════════════════════════════════════
+function _pbVideoStateOf(item){
+  return (item.videoState!=null)?item.videoState:(item.type==='video'?item.state:null);
+}
+// Hanya aktif kalau entri punya state video versi paket (ada key VB) —
+// entri sangat lama tanpa itu tetap pakai jalur lama (tanpa kontrol hidup)
+// supaya teks yang sudah tersimpan tidak berubah sendiri.
+function _pbCanRebuildVideo(item){
+  try{
+    let st=_pbVideoStateOf(item);
+    if(st==null)return false;
+    let o=JSON.parse(st||'{}');
+    return !!(o&&o.VB&&typeof VB!=='undefined');
+  }catch(e){return false;}
+}
+// Bangun ulang <pre> (teks siap salin) + penghitung kata sebuah kartu dari
+// state terkini. fromScript=true kalau dipicu ketikan di textarea skrip.
+function _pbRefreshVideoCard(c,fromScript){
+  let idx=c.idx;
+  let it=(typeof VB_BULK_ITEMS!=='undefined')?VB_BULK_ITEMS[idx]:null;
+  if(it)it.script=c.ta.value;
+  let produk=it?(it.produk||''):'';
+  c.pre.textContent=_vbBuildFlowText(c.ta.value,produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
+  if(fromScript){
+    let wc=c.pre.previousElementSibling;
+    if(wc && !wc.querySelector('textarea')){
+      let range=vbGetWordRange();
+      let n=c.ta.value.split(/\s+/).filter(Boolean).length;
+      wc.textContent=n+'/'+range.min+'-'+range.max+' kata';
+      wc.style.color=(n>=range.min&&n<=range.max)?'var(--green)':'var(--muted2)';
+    }
+  }
+}
+function _pbMkHeadBtn(html){
+  let b=document.createElement('button');
+  b.type='button';b.className='copy-btn';
+  b.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+  b.innerHTML=html;
+  return b;
+}
+function _pbMkChip(text,selected,muted){
+  let chip=document.createElement('div');
+  chip.className='chip'+(selected?' sel':'');
+  chip.style.cssText='font-size:var(--fs-2xs);padding:6px 10px;'+(muted?'color:var(--muted);':'');
+  chip.textContent=text;
+  return chip;
+}
+const _PB_PANEL_CSS='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;padding:8px;background:var(--surface);border:1px solid var(--border-hi);border-radius:var(--radius-xs);';
+const _PB_CAM_ICON='<svg class="icon" style="width:12px;height:12px;"><use href="#ic-camera"></use></svg> ';
+
+function _pbEnhanceVideoContent(content){
+  if(typeof VB==='undefined')return;
+  // Beritahu handler autosave (listener 'input' di content) ada perubahan.
+  function notify(){content.dispatchEvent(new Event('input',{bubbles:true}));}
+
+  // 1) Kenali kartu skrip: <pre> di dalam body kartu yang punya <textarea>.
+  //    idx = urutan kemunculan (Hook/Story/CTA per produk, berurutan —
+  //    sama dengan idx aslinya di VB_BULK_ITEMS).
+  let cards=[];
+  content.querySelectorAll('pre').forEach(function(pre){
+    let body=pre.parentElement, card=body?body.parentElement:null;
+    if(!body||!card)return;
+    let ta=body.querySelector('textarea');
+    let head=card.firstElementChild;
+    if(!ta||!head||head===body)return;
+    cards.push({idx:cards.length,card:card,body:body,ta:ta,pre:pre,head:head});
+  });
+  if(!cards.length)return;
+
+  // 2) Buang sisa kontrol BEKU (panel Tampilan/Lokasi tersembunyi, baris
+  //    Jumlah Foto & Teks Overlay yang chip/tombolnya sudah mati).
+  cards.forEach(function(c){
+    Array.from(c.body.children).forEach(function(ch){
+      if(ch.querySelector && ch.querySelector('.chip'))ch.remove();
+    });
+  });
+  let parents=[];
+  cards.forEach(function(c){if(parents.indexOf(c.card.parentElement)<0)parents.push(c.card.parentElement);});
+  parents.forEach(function(par){
+    Array.from(par.children).forEach(function(el){
+      if(el.querySelector('textarea'))return; // jangan sentuh kartu skrip / pembungkus
+      let t=el.textContent||'';
+      if((t.indexOf('Jumlah Foto Produk')>=0 && el.querySelector('.chip')) ||
+         (t.indexOf('tulisan kecil di Hook')>=0 && el.querySelector('label'))){
+        el.remove();
+      }
+    });
+  });
+
+  let isKp=(VB.refMode==='kp');
+
+  // 3) Kartu: <pre> hidup + editor skrip yang memperbarui <pre>.
+  cards.forEach(function(c){
+    c.pre.dataset.pbLive='1';
+    c.ta.addEventListener('input',function(){_pbRefreshVideoCard(c,true);});
+  });
+
+  // 4) Tombol Tampilan & Lokasi per kartu (khusus Raw Asset / Mode 3).
+  if(isKp){
+    cards.forEach(function(c){
+      let idx=c.idx;
+      let right=document.createElement('div');
+      right.setAttribute('data-pb-ui','1');
+      right.style.cssText='display:flex;align-items:center;gap:5px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;';
+      let salin=c.head.querySelector('.pb-percard-copy');
+
+      let tampilBtn=_pbMkHeadBtn(_PB_CAM_ICON+(VB_CARD_TAMPIL[idx]?VB_CARD_TAMPIL[idx].label:'Tampilan'));
+      let lokasiBtn=_pbMkHeadBtn(VB_CARD_LOKASI[idx]?VB_CARD_LOKASI[idx].label:'Lokasi');
+      right.appendChild(tampilBtn);
+      right.appendChild(lokasiBtn);
+      if(salin){salin.style.marginLeft='0';right.appendChild(salin);}
+      c.head.appendChild(right);
+
+      let tampilPanel=document.createElement('div');
+      tampilPanel.setAttribute('data-pb-ui','1');
+      tampilPanel.className='hidden';
+      tampilPanel.style.cssText=_PB_PANEL_CSS;
+      let lokasiPanel=document.createElement('div');
+      lokasiPanel.setAttribute('data-pb-ui','1');
+      lokasiPanel.className='hidden';
+      lokasiPanel.style.cssText=_PB_PANEL_CSS;
+      c.body.insertBefore(lokasiPanel,c.body.firstChild);
+      c.body.insertBefore(tampilPanel,c.body.firstChild);
+
+      function fillTampil(){
+        tampilPanel.innerHTML='';
+        let cur=VB_CARD_TAMPIL[idx];
+        VB_TAMPIL_PRODUK_OPTS.forEach(function(opt){
+          let chip=_pbMkChip(opt[1],cur&&cur.key===opt[0],false);
+          chip.onclick=function(){pickTampil(opt[0],opt[1],opt[2]);};
+          tampilPanel.appendChild(chip);
+        });
+        let clr=_pbMkChip('Tidak ditentukan',!cur,true);
+        clr.onclick=function(){pickTampil('','','');};
+        tampilPanel.appendChild(clr);
+      }
+      function pickTampil(key,label,text){
+        if(key)VB_CARD_TAMPIL[idx]={key:key,label:label,text:text};
+        else delete VB_CARD_TAMPIL[idx];
+        tampilBtn.innerHTML=_PB_CAM_ICON+(key?label:'Tampilan');
+        fillTampil();
+        tampilPanel.classList.add('hidden');
+        _pbRefreshVideoCard(c,false);
+        notify();
+      }
+      function fillLokasi(){
+        lokasiPanel.innerHTML='';
+        let cur=VB_CARD_LOKASI[idx];
+        VB_LOKASI_OPTS.forEach(function(opt){
+          let chip=_pbMkChip(opt[1],cur&&cur.key===opt[0],false);
+          chip.onclick=function(){pickLokasi(opt[0],opt[1]);};
+          lokasiPanel.appendChild(chip);
+        });
+        let clr=_pbMkChip('Tidak ditentukan',!cur,true);
+        clr.onclick=function(){pickLokasi('','');};
+        lokasiPanel.appendChild(clr);
+        let row=document.createElement('div');
+        row.style.cssText='display:flex;gap:6px;width:100%;margin-top:6px;';
+        let inp=document.createElement('input');
+        inp.className='inp';
+        inp.maxLength=120;
+        inp.placeholder='Isi sendiri, contoh: rooftop malam hari';
+        inp.style.cssText='flex:1;font-size:var(--fs-2xs);padding:6px 8px;';
+        if(cur&&cur.key==='custom')inp.value=cur.label;
+        inp.addEventListener('input',function(){
+          let v=inp.value.trim();
+          if(v)VB_CARD_LOKASI[idx]={key:'custom',label:v,text:v};
+          else delete VB_CARD_LOKASI[idx];
+          lokasiBtn.textContent=v?v:'Lokasi';
+          lokasiPanel.querySelectorAll('.chip').forEach(function(ch){
+            ch.classList.toggle('sel',!v&&ch.textContent==='Tidak ditentukan');
+          });
+          _pbRefreshVideoCard(c,false);
+          // event 'input' asli sudah menggelembung ke content → autosave jalan
+        });
+        inp.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){e.preventDefault();lokasiPanel.classList.add('hidden');}
+        });
+        row.appendChild(inp);
+        lokasiPanel.appendChild(row);
+      }
+      function pickLokasi(key,label){
+        if(key)VB_CARD_LOKASI[idx]={key:key,label:label,text:label};
+        else delete VB_CARD_LOKASI[idx];
+        lokasiBtn.textContent=key?label:'Lokasi';
+        fillLokasi();
+        lokasiPanel.classList.add('hidden');
+        _pbRefreshVideoCard(c,false);
+        notify();
+      }
+      fillTampil();
+      fillLokasi();
+      tampilBtn.onclick=function(){
+        let willOpen=tampilPanel.classList.contains('hidden');
+        if(willOpen){lokasiPanel.classList.add('hidden');fillTampil();}
+        tampilPanel.classList.toggle('hidden');
+      };
+      lokasiBtn.onclick=function(){
+        let willOpen=lokasiPanel.classList.contains('hidden');
+        if(willOpen){tampilPanel.classList.add('hidden');fillLokasi();}
+        lokasiPanel.classList.toggle('hidden');
+      };
+    });
+  }
+
+  // 5) Per PRODUK (di atas kartu Hook): Teks Overlay Hook + Jumlah Foto.
+  cards.forEach(function(c){
+    if(c.idx%3!==0)return;
+    let prodIdx=c.idx/3;
+    function refreshProduct(){
+      cards.forEach(function(x){
+        if(Math.floor(x.idx/3)===prodIdx)_pbRefreshVideoCard(x,false);
+      });
+    }
+    // Teks Overlay Hook (semua mode)
+    let ovWrap=document.createElement('div');
+    ovWrap.setAttribute('data-pb-ui','1');
+    ovWrap.style.cssText='margin-bottom:8px;';
+    let ovBtn=document.createElement('button');
+    ovBtn.type='button';
+    ovBtn.style.cssText='background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;';
+    let prefilled=!!(VB_HOOK_OVERLAY[prodIdx]||'').trim();
+    ovBtn.textContent=prefilled?'– Sembunyikan detail':'+ Atur Detail (opsional)';
+    let ovBox=document.createElement('div');
+    ovBox.className=prefilled?'':'hidden';
+    ovBox.style.cssText='margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;';
+    let ovLabel=document.createElement('label');
+    ovLabel.className='inplabel';
+    ovLabel.style.cssText='font-size:var(--fs-2xs);';
+    ovLabel.textContent='Isi (tulisan kecil di Hook)';
+    let ovInp=document.createElement('input');
+    ovInp.className='inp';
+    ovInp.maxLength=60;
+    ovInp.placeholder='Contoh: polkadot';
+    ovInp.value=VB_HOOK_OVERLAY[prodIdx]||'';
+    ovInp.addEventListener('input',function(){
+      let v=ovInp.value.trim();
+      if(v)VB_HOOK_OVERLAY[prodIdx]=v;else delete VB_HOOK_OVERLAY[prodIdx];
+      if(typeof VB_BULK_PRODUCTS!=='undefined'&&VB_BULK_PRODUCTS[prodIdx])VB_BULK_PRODUCTS[prodIdx].overlay=v;
+      _pbRefreshVideoCard(c,false);
+    });
+    ovBtn.onclick=function(){
+      let opening=ovBox.classList.contains('hidden');
+      ovBox.classList.toggle('hidden');
+      ovBtn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
+      if(opening)ovInp.focus();
+    };
+    let ovHint=document.createElement('p');
+    ovHint.style.cssText='font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;';
+    ovHint.textContent='Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt Hook: muncul tulisan kecil banget di pojok kanan paling bawah layar pada detik awal (0–2 detik) lalu menghilang. Kosongkan kalau tidak perlu teks overlay.';
+    ovBox.appendChild(ovLabel);ovBox.appendChild(ovInp);ovBox.appendChild(ovHint);
+    ovWrap.appendChild(ovBtn);ovWrap.appendChild(ovBox);
+    c.card.parentElement.insertBefore(ovWrap,c.card);
+
+    // Jumlah Foto Produk (khusus Raw Asset)
+    if(isKp){
+      function buildFotoRow(){
+        let wrap=document.createElement('div');
+        wrap.setAttribute('data-pb-ui','1');
+        wrap.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 9px;margin-bottom:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-xs);';
+        let label=document.createElement('div');
+        label.style.cssText='font-size:var(--fs-2xs);color:var(--muted);width:100%;display:flex;align-items:center;gap:5px;margin-bottom:2px;';
+        label.innerHTML='<svg class="icon" style="width:13px;height:13px;color:var(--accent);flex-shrink:0;"><use href="#ic-camera"></use></svg> Jumlah Foto Produk (foto referensi 2 dst.)';
+        wrap.appendChild(label);
+        let cur=VB_PRODUCT_FOTOCOUNT[prodIdx]||0;
+        function pick(n){
+          if(n)VB_PRODUCT_FOTOCOUNT[prodIdx]=n;else delete VB_PRODUCT_FOTOCOUNT[prodIdx];
+          wrap.replaceWith(buildFotoRow());
+          refreshProduct();
+          notify();
+        }
+        [1,2,3,4,5].forEach(function(n){
+          let chip=_pbMkChip(String(n),cur===n,false);
+          chip.style.minWidth='28px';chip.style.textAlign='center';
+          chip.onclick=function(){pick(n);};
+          wrap.appendChild(chip);
+        });
+        let clr=_pbMkChip('Ikuti foto asli',!cur,true);
+        clr.onclick=function(){pick(0);};
+        wrap.appendChild(clr);
+        return wrap;
+      }
+      c.card.parentElement.insertBefore(buildFotoRow(),c.card);
+    }
+  });
+  _pbEnhanceBulkGroups(content,cards,notify);
+  _pbEnhanceSingleRevisi(content,cards,notify);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIT SUSULAN #1 — Mode 4 (Ikuti Gerakan) & Mirror Selfie di Riwayat.
+// Prompt kedua mode ini hidup di elemen sendiri (#vb-mode4-prompt-text,
+// #vb-mirrorselfie-prompt-1/2), di luar #vb-multi-output, jadi tidak pernah
+// tertangkap Simpan. Di sini dibuat HTML sederhana (kartu + <pre>) langsung
+// dari state; overlay lalu menambahkan kolom Teks Overlay yang hidup.
+// ════════════════════════════════════════════════════════════════════
+let _pbMirrorOvOpen=null; // null = baca dari kolom asli; string = nilai entri yang sedang dibuka di overlay
+function _pbMirrorOvGet(){
+  if(_pbMirrorOvOpen!==null)return _pbMirrorOvOpen;
+  try{return _vbMirrorOverlayValue();}catch(e){return '';}
+}
+function _pbMirrorPromptFor(ov,n){
+  let base=_vbMirrorBasePrompt();
+  if(n===2||!ov)return base;
+  return base+' '+_vbOverlaySentence(ov).replace(/^\.\s*/,'');
+}
+function _pbCollectSpecialVideo(){
+  if(typeof VB==='undefined')return null;
+  let mode=VB.refMode;
+  if(mode!=='ikuti'&&mode!=='mirrorselfie')return null;
+  let defs;
+  if(mode==='ikuti'){
+    defs=[{label:'Prompt — Ikuti Gerakan Video',text:_vbMode4BuildText(),hidden:false}];
+  }else{
+    let ov=_pbMirrorOvGet();
+    defs=[
+      {label:ov?'Prompt 1 — Mirror Selfie (+ tulisan kecil)':'Prompt — Mirror Selfie',text:_pbMirrorPromptFor(ov,1),hidden:false},
+      {label:'Prompt 2 — Mirror Selfie (Original)',text:_pbMirrorPromptFor(ov,2),hidden:!ov}
+    ];
+  }
+  let root=document.createElement('div');
+  root.setAttribute('data-pb-special',mode);
+  let texts=[];
+  defs.forEach(function(d,i){
+    let card=document.createElement('div');
+    card.className='out-card'+(d.hidden?' hidden':'');
+    if(i>0)card.style.marginTop='10px';
+    let head=document.createElement('div');head.className='out-head';
+    let lb=document.createElement('div');lb.className='out-label';lb.textContent=d.label;
+    head.appendChild(lb);
+    let body=document.createElement('div');body.className='out-body';
+    let pre=document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.textContent=d.text;
+    body.appendChild(pre);
+    card.appendChild(head);card.appendChild(body);
+    root.appendChild(card);
+    if(!d.hidden)texts.push(d.text);
+  });
+  let tmp=document.createElement('div');
+  tmp.appendChild(root);
+  return {html:tmp.innerHTML,text:texts.join('\n\n---\n\n')};
+}
+function _pbEnhanceSpecialVideo(content){
+  let root=content.querySelector('[data-pb-special]');
+  if(!root)return false;
+  let mode=root.getAttribute('data-pb-special');
+  let cards=Array.from(root.querySelectorAll('.out-card'));
+  let pres=cards.map(function(c){return c.querySelector('pre');});
+  let labels=cards.map(function(c){return c.querySelector('.out-label');});
+  pres.forEach(function(pr){if(pr)pr.dataset.pbLive='1';});
+  function ovGet(){return mode==='ikuti'?(VB_MODE4_OVERLAY_TEXT||''):_pbMirrorOvGet();}
+  function refresh(){
+    let ov=ovGet();
+    if(mode==='ikuti'){
+      if(pres[0])pres[0].textContent=_vbMode4BuildText();
+    }else{
+      if(pres[0])pres[0].textContent=_pbMirrorPromptFor(ov,1);
+      if(pres[1])pres[1].textContent=_pbMirrorPromptFor(ov,2);
+      if(labels[0])labels[0].textContent=ov?'Prompt 1 — Mirror Selfie (+ tulisan kecil)':'Prompt — Mirror Selfie';
+      if(cards[1])cards[1].classList.toggle('hidden',!ov);
+    }
+  }
+  let wrap=document.createElement('div');
+  wrap.setAttribute('data-pb-ui','1');
+  wrap.style.cssText='margin-bottom:8px;';
+  let cur=ovGet();
+  let btn=document.createElement('button');
+  btn.type='button';
+  btn.style.cssText='background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;';
+  btn.textContent=cur?'– Sembunyikan detail':'+ Atur Detail (opsional)';
+  let box=document.createElement('div');
+  box.className=cur?'':'hidden';
+  box.style.cssText='margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;';
+  let lab=document.createElement('label');
+  lab.className='inplabel';lab.style.cssText='font-size:var(--fs-2xs);';
+  lab.textContent=(mode==='ikuti')?'Teks Overlay':'Isi';
+  let inp=document.createElement('input');
+  inp.className='inp';inp.maxLength=60;
+  inp.placeholder=(mode==='ikuti')?'Contoh: polkadot':'Contoh: sepatu futsal';
+  inp.value=cur;
+  inp.addEventListener('input',function(){
+    let v=inp.value.trim();
+    if(mode==='ikuti')VB_MODE4_OVERLAY_TEXT=v;else _pbMirrorOvOpen=v;
+    refresh(); // event 'input' asli menggelembung ke content → autosave
+  });
+  btn.onclick=function(){
+    let opening=box.classList.contains('hidden');
+    box.classList.toggle('hidden');
+    btn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
+    if(opening)inp.focus();
+  };
+  box.appendChild(lab);box.appendChild(inp);
+  if(mode==='ikuti'){
+    let hint=document.createElement('p');
+    hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;';
+    hint.textContent='Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt: muncul tulisan kecil banget di pojok kanan paling bawah layar pada detik awal (0–2 detik) lalu menghilang. Kosongkan kalau tidak perlu teks overlay.';
+    box.appendChild(hint);
+  }
+  wrap.appendChild(btn);wrap.appendChild(box);
+  root.insertBefore(wrap,root.firstChild);
+  return true;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIT SUSULAN #2 & #4 — grup produk mode Bulk di Riwayat: tombol Revisi
+// dibangun ulang (versi overlay, tanpa id) + thumbnail foto dari state.
+// Revisi versi overlay: 1x per produk seperti aslinya, ada "Kembalikan ke
+// Versi Awal" (backup hanya selama overlay terbuka). Ganti foto referensi
+// tidak disediakan di sini — foto lama dipakai apa adanya.
+// ════════════════════════════════════════════════════════════════════
+function _pbEnhanceBulkGroups(content,cards,notify){
+  if(typeof VB_BULK_PRODUCTS==='undefined')return;
+  cards.forEach(function(c){
+    if(c.idx%3!==0)return;
+    let prodIdx=c.idx/3;
+    let bodyEl=c.card.parentElement;
+    let group=bodyEl?bodyEl.parentElement:null;
+    if(!bodyEl||bodyEl===content||!group||group.parentElement!==content)return;
+    let meta=VB_BULK_PRODUCTS[prodIdx];
+    if(!meta)return;
+    let gHead=group.firstElementChild;
+    if(!gHead||gHead===bodyEl)return;
+    // panel Revisi beku (mati) → buang
+    let nx=gHead.nextElementSibling;
+    if(nx&&nx!==bodyEl&&(nx.textContent||'').indexOf('Betulkan nama/keunggulan produk')>=0)nx.remove();
+    let spans=Array.from(gHead.children).filter(function(e){return e.tagName==='SPAN';});
+    let nameSpan=spans.length>=2?spans[spans.length-1]:null;
+    // thumbnail foto dari state (satu salinan), ganti yang beku
+    if(meta.fotoBase64){
+      gHead.querySelectorAll('img').forEach(function(im){
+        if((im.getAttribute('src')||'').indexOf('data:')===0)im.remove();
+      });
+      let img=document.createElement('img');
+      img.setAttribute('data-pb-ui','1');
+      img.className='vbfoto-img';
+      img.alt='Foto referensi produk';img.title='Foto referensi produk — tap untuk perbesar';
+      img.style.cssText='width:24px;height:24px;border-radius:var(--radius-2xs);object-fit:cover;border:1px solid var(--border-hi);flex-shrink:0;';
+      img.src='data:'+(meta.fotoMime||'image/jpeg')+';base64,'+meta.fotoBase64;
+      gHead.insertBefore(img,nameSpan);
+    }
+    // tombol + panel Revisi
+    let revBtn=_pbMkHeadBtn('Revisi');
+    revBtn.setAttribute('data-pb-ui','1');
+    gHead.appendChild(revBtn);
+    let panel=document.createElement('div');
+    panel.setAttribute('data-pb-ui','1');
+    panel.className='hidden';
+    panel.style.cssText='padding:9px;background:var(--surface2);border-bottom:1px solid var(--border-hi);display:flex;flex-direction:column;gap:6px;';
+    let hint=document.createElement('div');
+    hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted);';
+    hint.textContent='Betulkan nama/keunggulan produk dan/atau kasih tau AI apa yang mau diubah, lalu generate ulang khusus produk ini.';
+    let namaInp=document.createElement('input');
+    namaInp.className='inp';namaInp.maxLength=80;namaInp.placeholder='Nama produk';
+    namaInp.style.cssText='font-size:var(--fs-xs2);padding:6px 8px;';
+    namaInp.value=meta.nama||(nameSpan?nameSpan.textContent:'')||'';
+    let keuInp=document.createElement('input');
+    keuInp.className='inp';keuInp.maxLength=150;keuInp.placeholder='Keunggulan (opsional)';
+    keuInp.style.cssText='font-size:var(--fs-xs2);padding:6px 8px;';
+    keuInp.value=meta.keunggulan||'';
+    let noteTa=document.createElement('textarea');
+    noteTa.className='inp';noteTa.rows=2;
+    noteTa.placeholder="Opsional: instruksi revisi, misal 'buat CTA lebih santai' atau 'ganti sudut cerita'";
+    noteTa.style.cssText='font-size:var(--fs-xs2);padding:6px 8px;resize:vertical;';
+    let row=document.createElement('div');
+    row.style.cssText='display:flex;gap:6px;';
+    let submit=document.createElement('button');
+    submit.type='button';submit.className='btn sm';submit.style.flex='1';
+    submit.textContent='Generate Ulang Produk Ini';
+    let cancel=document.createElement('button');
+    cancel.type='button';cancel.className='reset-btn';cancel.style.cssText='flex:0;padding:8px 12px;';
+    cancel.textContent='Batal';
+    row.appendChild(submit);row.appendChild(cancel);
+    let undo=document.createElement('button');
+    undo.type='button';undo.className='reset-btn hidden';undo.style.width='100%';
+    undo.textContent='Kembalikan ke Versi Awal';
+    panel.appendChild(hint);panel.appendChild(namaInp);panel.appendChild(keuInp);
+    panel.appendChild(noteTa);panel.appendChild(row);panel.appendChild(undo);
+    group.insertBefore(panel,gHead.nextSibling);
+    revBtn.onclick=function(){panel.classList.toggle('hidden');};
+    cancel.onclick=function(){panel.classList.add('hidden');};
+
+    let groupCards=cards.filter(function(x){return Math.floor(x.idx/3)===prodIdx;});
+    let backup=null;
+    submit.onclick=async function(){
+      if(backup){showToast('Produk ini sudah dipakai jatah revisinya (maks 1x). Klik "Kembalikan ke Versi Awal" dulu kalau mau revisi ulang.','error');return;}
+      if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+      let nama=namaInp.value.trim();
+      if(!nama){showToast('Nama produk wajib diisi','error');namaInp.focus();return;}
+      if(!VB.bulkTargetAudience){showToast('Target Audience tidak ditemukan — generate bulk dari awal dulu ya.','error');return;}
+      let dl=dlCheckBeforeCall();
+      if(!dl.ok){showToast(dl.message,'error');return;}
+      let cur=VB_BULK_PRODUCTS[prodIdx]||{};
+      let snap={
+        meta:Object.assign({},cur),
+        scripts:groupCards.map(function(x){return x.ta.value;}),
+        produk:groupCards.map(function(x){return VB_BULK_ITEMS[x.idx]?VB_BULK_ITEMS[x.idx].produk:'';}),
+        nameText:nameSpan?nameSpan.textContent:''
+      };
+      let keu=keuInp.value.trim();
+      let originalText=submit.textContent;
+      let ok=false;
+      VAI._isGenerating=true;VAI._lastGenTime=Date.now();
+      _vbAcquireWakeLock();
+      submit.disabled=true;
+      submit.textContent='Memproses...';
+      try{
+        let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keu,topik:cur.topik||'',hookType:cur.hookType||'',hookCustom:cur.hookCustom||'',fotoBase64:cur.fotoBase64||'',fotoMime:cur.fotoMime||''}],VB.bulkTargetAudience,noteTa.value.trim(),function(waitMs,attempt,status){
+          submit.textContent='⏳ '+_vbWaitReasonLabel(status)+' (~'+Math.ceil(waitMs/1000)+'dtk)...';
+        },undefined,undefined,false);
+        dlIncrement();
+        if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
+        let r=arr[0];
+        if(!r.produk)r.produk=nama;
+        ['hook','story','cta'].forEach(function(role,k){
+          let cc=groupCards.find(function(x){return x.idx===prodIdx*3+k;});
+          if(!cc)return;
+          let txt=_vbTruncate25Words(r[role]||'');
+          cc.ta.value=txt;
+          if(VB_BULK_ITEMS[cc.idx]){VB_BULK_ITEMS[cc.idx].script=txt;VB_BULK_ITEMS[cc.idx].produk=r.produk;}
+          _pbRefreshVideoCard(cc,true);
+        });
+        VB_BULK_PRODUCTS[prodIdx]=Object.assign({},cur,{nama:nama,keunggulan:keu,overlay:(VB_HOOK_OVERLAY[prodIdx]||cur.overlay||'')});
+        if(nameSpan)nameSpan.textContent=r.produk;
+        backup=snap;
+        undo.classList.remove('hidden');
+        panel.classList.add('hidden');
+        ok=true;
+        notify();
+        showToast('Produk berhasil direvisi! (jatah revisi produk ini sudah kepakai — klik "Kembalikan ke Versi Awal" kalau mau ulang)','success');
+      }catch(err){
+        console.error('revisi (Riwayat) error:',err);
+        showToast('Gagal revisi: '+(err&&err.message?err.message:'error tidak diketahui'),'error');
+      }finally{
+        VAI._isGenerating=false;
+        _vbReleaseWakeLock();
+        if(ok){submit.disabled=true;submit.textContent='Sudah direvisi 1x — undo dulu utk revisi lagi';}
+        else{submit.disabled=false;submit.textContent=originalText;}
+      }
+    };
+    undo.onclick=function(){
+      if(!backup)return;
+      groupCards.forEach(function(cc,k){
+        cc.ta.value=backup.scripts[k]||'';
+        if(VB_BULK_ITEMS[cc.idx]){VB_BULK_ITEMS[cc.idx].script=cc.ta.value;VB_BULK_ITEMS[cc.idx].produk=backup.produk[k]||VB_BULK_ITEMS[cc.idx].produk;}
+        _pbRefreshVideoCard(cc,true);
+      });
+      // overlay Hook tetap nilai TERKINI (sama seperti versi asli)
+      VB_BULK_PRODUCTS[prodIdx]=Object.assign({},backup.meta,{overlay:(VB_HOOK_OVERLAY[prodIdx]||'')});
+      namaInp.value=backup.meta.nama||'';
+      keuInp.value=backup.meta.keunggulan||'';
+      if(nameSpan)nameSpan.textContent=backup.nameText;
+      backup=null;
+      submit.disabled=false;submit.textContent='Generate Ulang Produk Ini';
+      undo.classList.add('hidden');
+      notify();
+      showToast('Produk dikembalikan ke versi sebelum revisi.','success');
+    };
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIT SUSULAN #2b — mode SINGLE (1 produk, AI maupun Manual) di Riwayat:
+// sama seperti Bulk, fitur "Revisi Script dengan AI" (vbRevisiSingleAI) +
+// thumbnail foto acuan ikut lenyap/beku saat entri dibuka dari Riwayat —
+// akar masalahnya identik (_pbCollectResult membuang semua <button> +
+// atribut onclick, dan foto base64-nya dibuang biar tidak dobel tersimpan).
+// Dibangun ulang di sini dari state (VB.produkFotoBase64, VB_BULK_ITEMS —
+// mode single juga memakai VB_BULK_ITEMS[0..2] persis seperti Bulk, lihat
+// _vbRenderMultiOutput/_vbAnimateProductCards). Beda dari versi Bulk: Target
+// Audience TIDAK pernah tersimpan ke state sama sekali (mode single membaca
+// langsung dari field builder #vb-target-audience yang hidup, bukan dari
+// VB) — jadi di sini user harus isi ulang sendiri saat mau revisi lewat
+// Riwayat. Ganti foto referensi juga sengaja tidak disediakan di sini, sama
+// seperti keputusan di versi Bulk (_pbEnhanceBulkGroups) — foto lama dipakai
+// apa adanya.
+//
+// Penanda "ini mode single, bukan Bulk/Manual banyak-produk": kartu skrip
+// nempel LANGSUNG ke `content` (tanpa wrapper "grup" seperti Bulk/Manual
+// banyak-produk) — lihat _vbRenderMultiOutput vs _vbRenderBulkOutput/
+// vbManualRenderGroups. _pbEnhanceBulkGroups sendiri sudah no-op otomatis
+// untuk kasus ini (bodyEl===content), jadi aman dipanggil berdampingan.
+// ════════════════════════════════════════════════════════════════════
+function _pbEnhanceSingleRevisi(content,cards,notify){
+  if(cards.length!==3||cards[0].card.parentElement!==content)return;
+  // Buang sisa elemen BEKU bawaan clone (baris foto acuan tanpa gambar,
+  // panel Revisi mati) — dibangun ulang lengkap di bawah. Kartu skrip (ada
+  // <pre>) sengaja dilewati supaya tidak ikut kebuang.
+  Array.from(content.children).forEach(function(el){
+    if(el.querySelector && el.querySelector('pre'))return;
+    let t=el.textContent||'';
+    if(t.indexOf('Foto referensi produk')>=0 || t.indexOf('Kasih tau AI apa yang mau diubah dari ketiga script')>=0)el.remove();
+  });
+  // Thumbnail foto acuan dari state — taruh paling atas, samakan posisi
+  // dengan versi asli (_vbRenderMultiOutput menaruhnya sebelum baris
+  // lain-lain & kartu).
+  if(typeof VB!=='undefined' && VB.produkFotoBase64){
+    let fotoRow=document.createElement('div');
+    fotoRow.setAttribute('data-pb-ui','1');
+    fotoRow.style.cssText='display:flex;align-items:center;gap:7px;padding:2px 2px 2px 4px;';
+    let img=document.createElement('img');
+    img.className='vbfoto-img';img.alt='Foto referensi produk';img.title='Foto referensi produk';
+    img.style.cssText='width:28px;height:28px;border-radius:var(--radius-2xs);object-fit:cover;border:1px solid var(--border-hi);flex-shrink:0;';
+    img.src='data:'+(VB.produkFotoMime||'image/jpeg')+';base64,'+VB.produkFotoBase64;
+    let lb=document.createElement('span');lb.style.cssText='font-size:var(--fs-2xs);color:var(--muted);';lb.textContent='Foto referensi produk';
+    fotoRow.appendChild(img);fotoRow.appendChild(lb);
+    content.insertBefore(fotoRow,content.firstElementChild);
+  }
+  // Tombol + panel "Revisi Script dengan AI" (versi overlay: tanpa id, 1x
+  // jatah revisi seperti aslinya, ada "Kembali ke Versi Sebelumnya").
+  let row=document.createElement('div');
+  row.setAttribute('data-pb-ui','1');
+  row.style.cssText='display:flex;gap:6px;';
+  let revBtn=document.createElement('button');
+  revBtn.type='button';revBtn.className='copy-btn';
+  revBtn.style.cssText='font-size:var(--fs-xs2);padding:8px 10px;flex:1;text-align:center;';
+  revBtn.textContent='Revisi Script dengan AI';
+  let undoBtn=document.createElement('button');
+  undoBtn.type='button';undoBtn.className='reset-btn hidden';
+  undoBtn.style.cssText='font-size:var(--fs-xs2);padding:8px 10px;flex:1;text-align:center;';
+  undoBtn.textContent='Kembali ke Versi Sebelumnya';
+  row.appendChild(revBtn);row.appendChild(undoBtn);
+  content.appendChild(row);
+
+  let panel=document.createElement('div');
+  panel.setAttribute('data-pb-ui','1');
+  panel.className='hidden';
+  panel.style.cssText='padding:9px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-xs);display:flex;flex-direction:column;gap:6px;';
+  let hint=document.createElement('div');
+  hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted);';
+  hint.textContent='Kasih tau AI apa yang mau diubah dari ketiga script di atas (Hook/Story/CTA sekaligus direvisi bareng). Foto lama dipakai apa adanya.';
+  let noteTa=document.createElement('textarea');
+  noteTa.className='inp';noteTa.rows=2;
+  noteTa.placeholder="Contoh: variasikan lagi, atau buat lebih santai kayak lagi ngobrol ke teman, atau lebih heboh";
+  noteTa.style.cssText='font-size:var(--fs-xs2);padding:6px 8px;resize:vertical;';
+  let keuInp=document.createElement('input');
+  keuInp.className='inp';keuInp.maxLength=150;keuInp.placeholder='Keunggulan produk (opsional)';
+  keuInp.style.cssText='font-size:var(--fs-xs2);padding:6px 8px;';
+  let targetInp=document.createElement('input');
+  targetInp.className='inp';targetInp.maxLength=120;targetInp.placeholder='Target audience *wajib';
+  targetInp.style.cssText='font-size:var(--fs-xs2);padding:6px 8px;';
+  let btnRow=document.createElement('div');
+  btnRow.style.cssText='display:flex;gap:8px;';
+  let submit=document.createElement('button');
+  submit.type='button';submit.className='btn sm';submit.style.flex='1';
+  submit.textContent='Revisi Sekarang';
+  let cancel=document.createElement('button');
+  cancel.type='button';cancel.className='reset-btn sm';cancel.style.flex='1';
+  cancel.textContent='Batal';
+  btnRow.appendChild(submit);btnRow.appendChild(cancel);
+  panel.appendChild(hint);panel.appendChild(noteTa);panel.appendChild(keuInp);panel.appendChild(targetInp);panel.appendChild(btnRow);
+  content.appendChild(panel);
+  revBtn.onclick=function(){panel.classList.toggle('hidden');};
+  cancel.onclick=function(){panel.classList.add('hidden');};
+
+  let backup=null;
+  submit.onclick=async function(){
+    if(backup){showToast('Sudah dipakai jatah revisinya (maks 1x). Klik "Kembali ke Versi Sebelumnya" dulu kalau mau revisi ulang.','error');return;}
+    if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
+    let note=noteTa.value.trim();
+    if(!note){showToast('Tulis dulu masukan revisinya, misal "lebih santai kayak ngomong ke teman" atau "lebih heboh"','error');noteTa.focus();return;}
+    let produkNama=(VB_BULK_ITEMS[0]&&VB_BULK_ITEMS[0].produk)||'';
+    if(!produkNama){showToast('Nama produk tidak ditemukan — generate script dari awal dulu ya.','error');return;}
+    let target=targetInp.value.trim();
+    if(!target){showToast('Isi dulu Target Audience di panel revisi ini ya','error');targetInp.focus();return;}
+    let dl=dlCheckBeforeCall();
+    if(!dl.ok){showToast(dl.message,'error');return;}
+    let snap={scripts:cards.map(function(c){return c.ta.value;}),produk:produkNama};
+    let originalText=submit.textContent;
+    let ok=false;
+    VAI._isGenerating=true;VAI._lastGenTime=Date.now();
+    _vbAcquireWakeLock();
+    submit.disabled=true;submit.textContent='Memproses...';
+    try{
+      let arr=await _vbCallBulkBatch([{nama:produkNama,keunggulan:keuInp.value.trim(),fotoBase64:(VB&&VB.produkFotoBase64)||'',fotoMime:(VB&&VB.produkFotoMime)||''}],target,note,function(waitMs,attempt,status){
+        submit.textContent='⏳ '+_vbWaitReasonLabel(status)+' (~'+Math.ceil(waitMs/1000)+'dtk)...';
+      },undefined,undefined,false);
+      dlIncrement();
+      if(!arr||!arr[0])throw new Error('Hasil AI kosong, coba lagi.');
+      let p=arr[0];
+      if(!p.produk)p.produk=produkNama;
+      ['hook','story','cta'].forEach(function(role,k){
+        let cc=cards[k];
+        if(!cc)return;
+        let txt=_vbTruncate25Words(p[role]||'');
+        cc.ta.value=txt;
+        if(VB_BULK_ITEMS[cc.idx]){VB_BULK_ITEMS[cc.idx].script=txt;VB_BULK_ITEMS[cc.idx].produk=p.produk;}
+        _pbRefreshVideoCard(cc,true);
+      });
+      backup=snap;
+      undoBtn.classList.remove('hidden');
+      panel.classList.add('hidden');
+      ok=true;
+      notify();
+      showToast('Script berhasil direvisi! (jatah revisi sudah kepakai — klik "Kembali ke Versi Sebelumnya" kalau mau ulang)','success');
+    }catch(err){
+      console.error('revisi single (Riwayat) error:',err);
+      showToast('Gagal revisi: '+(err&&err.message?err.message:'error tidak diketahui'),'error');
+    }finally{
+      VAI._isGenerating=false;
+      _vbReleaseWakeLock();
+      if(ok){submit.disabled=true;submit.textContent='Sudah direvisi 1x — undo dulu utk revisi lagi';}
+      else{submit.disabled=false;submit.textContent=originalText;}
+    }
+  };
+  undoBtn.onclick=function(){
+    if(!backup)return;
+    cards.forEach(function(cc,k){
+      cc.ta.value=backup.scripts[k]||'';
+      if(VB_BULK_ITEMS[cc.idx]){VB_BULK_ITEMS[cc.idx].script=cc.ta.value;VB_BULK_ITEMS[cc.idx].produk=backup.produk||VB_BULK_ITEMS[cc.idx].produk;}
+      _pbRefreshVideoCard(cc,true);
+    });
+    backup=null;
+    submit.disabled=false;submit.textContent='Revisi Sekarang';
+    undoBtn.classList.add('hidden');
+    notify();
+    showToast('Dikembalikan ke versi sebelum revisi.','success');
+  };
+}
+
 // Ambil teks POLOS TERKINI dari sebuah wadah hasil yang field-fieldnya
 // masih hidup/editable (dipakai overlay Riwayat) — beda dari ekstraksi di
 // _pbCollectResult yang membaca dari halaman builder asli, ini membaca
@@ -11179,6 +12197,12 @@ function _pbExtractLiveText(el){
     cf.replaceWith(span);
   });
   clone.querySelectorAll('button').forEach(function(b){b.remove();});
+  // Kontrol hidup buatan overlay (Tampilan/Lokasi/Jumlah Foto/Teks Overlay —
+  // lihat _pbEnhanceVideoContent) bukan bagian dari teks hasil.
+  clone.querySelectorAll('[data-pb-ui]').forEach(function(n){n.remove();});
+  // Kartu/label yang sedang tersembunyi (mis. Prompt 2 Mirror Selfie saat
+  // Teks Overlay kosong) tidak ikut tersalin.
+  clone.querySelectorAll('.hidden').forEach(function(n){n.remove();});
   return (clone.innerText||clone.textContent||'').trim();
 }
 
@@ -11215,6 +12239,9 @@ function _pbFreezeLiveHtml(el){
     else{cf.setAttribute('value',f.value);}
   });
   clone.querySelectorAll('button').forEach(function(b){b.remove();});
+  // Kontrol hidup overlay dibangun ulang dari STATE tiap Riwayat dibuka,
+  // jadi tidak perlu (dan tidak boleh) ikut tersimpan sebagai HTML beku.
+  clone.querySelectorAll('[data-pb-ui]').forEach(function(n){n.remove();});
   return clone.innerHTML;
 }
 
@@ -11233,6 +12260,16 @@ function pbSavedAutosaveField(id,htmlField,textField,contentEl){
   // entri tsb saat disimpan.
   if(arr[idx].type==='foto' && htmlField==='fotoHtml'){arr[idx].html=arr[idx].fotoHtml;arr[idx].text=arr[idx].fotoText;}
   if(arr[idx].type==='video' && htmlField==='videoHtml'){arr[idx].html=arr[idx].videoHtml;arr[idx].text=arr[idx].videoText;}
+  // FIX (laporan user: Riwayat Raw Asset "edit gak ngefek"): pilihan
+  // Tampilan/Lokasi, Jumlah Foto, Teks Overlay & skrip yang diedit di overlay
+  // hidup di state (VB_CARD_TAMPIL dkk), bukan di HTML — jadi state-nya juga
+  // harus ditulis balik, kalau tidak begitu dibuka lagi balik ke nilai lama.
+  if(contentEl && contentEl._pbRebuild && htmlField==='videoHtml'){
+    try{
+      arr[idx].videoState=_vbPackState();
+      if(arr[idx].type==='video')arr[idx].state=''; // videoState sudah jadi sumber tunggal
+    }catch(e){}
+  }
   try{pbSavedSetAll(arr);}catch(e){return;}
   let flash=document.getElementById('pb-saved-overlay-autosaved');
   if(flash){
@@ -11302,6 +12339,7 @@ async function pbContinueInOverlay(item,content,btnEl){
   let fresh=_pbCollectResult('video')||{html:content.innerHTML,text:''};
   content.innerHTML=fresh.html;
   _pbInjectPerCardCopyButtons(content); // pasang lagi tombol Salin per-kartu — innerHTML diganti total di atas
+  if(content._pbRebuild)_pbEnhanceVideoContent(content); // dan kontrol Tampilan/Lokasi/dst
   let arr=pbSavedGet();
   let idx=arr.findIndex(function(x){return x.id===item.id;});
   if(idx>=0){
