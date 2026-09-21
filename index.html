@@ -111,9 +111,20 @@
   //        match /databases/{database}/documents {
   //          match /users/{uid} {
   //            allow read, write: if request.auth != null && request.auth.uid == uid;
+  //            match /blobs/{doc} {
+  //              allow read, write: if request.auth != null && request.auth.uid == uid;
+  //            }
   //          }
   //        }
   //      }
+  //    PENTING kalau kamu SUDAH pernah setup rules ini sebelumnya (sebelum
+  //    fitur sinkron-terpecah/chunk di bawah ditambahkan): buka lagi tab
+  //    Rules di Firebase Console, tambahkan blok "match /blobs/{doc} {...}"
+  //    persis seperti di atas (nested di dalam match /users/{uid}), lalu
+  //    Publish ulang. Tanpa ini, sinkron akan gagal dengan pesan "akses
+  //    ditolak" karena rules lama cuma mengizinkan dokumen users/{uid}
+  //    sendiri, bukan sub-koleksi /blobs di bawahnya yang dipakai fitur
+  //    pecah-data (chunking) di bawah.
   // 6) Sidebar kiri → Build → Authentication → Get started → tab
   //    "Sign-in method" → aktifkan provider "Google" (pilih project
   //    support email-nya, lalu Save).
@@ -205,6 +216,100 @@
     return firebase.firestore().collection('users').doc(window.pbCloudUid);
   }
 
+  // ── PEMECAH DATA BESAR (CHUNKING) ───────────────────────────────────────
+  // FIX (audit sinkron, Sept 2026): dulu SEMUA key di PB_SYNC_KEYS ditulis
+  // sebagai field di SATU dokumen Firestore yang sama (users/{uid}). Batas
+  // ukuran 1 dokumen Firestore itu ±1 MiB TOTAL — jadi kalau riwayat +
+  // halaman tersimpan + preset dst digabung lewat 1 MiB, SEMUA sinkron
+  // gagal sekaligus ("Gagal sinkron: data terlalu besar..."), padahal yang
+  // membengkak cuma satu key saja (biasanya pb_saved_pages_v1 yang isinya
+  // HTML hasil generate + state lengkap per halaman).
+  //
+  // Sekarang tiap key di PB_SYNC_KEYS punya dokumen "manifest" SENDIRI di
+  // sub-koleksi users/{uid}/blobs/{key} (jadi tidak lagi berebut kuota
+  // 1 MiB dengan key lain), DAN kalau isi key itu sendiri masih lewat batas
+  // aman, otomatis dipecah jadi beberapa dokumen "potongan"
+  // (users/{uid}/blobs/{key}__0, __1, dst) lalu disambung lagi saat ditarik
+  // (_pullBlobKey). Praktis tidak ada lagi batas ukuran yang bisa membuat
+  // simpan/sinkron gagal — jumlah potongan menyesuaikan otomatis sebesar
+  // apa pun datanya (dibatasi localStorage HP sendiri, bukan Firestore).
+  var PB_CHUNK_MAX_CHARS = 220000; // ±selama ini aman jauh di bawah 1 MiB/dok Firestore walau isinya emoji/karakter multi-byte semua
+  function _blobColl(){
+    if(!_fbReady || !window.pbCloudUid) return null;
+    return firebase.firestore().collection('users').doc(window.pbCloudUid).collection('blobs');
+  }
+  function _chunkString(str, maxChars){
+    if(str.length <= maxChars) return [str];
+    var out = [];
+    for(var i = 0; i < str.length; i += maxChars) out.push(str.slice(i, i + maxChars));
+    return out;
+  }
+  // Tulis 1 key (bisa berupa banyak dokumen potongan) pakai batch supaya
+  // manifest + semua potongan + penghapusan sisa potongan lama (kalau data
+  // sekarang lebih pendek dari sebelumnya) sukses/gagal BARENG — tidak
+  // pernah ada kondisi "sebagian potongan baru, sebagian masih lama".
+  // Firestore batasi 1 batch maksimum 500 operasi — dipecah otomatis kalau
+  // sampai sebanyak itu (praktis nyaris tidak pernah kejadian utk data 1 app
+  // pribadi, tapi tetap dijaga supaya tidak diam-diam gagal kalau suatu
+  // hari kejadian).
+  async function _commitInBatches(ops){
+    for(var i = 0; i < ops.length; i += 450){
+      var batch = firebase.firestore().batch();
+      ops.slice(i, i + 450).forEach(function(op){
+        if(op.type === 'set') batch.set(op.ref, op.data);
+        else batch.delete(op.ref);
+      });
+      await batch.commit();
+    }
+  }
+  async function _pushBlob(key, isSaved){
+    var coll = _blobColl();
+    if(!coll){ if(isSaved) _setSyncStatus('off'); return; }
+    var val = null;
+    try{ val = localStorage.getItem(key); }catch(e){}
+    if(val == null){
+      if(isSaved) _setSyncStatus('ok');
+      try{ localStorage.removeItem('__dirty_'+key); }catch(e){}
+      return;
+    }
+    try{
+      var chunks = _chunkString(val, PB_CHUNK_MAX_CHARS);
+      var ts = Date.now();
+      var ops = [{type:'set', ref: coll.doc(key), data:{n: chunks.length, len: val.length, _updatedAt: ts}}];
+      chunks.forEach(function(c, i){ ops.push({type:'set', ref: coll.doc(key+'__'+i), data:{d: c, _updatedAt: ts}}); });
+      var prevN = 0;
+      try{ prevN = Number(localStorage.getItem('__chunkN_'+key)) || 0; }catch(e){}
+      for(var i = chunks.length; i < prevN; i++) ops.push({type:'delete', ref: coll.doc(key+'__'+i)});
+      await _commitInBatches(ops);
+      try{ localStorage.setItem('__chunkN_'+key, String(chunks.length)); }catch(e){}
+      if(isSaved) _setSyncStatus('ok');
+      try{ localStorage.removeItem('__dirty_'+key); }catch(e){}
+    }catch(e){
+      console.warn('Sync gagal ('+key+'):', e);
+      if(isSaved) _setSyncStatus('error', _syncErrMsg(e, val.length), 'push');
+    }
+  }
+  // Tarik 1 key dari struktur potongan baru. Balikin undefined kalau belum
+  // pernah ada manifest utk key ini di akun ini (dipakai pemanggil buat
+  // fallback ke field lama di dokumen users/{uid} — lihat _pullAll — supaya
+  // data yang sempat tersinkron SEBELUM fitur pecah-data ini ada tidak
+  // hilang/ketiban kosong).
+  async function _pullBlobKey(key){
+    var coll = _blobColl(); if(!coll) return undefined;
+    var manifestSnap = await coll.doc(key).get();
+    if(!manifestSnap.exists) return undefined;
+    var manifest = manifestSnap.data() || {};
+    var n = Number(manifest.n) || 0;
+    if(n <= 0) return '';
+    var reads = [];
+    for(var i = 0; i < n; i++) reads.push(coll.doc(key+'__'+i).get());
+    var snaps = await Promise.all(reads);
+    return snaps.map(function(s){
+      var d = s.exists ? s.data() : null;
+      return (d && typeof d.d === 'string') ? d.d : '';
+    }).join('');
+  }
+
   // Dipanggil tiap kali salah satu data yang disinkron berubah (dari
   // csSaveAll/historyAdd/pbSavedSetAll/tour-done, dst). Debounce
   // 800ms per key biar tidak nembak Firestore tiap ketikan/klik beruntun.
@@ -234,21 +339,7 @@
     if(isSaved) _setSyncStatus(navigator.onLine === false ? 'offline' : 'syncing');
     try{ localStorage.setItem('__dirty_'+key, '1'); }catch(e){}
     clearTimeout(_timers[key]);
-    _timers[key] = setTimeout(function(){
-      var ref = _docRef();
-      if(!ref){ if(isSaved) _setSyncStatus('off'); return; }
-      var val = null;
-      try{ val = localStorage.getItem(key); }catch(e){}
-      if(val == null){ if(isSaved) _setSyncStatus('ok'); try{ localStorage.removeItem('__dirty_'+key); }catch(e){} return; }
-      var patch = {}; patch[key] = val; patch._updatedAt = Date.now();
-      ref.set(patch, {merge:true}).then(function(){
-        if(isSaved) _setSyncStatus('ok');
-        try{ localStorage.removeItem('__dirty_'+key); }catch(e){}
-      }).catch(function(e){
-        console.warn('Sync gagal ('+key+'):', e);
-        if(isSaved) _setSyncStatus('error', _syncErrMsg(e, val.length), 'push');
-      });
-    }, 800);
+    _timers[key] = setTimeout(function(){ _pushBlob(key, isSaved); }, 800);
   };
   // Tombol "Coba lagi" di tab Riwayat. Kalau yang gagal tadi AMBIL data dari
   // cloud, ambil ulang (JANGAN push — data lokal bisa lebih lama dari cloud
@@ -417,14 +508,24 @@
     var ref = _docRef(); if(!ref) return;
     try{
       var snap = await ref.get();
-      if(!snap.exists){ _setSyncStatus('ok'); return; }
-      var data = snap.data() || {};
-      PB_SYNC_KEYS.forEach(function(k){
+      var data = snap.exists ? (snap.data() || {}) : {};
+      // FIX (chunking, Sept 2026): tarik tiap key dari struktur potongan baru
+      // (users/{uid}/blobs/{key}__N) secara paralel. Kalau belum ada manifest
+      // utk key itu (akun lama / belum pernah ke-push pakai kode baru ini),
+      // _pullBlobKey balikin undefined — fallback ke field lama di dokumen
+      // users/{uid} (data[k]) supaya data yang sudah kadung tersinkron
+      // sebelum fitur pecah-data ini ada TIDAK hilang. Sekali key itu
+      // ke-push ulang (Simpan/edit apa saja), otomatis pindah ke struktur
+      // baru dari situ.
+      await Promise.all(PB_SYNC_KEYS.map(async function(k){
         var isDirty = false;
         try{ isDirty = !!localStorage.getItem('__dirty_'+k); }catch(e){}
         if(isDirty){ window.pbCloudQueue(k); return; } // ada perubahan lokal yg belum ke-push, jangan ditimpa — push dulu
-        if(typeof data[k] === 'string'){ try{ localStorage.setItem(k, data[k]); }catch(e){} }
-      });
+        var val;
+        try{ val = await _pullBlobKey(k); }catch(e){ val = undefined; }
+        if(val === undefined && typeof data[k] === 'string') val = data[k]; // fallback data lama (pra-chunking)
+        if(typeof val === 'string'){ try{ localStorage.setItem(k, val); }catch(e){} }
+      }));
       // FIX BUG SINKRON: pb_usage_stats_v1/pb_wordfix_stats_v1 TIDAK ditimpa
       // mentah-mentah seperti PB_SYNC_KEYS di atas — digabung (merge) dengan
       // delta lokal yang belum sempat ke-push, lihat _pullCounterMerge.
