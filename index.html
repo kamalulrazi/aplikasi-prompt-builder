@@ -2943,7 +2943,19 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
 /* Garis panjang penghubung 3 kotak sejajar (Hook/Cerita/CTA) di bawah
    panah — meniru permintaan user "garis panjang menghubungkan 3 kotak". */
 .vb-fb-connector{height:10px;width:76%;margin:0 auto;border-top:1px solid var(--border-hi);}
-.vb-scriptready-actions{display:flex;justify-content:flex-end;margin-top:14px;}
+.vb-scriptready-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:14px;}
+/* PERMINTAAN USER: tombol "Kembali" di panduan Video AI (18 langkah,
+   #vb-videoguide-overlay) diletakkan DI SAMPING "Lanjut →" di baris yang
+   sama — justify-content di atas dibiarkan flex-end (dipakai juga oleh
+   varian -center yang override sendiri) TAPI begitu #vb-videoguide-back-btn
+   ikut tampil (bukan display:none), flex-end otomatis mendorongnya ke kiri
+   berdampingan dengan Lanjut karena keduanya sama-sama anak flex di baris
+   ini — tidak perlu justify-content terpisah. Gaya tombolnya reuse class
+   .pb-tour-back yang sudah ada (tur utama Langkah 1-6). Lihat
+   vbVideoGuidePrev()/vbRenderVideoGuide() untuk logic kapan tombol ini
+   ditampilkan (disembunyikan lagi kalau langkah sebelumnya adalah entri
+   {waitCopy:N} — tidak bisa mundur melewati titik "tunggu Salin" itu,
+   supaya status kunci/denyutan kartu Salin tidak jadi tidak sinkron).
 .vb-scriptready-btn{
   font-size:var(--fs-sm);font-weight:700;color:var(--bg);
   background:linear-gradient(180deg,var(--accent-2),var(--accent-dim));
@@ -3204,7 +3216,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.50</div>
+  <div class="splash-version" id="splash-version">v6.53</div>
 </div>
 <script>
   (function(){
@@ -5159,7 +5171,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.50 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.53 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18131,7 +18143,7 @@ const PB_IMG_V18='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgs
 var PB_STEPVIDEOAI_ITEMS=[
   {
     title:'Bikin project baru',
-    body:'<p style="margin-top:0;">Klik (+ Baru) untuk membuat project baru.</p>',
+    body:'<p style="margin-top:0;">Sekarang buka Google Flow dan klik (+ Baru) untuk membuat project baru.</p>',
     img:PB_IMG_V1,
     alt:'Google Flow, klik + Baru untuk membuat project baru'
   },
@@ -18196,6 +18208,10 @@ var PB_STEPVIDEOAI_ITEMS=[
     img:PB_IMG_V11,
     alt:'Klik tombol panah untuk generate video'
   },
+  {
+    title:'Salin bagian Story',
+    body:'<p style="margin-top:0;">Sekarang salin prompt pada bagian story. Untuk membuat video kedua.</p>'
+  },
   { waitCopy:1 },
   {
     title:'Tempel lagi ke kolom',
@@ -18209,6 +18225,10 @@ var PB_STEPVIDEOAI_ITEMS=[
     body:'<p style="margin-top:0;">Setelah itu langsung klik yang udah kutandai untuk bikin.</p>',
     img:PB_IMG_V14,
     alt:'Klik tombol panah untuk generate video kedua'
+  },
+  {
+    title:'Salin bagian CTA',
+    body:'<p style="margin-top:0;">Sekarang salin prompt pada bagian cta. Untuk membuat video terakhir.</p>'
   },
   { waitCopy:2 },
   {
@@ -18252,6 +18272,18 @@ function vbRenderVideoGuide(){
   let titleEl=document.getElementById('vb-videoguide-title');
   let bodyEl=document.getElementById('vb-videoguide-body');
   let btn=document.getElementById('vb-videoguide-btn');
+  // FITUR BARU (permintaan user): tombol "← Kembali" di samping "Lanjut →".
+  // Tampil HANYA kalau langkah SEBELUMNYA (index-1) adalah kartu teks biasa
+  // (bukan entri {waitCopy:N}) — mundur melewati titik "tunggu Salin" tidak
+  // didukung (lihat komentar panjang di CSS .vb-scriptready-actions) supaya
+  // status kunci/denyutan tombol Salin kartu tidak jadi tidak sinkron.
+  // Otomatis tersembunyi juga di langkah pertama (pbVideoGuideIndex===0).
+  let backBtn=document.getElementById('vb-videoguide-back-btn');
+  if(backBtn){
+    let prevItem=pbVideoGuideIndex>0?PB_STEPVIDEOAI_ITEMS[pbVideoGuideIndex-1]:null;
+    let canGoBack=!!(prevItem && prevItem.waitCopy==null);
+    backBtn.style.display=canGoBack?'':'none';
+  }
   if(item){
     let isLast=(pbVideoGuideIndex===PB_STEPVIDEOAI_ITEMS.length-1);
     // FITUR BARU (permintaan user): nomor langkah yang ditampilkan ("N.")
@@ -18275,6 +18307,18 @@ function vbRenderVideoGuide(){
     if(bodyEl) bodyEl.innerHTML='';
     if(btn){ btn.textContent='Lanjut →'; btn.onclick=vbVideoGuideFinish; }
   }
+}
+function vbVideoGuidePrev(){
+  // Pasangan vbVideoGuideNext() — mundur 1 langkah. Dibatasi supaya tidak
+  // bisa mundur ke entri {waitCopy:N} atau ke sebelum langkah pertama (lihat
+  // penjelasan lengkap di komentar CSS .vb-scriptready-actions & toggle
+  // tombolnya di vbRenderVideoGuide — tombol ini memang sudah disembunyikan
+  // duluan kalau kondisinya begini, pengecekan di sini cuma jaga-jaga).
+  if(pbVideoGuideIndex<=0) return;
+  let prevItem=PB_STEPVIDEOAI_ITEMS[pbVideoGuideIndex-1];
+  if(!prevItem||prevItem.waitCopy!=null) return;
+  pbVideoGuideIndex--;
+  vbRenderVideoGuide();
 }
 function vbVideoGuideNext(){
   if(pbVideoGuideIndex<PB_STEPVIDEOAI_ITEMS.length-1){
@@ -20569,7 +20613,7 @@ window.addEventListener('beforeunload', function(e){
   <div class="vb-scriptready-card" id="vb-videoguide-card">
     <div class="pb-tour-title" id="vb-videoguide-title"></div>
     <div class="pb-tour-desc" id="vb-videoguide-body"></div>
-    <div class="vb-scriptready-actions"><button type="button" class="vb-scriptready-btn" id="vb-videoguide-btn" onclick="vbVideoGuideFinish()">Lanjut →</button></div>
+    <div class="vb-scriptready-actions"><button type="button" class="pb-tour-back" id="vb-videoguide-back-btn" style="display:none;min-height:44px;" onclick="vbVideoGuidePrev()">← Kembali</button><button type="button" class="vb-scriptready-btn" id="vb-videoguide-btn" onclick="vbVideoGuideFinish()">Lanjut →</button></div>
   </div>
 </div>
 
