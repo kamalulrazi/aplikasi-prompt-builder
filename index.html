@@ -991,6 +991,31 @@ body input, body textarea, body [contenteditable="true"]{
 .ntab.active>*{position:relative;z-index:2;}
 .ntab:hover:not(.active){color:var(--accent);background:var(--surface2);}
 .ntab:active{opacity:0.75;transform:scale(0.98);}
+/* PERMINTAAN USER: kilau sebentar di ikon tab "Panduan" begitu kartu
+   penutup tur "menyusut" mendarat di situ (lihat vbVideoGuideFinish()) —
+   penanda visual "ini tempatnya kalau nanti butuh tur lagi". Dilepas
+   otomatis lewat JS ~1.2 detik kemudian, bukan lewat animation-iteration-count
+   supaya gampang dibatalkan/diulang kalau perlu. */
+@keyframes pbTourFinishPulse{
+  0%{box-shadow:0 0 0 0 rgba(217,184,118,0.55);}
+  60%{box-shadow:0 0 0 12px rgba(217,184,118,0);}
+  100%{box-shadow:0 0 0 0 rgba(217,184,118,0);}
+}
+.pb-tour-finish-pulse{animation:pbTourFinishPulse 1.1s ease-out;color:var(--accent);}
+/* BUGFIX ditemukan saat audit (Sept 2026): body.pb-tour-active .vb-scriptready-btn
+   di atas (dekat body.pb-tour-active .vb-scriptready-actions) memaksa
+   width:100% — itu didesain untuk kasus SATU tombol penuh ("Mengerti"),
+   dan overlay #vb-videoguide-overlay JUGA selalu tampil selama
+   body.pb-tour-active, jadi ikut kena override itu. Begitu tombol
+   "← Kembali" (permintaan user) ditambahkan di sampingnya, Lanjut yang
+   maksa 100% lebar itu mendorong/menghimpit Kembali sampai nyaris tidak
+   kelihatan. Dikalahkan khusus di sini pakai selector ber-ID (spesifisitas
+   lebih tinggi) — Lanjut jadi flex:1 (isi sisa lebar baris, TETAP penuh
+   kalau Kembali sedang disembunyikan, karena dia satu-satunya flex item),
+   Kembali tetap lebar aslinya (flex-shrink:0 sudah ada di .pb-tour-back).
+   Overlay "Mengerti" lain (vb-scriptready, vb-hookcopied) tidak kena
+   pengaruh karena selector ini disempitkan ke #vb-videoguide-overlay saja. */
+body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1;min-width:0;}
 /* Tab nav bawah = IKON SAJA (permintaan user, gaya bottom-nav TikTok: garis tebal,
    ujung membulat). Warna ikon ikut warna teks tab lewat currentColor — abu redup
    saat tidak aktif, champagne saat aktif (lihat .ntab dan .ntab.active). Nama tab
@@ -3216,7 +3241,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.53</div>
+  <div class="splash-version" id="splash-version">v6.56</div>
 </div>
 <script>
   (function(){
@@ -5131,7 +5156,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
   <div class="sec-title sec-title-sub">Cara Pakai — Tab Video</div>
   <div class="guide-item"><div class="guide-n">1</div><div><h4>Pilih Mode Referensi Foto</h4><p>Mode 1 = satu foto dipakai untuk karakter, outfit, dan lokasi sekaligus. Mode 2 = pakai aset frame awal. Mode 3 = karakter, produk, dan lokasi diatur terpisah (paling detail).</p></div></div>
   <div class="guide-item"><div class="guide-n">2</div><div><h4>Atur Suara Karakter</h4><p>Isi jenis kelamin & usia, nada bicara, lalu aksen — ini menentukan gaya suara di voice_character pada JSON hasil akhir.</p></div></div>
-  <div class="guide-item"><div class="guide-n">3</div><div><h4>Pilih Cara Bikin Script</h4><p><strong>Kami Bantu Isi</strong> — isi nama produk & target audience, AI buatkan 3 script (Hook/Cerita/CTA) otomatis. Aktifkan toggle "Banyak produk sekaligus" di dalamnya kalau mau generate sampai 30 produk (90 script) dalam satu proses. <strong>Tulis Manual</strong> — kamu ketik sendiri ketiganya.</p></div></div>
+  <div class="guide-item"><div class="guide-n">3</div><div><h4>Pilih Cara Bikin Script</h4><p><strong>Kami Bantu Isi</strong> — isi nama produk & target audience, AI buatkan 3 script (Hook/Cerita/CTA) otomatis. Isi angka di kolom "Mau generate berapa produk?" kalau mau generate sampai 30 produk (90 script) dalam satu proses. <strong>Tulis Manual</strong> — kamu ketik sendiri ketiganya.</p></div></div>
   <div class="guide-item"><div class="guide-n">4</div><div><h4>Edit & Salin JSON</h4><p>Tiap script bisa diedit langsung di kartu hasil — JSON di bawahnya ikut update otomatis tiap kamu ketik. Salin, paste ke Veo 3 / Google Flow.</p></div></div>
   <div class="rule"></div>
   <div class="sec-title sec-title-sub">Tips Penting</div>
@@ -5171,7 +5196,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.53 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.56 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18252,6 +18277,14 @@ var PB_STEPVIDEOAI_ITEMS=[
   }
 ];
 var pbVideoGuideIndex=0;
+// GUARD (ditemukan saat audit teliti, Sept 2026): mencegah animasi
+// "menyusut ke ikon Panduan" di vbVideoGuideFinish() jalan DUA KALI
+// bertumpuk kalau user sempat tap tombol "Selesai" 2x sangat cepat sebelum
+// kartunya sempat mengecil/transparan (overlay masih class="show" selama
+// ~600ms animasi berjalan, jadi tombolnya masih "kelihatan" bisa ditekan
+// lagi sesaat) — tanpa guard ini, panggilan kedua akan mengukur ulang
+// posisi kartu yang SEDANG bertransisi & bikin animasinya patah-patah.
+var _vbVideoGuideFinishing=false;
 function vbShowVideoGuide(){
   pbVideoGuideIndex=0;
   vbRenderVideoGuide();
@@ -18329,6 +18362,67 @@ function vbVideoGuideNext(){
   }
 }
 function vbVideoGuideFinish(){
+  let el=document.getElementById('vb-videoguide-overlay');
+  let card=document.getElementById('vb-videoguide-card');
+  let navEl=document.querySelector('.nav');
+  let panduanBtn=document.getElementById('ntab-panduan');
+  // FITUR BARU (permintaan user): begitu user klik "Selesai" di langkah
+  // TERAKHIR tur, sebelum benar-benar ditutup, kartu panduan ini
+  // dianimasikan "menyusut" & terbang menuju ikon tab "Panduan" di nav
+  // bawah (tempat tombol "Lihat Tur Panduan Lagi" berada) — supaya user
+  // tahu nanti kalau butuh tur lagi, tinggal buka tab itu. Nav bawah
+  // MEMANG disembunyikan selama tur (pb-tour-navhide, lihat pbStartTour),
+  // jadi di sini ditampilkan dulu SEBELUM animasi dimulai supaya posisi
+  // ikon tujuannya sudah ada di layar & bisa diukur (getBoundingClientRect).
+  // Kalau kartu/tombol tujuan/overlay tidak ketemu (mis. dipanggil dari
+  // jalur lain di luar tampilan normal), langsung fallback ke penutupan
+  // biasa TANPA animasi — supaya fungsi ini tetap aman dipanggil dari
+  // mana saja seperti sebelumnya.
+  if(navEl) navEl.classList.remove('pb-tour-navhide');
+  if(_vbVideoGuideFinishing) return; // sudah dalam proses animasi/penutupan — abaikan panggilan tumpang tindih
+  if(card && panduanBtn && el && el.classList.contains('show')){
+    _vbVideoGuideFinishing=true;
+    // FIX: backdrop gelap+blur overlay ini z-index-nya JAUH lebih tinggi
+    // dari nav bawah (10001 vs 100) — kalau tidak diangkat sementara, nav
+    // yang baru ditampilkan di atas TETAP ketutup gelap/buram di belakang
+    // backdrop, jadi ikon tujuannya tidak akan kelihatan sama sekali
+    // selama animasi berjalan. Diangkat sementara ke atas overlay di sini,
+    // dikembalikan lagi ke normal begitu animasi & cleanup selesai.
+    if(navEl) navEl.style.zIndex='10002';
+    let cardRect=card.getBoundingClientRect();
+    let targetRect=panduanBtn.getBoundingClientRect();
+    let cx=cardRect.left+cardRect.width/2, cy=cardRect.top+cardRect.height/2;
+    let tx=targetRect.left+targetRect.width/2, ty=targetRect.top+targetRect.height/2;
+    let dx=tx-cx, dy=ty-cy;
+    let scale=Math.max(0.06,targetRect.width/cardRect.width);
+    card.style.transition='transform 0.55s cubic-bezier(.3,.9,.4,1), opacity 0.5s ease 0.05s';
+    card.style.transformOrigin='center center';
+    void card.offsetWidth; // paksa reflow dulu supaya transisi di bawah ini kepakai, bukan langsung loncat
+    card.style.transform='translate('+dx+'px,'+dy+'px) scale('+scale+')';
+    card.style.opacity='0';
+    // Begitu "sampai", ikon Panduan dikasih kilau sebentar biar kelihatan
+    // jelas itu tujuannya — dilepas lagi otomatis setelah ~1.2 detik.
+    setTimeout(function(){
+      panduanBtn.classList.add('pb-tour-finish-pulse');
+      setTimeout(function(){panduanBtn.classList.remove('pb-tour-finish-pulse');},1200);
+    },500);
+    setTimeout(function(){
+      // Reset gaya kartu SEBELUM overlay ditutup total, supaya kalau tur
+      // dipakai lagi nanti (replay), kartu tidak kebawa transform/opacity
+      // sisa animasi kali ini.
+      card.style.transition='';card.style.transform='';card.style.opacity='';
+      if(navEl) navEl.style.zIndex='';
+      _vbVideoGuideFinishing=false;
+      _vbVideoGuideFinishCleanup();
+    },600);
+    return;
+  }
+  _vbVideoGuideFinishCleanup();
+}
+// Bagian penutupan SEBENARNYA tur (dipisah dari vbVideoGuideFinish supaya
+// bisa dipanggil BAIK langsung MAUPUN setelah animasi "menyusut" di atas
+// selesai) — isinya sama persis seperti vbVideoGuideFinish() versi lama.
+function _vbVideoGuideFinishCleanup(){
   let el=document.getElementById('vb-videoguide-overlay');
   if(el) el.classList.remove('show');
   // Ini titik akhir SEBENARNYA seluruh tur (tahap terakhir "Video AI") —
@@ -20438,7 +20532,7 @@ window.addEventListener('beforeunload', function(e){
   <button class="ntab active" onclick="switchPage('foto',this)" aria-label="Builder Prompt Foto" title="Builder Prompt Foto"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-foto"></use></svg></button>
   <button class="ntab" id="ntab-video" onclick="switchPage('video',this)" aria-label="Builder Prompt Video" title="Builder Prompt Video"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-video"></use></svg></button>
   <button class="ntab" onclick="switchPage('riwayat',this)" aria-label="Riwayat" title="Riwayat"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-riwayat"></use></svg></button>
-  <button class="ntab" onclick="switchPage('panduan',this)" aria-label="Panduan" title="Panduan"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-profil"></use></svg></button>
+  <button class="ntab" id="ntab-panduan" onclick="switchPage('panduan',this)" aria-label="Panduan" title="Panduan"><svg class="icon nav-ic" aria-hidden="true"><use href="#ic-nav-profil"></use></svg></button>
 </nav>
 
 <!-- STEP JUMP BOTTOM SHEET — dipicu tap di progress bar (gantiin fungsi
