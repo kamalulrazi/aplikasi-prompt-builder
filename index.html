@@ -2145,6 +2145,40 @@ html.pb-tour-curtain body::before{
   opacity:1;visibility:visible;pointer-events:auto;
   transition:opacity .22s ease,visibility 0s;
 }
+/* FIX BUG "TUR TERCAMPUR" (bagian 2): pbShowInteractive() (Langkah 5
+   Subjek Foto & Langkah 6 Foto Referensi — step di mana user diminta
+   berinteraksi LANGSUNG dengan elemen wizard asli, backdrop sengaja
+   transparan/pb-passive) memasang class 'pb-docked' ke #pb-tour-card
+   lewat JS (lihat pbShowInteractive()/pbPositionSpot()), tapi definisi
+   CSS untuk class ini SEBELUMNYA HILANG dari stylesheet — komentar JS
+   di pbPositionSpot() menyebut "lihat definisi panjang .pb-docked di
+   <style>" padahal tidak pernah ada. Akibatnya kartu step interaktif
+   ikut mewarisi style default #pb-tour-card (position:fixed;inset:0;
+   background:transparent) — judul/teks tur melayang TANPA kotak latar
+   di seluruh layar, tembus pandang menimpa layar wizard asli di
+   baliknya. Sekarang di-"dock" jadi banner kompak nempel di ATAS layar
+   (bottom:auto → tinggi menyesuaikan isi, TIDAK menutup/mengunci klik
+   ke elemen asli di bawahnya), dengan latar kaca buram senada header
+   app (.header) supaya tetap gampang dibaca walau backdrop transparan. */
+#pb-tour-card.pb-docked{
+  bottom:auto;padding:0;align-items:stretch;
+  background:var(--glass);
+  backdrop-filter:blur(22px) saturate(160%);
+  -webkit-backdrop-filter:blur(22px) saturate(160%);
+  border-bottom:1px solid var(--border-hi);
+  box-shadow:0 8px 24px rgba(0,0,0,0.45);
+}
+#pb-tour-card.pb-docked .pb-tour-body{
+  margin:0;width:100%;max-width:600px;
+  padding:var(--pb-tour-pad-top) 20px 14px;
+}
+#pb-tour-card.pb-docked .pb-tour-title{font-size:17px;margin-bottom:6px;}
+#pb-tour-card.pb-docked .pb-tour-desc{font-size:14px;}
+#pb-tour-card.pb-docked .pb-tour-footer{
+  position:static;background:transparent;
+  width:100%;max-width:600px;margin:0 auto;padding:0 20px 14px;
+}
+#pb-tour-card.pb-docked .pb-tour-footer::before{display:none;}
 /* Isi halaman: rata tengah vertikal kalau pendek, mulai dari atas &
    bisa di-scroll kalau panjang (margin:auto 0 otomatis jadi 0 saat luber). */
 .pb-tour-body{width:100%;max-width:440px;margin:auto 0;padding:4px 0 28px;}
@@ -20953,7 +20987,24 @@ function pbSetText(title,desc){
 // interaktif); passive=false → backdrop gelap & blocking seperti tur
 // versi lama (step modal / step penutup).
 function pbSetPassive(passive){
-  document.getElementById('pb-tour-backdrop').classList.toggle('pb-passive',passive);
+  // FIX BUG "TUR TERCAMPUR" (dilaporkan user, screenshot: judul step
+  // tur melayang transparan di atas layar app asli — header/progress
+  // bar asli ikut kelihatan menimpa teks tur). AKAR MASALAHNYA: dulu
+  // fungsi ini cuma toggle class 'pb-passive', TIDAK PERNAH memasang
+  // class 'show' ke #pb-tour-backdrop. Beberapa langkah (pbGoStep5,
+  // pbGoStep7VideoOpen, pbGoStep2bCamera) sengaja MELEPAS TOTAL class
+  // 'show' backdrop (bukan cuma pasang 'pb-passive') supaya layar
+  // wizard asli kelihatan penuh selama step interaktif. Begitu tur lanjut
+  // ke step HALAMAN PENUH berikutnya lewat pbShowModal()→pbSetPassive(false),
+  // backdrop TETAP tanpa 'show' (opacity 0) karena tidak ada yang
+  // memasangnya lagi — kartu tur (#pb-tour-card, background:transparent)
+  // pun tampil tembus pandang menimpa layar asli. Sekarang 'show' SELALU
+  // dipasang di sini (dipanggil dari pbShowModal() & pbShowInteractive()
+  // di setiap render step), jadi status backdrop tidak pernah lagi
+  // bergantung ingat/lupa tiap fungsi pbGoStepN masing-masing.
+  let bd=document.getElementById('pb-tour-backdrop');
+  bd.classList.add('show');
+  bd.classList.toggle('pb-passive',passive);
   document.getElementById('pb-tour-spot').classList.toggle('pb-airy',passive);
 }
 
