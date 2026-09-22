@@ -3204,7 +3204,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.46</div>
+  <div class="splash-version" id="splash-version">v6.50</div>
 </div>
 <script>
   (function(){
@@ -4830,7 +4830,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
           <p style="font-size:var(--fs-2xs);color:var(--muted);margin:0 0 8px;">Khusus Mode 3 (Karakter+Produk+Lokasi): tambah 2–5 foto produk supaya JSON otomatis menyebut "foto referensi 2,3,4 adalah produk". Foto pertama sama dengan slot di atas.</p>
           <div id="vb-ai-fotopanel-list"></div>
         </div>
-        <label class="inplabel">Target Audience (penonton) <span style="color:var(--red);">*wajib</span></label>
+        <label class="inplabel">Target Audience (penonton)</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">
           <div class="chip" onclick="vbPickTargetAudiencePreset('vb-target-audience','genz-perempuan')">Gen Z Perempuan</div>
         </div>
@@ -4863,7 +4863,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
           </div>
           <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;">Kalau diisi, otomatis ditambahkan di akhir prompt Hook: muncul tulisan kecil banget pada detik awal selama 2 detik di pojok kanan paling bawah. Tidak dikirim ke AI. Kosongkan kalau tidak perlu — fitur ini langsung mati.</p>
         </div>
-        <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Buatkan 3 Script + JSON dengan AI</button>
+        <button id="vb-ai-script-btn" class="btn" onclick="vbGenerate3AI()" style="font-size:var(--fs-md);padding:13px;">Generate Prompt</button>
         <div id="vb-ai-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
         </div>
         <div id="vb-bulk-area" style="margin-top:0;">
@@ -4872,14 +4872,14 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
             <input type="number" id="vb-bulk-count" min="1" max="30" value="1" inputmode="numeric" class="inp" style="width:70px;flex:none;text-align:center;" oninput="vbBulkCountInput()" onblur="vbBulkSetCount()" />
           </div>
           <div id="vb-bulk-rows"></div>
-          <label class="inplabel">Target Audience (penonton) <span style="color:var(--red);">*wajib</span> <span style="font-weight:400;color:var(--muted);">(sama untuk semua produk)</span></label>
+          <label class="inplabel">Target Audience (penonton)</label>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">
             <div class="chip" onclick="vbPickTargetAudiencePreset('vb-bulk-target','genz-perempuan')">Gen Z Perempuan</div>
           </div>
           <div class="inp-wrap" style="margin-bottom:12px;">
             <input class="inp" id="vb-bulk-target" maxlength="200" placeholder="Contoh: perempuan usia 20-30 tahun yang suka belanja online" />
           </div>
-          <button id="vb-bulk-btn" class="btn" onclick="vbGenerateBulkAI()" style="font-size:var(--fs-md);padding:13px;">Buatkan Script + JSON dengan AI</button>
+          <button id="vb-bulk-btn" class="btn" onclick="vbGenerateBulkAI()" style="font-size:var(--fs-md);padding:13px;">Generate Prompt</button>
           <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">Tiap produk otomatis dapat 3 script (Hook, Cerita, CTA). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
           <div id="vb-bulk-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
         </div>
@@ -5159,7 +5159,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.46 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.50 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -16494,6 +16494,17 @@ async function vbBulkResumeAI(){
 async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResults){
   let errBox=document.getElementById('vb-bulk-error');
   let isResume=priorResults.length>0;
+  // FIX HEMAT BIAYA (permintaan user, Sept 2026): selama tur panduan pemula
+  // (pbTourVideoScriptActive true), generate script cuma terjadi TEPAT 1x
+  // dalam alur tur itu sendiri (bukan seperti pemakaian normal yang bisa
+  // generate berkali-kali) — jadi cache yang ditulis di panggilan ini TIDAK
+  // PERNAH sempat dibaca ulang (cache_read) SELAMA tur masih berjalan,
+  // cuma kena cache_creation (markup +25%) tanpa manfaat apa pun buat sesi
+  // tur ini. Sama seperti alasan cacheSystem=false di panggilan revisi
+  // satu-kali lainnya (lihat vbRevisiSingleAI dkk), di sini juga dimatikan
+  // KHUSUS selama tur — di luar tur (pemakaian normal berulang-ulang)
+  // tetap cacheSystem=true seperti biasa (undefined → default true).
+  let _tourOneOffCall=(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive);
   // FIX (audit ulang): dulu kalau dipanggil dari vbBulkResumeAI, kotak
   // error + tombol "Lanjutkan" lama TETAP kelihatan selama proses lanjutan
   // berjalan (tombolnya juga tidak ikut dikunci seperti tombol utama) —
@@ -16595,7 +16606,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
-      },onPartialThisBatch,usedHooksSoFar);
+      },onPartialThisBatch,usedHooksSoFar,_tourOneOffCall?false:undefined);
       dlIncrement();
       doneCount+=batchItems.length;
       if(batchArr.length<batchItems.length){
@@ -16743,6 +16754,23 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     }else{
       VB_BULK_LAST_CONTEXT=null; // sudah lengkap semua — tidak ada lagi yang perlu dilanjutkan
       showToast((allResults.length*3)+' script + JSON berhasil dibuat!','success');
+      // BUGFIX (dilaporkan user): notifikasi "Prompt Video Siap" + tombol
+      // "Mengerti" cuma dipasang di mode SATU produk (vbGenerate3AI, lihat
+      // blok pbTourVideoScriptActive di bawahnya) — jalur BULK (fungsi ini)
+      // tidak pernah memanggilnya sama sekali, jadi kalau user sedang di
+      // dalam tur panduan pemula lalu generate lewat mode bulk, setelah
+      // script selesai tidak muncul apa-apa (bukan cuma telat, memang belum
+      // pernah dipicu). Disamakan di sini: hanya jalan kalau memang sedang
+      // dalam sesi tur (pbTourVideoScriptActive true), dan hanya untuk hasil
+      // yang BENAR-BENAR lengkap semua produk (bukan sebagian/gagal), sama
+      // seperti syarat di mode single.
+      if(typeof pbTourVideoScriptActive!=='undefined' && pbTourVideoScriptActive){
+        pbTourVideoScriptActive=false;
+        pbTourWaitingVideoGuideEnd=true;
+        let bulkLabel=document.getElementById('vb-bulk-toggle-label');
+        if(bulkLabel) bulkLabel.classList.remove('hidden');
+        setTimeout(function(){ vbShowScriptReadyNotif(); },300);
+      }
     }
     // Simpan draft SEKARANG (lihat catatan panjang di dalam loop batch di
     // atas) — berlaku baik untuk kasus masih ada sisa (VB_BULK_LAST_CONTEXT
