@@ -3231,7 +3231,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.56</div>
+  <div class="splash-version" id="splash-version">v6.57</div>
 </div>
 <script>
   (function(){
@@ -4466,9 +4466,9 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
 
     <div id="f-json-output" style="display:none;">
       <div class="out-card">
-        <div class="out-head">
+        <div class="out-head" style="flex-direction:column;align-items:stretch;gap:10px;">
           <div class="out-label" id="f-out-label"></div>
-          <div style="display:flex;align-items:center;gap:7px;">
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:7px;">
             <button class="copy-btn" id="f-copy-btn" onclick="fCopy()">Salin JSON</button>
             <span id="f-copy-done" class="hidden" style="font-size:var(--fs-xs);color:var(--green);font-weight:600;"><svg class="icon"><use href="#ic-check"></use></svg> sudah</span>
           </div>
@@ -5186,7 +5186,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.56 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.57 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -8599,7 +8599,7 @@ function _fDoGenerate(){
 
   // ── Urutan foto — tampil langsung di label (ganti popup notifikasi lama) ──
   fBuildUploadNotice(built.realRefs, built.randomRefs);
-  let _fol=document.getElementById('f-out-label'); if(_fol) _fol.textContent=_fUploadNoticeList||'';
+  let _fol=document.getElementById('f-out-label'); if(_fol) _fol.innerHTML=_fBuildOutLabelBoxesHTML(built.realRefs);
 
   let wrap = document.getElementById('f-output-wrap');
   wrap.style.display = 'block'; let _jo=document.getElementById('f-json-output');if(_jo)_jo.style.display='block';
@@ -9911,6 +9911,36 @@ function _fDoGenerateMultiShot(checkedEls){
 
   setTimeout(() => multiWrap && multiWrap.scrollIntoView({behavior:'smooth', block:'nearest'}), 100);
   showToast(results.length+' variasi prompt berhasil dibuat!','success');
+}
+
+// FITUR BARU (permintaan user): tampilan "urutan foto" di sebelah tombol
+// Salin JSON diganti dari teks polos jadi kotak-kotak kecil bergaya preview
+// lampiran (seperti kotak thumbnail foto yang mau diupload ke Google Flow),
+// tapi isinya ICON per jenis foto (bukan foto asli) + label di bawahnya,
+// diikuti 1 pill kecil berisi ikon kamera + jumlah foto (×N) tanpa teks
+// "Gambar" — cukup ikon dan angkanya saja.
+const FTYPE_ICON_MAP={
+  wajah:'ic-face', outfit:'ic-outfit', atasan:'ic-outfit', bawahan:'ic-outfit',
+  aksesori:'ic-outfit', produk:'ic-box', objek:'ic-box', outfit_random:'ic-outfit'
+};
+function _fBuildOutLabelBoxesHTML(realRefs){
+  if(!realRefs || !realRefs.length) return '';
+  let boxes = realRefs.map(function(r){
+    let def = FTYPE[r.type];
+    let iconId = FTYPE_ICON_MAP[r.type] || 'ic-camera';
+    let label = def ? ('Foto '+def.label) : 'Foto Referensi';
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:5px;min-width:52px;max-width:68px;flex-shrink:0;">'
+      + '<div style="width:44px;height:44px;border-radius:var(--radius-md);background:var(--surface3);border:1px solid var(--border-hi);display:flex;align-items:center;justify-content:center;color:var(--accent-2);flex-shrink:0;">'
+      + '<svg class="icon" style="font-size:20px;"><use href="#'+iconId+'"></use></svg>'
+      + '</div>'
+      + '<div style="font-size:var(--fs-2xs);color:var(--muted);text-align:center;line-height:1.25;">'+esc(label)+'</div>'
+      + '</div>';
+  }).join('');
+  let pill = '<div style="display:flex;align-items:center;gap:5px;margin-left:2px;padding:0 10px;height:24px;border-radius:999px;background:var(--surface3);border:1px solid var(--border-hi);color:var(--muted);font-size:var(--fs-xs2);flex-shrink:0;">'
+    + '<svg class="icon" style="font-size:14px;"><use href="#ic-camera"></use></svg>'
+    + '<span>\u00d7'+realRefs.length+'</span>'
+    + '</div>';
+  return '<div style="display:flex;align-items:flex-start;gap:10px;overflow-x:auto;padding-bottom:2px;">' + boxes + pill + '</div>';
 }
 
 function _fComputeUploadNoticeStr(realRefs, randomRefs){
