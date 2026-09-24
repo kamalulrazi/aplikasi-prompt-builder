@@ -3310,7 +3310,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.62</div>
+  <div class="splash-version" id="splash-version">v6.65</div>
 </div>
 <script>
   (function(){
@@ -5295,7 +5295,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.62 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.65 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13209,7 +13209,18 @@ document.addEventListener('click',function(e){
 // FITUR (permintaan user): rentang jumlah kata script DIPATOK TETAP di
 // 25-27 kata untuk semua nada bicara — tidak lagi mengikuti estimasi
 // kecepatan bicara per nada / durasi video 8 detik seperti sebelumnya.
-const VB_FIXED_WORD_RANGE={min:24,max:27,target:26};
+// FIX HEMAT BIAYA (permintaan user, Sept 2026): rentang dilebarkan dari
+// 24-27 (jendela cuma 4 kata) jadi 20-30 (jendela 11 kata). Sebelumnya
+// AI sering meleset di percobaan pertama karena jendelanya terlalu
+// sempit, sehingga _vbFixWordCountIfNeeded/_vbFixWordCountBatchIfNeeded
+// sering kepicu — itu SELALU panggilan API tambahan harga PENUH (tidak
+// pernah kena diskon cache, lihat komentar di titik pemanggilnya).
+// Melebarkan jendela bikin hasil generate pertama jauh lebih sering
+// langsung masuk rentang, jadi panggilan perbaikan tambahan itu jauh
+// lebih jarang terjadi. Trade-off: panjang script jadi sedikit kurang
+// presisi (boleh 20-30 kata, bukan cuma 24-27), tapi 'target' tetap 26
+// supaya AI tetap diarahkan ke panjang yang sama seperti sebelumnya.
+const VB_FIXED_WORD_RANGE={min:20,max:30,target:26};
 function vbGetWordRange(){
   return VB_FIXED_WORD_RANGE;
 }
@@ -15966,6 +15977,20 @@ function _vbSanitizeForbiddenPhrases(text){
 // "biasanya". Cari titik potong di akhir kalimat (. ! ?) dalam 6 kata
 // terakhir sebelum batas max; kalau tidak ada, potong polos di kata ke-max
 // lalu tutup dengan titik.
+// FIX KUALITAS POTONGAN (permintaan user, Sept 2026): fungsi ini diperkuat
+// dengan 3 lapis logika baru, SEMUA masih murni JavaScript lokal (TIDAK ADA
+// panggilan API tambahan, tetap gratis & instan):
+//   A) Radius pencarian titik/tanya/seru diperluas dari 6 jadi 10 kata ke
+//      belakang dari batas `max` — makin besar peluang ketemu titik alami
+//      sebelum jatuh ke "potong paksa".
+//   B) Kalau dalam radius itu sama sekali tidak ada titik/tanya/seru, coba
+//      dulu cari KOMA terdekat sebagai cadangan kedua (sebelum potong
+//      paksa) — berhenti di koma jauh lebih enak dibaca daripada dipotong
+//      di tengah frasa. Komanya diganti jadi titik.
+//   C) Kalau tetap harus "potong paksa" (tidak ada titik MAUPUN koma dalam
+//      radius), hindari berhenti tepat sesudah kata sambung/depan (mis.
+//      "...yang.", "...untuk.") yang bikin kalimat kerasa menggantung —
+//      mundur beberapa kata sampai ketemu kata yang bukan kata sambung.
 function _vbHardEnforceMaxWords(text,max){
   text=(text||'').trim();
   if(!text)return text;
@@ -15978,10 +16003,27 @@ function _vbHardEnforceMaxWords(text,max){
     if(((t.match(/"/g)||[]).length)%2===1)t=t.replace(/"/g,'');
     return t;
   }
-  for(let i=max;i>=Math.max(1,max-6);i--){
+  const RADIUS=10;
+  // (A) Cari titik/tanya/seru alami dalam radius.
+  for(let i=max;i>=Math.max(1,max-RADIUS);i--){
     if(/[.!?]$/.test(words[i-1]))return _tidy(words.slice(0,i).join(' '));
   }
-  return _tidy(words.slice(0,max).join(' ').replace(/[,;:\-–—\s]+$/,''))+'.';
+  // (B) Tidak ketemu titik/tanya/seru — coba cari KOMA terdekat, ganti jadi titik.
+  for(let i=max;i>=Math.max(1,max-RADIUS);i--){
+    if(/,$/.test(words[i-1]))return _tidy(words.slice(0,i).join(' ').replace(/,$/,''))+'.';
+  }
+  // (C) Tetap tidak ketemu — potong paksa di kata ke-`max`, tapi hindari
+  // berhenti tepat sesudah kata sambung/depan (mundur sampai 6 kata).
+  const CONNECTOR_WORDS=['yang','dan','atau','untuk','dengan','karena','biar','supaya','tapi','tetapi','namun','saat','ketika','ke','di','dari','pada','oleh','agar','sambil','sebab','kalau','kalo','kayak','seperti','sama','buat','sebagai','tanpa','walau','walaupun','meski','meskipun','jadi','lalu','terus','trus','juga','biar','makin'];
+  function _isConnector(w){
+    let clean=(w||'').toLowerCase().replace(/["'.,!?;:…]+$/,'');
+    return CONNECTOR_WORDS.indexOf(clean)!==-1;
+  }
+  let cutAt=max;
+  for(let i=max;i>=Math.max(1,max-6);i--){
+    if(!_isConnector(words[i-1])){cutAt=i;break;}
+  }
+  return _tidy(words.slice(0,cutAt).join(' ').replace(/[,;:\-–—\s]+$/,''))+'.';
 }
 // FIX BIAYA (permintaan user, Sept 2026): DINYALAKAN LAGI tapi dibatasi
 // SATU kali panggilan AI saja (bukan sampai 2-3x percobaan seperti versi
@@ -16135,24 +16177,29 @@ async function _vbFixWordCountBatchIfNeeded(prod){
   // (2-3x percobaan), tapi buat NGURANGIN JUMLAH PANGGILAN: kalau HOOK,
   // STORY, DAN CTA sama-sama meleset, ini menggabungnya jadi SATU panggilan
   // AI sekaligus (bukan 3 panggilan terpisah lewat _vbFixWordCountIfNeeded
-  // per bagian). Dibatasi SATU kali attempt saja (bukan 3x) — biaya per
-  // produk jadi predictable (0 atau 1 panggilan tambahan, tidak pernah
-  // lebih), sama seperti filosofi versi single. Sama seperti versi single
-  // juga: apapun hasilnya, SETIAP bagian yang tadinya meleset SELALU
-  // disaring _vbHardEnforceMaxWords di akhir — batas ATAS dijamin 100%
-  // tanpa panggilan API tambahan, batas BAWAH kalau masih kurang dibiarkan
-  // + ditandai di UI oleh pemanggilnya. CATATAN BIAYA: panggilan ini juga
-  // TIDAK pakai field "system"/cache_control (sama seperti versi single),
-  // jadi selalu harga PENUH — tapi karena digabung jadi 1 panggilan, worst
-  // case per produk turun dari 3 panggilan penuh jadi 1 panggilan penuh.
-  // PENINGKATAN (permintaan user, Sept 2026): sama seperti versi single —
-  // sebelumnya cuma 1x tembak per batch, sekarang di-LOOP sampai
-  // MAX_FIX_ATTEMPTS kali (berhenti lebih awal begitu SEMUA bagian yang
-  // tadinya meleset sudah masuk rentang), supaya batas BAWAH juga nyaris
-  // pasti kena. Batas ATAS tetap 100% dijamin _vbHardEnforceMaxWords di
-  // SETIAP jalur keluar — tidak berubah.
+  // per bagian).
+  // CATATAN BIAYA: panggilan ini TIDAK pakai field "system"/cache_control,
+  // jadi selalu harga PENUH — makanya jumlah panggilannya yang dikontrol
+  // ketat, bukan mengandalkan diskon cache.
+  // FIX HEMAT BIAYA LAGI (permintaan user, Sept 2026): MAX_FIX_ATTEMPTS
+  // diturunkan dari 3 balik jadi 1 — sempat dinaikkan ke 3x ("PENINGKATAN"
+  // di riwayat komentar sebelumnya) supaya batas BAWAH lebih sering kena,
+  // tapi itu berarti worst-case per produk bisa 3 panggilan API harga
+  // penuh. Sekarang beneran dibatasi 1 panggilan maksimal per produk —
+  // baik dipanggil dari mode single (vbGenerate3AI) MAUPUN mode bulk
+  // (_vbCallBulkBatch/vbGenerateBulkAI), karena KEDUANYA lewat fungsi yang
+  // sama ini, jadi cukup ubah di satu tempat. Biaya jadi predictable: 0
+  // atau 1 panggilan tambahan, tidak pernah lebih. Trade-off: kalau 1x
+  // percobaan itu masih meleset di bawah rentang minimum, dibiarkan apa
+  // adanya (cuma ditandai di UI oleh pemanggil) — tidak ada percobaan
+  // ke-2/ke-3 lagi seperti sebelumnya. Batas ATAS tetap 100% dijamin
+  // _vbHardEnforceMaxWords di SETIAP jalur keluar (potong otomatis, TANPA
+  // panggilan API tambahan) — ini tidak berubah. Risiko meleset di 1x
+  // percobaan ini juga sudah dikurangi banyak lewat pelebaran rentang kata
+  // (VB_FIXED_WORD_RANGE, lihat definisinya) yang bikin hasil generate
+  // pertama jauh lebih jarang meleset dari awal.
   const ROLE_LABEL={hook:'Hook',story:'Cerita Produk (Story)',cta:'CTA Keranjang'};
-  const MAX_FIX_ATTEMPTS=3;
+  const MAX_FIX_ATTEMPTS=1;
   let range=vbGetWordRange();
   let current={hook:(prod.hook||'').trim(),story:(prod.story||'').trim(),cta:(prod.cta||'').trim()};
   let callsMade=0;
@@ -16420,8 +16467,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // FIX HEMAT BIAYA (permintaan user, Sept 2026): sebelumnya AI cuma
     // diminta "jumlah kata WAJIB sesuai rentang" tanpa diminta verifikasi
     // hitungannya sendiri SEBELUM menjawab — akibatnya sering meleset dari
-    // rentang ketat (24-27 kata, jendela cuma 4 kata, berlaku terpisah
-    // untuk HOOK/STORY/CTA tiap produk), lalu ketahuan belakangan lewat
+    // rentang ketat (dulu 24-27 kata, jendela cuma 4 kata — sejak FIX HEMAT
+    // BIAYA berikutnya dilebarkan jadi 20-30, lihat VB_FIXED_WORD_RANGE —
+    // berlaku terpisah untuk HOOK/STORY/CTA tiap produk), lalu ketahuan belakangan lewat
     // _vbFixWordCountBatchIfNeeded — panggilan API TERPISAH, TANPA cache
     // sama sekali (full harga normal), bisa sampai 3x percobaan per item
     // yang meleset. Instruksi hitung-sendiri ini ditaruh di blok system
@@ -18926,7 +18974,22 @@ async function vbGenerate3AI(){
     // jadi tiap kata di sini kena HARGA PENUH tiap panggilan — makanya
     // dipangkas ke inti langkahnya saja, bukan versi lengkap dengan
     // penjelasan alasan seperti di bulk).
-    +'6. WAJIB hitung sendiri jumlah kata tiap bagian (HOOK/STORY/CTA) SEBELUM menjawab: draft dulu, HITUNG kata (pisah per spasi, jangan ditebak), kalau di luar rentang '+range.min+'-'+range.max+' kata (idealnya '+range.target+') REVISI lalu hitung ulang sampai pas, baru tulis jawaban final. Ini pengganti auto-koreksi yang sudah dimatikan — hasil pertama WAJIB langsung pas.\n\n'
+    // FIX KUALITAS POTONGAN (permintaan user, Sept 2026): rule baru di bawah
+    // ini ("RITME KALIMAT") ditambahkan supaya HOOK/STORY/CTA lebih sering
+    // ditulis sebagai beberapa kalimat pendek yang diakhiri titik (bukan 1
+    // kalimat panjang tanpa titik) — soalnya _vbHardEnforceMaxWords (jaring
+    // pengaman batas atas kata) nyari titik alami buat nentuin titik potong
+    // yang enak dibaca, jadi makin sering ada titik di tengah teks, makin
+    // jarang dia terpaksa "potong kasar + tempel titik sendiri". CATATAN
+    // BIAYA JUJUR: rule ini nambah ~40-50 kata ke _vbScript3SystemPrompt,
+    // dan karena system prompt mode single TIDAK PERNAH kena cache (lihat
+    // komentar cacheSystem=false di titik pemanggilnya), ~40-50 kata ini
+    // kena HARGA PENUH di SETIAP panggilan generate mode single — trade-off
+    // sadar: sedikit lebih mahal per panggilan, demi hasil potongan (kalau
+    // sampai terjadi) yang lebih rapi & berpotensi mengurangi trigger
+    // panggilan "perbaikan kata" juga (skrip lebih natural pas dari awal).
+    +'6. RITME KALIMAT — susun jadi beberapa kalimat pendek/sedang yang masing-masing diakhiri titik (.) secara wajar (sesuai makna kalimatnya selesai di situ), JANGAN ditulis sebagai satu kalimat panjang tanpa titik dari awal sampai akhir — selain lebih enak diucapkan di depan kamera, ini juga bikin sistem pemotong otomatis app (kalau skrip kelebihan kata) bisa berhenti di akhir kalimat yang wajar, bukan di tengah kalimat.\n'
+    +'7. WAJIB hitung sendiri jumlah kata tiap bagian (HOOK/STORY/CTA) SEBELUM menjawab: draft dulu, HITUNG kata (pisah per spasi, jangan ditebak), kalau di luar rentang '+range.min+'-'+range.max+' kata (idealnya '+range.target+') REVISI lalu hitung ulang sampai pas, baru tulis jawaban final. Ini pengganti auto-koreksi yang sudah dimatikan — hasil pertama WAJIB langsung pas.\n\n'
     +'Balas HANYA dengan JSON array berisi TEPAT 3 object, tanpa teks lain, tanpa markdown. Format: [{"role":"hook","script":"..."},{"role":"story","script":"..."},{"role":"cta","script":"..."}]';
   // Bagian yang BEDA-BEDA tiap generate (produk/karakter/target audience
   // spesifik kali ini) — ini yang jadi pesan user, TIDAK ikut di-cache
