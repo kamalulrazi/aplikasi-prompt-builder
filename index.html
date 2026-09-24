@@ -110,21 +110,45 @@
   //      service cloud.firestore {
   //        match /databases/{database}/documents {
   //          match /users/{uid} {
-  //            allow read, write: if request.auth != null && request.auth.uid == uid;
+  //            allow read: if request.auth != null && request.auth.uid == uid;
+  //
+  //            // FIX KEAMANAN (audit upgrade member, Sept 2026): pb_tier &
+  //            // pb_tier_expiry SENGAJA DIKUNCI dari tulisan client di sini.
+  //            // Rules versi lama ("allow read, write" polos) cuma mengecek
+  //            // SIAPA yang nulis (uid pemilik dokumen), bukan FIELD APA yang
+  //            // ditulis — jadi user mana pun tinggal buka DevTools/console
+  //            // browser dan jalankan firebase.firestore()...doc(uid).set(
+  //            // {pb_tier:'premium', pb_tier_expiry: Date.now()+999999999})
+  //            // buat dapat akun Premium GRATIS tanpa transfer sepeser pun.
+  //            // Dua rule di bawah memblokir itu: field pb_tier/pb_tier_expiry
+  //            // cuma boleh sama dengan nilai yang SUDAH ada di Firestore —
+  //            // artinya cuma admin (lewat Firebase Console, yang pakai akses
+  //            // project/IAM dan TIDAK kena rules ini) yang bisa mengubahnya.
+  //            // Field lain (pb_quota, pb_upgrade_request, pb_email, riwayat,
+  //            // dst) tetap bebas ditulis client seperti biasa.
+  //            allow create: if request.auth != null && request.auth.uid == uid
+  //              && !request.resource.data.keys().hasAny(['pb_tier','pb_tier_expiry']);
+  //            allow update: if request.auth != null && request.auth.uid == uid
+  //              && request.resource.data.get('pb_tier', null) == resource.data.get('pb_tier', null)
+  //              && request.resource.data.get('pb_tier_expiry', null) == resource.data.get('pb_tier_expiry', null);
+  //
   //            match /blobs/{doc} {
   //              allow read, write: if request.auth != null && request.auth.uid == uid;
   //            }
   //          }
   //        }
   //      }
-  //    PENTING kalau kamu SUDAH pernah setup rules ini sebelumnya (sebelum
-  //    fitur sinkron-terpecah/chunk di bawah ditambahkan): buka lagi tab
-  //    Rules di Firebase Console, tambahkan blok "match /blobs/{doc} {...}"
-  //    persis seperti di atas (nested di dalam match /users/{uid}), lalu
-  //    Publish ulang. Tanpa ini, sinkron akan gagal dengan pesan "akses
-  //    ditolak" karena rules lama cuma mengizinkan dokumen users/{uid}
-  //    sendiri, bukan sub-koleksi /blobs di bawahnya yang dipakai fitur
-  //    pecah-data (chunking) di bawah.
+  //    PENTING kalau kamu SUDAH pernah setup rules ini sebelumnya (baik versi
+  //    lama tanpa /blobs, ATAU versi lama yang masih "allow read, write"
+  //    polos di /users/{uid}): buka lagi tab Rules di Firebase Console,
+  //    TIMPA SELURUHNYA dengan blok di atas (bukan cuma tambah /blobs), lalu
+  //    Publish ulang — supaya celah pb_tier di atas ikut tertutup. Cara kerja
+  //    admin manual (langkah 1-4 sebelum blok ini) TIDAK berubah sama sekali:
+  //    Firebase Console pakai akses admin/IAM, bukan Firestore client SDK,
+  //    jadi tetap bisa edit pb_tier di sana seperti biasa meski rules di atas
+  //    "mengunci" client. Tanpa rules baru ini pun sinkron tetap gagal dengan
+  //    pesan "akses ditolak" kalau sub-koleksi /blobs belum ada di rules-nya
+  //    — itu yang dipakai fitur pecah-data (chunking) di bawah.
   // 6) Sidebar kiri → Build → Authentication → Get started → tab
   //    "Sign-in method" → aktifkan provider "Google" (pilih project
   //    support email-nya, lalu Save).
@@ -3384,7 +3408,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.65</div>
+  <div class="splash-version" id="splash-version">v6.66</div>
 </div>
 <script>
   (function(){
@@ -5370,7 +5394,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.65 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.66 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
