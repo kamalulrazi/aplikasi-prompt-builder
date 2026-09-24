@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Prompt AI Builder Studio</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#111214; --surface:#1a1b1e; --surface2:#212226; --border:#2c2d31; --border-hi:#3a3b40;
+    --text:#f2f1ee; --muted:#9b9a97; --muted2:#6f6e6c;
+    --accent:#e8c983; --green:#4caf7d; --warning:#e0a85a; --red:#e0615a;
+    --radius:14px; --radius-sm:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:20px 14px 60px;}
+  .wrap{max-width:640px;margin:0 auto;}
+  h1{font-size:20px;margin:8px 0 4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:24px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+  .btn{background:var(--accent);color:#1a1a1a;border:none;border-radius:var(--radius-sm);padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer;}
+  .btn:active{opacity:0.85;}
+  .btn-outline{background:none;border:1px solid var(--border-hi);color:var(--text);}
+  .btn-reject{background:var(--surface2);color:var(--red);border:1px solid var(--border-hi);}
+  .btn-small{padding:7px 12px;font-size:13px;}
+  input,select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px;width:100%;}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px;margin-top:12px;}
+  .row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+  .pill{font-size:11px;padding:3px 9px;border-radius:99px;font-weight:700;}
+  .pill.standar{background:rgba(232,201,131,0.15);color:var(--accent);}
+  .pill.premium{background:rgba(232,201,131,0.25);color:var(--accent);}
+  .req-email{font-weight:700;font-size:14px;}
+  .req-meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .empty{color:var(--muted2);font-size:13px;text-align:center;padding:24px 0;}
+  .hidden{display:none!important;}
+  #login-screen{text-align:center;padding:60px 20px;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border-hi);padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="login-screen">
+    <h1>Admin — Prompt AI Builder Studio</h1>
+    <p class="sub">Login pakai akun Google admin buat lanjut.</p>
+    <button class="btn" onclick="adminLogin()">Login dengan Google</button>
+    <div id="login-err" class="sub" style="color:var(--red);margin-top:14px;"></div>
+  </div>
+
+  <div id="admin-app" class="hidden">
+    <div class="row" style="margin-bottom:18px;">
+      <div>
+        <h1 style="margin-bottom:0;">Admin Upgrade Tier</h1>
+        <div class="sub" style="margin-bottom:0;" id="who-am-i"></div>
+      </div>
+      <button class="btn btn-outline btn-small" onclick="adminLogout()">Keluar</button>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:2px;">Permintaan Upgrade Pending</div>
+      <div class="sub" style="margin-bottom:0;">Cek mutasi transfer dulu di rekening kamu sebelum klik Setujui.</div>
+    </div>
+    <div id="pending-list"></div>
+    <button class="btn btn-outline btn-small" style="margin:8px 0 24px;" onclick="loadPending()">🔄 Muat Ulang</button>
+
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:2px;">Set Tier Manual</div>
+      <div class="sub" style="margin-bottom:0;">Buat kasus di luar daftar pending — termasuk naikkan akun kamu sendiri ke Premium, gratis, kapan aja.</div>
+      <label>Email akun (harus sama persis dengan email login Google user-nya)</label>
+      <input type="email" id="manual-email" placeholder="user@gmail.com">
+      <label>Tier</label>
+      <select id="manual-tier">
+        <option value="free">Gratis</option>
+        <option value="standar">Standar</option>
+        <option value="premium" selected>Premium</option>
+      </select>
+      <label>Masa aktif</label>
+      <select id="manual-days">
+        <option value="30">30 hari</option>
+        <option value="365">1 tahun</option>
+        <option value="36500" selected>Selamanya (khusus akun kamu sendiri)</option>
+      </select>
+      <div style="margin-top:14px;">
+        <button class="btn btn-small" onclick="manualSetTier()">Terapkan</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── KONFIGURASI (WAJIB DIISI) ────────────────────────────────────────────
+// 1) Config Firebase HARUS sama persis dengan yang dipakai di index.html
+//    (project Firestore yang sama).
+// 2) OWNER_EMAILS: daftar email Google yang boleh akses halaman ini.
+//    Ini SEKADAR gerbang di sisi tampilan — perlindungan SEBENARNYA ada di
+//    Firestore Security Rules (lihat instruksi rules di bawah). Tanpa rules
+//    itu diupdate, halaman ini akan gagal baca/tulis data user lain
+//    walau login sebagai email yang ada di daftar ini.
+var PB_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCUnigD8-J8FG1HmWJrKjXWex4ZJFoJYGM",
+  authDomain: "maiiil-55365.firebaseapp.com",
+  projectId: "maiiil-55365",
+  storageBucket: "maiiil-55365.firebasestorage.app",
+  messagingSenderId: "73740157914",
+  appId: "1:73740157914:web:8dd222e5d750a421e776e3"
+};
+var OWNER_EMAILS = ['vid1hihu@gmail.com'];
+
+/* ── WAJIB: update Firestore Security Rules dulu (Firebase Console →
+   Firestore Database → tab Rules → Publish), atau halaman ini TIDAK akan
+   bisa baca/ubah dokumen user lain (cuma bisa dokumen uid sendiri):
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null &&
+        (request.auth.uid == uid || request.auth.token.email in ['vid1hihu@gmail.com']);
+      match /blobs/{doc} {
+        allow read, write: if request.auth != null &&
+          (request.auth.uid == uid || request.auth.token.email in ['vid1hihu@gmail.com']);
+      }
+    }
+  }
+}
+
+   Email di atas sudah disesuaikan dengan OWNER_EMAILS di script bawah. */
+
+firebase.initializeApp(PB_FIREBASE_CONFIG);
+var db = firebase.firestore();
+
+function showToast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2200);
+}
+
+function adminLogin(){
+  var provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider).catch(function(e){
+    document.getElementById('login-err').textContent = 'Gagal login: '+(e.message||e);
+  });
+}
+function adminLogout(){ firebase.auth().signOut(); }
+
+firebase.auth().onAuthStateChanged(function(user){
+  var loginScreen=document.getElementById('login-screen');
+  var app=document.getElementById('admin-app');
+  if(!user){
+    loginScreen.classList.remove('hidden'); app.classList.add('hidden');
+    return;
+  }
+  if(OWNER_EMAILS.indexOf(user.email) === -1){
+    document.getElementById('login-err').textContent = 'Akun '+user.email+' bukan admin. Login pakai email yang terdaftar di OWNER_EMAILS.';
+    firebase.auth().signOut();
+    return;
+  }
+  loginScreen.classList.add('hidden'); app.classList.remove('hidden');
+  document.getElementById('who-am-i').textContent = 'Login sebagai '+user.email;
+  loadPending();
+});
+
+function fmtDate(ts){
+  if(!ts) return '-';
+  var d=new Date(ts);
+  return d.toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'});
+}
+
+async function loadPending(){
+  var list=document.getElementById('pending-list');
+  list.innerHTML='<div class="empty">Memuat...</div>';
+  try{
+    var snap = await db.collection('users').where('pb_upgrade_request.status','==','pending').get();
+    if(snap.empty){ list.innerHTML='<div class="empty">Tidak ada permintaan pending 🎉</div>'; return; }
+    list.innerHTML='';
+    snap.forEach(function(doc){
+      var d=doc.data();
+      var req=d.pb_upgrade_request || {};
+      var card=document.createElement('div');
+      card.className='card';
+      card.innerHTML =
+        '<div class="row">'+
+          '<div>'+
+            '<div class="req-email">'+(d.pb_email||req.email||'(email tidak ada)')+'</div>'+
+            '<div class="req-meta">Minta <span class="pill '+(req.tier||'')+'">'+(req.tier||'-')+'</span> · Rp'+(Number(req.price||0)).toLocaleString('id-ID')+' · '+fmtDate(req.requestedAt)+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="row" style="margin-top:12px;">'+
+          '<button class="btn btn-small" onclick="approveRequest(\''+doc.id+'\',\''+(req.tier||'standar')+'\')">✓ Setujui</button>'+
+          '<button class="btn btn-reject btn-small" onclick="rejectRequest(\''+doc.id+'\')">✕ Tolak</button>'+
+        '</div>';
+      list.appendChild(card);
+    });
+  }catch(e){
+    list.innerHTML='<div class="empty" style="color:var(--red);">Gagal muat: '+(e.message||e)+'<br><br>Kemungkinan Firestore Security Rules belum diupdate — lihat komentar di bagian atas script halaman ini.</div>';
+  }
+}
+
+async function approveRequest(uid, tier){
+  var days = tier==='premium' ? 30 : 30; // sesuaikan kalau mau beda masa aktif per tier
+  var expiry = Date.now() + days*86400000;
+  try{
+    await db.collection('users').doc(uid).set({
+      pb_tier: tier,
+      pb_tier_expiry: expiry,
+      pb_upgrade_request: firebase.firestore.FieldValue.delete()
+    }, {merge:true});
+    showToast('Disetujui: '+tier+' aktif sampai '+fmtDate(expiry));
+    loadPending();
+  }catch(e){ showToast('Gagal: '+(e.message||e)); }
+}
+async function rejectRequest(uid){
+  try{
+    await db.collection('users').doc(uid).set({
+      pb_upgrade_request: firebase.firestore.FieldValue.delete()
+    }, {merge:true});
+    showToast('Permintaan ditolak/dihapus.');
+    loadPending();
+  }catch(e){ showToast('Gagal: '+(e.message||e)); }
+}
+
+async function manualSetTier(){
+  var email=document.getElementById('manual-email').value.trim();
+  var tier=document.getElementById('manual-tier').value;
+  var days=Number(document.getElementById('manual-days').value);
+  if(!email){ showToast('Isi email dulu.'); return; }
+  try{
+    var snap = await db.collection('users').where('pb_email','==',email).limit(1).get();
+    if(snap.empty){ showToast('User dengan email ini belum pernah login/sinkron ke app.'); return; }
+    var doc = snap.docs[0];
+    var expiry = tier==='free' ? 0 : (Date.now() + days*86400000);
+    await doc.ref.set({ pb_tier: tier, pb_tier_expiry: expiry }, {merge:true});
+    showToast('Berhasil: '+email+' → '+tier+(tier!=='free' ? (' sampai '+fmtDate(expiry)) : ''));
+  }catch(e){ showToast('Gagal: '+(e.message||e)); }
+}
+</script>
+</body>
+</html>

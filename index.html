@@ -140,6 +140,36 @@
     appId: "1:73740157914:web:8dd222e5d750a421e776e3"
   };
 
+  // ── KONFIGURASI TIER & PEMBAYARAN (Sept 2026) ───────────────────────────
+  // 3 tier: Gratis (3/hari), Standar (40/hari, Rp29rb/bulan), Premium
+  // (200/hari, Rp79rb/bulan). Alur bayar SENGAJA dibuat manual dulu (paling
+  // gampang buat mulai, tanpa integrasi payment gateway): user transfer →
+  // klik "Sudah Transfer" → kebuka WhatsApp ke nomor admin dengan pesan
+  // otomatis (email + tier yang dipilih) → ADMIN CEK MUTASI SENDIRI, lalu
+  // naikkan tier user manual di Firebase Console:
+  //   1. Buka console.firebase.google.com → project ini → Firestore Database
+  //   2. Koleksi "users" → cari dokumen dengan field pb_email sesuai yang
+  //      WA masuk (atau cari pb_upgrade_request.status == "pending")
+  //   3. Edit field di dokumen itu: pb_tier = "standar" atau "premium",
+  //      pb_tier_expiry = (waktu sekarang + 30 hari, dalam MILIDETIK unix,
+  //      contoh: Date.now()+30*86400000 — bisa dihitung lewat console browser)
+  //   4. (opsional) hapus/ubah pb_upgrade_request.status jadi "done"
+  // Kalau nanti mau otomatis pakai Midtrans/Xendit dll, tinggal ganti isi
+  // fungsi pbConfirmUpgradeWA() di bawah supaya redirect ke payment gateway
+  // dan tier di-set otomatis lewat webhook, bukan manual lewat WA lagi.
+  var PB_TIER_CONFIG = {
+    free:    {label:'Gratis',  limit:3,   price:0,     periodDays:0},
+    standar: {label:'Standar', limit:40,  price:29000, periodDays:30},
+    premium: {label:'Premium', limit:200, price:79000, periodDays:30}
+  };
+  var PB_PAYMENT_CONFIG = {
+    waNumber: '62812XXXXXXXX', // GANTI: nomor WA admin, format 62..., tanpa + atau spasi
+    bank: { nama:'BCA', noRek:'1234567890', atasNama:'Nama Kamu' }, // GANTI
+    qrisImageUrl: '' // GANTI (opsional): URL gambar QRIS kalau punya
+  };
+  window.PB_TIER_CONFIG = PB_TIER_CONFIG;
+  window.PB_PAYMENT_CONFIG = PB_PAYMENT_CONFIG;
+
   // Kunci-kunci localStorage yang disinkron ke Firestore. SENGAJA TIDAK
   // termasuk: pb_auth_user (sesi login lokal, dibentuk ulang tiap login),
   // pb_enc_salt_v1 (salt enkripsi, MEMANG harus unik per perangkat).
@@ -530,6 +560,25 @@
       // mentah-mentah seperti PB_SYNC_KEYS di atas — digabung (merge) dengan
       // delta lokal yang belum sempat ke-push, lihat _pullCounterMerge.
       PB_COUNTER_SYNC_KEYS.forEach(function(k){ _pullCounterMerge(data,k); });
+      // ── TARIK STATUS TIER & QUOTA HARIAN (fitur tier berbayar, Sept 2026) ──
+      // pb_tier/pb_tier_expiry di-SET MANUAL oleh admin di Firebase Console
+      // setelah cek transfer (lihat instruksi di dekat PB_TIER_CONFIG di atas)
+      // — di sini app cuma MEMBACA-nya. pb_quota ditulis oleh device manapun
+      // tiap kali generate (lihat dlIncrement/pbCloudPushQuota); kalau dua
+      // device generate di hari yang sama, ambil angka TERBESAR biar tidak
+      // ada quota yang "hilang" gara-gara device lain menimpa duluan.
+      try{
+        if(typeof data.pb_tier === 'string') localStorage.setItem('pb_tier_v1', data.pb_tier);
+        if(typeof data.pb_tier_expiry === 'number') localStorage.setItem('pb_tier_expiry_v1', String(data.pb_tier_expiry));
+        if(data.pb_quota && typeof data.pb_quota === 'object' && data.pb_quota.date){
+          var _cq = data.pb_quota, _today = (typeof pbTodayStr==='function') ? pbTodayStr() : null;
+          if(_today && _cq.date === _today){
+            var _lq = null; try{ var _r=localStorage.getItem('pb_quota_v1'); _lq = _r?JSON.parse(_r):null; }catch(e){}
+            var _merged = (_lq && _lq.date===_today) ? Math.max(_cq.count||0, _lq.count||0) : (_cq.count||0);
+            localStorage.setItem('pb_quota_v1', JSON.stringify({date:_today, count:_merged}));
+          }
+        }
+      }catch(e){}
       if(typeof data.pb_api_key_plain === 'string' && data.pb_api_key_plain && typeof _vaiEncKey === 'function'){
         try{
           var enc = await _vaiEncKey(data.pb_api_key_plain);
@@ -609,6 +658,14 @@
         try{ localStorage.removeItem('pb_vai_k'); }catch(e){}
       }
       try{ localStorage.setItem('pb_last_cloud_uid', window.pbCloudUid); }catch(e){}
+      // Simpan email di dokumen user (BUKAN sebagai id dokumen, cuma field
+      // biasa) supaya admin gampang cari user di Firestore Console pas mau
+      // naikkan tier manual setelah cek transfer — id dokumennya sendiri
+      // tetap uid (bukan email), jadi ini murni buat pencarian manual.
+      try{
+        var _emForDoc = (firebase.auth().currentUser && firebase.auth().currentUser.email) || (user && user.email) || '';
+        if(_emForDoc){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(){}); }
+      }catch(e){}
       await _pullAll();
     }catch(e){ console.warn('pbCloudInit gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); }
     finally{
@@ -620,6 +677,23 @@
     }
   };
 
+  // Dipanggil dlIncrement() tiap sukses generate — nyimpan hitungan quota
+  // harian ke Firestore (merge, bukan timpa field lain).
+  window.pbCloudPushQuota = function(quotaObj){
+    if(!_fbReady || !window.pbCloudUid) return;
+    var ref = _docRef(); if(!ref) return;
+    ref.set({pb_quota: quotaObj, _updatedAt: Date.now()}, {merge:true})
+      .catch(function(e){ console.warn('Sync quota gagal:', e); });
+  };
+  // Dipanggil pas user klik "Sudah Transfer" di modal upgrade — nyimpan
+  // permintaan upgrade supaya kelihatan di Firestore Console (field
+  // pb_upgrade_request), memudahkan admin cross-check sebelum naikkan tier.
+  window.pbCloudPushUpgradeRequest = function(reqObj){
+    if(!_fbReady || !window.pbCloudUid) return;
+    var ref = _docRef(); if(!ref) return;
+    ref.set({pb_upgrade_request: reqObj, _updatedAt: Date.now()}, {merge:true})
+      .catch(function(e){ console.warn('Sync upgrade request gagal:', e); });
+  };
   window.pbCloudSignOut = function(){
     window.pbCloudUid = null;
     _setSyncStatus('off');
@@ -3734,6 +3808,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          pemilik app — user tidak perlu isi apapun lagi, jadi tombol cukup
          kasih info singkat saja, tidak buka modal API key lagi. -->
     <div class="h-pill" style="cursor:pointer;" onclick="showToast('AI sudah otomatis aktif — tidak perlu API Key lagi ✓','success')" title="AI sudah otomatis tersambung"><svg><use href="#ic-sparkle"></use></svg>AI</div>
+    <div class="h-pill" style="cursor:pointer;" onclick="pbOpenUpgradeModal()" title="Lihat paket & upgrade">⭐ Upgrade</div>
   </div>
 </div>
 
@@ -10801,20 +10876,144 @@ async function _vaiDecKey(b64){
   }catch(e){console.warn('_vaiDecKey gagal:',e);return '';}
 }
 
-// ── LIMIT PAKAI AI (dl = "download/daily limit") ────────────────────────
-// Tidak ada batas harian by design — jeda klik-ganda sudah ditangani lewat
-// VAI._isGenerating (di-disable & dicek sebelum setiap generate dimulai).
-// Fungsi-fungsi ini dipertahankan sebagai stub aman (bukan dihapus dari call
-// site) karena dipanggil di beberapa alur generate — biar tidak perlu ubah
-// alur pemanggilnya kalau nanti mau tambah limit sungguhan.
+// ── LIMIT PAKAI AI (dl = "download/daily limit") — TIER BERBAYAR ────────
+// Gratis 3/hari, Standar 40/hari, Premium 200/hari (lihat PB_TIER_CONFIG).
+// Dihitung PER AKUN (uid Google), bukan per device — tersimpan di
+// localStorage utk cek instan/offline, disinkron ke Firestore tiap kali
+// generate (lihat pbCloudPushQuota) supaya akurat lintas HP/laptop.
+function pbTodayStr(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+// Tier efektif user SEKARANG ini. Kalau masa aktif tier berbayar sudah
+// lewat (pb_tier_expiry), otomatis dianggap balik ke 'free' tanpa perlu
+// admin ubah apa-apa lagi di Firestore.
+function pbGetTier(){
+  var tier='free', expiry=0;
+  try{ tier=localStorage.getItem('pb_tier_v1')||'free'; }catch(e){}
+  try{ expiry=Number(localStorage.getItem('pb_tier_expiry_v1'))||0; }catch(e){}
+  if(tier!=='free' && expiry && Date.now()>expiry) tier='free';
+  if(!window.PB_TIER_CONFIG || !window.PB_TIER_CONFIG[tier]) tier='free';
+  return tier;
+}
+function pbGetQuota(){
+  var today=pbTodayStr(), q={date:today,count:0};
+  try{
+    var raw=localStorage.getItem('pb_quota_v1');
+    if(raw){ var parsed=JSON.parse(raw); if(parsed && parsed.date===today) q={date:today,count:parsed.count||0}; }
+  }catch(e){}
+  return q;
+}
 function dlCheckBeforeCall(){
+  var tier=pbGetTier(), cfg=window.PB_TIER_CONFIG[tier], q=pbGetQuota();
+  if(q.count>=cfg.limit){
+    // Buka modal upgrade otomatis pas limit kena (kecuali sudah Premium) —
+    // dipasang di SATU titik ini (bukan di tiap call site generate) supaya
+    // semua alur generate yang ada (single/bulk/wordfix/dst, ada belasan
+    // titik pemanggil dlCheckBeforeCall di file ini) otomatis ikut tanpa
+    // perlu diubah satu-satu.
+    try{ if(tier!=='premium' && typeof pbOpenUpgradeModal==='function') pbOpenUpgradeModal(); }catch(e){}
+    return {
+      ok:false,
+      tier:tier,
+      message:'Jatah generate '+cfg.label+' hari ini sudah habis ('+cfg.limit+'/'+cfg.limit+'). '+
+        (tier==='premium' ? 'Coba lagi besok ya.' : 'Upgrade buat lanjut generate hari ini juga →')
+    };
+  }
   return {ok:true};
 }
 function dlIncrement(){
-  /* no-op — tidak ada penghitung harian yang perlu dicatat saat ini */
+  var q=pbGetQuota();
+  q.count=(q.count||0)+1;
+  try{ localStorage.setItem('pb_quota_v1', JSON.stringify(q)); }catch(e){}
+  try{ if(typeof window.pbCloudPushQuota==='function') window.pbCloudPushQuota(q); }catch(e){}
+  dlRenderBar();
 }
 function dlRenderBar(){
-  /* no-op — tidak ada elemen bar limit di UI versi ini */
+  var bar=document.getElementById('daily-limit-bar');
+  if(!bar) return;
+  var tier=pbGetTier(), cfg=window.PB_TIER_CONFIG[tier], q=pbGetQuota();
+  var sisa=Math.max(0,cfg.limit-q.count);
+  var pct=Math.max(0,Math.min(100, 100-Math.round((q.count/cfg.limit)*100)));
+  var dot=document.getElementById('dlb-dot'), fill=document.getElementById('dlb-fill');
+  var countEl=document.getElementById('dlb-count'), resetEl=document.getElementById('dlb-reset');
+  var label=document.getElementById('dlb-tier-label');
+  var state = sisa<=0 ? 'empty' : (sisa<=Math.ceil(cfg.limit*0.2) ? 'warn' : 'ok');
+  if(dot) dot.className='dlb-dot '+state;
+  if(fill){ fill.style.width=pct+'%'; fill.style.background = state==='empty'?'var(--red)':(state==='warn'?'var(--warning)':'var(--green)'); }
+  if(countEl) countEl.textContent = q.count+'/'+cfg.limit;
+  if(resetEl) resetEl.textContent = sisa+' sisa hari ini • reset tengah malam';
+  if(label) label.textContent = cfg.label;
+  bar.style.display='flex';
+}
+function pbToggleLimitBar(){
+  var bar=document.getElementById('daily-limit-bar');
+  if(!bar) return;
+  if(bar.classList.contains('expanded')){ bar.classList.remove('expanded'); return; }
+  bar.classList.add('expanded');
+  var closeOutside=function(ev){
+    if(!bar.contains(ev.target)){ bar.classList.remove('expanded'); document.removeEventListener('click',closeOutside,true); }
+  };
+  setTimeout(function(){ document.addEventListener('click',closeOutside,true); },0);
+}
+
+// ── MODAL UPGRADE TIER ───────────────────────────────────────────────────
+var _pbUpgradeSelectedTier=null;
+function pbOpenUpgradeModal(){
+  var ov=document.getElementById('upgrade-modal-overlay');
+  if(!ov) return;
+  document.getElementById('daily-limit-bar').classList.remove('expanded');
+  pbBackToUpgradePlans();
+  var tag=document.getElementById('upg-current-tag');
+  if(tag){
+    var t=pbGetTier();
+    tag.textContent = t==='free' ? 'paket kamu sekarang' : ('paket dasar — kamu sekarang di '+window.PB_TIER_CONFIG[t].label);
+  }
+  ov.style.display='flex';
+}
+function pbCloseUpgradeModal(){
+  var ov=document.getElementById('upgrade-modal-overlay');
+  if(ov) ov.style.display='none';
+}
+function pbBackToUpgradePlans(){
+  var p1=document.getElementById('upgrade-plans-panel'), p2=document.getElementById('upgrade-payment-panel');
+  if(p1) p1.style.display='flex';
+  if(p2) p2.style.display='none';
+}
+function pbSelectUpgradeTier(tier){
+  var cfg=window.PB_TIER_CONFIG[tier];
+  if(!cfg) return;
+  _pbUpgradeSelectedTier=tier;
+  var pay=window.PB_PAYMENT_CONFIG;
+  document.getElementById('upgrade-plans-panel').style.display='none';
+  document.getElementById('upgrade-payment-panel').style.display='block';
+  document.getElementById('upg-pay-tier-label').textContent=cfg.label;
+  document.getElementById('upg-pay-amount').textContent='Rp'+cfg.price.toLocaleString('id-ID');
+  document.getElementById('upg-pay-bank').textContent=pay.bank.nama+' — '+pay.bank.noRek;
+  document.getElementById('upg-pay-an').textContent='a.n. '+pay.bank.atasNama;
+}
+// User klik "Sudah Transfer": catat permintaan upgrade ke Firestore (biar
+// admin lihat di Firebase Console) lalu buka WhatsApp dengan pesan siap
+// pakai berisi email + tier yang dipilih, supaya admin gampang cocokkan
+// dengan mutasi transfer sebelum naikkan tier manual (lihat instruksi
+// lengkap di dekat PB_TIER_CONFIG, awal file).
+function pbConfirmUpgradeWA(){
+  var tier=_pbUpgradeSelectedTier;
+  var cfg=window.PB_TIER_CONFIG[tier];
+  if(!cfg) return;
+  var email='';
+  try{ var u=JSON.parse(localStorage.getItem('pb_auth_user')||'null'); email=(u&&u.email)||''; }catch(e){}
+  try{
+    if(typeof window.pbCloudPushUpgradeRequest==='function'){
+      window.pbCloudPushUpgradeRequest({tier:tier, price:cfg.price, email:email, requestedAt:Date.now(), status:'pending'});
+    }
+  }catch(e){}
+  var pesan='Halo, saya mau konfirmasi upgrade Prompt AI Builder Studio ke paket '+cfg.label+' (Rp'+cfg.price.toLocaleString('id-ID')+'/bulan).'+
+    (email?(' Akun: '+email+'.'):'')+' Berikut bukti transfernya 🙏';
+  var wa='https://wa.me/'+window.PB_PAYMENT_CONFIG.waNumber+'?text='+encodeURIComponent(pesan);
+  window.open(wa,'_blank');
+  showToast('Cek WhatsApp untuk kirim bukti transfer ke admin ya!','success');
+  pbCloseUpgradeModal();
 }
 
 async function vaiSaveKey(){
@@ -13021,6 +13220,7 @@ document.addEventListener('DOMContentLoaded',function(){
   let backdrop=document.getElementById('pb-saved-overlay-backdrop');
   if(closeBtn)closeBtn.onclick=pbCloseSavedOverlay;
   if(backdrop)backdrop.onclick=pbCloseSavedOverlay;
+  try{ dlRenderBar(); }catch(e){} // tampilkan widget limit dari data lokal (localStorage) segera; nanti disegarkan lagi kalau ada data cloud (lihat _pullAll)
 });
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
@@ -20909,17 +21109,49 @@ window.addEventListener('beforeunload', function(e){
      viewport asli, bukan ke scroll container. switchPage() & CSS lain
      gak perlu berubah karena masih dicari lewat class .ntab / .nav global. -->
 <!-- DAILY LIMIT WIDGET -->
-<div id="daily-limit-bar">
-  <div id="dlb-panel">
-    <div class="dlb-panel-label">AI Limit Harian</div>
+<div id="daily-limit-bar" style="display:none;">
+  <div id="dlb-panel" onclick="event.stopPropagation();pbOpenUpgradeModal();">
+    <div class="dlb-panel-label">Tier <span id="dlb-tier-label">Gratis</span> — Limit Harian</div>
     <div class="dlb-track"><div class="dlb-fill" id="dlb-fill" style="width:100%;background:var(--green);"></div></div>
     <span id="dlb-reset">— / —</span>
+    <div style="margin-top:8px;font-size:var(--fs-2xs);color:var(--accent);font-weight:700;">Lihat paket upgrade →</div>
   </div>
-  <div id="dlb-badge">
+  <div id="dlb-badge" onclick="pbToggleLimitBar()">
     <span class="dlb-dot ok" id="dlb-dot"></span>
     <span id="dlb-count">— / —</span>
   </div>
 </div>
+
+<!-- MODAL: UPGRADE TIER — pola sama dgn #apikey-modal-overlay biar konsisten -->
+<div id="upgrade-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9998;display:none;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:440px;max-height:88vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.6);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);">
+      <div style="font-size:var(--fs-base);font-weight:700;">Upgrade Paket</div>
+      <button class="tap-target" onclick="pbCloseUpgradeModal()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xl);cursor:pointer;line-height:1;padding:2px 4px;"><svg class="icon"><use href="#ic-close"></use></svg></button>
+    </div>
+
+    <!-- PANEL 1: daftar paket -->
+    <div id="upgrade-plans-panel" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+      <div id="upg-card-free" class="info-card" style="align-items:center;"><div class="num-badge" style="background:var(--surface3);color:var(--muted);">✓</div><div><div style="font-size:var(--fs-base);font-weight:700;">Gratis — <span id="upg-current-tag" style="color:var(--muted);">paket kamu sekarang</span></div><div class="desc-text">3 produk/hari. Cukup buat coba-coba fitur.</div></div></div>
+
+      <div class="info-card" style="align-items:center;border-color:var(--border-hi);"><div class="num-badge">Rp</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Standar</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp29.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">40 produk/hari — buat kerja harian seller UMKM.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('standar')">Upgrade ke Standar</button></div></div>
+
+      <div class="info-card" style="align-items:center;border-color:rgba(240,217,160,0.4);background:rgba(240,217,160,0.06);"><div class="num-badge" style="background:var(--accent);color:#1a1a1a;">★</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Premium</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp79.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">200 produk/hari — buat reseller/agency generate banyak produk.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('premium')">Upgrade ke Premium</button></div></div>
+
+      <div style="font-size:var(--fs-2xs);color:var(--muted2);text-align:center;padding-top:4px;">Pembayaran manual transfer, aktif setelah dikonfirmasi admin (biasanya cepat).</div>
+    </div>
+
+    <!-- PANEL 2: instruksi bayar (diisi JS pas pilih paket) -->
+    <div id="upgrade-payment-panel" style="padding:14px 16px;display:none;">
+      <button onclick="pbBackToUpgradePlans()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-sm);cursor:pointer;padding:0;margin-bottom:12px;">← Kembali</button>
+      <div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Upgrade ke <span id="upg-pay-tier-label"></span></div>
+      <div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:14px;">Transfer <strong id="upg-pay-amount" style="color:var(--text);"></strong> ke rekening di bawah, lalu konfirmasi via WhatsApp.</div>
+      <div class="info-card" style="margin-bottom:10px;"><div><div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:2px;">Bank / No. Rekening</div><div id="upg-pay-bank" style="font-family:'Geist Mono',monospace;font-size:var(--fs-base);font-weight:700;"></div><div id="upg-pay-an" style="font-size:var(--fs-sm);color:var(--muted);"></div></div></div>
+      <button class="btn" style="width:100%;background:var(--green);" onclick="pbConfirmUpgradeWA()">Sudah Transfer — Konfirmasi via WhatsApp</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <nav class="nav">
