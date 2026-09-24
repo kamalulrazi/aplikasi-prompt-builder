@@ -124,13 +124,43 @@
   //            // cuma boleh sama dengan nilai yang SUDAH ada di Firestore —
   //            // artinya cuma admin (lewat Firebase Console, yang pakai akses
   //            // project/IAM dan TIDAK kena rules ini) yang bisa mengubahnya.
-  //            // Field lain (pb_quota, pb_upgrade_request, pb_email, riwayat,
-  //            // dst) tetap bebas ditulis client seperti biasa.
+  //            // Field lain (pb_upgrade_request, pb_email, riwayat, dst)
+  //            // tetap bebas ditulis client seperti biasa.
+  //            //
+  //            // FIX KEAMANAN #2 (audit upgrade member, Sept 2026): pb_quota
+  //            // BOLEH ditulis client (memang harus, tiap kali generate lewat
+  //            // pbCloudPushQuota) TAPI angka count-nya TIDAK BOLEH TURUN
+  //            // untuk tanggal yang sama. Sebelumnya user tinggal buka
+  //            // DevTools/console dan jalankan firebase.firestore()...doc(uid)
+  //            // .set({pb_quota:{date:'<hari-ini>', count:0}}, {merge:true})
+  //            // buat reset jatah harian jadi 0 lagi kapan saja. Fungsi
+  //            // quotaTidakBolehTurun() di bawah menolak update kalau
+  //            // tanggalnya SAMA tapi count baru < count lama — reset yang
+  //            // sah (hari berganti) tetap lolos karena tanggalnya beda.
+  //            // CATATAN PENTING (batas dari fix ini): rule ini cuma
+  //            // melindungi user yang SUDAH LOGIN — begitu device ini sinkron
+  //            // lagi (reload/login ulang), angka yang di-reset paksa di
+  //            // localStorage bakal ketimpa balik ke angka asli dari cloud.
+  //            // Ini TIDAK menutup celah kuota utk user yang BELUM login:
+  //            // tier Gratis anonim (belum pernah masuk akun Google) tidak
+  //            // punya dokumen Firestore sama sekali, jadi hitungannya masih
+  //            // 100% di localStorage perangkat itu — clear cache/incognito
+  //            // masih bikin jatah gratis balik ke 0. Nutup celah itu perlu
+  //            // penghitungan di sisi server (mis. rate-limit per-IP di
+  //            // Cloudflare Worker-nya, bukan di file app ini).
+  //            function quotaTidakBolehTurun(newData, oldData) {
+  //              let newQ = newData.get('pb_quota', null);
+  //              let oldQ = oldData.get('pb_quota', null);
+  //              return newQ == null || oldQ == null
+  //                || newQ.date != oldQ.date
+  //                || newQ.count >= oldQ.count;
+  //            }
   //            allow create: if request.auth != null && request.auth.uid == uid
   //              && !request.resource.data.keys().hasAny(['pb_tier','pb_tier_expiry']);
   //            allow update: if request.auth != null && request.auth.uid == uid
   //              && request.resource.data.get('pb_tier', null) == resource.data.get('pb_tier', null)
-  //              && request.resource.data.get('pb_tier_expiry', null) == resource.data.get('pb_tier_expiry', null);
+  //              && request.resource.data.get('pb_tier_expiry', null) == resource.data.get('pb_tier_expiry', null)
+  //              && quotaTidakBolehTurun(request.resource.data, resource.data);
   //
   //            match /blobs/{doc} {
   //              allow read, write: if request.auth != null && request.auth.uid == uid;
@@ -139,16 +169,17 @@
   //        }
   //      }
   //    PENTING kalau kamu SUDAH pernah setup rules ini sebelumnya (baik versi
-  //    lama tanpa /blobs, ATAU versi lama yang masih "allow read, write"
-  //    polos di /users/{uid}): buka lagi tab Rules di Firebase Console,
-  //    TIMPA SELURUHNYA dengan blok di atas (bukan cuma tambah /blobs), lalu
-  //    Publish ulang — supaya celah pb_tier di atas ikut tertutup. Cara kerja
-  //    admin manual (langkah 1-4 sebelum blok ini) TIDAK berubah sama sekali:
-  //    Firebase Console pakai akses admin/IAM, bukan Firestore client SDK,
-  //    jadi tetap bisa edit pb_tier di sana seperti biasa meski rules di atas
-  //    "mengunci" client. Tanpa rules baru ini pun sinkron tetap gagal dengan
-  //    pesan "akses ditolak" kalau sub-koleksi /blobs belum ada di rules-nya
-  //    — itu yang dipakai fitur pecah-data (chunking) di bawah.
+  //    lama tanpa /blobs, versi lama "allow read, write" polos, ATAU versi
+  //    yang cuma mengunci pb_tier tanpa quotaTidakBolehTurun): buka lagi tab
+  //    Rules di Firebase Console, TIMPA SELURUHNYA dengan blok di atas (bukan
+  //    cuma tambah sebagian), lalu Publish ulang — supaya celah reset kuota
+  //    di atas ikut tertutup. Cara kerja admin manual (langkah 1-4 sebelum
+  //    blok ini) TIDAK berubah sama sekali: Firebase Console pakai akses
+  //    admin/IAM, bukan Firestore client SDK, jadi tetap bisa edit pb_tier
+  //    di sana seperti biasa meski rules di atas "mengunci" client. Tanpa
+  //    rules baru ini pun sinkron tetap gagal dengan pesan "akses ditolak"
+  //    kalau sub-koleksi /blobs belum ada di rules-nya — itu yang dipakai
+  //    fitur pecah-data (chunking) di bawah.
   // 6) Sidebar kiri → Build → Authentication → Get started → tab
   //    "Sign-in method" → aktifkan provider "Google" (pilih project
   //    support email-nya, lalu Save).
@@ -708,6 +739,35 @@
     var ref = _docRef(); if(!ref) return;
     ref.set({pb_quota: quotaObj, _updatedAt: Date.now()}, {merge:true})
       .catch(function(e){ console.warn('Sync quota gagal:', e); });
+  };
+  // FIX KEAMANAN #2 (audit upgrade member, Sept 2026): tarik ULANG pb_quota
+  // dari Firestore secara diam-diam tiap kali dlCheckBeforeCall() jalan
+  // (dipanggil dari situ, lihat bawah file). Kenapa perlu: rules Firestore
+  // sekarang menolak update yang MENURUNKAN count di hari yang sama (lihat
+  // komentar quotaTidakBolehTurun() di dekat PB_FIREBASE_CONFIG) — tapi
+  // kalau user sempat "reset" localStorage-nya sendiri (bukan Firestore),
+  // device itu tidak otomatis tahu angka aslinya masih tinggi sampai ada
+  // _pullAll() penuh (reload/login ulang). Fungsi ini menutup jeda itu:
+  // baca ulang pb_quota dari cloud tiap mau generate, gabung pakai Math.max
+  // (logika sama seperti _pullAll()) supaya angka lokal balik akurat dalam
+  // hitungan detik, TANPA perlu reload. Sengaja tidak di-await/blocking di
+  // pemanggilnya (cukup 1 GET Firestore ringan, hasilnya dipakai buat
+  // PERCOBAAN GENERATE BERIKUTNYA, bukan yang sedang jalan sekarang) supaya
+  // tidak bikin tiap klik generate jadi lambat nunggu network.
+  window.pbCloudRefreshQuota = function(){
+    if(!_fbReady || !window.pbCloudUid) return;
+    var ref = _docRef(); if(!ref) return;
+    ref.get().then(function(snap){
+      if(!snap.exists) return;
+      var data = snap.data() || {};
+      if(!(data.pb_quota && typeof data.pb_quota === 'object' && data.pb_quota.date)) return;
+      var _cq = data.pb_quota, _today = pbTodayStr();
+      if(_cq.date !== _today) return;
+      var _lq = null; try{ var _r=localStorage.getItem('pb_quota_v1'); _lq = _r?JSON.parse(_r):null; }catch(e){}
+      var _merged = (_lq && _lq.date===_today) ? Math.max(_cq.count||0, _lq.count||0) : (_cq.count||0);
+      try{ localStorage.setItem('pb_quota_v1', JSON.stringify({date:_today, count:_merged})); }catch(e){}
+      try{ dlRenderBar(); }catch(e){}
+    }).catch(function(){});
   };
   // Dipanggil pas user klik "Sudah Transfer" di modal upgrade — nyimpan
   // permintaan upgrade supaya kelihatan di Firestore Console (field
@@ -10721,6 +10781,18 @@ function _pbGetDeviceId(){
     return id;
   }catch(e){return 'dev-unknown';}
 }
+// FIX KEAMANAN #2 (tutup total, Sept 2026): kirim Firebase ID token ke Worker
+// supaya kuota & tier dicek DI SERVER (bukan localStorage). Token ini bukti
+// login yang diverifikasi Worker — tidak bisa dipalsukan dari console.
+// Belum login / Firebase belum aktif → string kosong (Worker anggap anonim).
+async function pbGetIdToken(){
+  try{
+    if(typeof firebase==='undefined' || !firebase.apps || !firebase.apps.length) return '';
+    var u=firebase.auth().currentUser;
+    if(!u) return '';
+    return await u.getIdToken(); // SDK auto-refresh kalau hampir expired
+  }catch(e){ return ''; }
+}
 // FIX (permintaan user, Sept 2026): Sonnet-5 SEBAGAI CADANGAN DIMATIKAN
 // TOTAL — sebelumnya kalau Haiku gagal total setelah retry habis, app
 // otomatis pindah ke Sonnet-5. Sekarang HANYA Haiku 4.5 yang dipakai,
@@ -10929,6 +11001,13 @@ function pbGetQuota(){
   return q;
 }
 function dlCheckBeforeCall(){
+  // FIX KEAMANAN #2 (audit upgrade member, Sept 2026): sekalian tarik ulang
+  // angka asli dari cloud tiap kali mau generate (lihat pbCloudRefreshQuota
+  // di dekat pbCloudPushQuota) — diam-diam, tidak ditunggu, jadi tidak
+  // memperlambat pengecekan yang SEKARANG ini. Kalau ternyata local sempat
+  // "direset" manual (localStorage), angkanya bakal balik akurat sebelum
+  // percobaan generate BERIKUTNYA.
+  try{ if(typeof window.pbCloudRefreshQuota==='function') window.pbCloudRefreshQuota(); }catch(e){}
   var tier=pbGetTier(), cfg=window.PB_TIER_CONFIG[tier], q=pbGetQuota();
   if(q.count>=cfg.limit){
     // Buka modal upgrade otomatis pas limit kena (kecuali sudah Premium) —
@@ -15653,7 +15732,7 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       await _vbThrottleGeminiGate();
       resp=await fetch(url,{
         method:'POST',
-        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
+        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':await pbGetIdToken()},
         body:JSON.stringify(Object.assign(
           {model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
@@ -16005,9 +16084,9 @@ async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
   const maxTokens=(bodyObj&&bodyObj.generationConfig&&bodyObj.generationConfig.maxOutputTokens)||2048;
   const claudeMessages=[{role:'user',content:_vbGeminiPartsToClaudeContent(parts)}];
   async function callClaude(model){
-    let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
+    let r=await _vbFetchWithRetry(async()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
-      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
+      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':await pbGetIdToken()},
       body:JSON.stringify({model:model,max_tokens:maxTokens,messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
