@@ -3562,7 +3562,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.67</div>
+  <div class="splash-version" id="splash-version">v6.68</div>
 </div>
 <script>
   (function(){
@@ -5548,7 +5548,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.67 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.68 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -15699,7 +15699,7 @@ function _vbBuildUsageChartSvg(archiveData,logData){
 // tambah kolom Sesi/JumlahProdukSesi/JumlahProdukPanggilan/JumlahFoto/
 // EstBiayaFotoUSD supaya 1 aksi generate (mis. bulk 8 produk) tetap bisa
 // dikelompokkan di Excel/Sheets walau di sini tetap 1 baris per-panggilan.
-function _vbExportUsageCsv(){
+async function _vbExportUsageCsv(){
   var rows=[['Tanggal','Jam','Sesi','LabelSesi','JumlahProdukSesi','Jenis','Mode','JumlahProdukPanggilan','JumlahFoto','EstBiayaFotoUSD','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaUSD']];
   _vbLoadUsageLog().slice().sort(function(a,b){return a.ts-b.ts;}).forEach(function(e){
     var d=new Date(e.ts);
@@ -15717,12 +15717,51 @@ function _vbExportUsageCsv(){
     });
   });
   var csv=rows.map(function(r){return r.map(function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',');}).join('\r\n');
+  var fileName='statistik-biaya-'+_vbDayKey(Date.now())+'.csv';
+  // FIX UNDUH DI HP (permintaan user, Sept 2026): trik lama <a download>+
+  // klik terprogram TIDAK bisa diandalkan di banyak HP — paling parah di
+  // Safari iOS ketika app dibuka sebagai PWA ter-install (standalone, dari
+  // Home Screen): karena tidak ada chrome/tab browser yang bisa nampilin
+  // prompt "Simpan", klik <a> itu sering diam-diam TIDAK melakukan apa-apa
+  // (tidak error, tidak ada file kesimpen, user cuma bingung). Solusi:
+  // PRIORITASKAN Web Share API dengan file (navigator.share) kalau
+  // didukung — ini yang buka sheet native "Simpan ke Files / Bagikan" di
+  // Android maupun iOS, baik lewat browser biasa MAUPUN PWA ter-install.
+  // Trik <a download> lama DIPERTAHANKAN sebagai fallback (laptop/desktop
+  // umumnya tidak dukung Web Share file, dan di situ trik lama ini sudah
+  // teruji jalan baik).
   try{
     var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    var canShareFile=false;
+    var file=null;
+    try{
+      file=new File([blob],fileName,{type:'text/csv'});
+      canShareFile=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+    }catch(fileErr){canShareFile=false;} // browser lama tanpa dukungan File/canShare — lanjut ke fallback biasa
+    if(canShareFile){
+      try{
+        await navigator.share({files:[file],title:fileName});
+        return; // berhasil lewat share sheet native, selesai di sini
+      }catch(shareErr){
+        // AbortError = user sendiri yang pilih "Batal" di share sheet —
+        // hormati pilihannya, JANGAN lanjut ke fallback di bawah.
+        if(shareErr&&shareErr.name==='AbortError')return;
+        // Selain itu (jarang: share gagal karena sebab lain) → lanjut ke
+        // fallback <a download> di bawah supaya user tetap dapat filenya.
+      }
+    }
     var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');a.href=url;a.download='statistik-biaya-'+_vbDayKey(Date.now())+'.csv';
+    var a=document.createElement('a');a.href=url;a.download=fileName;
     document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(url);},1500);
+    // Jaring pengaman kedua khusus iOS: kalau Web Share file tidak
+    // didukung sama sekali di device ini, trik <a download> di atas besar
+    // kemungkinan tidak menyimpan apa-apa (terutama mode PWA) — buka juga
+    // blob-nya di tab baru supaya user masih bisa tekan-lama lalu pilih
+    // "Bagikan"/"Simpan ke File" secara manual dari situ.
+    if(!canShareFile&&/iP(hone|ad|od)/.test(navigator.userAgent)){
+      setTimeout(function(){try{window.open(url,'_blank');}catch(e2){}},300);
+    }
+    setTimeout(function(){URL.revokeObjectURL(url);},60000);
   }catch(e){alert('Gagal ekspor CSV: '+e.message);}
 }
 // Estimasi biaya (USD) dari N foto referensi di satu panggilan — lihat
