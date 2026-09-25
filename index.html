@@ -17360,11 +17360,19 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // (cukup untuk menjaga variasi hook terasa segar lintas batch,
       // tanpa bikin prompt terus membengkak di batch-batch belakangan).
       let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean).slice(-5);
+      // FIX HEMAT BIAYA (permintaan user): kalau user cuma isi 1 produk di
+      // wizard bulk ini, sesi generate-nya cuma 1x panggilan (tidak ada
+      // panggilan lanjutan yang bisa memanfaatkan cache_read), jadi
+      // cache_control cuma bakal kena cache_creation (markup +25%) tanpa
+      // manfaat — sama seperti alasan _tourOneOffCall di atas. Jadi
+      // cacheSystem dimatikan (false) juga untuk kasus 1 produk ini; di
+      // luar itu (2+ produk / bukan tur) tetap default true seperti biasa.
+      let _singleProdukCall=(produkList.length===1);
       let batchArr=await _vbCallBulkBatch(batchProducts,targetAudience,undefined,function(waitMs,attempt,status){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
-      },onPartialThisBatch,usedHooksSoFar,_tourOneOffCall?false:undefined);
+      },onPartialThisBatch,usedHooksSoFar,(_tourOneOffCall||_singleProdukCall)?false:undefined);
       dlIncrement();
       doneCount+=batchItems.length;
       if(batchArr.length<batchItems.length){
