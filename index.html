@@ -10781,18 +10781,6 @@ function _pbGetDeviceId(){
     return id;
   }catch(e){return 'dev-unknown';}
 }
-// FIX KEAMANAN #2 (tutup total, Sept 2026): kirim Firebase ID token ke Worker
-// supaya kuota & tier dicek DI SERVER (bukan localStorage). Token ini bukti
-// login yang diverifikasi Worker — tidak bisa dipalsukan dari console.
-// Belum login / Firebase belum aktif → string kosong (Worker anggap anonim).
-async function pbGetIdToken(){
-  try{
-    if(typeof firebase==='undefined' || !firebase.apps || !firebase.apps.length) return '';
-    var u=firebase.auth().currentUser;
-    if(!u) return '';
-    return await u.getIdToken(); // SDK auto-refresh kalau hampir expired
-  }catch(e){ return ''; }
-}
 // FIX (permintaan user, Sept 2026): Sonnet-5 SEBAGAI CADANGAN DIMATIKAN
 // TOTAL — sebelumnya kalau Haiku gagal total setelah retry habis, app
 // otomatis pindah ke Sonnet-5. Sekarang HANYA Haiku 4.5 yang dipakai,
@@ -12916,6 +12904,7 @@ function _pbEnhanceBulkGroups(content,cards,notify){
       submit.disabled=true;
       submit.textContent='Memproses...';
       try{
+        _vbStartUsageSession('Revisi Produk (Bulk) — '+nama,1); // SESI BARU (permintaan user): tiap revisi 1 produk jadi baris tersendiri di panel statistik.
         let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keu,topik:cur.topik||'',hookType:cur.hookType||'',hookCustom:cur.hookCustom||'',fotoBase64:cur.fotoBase64||'',fotoMime:cur.fotoMime||''}],VB.bulkTargetAudience,noteTa.value.trim(),function(waitMs,attempt,status){
           submit.textContent='⏳ '+_vbWaitReasonLabel(status)+' (~'+Math.ceil(waitMs/1000)+'dtk)...';
         },undefined,undefined,false);
@@ -13083,6 +13072,7 @@ function _pbEnhanceSingleRevisi(content,cards,notify){
     _vbAcquireWakeLock();
     submit.disabled=true;submit.textContent='Memproses...';
     try{
+      _vbStartUsageSession('Revisi Script (Single) — '+produkNama,1); // SESI BARU (permintaan user): tiap revisi jadi baris tersendiri di panel statistik.
       let arr=await _vbCallBulkBatch([{nama:produkNama,keunggulan:keuInp.value.trim(),fotoBase64:(VB&&VB.produkFotoBase64)||'',fotoMime:(VB&&VB.produkFotoMime)||''}],target,note,function(waitMs,attempt,status){
         submit.textContent='⏳ '+_vbWaitReasonLabel(status)+' (~'+Math.ceil(waitMs/1000)+'dtk)...';
       },undefined,undefined,false);
@@ -15247,6 +15237,39 @@ var PB_USAGE_LOG_RAW_DAYS=60;      // simpan detail per-panggilan untuk 60 hari 
 var PB_USAGE_LOG_SAFETY_MAX=4000;  // jaga-jaga kalau volume sangat tinggi (mis. impor data lama)
 var PB_USAGE_ARCHIVE_KEY='pb_usage_archive_v1';
 var _vbCurrentCallMode='unknown';
+// ── SESI GENERATE (permintaan user, Sept 2026, "statistik dipisah per
+// generate"): kelompokkan semua panggilan AI yang berasal dari SATU aksi
+// generate user (misal 1x klik "Generate Semua" utk 8 produk sebenarnya
+// terdiri dari beberapa panggilan batch kecil di baliknya, lihat
+// _vbRunBulkGenerate) supaya panel statistik bisa menampilkan RINGKASAN
+// per-aksi (mis. "Bulk — 8 produk") dulu, baru detail lengkap semua
+// panggilan+foto di dalamnya kalau ditap. sesiId dibuat sekali di awal tiap
+// aksi user lewat _vbStartUsageSession (dipanggil dari vbGenerate3AI,
+// _vbRunBulkGenerate, vbRegenerateAllBulk, dan tiap jalur revisi 1 produk),
+// lalu ikut ditempel ke SEMUA baris riwayat (termasuk perbaikan jumlah
+// kata) yang terjadi selama aksi itu masih berjalan.
+var _vbCurrentSessionId=null;
+var _vbCurrentSessionLabel='';
+var _vbCurrentSessionTotal=0;
+// Jumlah produk & jumlah foto yang IKUT DIKIRIM di satu panggilan API saat
+// ini saja (bukan total sesi) — diisi _vbCallBulkBatch/vbGenerate3AI
+// sesaat sebelum fetch, dibaca _vbTrackUsage buat dicatat ke riwayat.
+var _vbCurrentCallProdukCount=1;
+var _vbCurrentCallFotoCount=0;
+function _vbStartUsageSession(label,total){
+  _vbCurrentSessionId='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  _vbCurrentSessionLabel=label||'';
+  _vbCurrentSessionTotal=total||1;
+}
+// Estimasi token per foto referensi (dikirim ke AI dalam resolusi maks
+// 512px, lihat _vbCompressImageFile) — dipakai HANYA untuk pecah kasar
+// "biaya foto" dari total biaya 1 panggilan di panel statistik, BUKAN
+// angka yang benar-benar ditagih terpisah oleh Anthropic (mereka gabung
+// jadi satu angka input_tokens/cache token, tidak dipisah per-bagian).
+// 512x512 penuh ≈ (512*512)/750 ≈ 349 token; rata-rata produk foto HP asli
+// (rasio bukan persegi) biasanya sedikit di bawah itu, jadi dipakai 300
+// sebagai estimasi tengah yang wajar.
+var VB_EST_TOKEN_PER_FOTO=300;
 function _vbLoadUsageLog(){
   try{
     var l=JSON.parse(localStorage.getItem(PB_USAGE_LOG_KEY)||'null');
@@ -15371,7 +15394,15 @@ function _vbStartOfToday(){var d=new Date();d.setHours(0,0,0,0);return d.getTime
 function _vbStartOfMonth(){var d=new Date();d.setDate(1);d.setHours(0,0,0,0);return d.getTime();}
 function _vbLogUsageEvent(kind,mode,tok,outTok){
   var l=_vbLoadUsageLog();
-  l.push({ts:Date.now(),kind:kind||'generate',mode:mode||'unknown',noCacheInTok:(tok&&tok.noCacheInTok)||0,cacheWriteInTok:(tok&&tok.cacheWriteInTok)||0,cacheReadInTok:(tok&&tok.cacheReadInTok)||0,outTok:outTok||0});
+  // Jaga-jaga: kalau ada jalur yang belum sempat panggil
+  // _vbStartUsageSession sebelum sampai sini, buat sesi baru otomatis di
+  // tempat supaya baris riwayat ini tetap punya sesiId (jadi tidak error &
+  // tetap kelihatan di panel, cuma jadi sesinya sendiri isi 1 baris).
+  if(!_vbCurrentSessionId)_vbStartUsageSession(mode==='bulk'?'Bulk':'Single',_vbCurrentCallProdukCount||1);
+  l.push({ts:Date.now(),kind:kind||'generate',mode:mode||'unknown',
+    sesiId:_vbCurrentSessionId,sesiLabel:_vbCurrentSessionLabel,sesiTotal:_vbCurrentSessionTotal,
+    produkCount:_vbCurrentCallProdukCount||1,fotoCount:_vbCurrentCallFotoCount||0,
+    noCacheInTok:(tok&&tok.noCacheInTok)||0,cacheWriteInTok:(tok&&tok.cacheWriteInTok)||0,cacheReadInTok:(tok&&tok.cacheReadInTok)||0,outTok:outTok||0});
   l=_vbCompactUsageLog(l);
   _vbSaveUsageLog(l);
 }
@@ -15519,12 +15550,17 @@ function _vbBuildUsageChartSvg(archiveData,logData){
 // mengunduh SELURUH riwayat mentah (per-panggilan) + SELURUH arsip harian
 // (per-tanggal, sudah diringkas) jadi 1 file CSV, supaya bisa dibuka di
 // Excel/Sheets buat analisis lebih lanjut di luar app atau backup manual.
+// DIPERLUAS (permintaan user, Sept 2026, "pisah per generate + biaya foto"):
+// tambah kolom Sesi/JumlahProdukSesi/JumlahProdukPanggilan/JumlahFoto/
+// EstBiayaFotoUSD supaya 1 aksi generate (mis. bulk 8 produk) tetap bisa
+// dikelompokkan di Excel/Sheets walau di sini tetap 1 baris per-panggilan.
 function _vbExportUsageCsv(){
-  var rows=[['Tanggal','Jam','Jenis','Mode','JumlahPanggilan','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaUSD']];
+  var rows=[['Tanggal','Jam','Sesi','LabelSesi','JumlahProdukSesi','Jenis','Mode','JumlahProdukPanggilan','JumlahFoto','EstBiayaFotoUSD','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaUSD']];
   _vbLoadUsageLog().slice().sort(function(a,b){return a.ts-b.ts;}).forEach(function(e){
     var d=new Date(e.ts);
     var usd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
-    rows.push([_vbDayKey(e.ts),String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),e.kind==='fix'?'Perbaikan Kata':'Generate',e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'-'),1,e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,usd.toFixed(6)]);
+    var fotoUsd=_vbEstFotoUsd(e.fotoCount||0);
+    rows.push([_vbDayKey(e.ts),String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),e.sesiId||'-',e.sesiLabel||'-',e.sesiTotal||1,e.kind==='fix'?'Perbaikan Kata':'Generate',e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'-'),e.produkCount||1,e.fotoCount||0,fotoUsd.toFixed(6),e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,usd.toFixed(6)]);
   });
   var arc=_vbLoadUsageArchive();
   Object.keys(arc).sort().forEach(function(day){
@@ -15532,7 +15568,7 @@ function _vbExportUsageCsv(){
       var b=arc[day][kind];
       if(!b||!b.calls)return;
       var usd=_vbBucketUsd(b);
-      rows.push([day,'(ringkasan harian)',kind==='fix'?'Perbaikan Kata':'Generate','Single:'+b.single+' Bulk:'+b.bulk,b.calls,b.noCacheInTok,b.cacheWriteInTok,b.cacheReadInTok,b.outTok,usd.toFixed(6)]);
+      rows.push([day,'(ringkasan harian)','-','-','-',kind==='fix'?'Perbaikan Kata':'Generate','Single:'+b.single+' Bulk:'+b.bulk,'-','-','-',b.noCacheInTok,b.cacheWriteInTok,b.cacheReadInTok,b.outTok,usd.toFixed(6)]);
     });
   });
   var csv=rows.map(function(r){return r.map(function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',');}).join('\r\n');
@@ -15543,6 +15579,65 @@ function _vbExportUsageCsv(){
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(url);},1500);
   }catch(e){alert('Gagal ekspor CSV: '+e.message);}
+}
+// Estimasi biaya (USD) dari N foto referensi di satu panggilan — lihat
+// catatan lengkap di VB_EST_TOKEN_PER_FOTO. Dihitung pakai tarif input
+// TANPA cache (foto ada di pesan user, bukan blok system yang di-cache),
+// jadi ini estimasi kasar bagian biaya panggilan yang "disumbang" foto,
+// BUKAN biaya terpisah yang benar-benar ditagih sendiri oleh Anthropic.
+function _vbEstFotoUsd(fotoCount){
+  if(!fotoCount)return 0;
+  return _vbCalcUsd(fotoCount*VB_EST_TOKEN_PER_FOTO,0,0,0);
+}
+// ── KELOMPOKKAN RIWAYAT PER-SESI (permintaan user, Sept 2026, "statistik
+// dipisah per generate") ──────────────────────────────────────────────────
+// 1x aksi generate user (klik "Generate Semua" bulk N produk, generate
+// single, atau revisi 1 produk) bisa terdiri dari BEBERAPA baris riwayat
+// mentah (1 per panggilan batch + perbaikan kata) — lihat _vbStartUsageSession.
+// Fungsi ini mengelompokkan baris-baris itu balik jadi 1 objek "sesi" per
+// aksi, diurutkan TERBARU dulu, supaya panel bisa tampil ringkas (1 baris/
+// sesi) dan baru pecah jadi detail per-panggilan kalau ditap.
+// Baris riwayat LAMA (sebelum update ini, belum punya sesiId) tetap aman:
+// masing-masing otomatis jadi "sesi" isi 1 baris sendiri (pakai ts+index
+// sebagai id sementara), jadi tidak ada data yang hilang/nyasar.
+function _vbGroupLogBySession(logEntries){
+  var bySesi={},order=[];
+  logEntries.forEach(function(e,i){
+    var sid=e.sesiId||('legacy-'+e.ts+'-'+i);
+    if(!bySesi[sid]){
+      bySesi[sid]={sesiId:sid,label:e.sesiLabel||(e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'Generate')),
+        produkTotal:e.sesiTotal||e.produkCount||1,entries:[],firstTs:e.ts,lastTs:e.ts};
+      order.push(sid);
+    }
+    var g=bySesi[sid];
+    g.entries.push(e);
+    if(e.ts<g.firstTs)g.firstTs=e.ts;
+    if(e.ts>g.lastTs)g.lastTs=e.ts;
+  });
+  var sessions=order.map(function(sid){return bySesi[sid];});
+  sessions.forEach(function(g){
+    g.entries.sort(function(a,b){return a.ts-b.ts;});
+    var totalUsd=0,totalFoto=0,totalCalls=0,hasFix=false;
+    g.entries.forEach(function(e){
+      totalUsd+=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
+      totalFoto+=e.fotoCount||0;
+      totalCalls++;
+      if(e.kind==='fix')hasFix=true;
+    });
+    g.totalUsd=totalUsd;g.totalFotoCount=totalFoto;g.totalCalls=totalCalls;g.hasFix=hasFix;
+    g.fotoUsd=_vbEstFotoUsd(totalFoto);
+  });
+  sessions.sort(function(a,b){return b.lastTs-a.lastTs;});
+  return sessions;
+}
+// State expand/collapse (di memori saja, tidak disimpan) — supaya sesi yang
+// sedang ditap tetap terbuka walau panel dirender ulang (mis. ada panggilan
+// baru masuk sementara panel kebuka).
+var _vbUsageExpandedSet={};
+function _vbToggleUsageSession(sesiId){
+  if(_vbUsageExpandedSet[sesiId])delete _vbUsageExpandedSet[sesiId];
+  else _vbUsageExpandedSet[sesiId]=true;
+  _vbRenderUsageBadge(_vbLoadUsageStats());
 }
 // PINDAH DARI BADGE MELAYANG KE TAB PANDUAN (permintaan user, Sept 2026):
 // dulu fungsi ini bikin & isi div #pb-usage-badge yang fixed di pojok layar
@@ -15618,22 +15713,53 @@ function _vbRenderUsageBadge(s){
   var allT=_vbPeriodTotals(0,now+1,archiveData,logAll);
   var modeHtml='Generate — Single: '+allT.generate.single+'x, Bulk: '+allT.generate.bulk+'x ($'+_vbBucketUsd(allT.generate).toFixed(4)+')'
     +'<br>Perbaikan Kata — Single: '+allT.fix.single+'x, Bulk: '+allT.fix.bulk+'x ($'+_vbBucketUsd(allT.fix).toFixed(4)+')';
-  // RIWAYAT PER-PANGGILAN: tampilkan entri TERBARU dulu (paling atas),
-  // maksimal 30 baris — sisanya tetap tersimpan penuh (60 hari mentah +
-  // arsip harian selamanya di luar itu, lihat catatan di atas fungsi ini).
-  var LOG_SHOW_MAX=30;
-  var logShown=logAll.slice(-LOG_SHOW_MAX).reverse();
-  var logHtml=logShown.length
-    ?logShown.map(function(e){
-      var modeLabel=e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'?');
-      var kindLabel=e.kind==='fix'?'Perbaikan Kata':'Generate';
-      var evUsd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
-      var evIdr=Math.round(evUsd*idr);
-      return _vbFormatLogTime(e.ts)+' — '+kindLabel+' ('+modeLabel+') — $'+evUsd.toFixed(4)+' (≈Rp'+evIdr.toLocaleString('id-ID')+')';
-    }).join('<br>')
+  // RIWAYAT PER-SESI GENERATE (permintaan user, Sept 2026, "statistik
+  // dipisah per generate"): dulu setiap baris riwayat mentah (1 per
+  // panggilan batch) tampil sendiri-sendiri, bikin bingung mana yang 1x
+  // klik generate (mis. bulk 8 produk = beberapa baris batch tercampur).
+  // Sekarang dikelompokkan per-sesi (_vbGroupLogBySession) — tampil RINGKAS
+  // 1 baris/sesi dulu (label + total biaya + jumlah foto), baru ditap buat
+  // buka rincian semua panggilan+foto di dalamnya (_vbToggleUsageSession).
+  var SESSION_SHOW_MAX=20;
+  var allSessions=_vbGroupLogBySession(logAll);
+  var sessionsShown=allSessions.slice(0,SESSION_SHOW_MAX);
+  var logHtml=sessionsShown.length
+    ?sessionsShown.map(function(g){
+      var gIdr=Math.round(g.totalUsd*idr);
+      var isOpen=!!_vbUsageExpandedSet[g.sesiId];
+      var kindNote=g.hasFix?' <span style="opacity:0.65">(termasuk perbaikan kata)</span>':'';
+      var fotoNote=g.totalFotoCount>0?' · <span style="opacity:0.8">📷 '+g.totalFotoCount+' foto (~$'+g.fotoUsd.toFixed(4)+')</span>':'';
+      var callsNote=g.totalCalls>1?' · '+g.totalCalls+' panggilan':'';
+      var head='<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">'
+        +'<span><b>'+_vbFormatLogTime(g.firstTs)+'</b> — '+esc(g.label)+'</span>'
+        +'<span>'+(isOpen?'▲':'▼')+'</span>'
+        +'</div>'
+        +'<div style="opacity:0.85;font-size:var(--fs-2xs,12px);">$'+g.totalUsd.toFixed(4)+' (≈Rp'+gIdr.toLocaleString('id-ID')+')'+callsNote+fotoNote+kindNote+'</div>';
+      var detailHtml='';
+      if(isOpen){
+        detailHtml='<div style="margin-top:8px;padding:8px 10px;border-radius:var(--radius-xs,8px);background:var(--bg-subtle,rgba(127,127,127,0.08));">'
+          +g.entries.map(function(e){
+            var modeLabel=e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'?');
+            var kindLabel=e.kind==='fix'?'Perbaikan Kata':'Generate';
+            var cacheLabel=e.cacheReadInTok>0?'cache HIT (diskon ~90%)':(e.cacheWriteInTok>0?'nulis cache baru (+25%)':'tanpa cache');
+            var evUsd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
+            var evIdr=Math.round(evUsd*idr);
+            var produkNote=(e.produkCount||1)>1?' · '+e.produkCount+' produk sekaligus':'';
+            var fotoLine=(e.fotoCount||0)>0?'<br>&nbsp;&nbsp;📷 '+e.fotoCount+' foto terlampir (~$'+_vbEstFotoUsd(e.fotoCount).toFixed(4)+' dari total panggilan ini)':'';
+            return '<div style="padding:5px 0;border-top:1px solid var(--border,rgba(127,127,127,0.15));">'
+              +_vbFormatLogTime(e.ts)+' — '+kindLabel+' ('+modeLabel+')'+produkNote
+              +'<br>&nbsp;&nbsp;Token: '+e.noCacheInTok.toLocaleString('id-ID')+' baru / '+e.cacheWriteInTok.toLocaleString('id-ID')+' tulis-cache / '+e.cacheReadInTok.toLocaleString('id-ID')+' baca-cache / '+e.outTok.toLocaleString('id-ID')+' output ('+cacheLabel+')'
+              +fotoLine
+              +'<br>&nbsp;&nbsp;Biaya panggilan ini: $'+evUsd.toFixed(4)+' (≈Rp'+evIdr.toLocaleString('id-ID')+')'
+              +'</div>';
+          }).join('')
+          +'</div>';
+      }
+      return '<div style="padding:8px 0;border-top:1px solid var(--border,rgba(127,127,127,0.15));cursor:pointer;" onclick="_vbToggleUsageSession(\''+g.sesiId+'\')">'+head+detailHtml+'</div>';
+    }).join('')
     :'(belum ada riwayat)';
   var arcDays=Object.keys(archiveData).length;
-  var logMoreNote=logAll.length>LOG_SHOW_MAX?'<br><span style="opacity:0.6">+'+(logAll.length-LOG_SHOW_MAX)+' entri lebih lama tersimpan (60 hari terakhir, tidak semua ditampilkan)</span>':'';
+  var logMoreNote=allSessions.length>SESSION_SHOW_MAX?'<br><span style="opacity:0.6">+'+(allSessions.length-SESSION_SHOW_MAX)+' sesi lebih lama tersimpan (60 hari terakhir, tidak semua ditampilkan)</span>':'';
   var archiveNote=arcDays>0?'<br><span style="opacity:0.6">+ ringkasan harian dari '+arcDays+' hari lebih lama tersimpan di arsip (lihat CSV untuk detail lengkap)</span>':'';
   el.innerHTML='<b>Ringkasan Cache</b>'
     +'<br>Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Tanpa cache: '+s.noCache
@@ -15652,7 +15778,7 @@ function _vbRenderUsageBadge(s){
     +'<br><br><b>Biaya per periode (dari riwayat):</b><br>'+periodHtml
     +'<br><br><b>Breakdown per jenis &amp; mode (dari riwayat):</b><br>'+modeHtml
     +'<br><br><b>Grafik biaya 14 hari terakhir:</b><div style="margin-top:6px;">'+_vbBuildUsageChartSvg(archiveData,logAll)+'</div>'
-    +'<br><b>Riwayat panggilan (terbaru dulu, maks '+LOG_SHOW_MAX+'):</b><br>'+logHtml+logMoreNote+archiveNote
+    +'<br><b>Riwayat per generate (terbaru dulu, tap buat lihat detail):</b><div style="margin-top:4px;">'+logHtml+'</div>'+logMoreNote+archiveNote
     +'<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">'
     +'<button type="button" id="pb-usage-export-btn" onclick="_vbExportUsageCsv()">Unduh CSV</button>'
     +'<button type="button" id="pb-usage-reset-btn" onclick="_vbResetUsageStats()">Reset Hitungan</button>'
@@ -15732,7 +15858,7 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
       await _vbThrottleGeminiGate();
       resp=await fetch(url,{
         method:'POST',
-        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':await pbGetIdToken()},
+        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
         body:JSON.stringify(Object.assign(
           {model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
@@ -16084,9 +16210,9 @@ async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
   const maxTokens=(bodyObj&&bodyObj.generationConfig&&bodyObj.generationConfig.maxOutputTokens)||2048;
   const claudeMessages=[{role:'user',content:_vbGeminiPartsToClaudeContent(parts)}];
   async function callClaude(model){
-    let r=await _vbFetchWithRetry(async()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
+    let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
-      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':await pbGetIdToken()},
+      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
       body:JSON.stringify({model:model,max_tokens:maxTokens,messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
@@ -16673,6 +16799,12 @@ function vbPickTargetAudiencePreset(inputId,presetKey){
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem){
   if(cacheSystem===undefined)cacheSystem=true;
   _vbCurrentCallMode='bulk'; // LOG RIWAYAT (permintaan user, Sept 2026): tiap panggilan lewat jalur ini dicatat sebagai mode "Bulk" — lihat _vbTrackUsage & _vbLogUsageEvent.
+  // LOG RIWAYAT (permintaan user, Sept 2026, "biaya foto per-generate"):
+  // catat jumlah produk & jumlah foto di PANGGILAN INI saja (bisa beda dari
+  // total 1 sesi kalau sesi itu dipecah jadi beberapa batch) — dibaca
+  // _vbTrackUsage lewat _vbCurrentCallProdukCount/_vbCurrentCallFotoCount.
+  _vbCurrentCallProdukCount=batch.length;
+  _vbCurrentCallFotoCount=batch.filter(function(p){return!!(p&&p.fotoBase64);}).length;
   let range=vbGetWordRange();
   // Tandai produk yang punya foto referensi dengan nomor urut gambar
   // (Gambar 1, Gambar 2, dst — cuma dihitung dari produk yang benar-benar
@@ -16956,6 +17088,17 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(prod.hook)prod.hook=_vbSanitizeForbiddenPhrases(prod.hook);
     if(prod.story)prod.story=_vbSanitizeForbiddenPhrases(prod.story);
     if(prod.cta)prod.cta=_vbSanitizeForbiddenPhrases(prod.cta);
+    // FIX BUG (ditemukan saat audit statistik biaya, Sept 2026): panggilan
+    // perbaikan kata di bawah ini SELALU untuk 1 produk & TIDAK PERNAH
+    // menyertakan foto (lihat _vbFixWordCountBatchIfNeeded — promptnya
+    // cuma teks, tanpa inline_data gambar). Kalau tidak di-reset di sini,
+    // _vbCurrentCallProdukCount/_vbCurrentCallFotoCount masih menyimpan
+    // nilai dari panggilan BATCH UTAMA di atas (bisa >1 produk & >0 foto),
+    // sehingga baris riwayat "Perbaikan Kata" di panel statistik salah
+    // menampilkan "N produk sekaligus"/"📷 N foto" padahal panggilan ini
+    // murni 1 produk berbasis teks saja.
+    _vbCurrentCallProdukCount=1;
+    _vbCurrentCallFotoCount=0;
     let fixed=await _vbFixWordCountBatchIfNeeded(prod);
     // FIX (bug sama seperti mode single, lihat komentar lengkap di
     // vbGenerate3AI): hasil rewrite dari _vbFixWordCountBatchIfNeeded bisa
@@ -17122,6 +17265,12 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   // supaya konsisten, nanti ditampilkan lagi di akhir kalau memang masih
   // ada sisa/gagal.
   errBox.classList.add('hidden');errBox.innerHTML='';
+  // SESI BARU (permintaan user, Sept 2026, "statistik dipisah per generate"):
+  // 1x klik "Generate Semua"/"Lanjutkan" di bulk = 1 baris ringkasan di
+  // panel statistik, walau di baliknya dipecah jadi beberapa panggilan
+  // batch kecil (lihat _vbCallBulkBatch di bawah) — semua batch itu ikut
+  // sesi yang sama supaya bisa diringkas jadi 1 baris "Bulk — N produk".
+  _vbStartUsageSession((isResume?'Lanjutan Bulk':'Bulk')+' — '+produkList.length+' produk',produkList.length);
 
   // FIX: sebelumnya 1 panggilan AI buat SEMUA produk sekaligus — kalau
   // banyak produk, model sering "kelupaan"/nge-drop sebagian dan cuma
@@ -18046,6 +18195,7 @@ async function vbRevisiProdukAI(prodIdx){
     // di atas), jadi cache_control di sini cuma bakal kena cache_creation
     // (+25%) tanpa pernah sempat kena cache_read (diskon 90%). Percuma &
     // malah nambah biaya, jadi dicabut khusus di jalur revisi ini.
+    _vbStartUsageSession('Revisi Produk (Bulk) — '+nama,1); // SESI BARU (permintaan user): tiap revisi 1 produk jadi baris tersendiri di panel statistik.
     let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,topik:existingTopik,hookType:existingHookType,hookCustom:existingHookCustom,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],VB.bulkTargetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
@@ -18297,6 +18447,7 @@ async function vbRevisiSingleAI(){
     // sama alasan seperti vbRevisiProdukAI: revisi cuma boleh 1x sebelum
     // di-undo, jadi cache_control di sini cuma bakal kena cache_creation
     // (+25%) tanpa pernah sempat kena cache_read (diskon 90%). Dicabut.
+    _vbStartUsageSession('Revisi Script (Single) — '+produkNama,1); // SESI BARU (permintaan user): tiap revisi jadi baris tersendiri di panel statistik.
     let arr=await _vbCallBulkBatch([{nama:produkNama,keunggulan:keunggulan,fotoBase64:VB.produkFotoBase64||'',fotoMime:VB.produkFotoMime||''}],targetAudience,note,function(waitMs,attempt,status){
       if(!submitBtn)return;
       let detik=Math.ceil(waitMs/1000);
@@ -18473,6 +18624,10 @@ async function vbRegenerateAllBulk(newSettings){
   // mengirim ulang ke AI TANPA arahan topik yang sudah user isi sebelumnya
   // di form Bulk, walau produk itu sebenarnya masih punya topik tersimpan.
   let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,topik:x.topik||'',hookType:x.hookType||'',hookCustom:x.hookCustom||'',overlay:x.overlay||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
+  // SESI BARU (permintaan user, Sept 2026): "Generate Ulang Semua" = 1
+  // baris ringkasan tersendiri di panel statistik, terpisah dari sesi
+  // generate awal.
+  _vbStartUsageSession('Generate Ulang Semua (Bulk) — '+produkList.length+' produk',produkList.length);
   // FIX 413 (sama seperti di _vbRunBulkGenerate — lihat komentar lengkap di
   // _vbBuildPhotoAwareBatches): produk yang punya foto referensi dipaksa
   // jadi batch sendiri isi 1, produk tanpa foto tetap digabung sampai
@@ -19220,6 +19375,14 @@ async function vbGenerate3AI(){
   }
   VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
+  // SESI BARU (permintaan user, Sept 2026, "statistik dipisah per generate"):
+  // 1x klik generate wizard single = 1 baris ringkasan di panel statistik.
+  // Ditaruh DI SINI (setelah SEMUA guard/validasi lolos & _isGenerating
+  // sudah dikunci ke true), BUKAN di awal fungsi — supaya kalau ada
+  // percobaan generate yang ditolak duluan (guard/limit/API key kosong),
+  // sesi generate yang MASIH BERJALAN dari klik sebelumnya tidak ketiban
+  // sesiId baru di tengah jalan.
+  _vbStartUsageSession('Single — '+produkNama,1);
 
   let btn=document.getElementById('vb-ai-script-btn');
   let genLogoState=startGenLogoBtn(btn,'Membuat 3 Script...');
@@ -19355,6 +19518,8 @@ async function vbGenerate3AI(){
     // tetap default cacheSystem=true seperti sebelumnya.
     let{resp,rawText}=await(function(){
       _vbCurrentCallMode='single'; // LOG RIWAYAT (permintaan user, Sept 2026): jalur ini (mode single/1 produk lewat wizard) dicatat sebagai "Single" — lihat _vbTrackUsage & _vbLogUsageEvent.
+      _vbCurrentCallProdukCount=1;
+      _vbCurrentCallFotoCount=VB.produkFotoBase64?1:0;
       return _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt,false);
     })();
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
@@ -19488,6 +19653,13 @@ async function vbGenerate3AI(){
     // _vbFixWordCountBatchIfNeeded — worst case per produk turun dari 3
     // panggilan penuh jadi 1 panggilan penuh (lihat komentar lengkap di
     // definisi fungsinya).
+    // FIX BUG (ditemukan saat audit statistik biaya, Sept 2026): sama
+    // seperti di _vbCallBulkBatch — panggilan perbaikan kata ini murni
+    // teks, tidak pernah resend foto, jadi fotoCount dipaksa 0 di sini
+    // (produkCount di jalur single memang sudah 1) supaya baris riwayat
+    // "Perbaikan Kata" di panel statistik tidak salah tampil ada foto.
+    _vbCurrentCallProdukCount=1;
+    _vbCurrentCallFotoCount=0;
     let _fixedBatch=await _vbFixWordCountBatchIfNeeded({hook:scripts[0]||'',story:scripts[1]||'',cta:scripts[2]||'',produk:produkNama});
     let _batchKeys=['hook','story','cta'];
     for(let si=0;si<scripts.length;si++){
