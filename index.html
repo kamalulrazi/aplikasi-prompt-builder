@@ -17039,8 +17039,55 @@ function vbPickTargetAudiencePreset(inputId,presetKey){
 // Generate bulk pertama & "Generate Ulang Semua" TIDAK disentuh (tetap
 // cacheSystem=true default) karena di situ ada banyak panggilan
 // berurutan dalam <5 menit yang beneran saling kena cache HIT.
+// FIX HEMAT TOKEN (permintaan user, Sept 2026, "gabungkan optimasi 1-produk
+// penuh ke jalur Bulk"): system prompt RINGKAS ini dulu cuma dibangun inline
+// di dalam vbGenerate3AI() (jalur "single" lama yang sekarang jadi kode
+// mati, sudah tidak ada pintu masuknya di UI). Sekarang diekstrak jadi
+// fungsi murni (cuma butuh `range`, tidak ada dependensi lain) supaya bisa
+// dipakai lagi oleh _vbCallBulkBatch() setiap kali batch cuma berisi 1
+// produk — menggantikan _vbBulkSystemPrompt yang jauh lebih panjang (17
+// poin aturan vs 7 poin di sini) yang sebelumnya SELALU terpakai apa pun
+// jumlah produknya. Isi teksnya TIDAK diubah sama sekali dari versi asli
+// vbGenerate3AI, cuma dipindah ke sini.
+function _vbBuildSingleModeSystemPrompt(range){
+  return 'Kamu adalah seorang yang sangat ahli dalam bidang menulis skrip konten.\n\n'
+    +'Kamu akan diberi detail produk, karakter, dan target audience oleh user di pesan berikutnya. Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera berdasarkan detail itu. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
+    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience yang disebutkan user: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat.\n'
+    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience yang disebutkan user). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
+    +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
+    +'4. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
+    +'5. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
+    +'ATURAN WAJIB tiap script: jumlah kata WAJIB sesuai rentang yang disebutkan user di pesan berikutnya. Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
+    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
+    +'6. RITME KALIMAT — susun jadi beberapa kalimat pendek/sedang yang masing-masing diakhiri titik (.) secara wajar (sesuai makna kalimatnya selesai di situ), JANGAN ditulis sebagai satu kalimat panjang tanpa titik dari awal sampai akhir — selain lebih enak diucapkan di depan kamera, ini juga bikin sistem pemotong otomatis app (kalau skrip kelebihan kata) bisa berhenti di akhir kalimat yang wajar, bukan di tengah kalimat.\n'
+    +'7. WAJIB HITUNG KATA SENDIRI SEBELUM MENJAWAB (PALING PENTING, jangan dilewati — TIDAK ADA LAGI proses koreksi otomatis terpisah sesudah ini, hasil PERTAMA ini WAJIB sudah pas) — untuk SETIAP bagian (HOOK, STORY, CTA): (1) draft dulu kalimatnya di kepalamu, JANGAN langsung ditulis sebagai jawaban; (2) HITUNG jumlah katanya sendiri dengan cara MEMBERI NOMOR URUT pada TIAP kata yang dipisah per spasi (bukan per karakter/suku kata) — angka terakhir yang kamu tulis adalah jumlah kata sebenarnya, JANGAN ditaksir/dikira-kira. Contoh cara menomori (ini CONTOH TEKNIK saja, BUKAN target kata — target asli tetap rentang di langkah (3) di bawah): "1.kalau 2.aku 3.bilang 4.ada 5.satu 6.item 7.yang 8.bisa 9.ngubah 10.vibe 11.outfit 12.lu 13.dari 14.boring 15.jadi 16.instantly 17.chic, 18.pasti 19.lo 20.langsung 21.mikir 22.apa 23.ya? 24.nah 25.coba 26.liat 27.ini"; (3) BANDINGKAN hasil hitungan bernomor itu dengan target rentang '+range.min+'-'+range.max+' kata (idealnya persis '+range.target+' kata); (4) kalau masih di luar rentang '+range.min+'-'+range.max+', REVISI draft itu (tambah/kurangi kata seperlunya, TANPA mengubah makna/alur/nada/aturan lain manapun) LALU HITUNG ULANG dengan cara menomori seperti langkah (2) — ulangi proses nomori-bandingkan-revisi ini sampai angka nomor terakhirnya BENAR-BENAR masuk rentang '+range.min+'-'+range.max+' kata, baru setelah itu tulis sebagai jawaban final. DILARANG KERAS menjawab draft pertama begitu saja tanpa dihitung & direvisi dulu, dan DILARANG menebak jumlah kata tanpa benar-benar menomori tiap kata satu-satu. Proses nomori-revisi ini WAJIB dilakukan untuk KETIGA bagian (HOOK, STORY, CTA) — krusial karena TIDAK ADA lagi proses perbaikan jumlah kata terpisah belakangan yang bisa menambal kalau ini meleset.\n\n'
+    // FIX BUG KRITIS (ditemukan saat audit, Sept 2026): format balasan di
+    // bawah ini SENGAJA DIUBAH dari versi asli vbGenerate3AI
+    // ([{"role":"hook","script":"..."}, ...] 3 object). Fungsi ini sekarang
+    // JUGA dipakai oleh _vbCallBulkBatch() untuk kasus 1 produk — dan
+    // parser _vbCallBulkBatch (arr.length===batch.length, lalu baca
+    // arr[pi].hook/.story/.cta) SELALU mengharapkan array berisi SATU
+    // object per produk dengan key hook/story/cta (skema yang sama dipakai
+    // untuk 2+ produk), BUKAN 3 object beda skema. Kalau format lama
+    // dipertahankan di sini, setiap generate 1 produk lewat jalur Bulk akan
+    // gagal total (field hook/story/cta jadi undefined). Skema di bawah ini
+    // WAJIB tetap sinkron dengan format yang dibaca _vbCallBulkBatch.
+    +'Balas HANYA dengan JSON array berisi TEPAT 1 object, tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk","hook":"...","story":"...","cta":"..."}]';
+}
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem){
   if(cacheSystem===undefined)cacheSystem=true;
+  // FIX HEMAT TOKEN (Opsi 2, Sept 2026): berapa pun jalur pemanggilnya
+  // (_vbRunBulkGenerate, revisi 1 produk, dst), begitu batch ini CUMA
+  // berisi 1 produk, jalur generate-nya otomatis dianggap "mode hemat" —
+  // system prompt pendek (_vbBuildSingleModeSystemPrompt, 7 poin) & TANPA
+  // cache (lihat pemakaiannya di bawah), PERSIS seperti perilaku
+  // vbGenerate3AI() dulu — bukan cuma soal cache seperti fix sebelumnya.
+  // Caching sengaja dipaksa mati juga di sini (bukan cuma diserahkan ke
+  // parameter cacheSystem dari pemanggil) karena system prompt pendek ini
+  // TIDAK PERNAH tembus syarat minimum cache Haiku 4.5 — menandainya tetap
+  // aman tapi percuma, jadi lebih jujur langsung dimatikan di sumbernya.
+  let _vbSingleProdukInThisCall=(batch.length===1);
+  if(_vbSingleProdukInThisCall)cacheSystem=false;
   _vbCurrentCallMode='bulk'; // LOG RIWAYAT (permintaan user, Sept 2026): tiap panggilan lewat jalur ini dicatat sebagai mode "Bulk" — lihat _vbTrackUsage & _vbLogUsageEvent.
   // LOG RIWAYAT (permintaan user, Sept 2026, "biaya foto per-generate"):
   // catat jumlah produk & jumlah foto di PANGGILAN INI saja (bisa beda dari
@@ -17198,7 +17245,15 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // persis seperti sebelumnya, dibungkus di _vbStreamClaudeJSONWithRetry.
   // _vbBulkSystemPrompt (bagian statis, lihat komentar di atas) dikirim
   // sebagai blok "system" tersendiri supaya bisa kena prompt caching.
-  let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbBulkSystemPrompt,cacheSystem);
+  // FIX HEMAT TOKEN (Opsi 2): kalau cuma 1 produk, kirim system prompt
+  // RINGKAS (_vbBuildSingleModeSystemPrompt) — bukan _vbBulkSystemPrompt
+  // yang jauh lebih panjang — supaya request-nya seringan mode single yang
+  // asli. _vbBulkSystemPrompt di atas tetap dibangun apa adanya (cuma
+  // string JS lokal, tidak pernah dikirim ke API kalau tidak dipilih di
+  // sini, jadi tidak menambah biaya apapun) supaya kode jalur bulk >1
+  // produk tidak perlu disentuh sama sekali.
+  let _vbEffectiveSystemPrompt=_vbSingleProdukInThisCall?_vbBuildSingleModeSystemPrompt(range):_vbBulkSystemPrompt;
+  let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -17333,6 +17388,23 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(prod.hook)prod.hook=_vbSanitizeForbiddenPhrases(prod.hook);
     if(prod.story)prod.story=_vbSanitizeForbiddenPhrases(prod.story);
     if(prod.cta)prod.cta=_vbSanitizeForbiddenPhrases(prod.cta);
+    // FIX HEMAT TOKEN (Opsi 2, Sept 2026): kalau batch ini cuma 1 produk,
+    // TIDAK ada lagi panggilan API terpisah "Perbaikan Kata"
+    // (_vbFixWordCountBatchIfNeeded) — persis seperti vbGenerate3AI() dulu,
+    // karena _vbBuildSingleModeSystemPrompt di atas SUDAH menyuruh AI
+    // menghitung & merevisi kata sendiri sebelum menjawab (poin 7). Jaring
+    // pengaman yang tersisa MURNI lokal/JS (_vbHardEnforceMaxWords, potong
+    // ke titik kalimat alami kalau kelebihan kata) — TANPA panggilan API
+    // apapun, sama seperti jaring pengaman lokal yang dulu dipakai
+    // vbGenerate3AI() setelah _vbFixWordCountBatchIfNeeded dihapus dari
+    // jalur itu. Jalur bulk berisi ≥2 produk TIDAK disentuh, tetap lewat
+    // _vbFixWordCountBatchIfNeeded seperti sebelumnya.
+    if(_vbSingleProdukInThisCall){
+      if(prod.hook)prod.hook=_vbHardEnforceMaxWords(prod.hook,range.max);
+      if(prod.story)prod.story=_vbHardEnforceMaxWords(prod.story,range.max);
+      if(prod.cta)prod.cta=_vbHardEnforceMaxWords(prod.cta,range.max);
+      continue;
+    }
     // FIX BUG (ditemukan saat audit statistik biaya, Sept 2026): panggilan
     // perbaikan kata di bawah ini SELALU untuk 1 produk & TIDAK PERNAH
     // menyertakan foto (lihat _vbFixWordCountBatchIfNeeded — promptnya
@@ -19669,73 +19741,11 @@ async function vbGenerate3AI(){
   // STORY, rentang jumlah kata) sekarang menunjuk generik ke "yang
   // disebutkan user di pesan berikutnya" — nilai aslinya tetap dikirim,
   // cuma di pesan user (promptDetail), bukan di sini.
-  let _vbScript3SystemPrompt='Kamu adalah seorang yang sangat ahli dalam bidang menulis skrip konten.\n\n'
-    +'Kamu akan diberi detail produk, karakter, dan target audience oleh user di pesan berikutnya. Buatkan TEPAT 3 script/dialog yang akan diucapkan karakter di depan kamera berdasarkan detail itu. Ketiganya WAJIB terasa seperti SATU monolog yang mengalir utuh dari awal sampai akhir (BUKAN 3 topik terpisah yang ditempel) — HOOK menggantung ke STORY, STORY menyambung natural ke CTA, seolah satu kalimat panjang yang cuma dipotong jadi 3 bagian, dengan peran berbeda:\n'
-    +'1. HOOK — kalimat pembuka yang KREATIF dan BERVARIASI (jangan monoton/rumus itu-itu saja), bikin penasaran/berhenti scroll, belum jualan langsung, tapi sudah membuka benang cerita yang dilanjutkan di STORY (jangan berdiri sendiri seperti judul lepas yang tidak nyambung ke bagian berikutnya). Hindari pembuka klise yang sering kepakai berulang (misal selalu "pernah gak sih", "tau gak", "siapa di sini yang", "kalian pasti pernah") — pilih sudut masuk yang paling pas & segar untuk produk & target audience yang disebutkan user: bisa lewat pertanyaan retoris, pernyataan mengejutkan/relatable, gambaran situasi sehari-hari, atau perbandingan singkat.\n'
-    +'2. STORY — lanjutan LANGSUNG dari HOOK (bukan pindah topik), bergaya cerita santai kayak lagi ngobrol ke teman (gaya penyampaian & pilihan kata menyesuaikan target audience yang disebutkan user). WAJIB berupa SKENARIO saat AUDIENS (kamu/kalian) memakai produk ini dan gimana rasanya — BUKAN pengalaman pribadi karakter. JANGAN PERNAH pakai kalimat pengalaman pribadi seperti "aku pernah", "waktu itu aku", "pengalamanku", atau cerita masa lalu si karakter — ceritakan dari sudut pandang audiens yang membayangkan/mengalami situasinya sendiri, bukan testimoni pribadi karakter. JANGAN review/deskripsi fisik produk, JANGAN PERNAH menyebut bahan, tekstur, atau warna produk di bagian ini.\n'
-    +'3. CTA — lanjutan LANGSUNG dari STORY (bukan mulai topik baru dari nol), ajakan closing HANYA untuk klik/cek keranjang di BAGIAN BAWAH (gunakan kata seperti "keranjang di bawah" atau "keranjang bawah" — JANGAN PERNAH sebut "keranjang kuning"). JANGAN PERNAH menyuruh audiens "checkout"/"check out"/kata sejenis. JANGAN PERNAH menyebut urgensi/kelangkaan seperti "stok terbatas", "buruan sebelum kehabisan", "diskon berakhir", atau semacamnya. CTA cukup ajak klik keranjang bawah saja, tidak lebih.\n'
-    +'4. JANGAN PERNAH SEBUT BAHAN/MATERIAL PRODUK — di HOOK, STORY, MAUPUN CTA, tanpa terkecuali (berlaku juga kalau TIDAK ada foto referensi terlampir). Ini termasuk nama bahan (misal "katun", "sutra", "kulit sintetis", "polyester", "stainless steel"), tekstur bahan (misal "lembut", "adem", "elastis" kalau merujuk ke material), dan cara pembuatan/kualitas material. Boleh cerita soal RASA PAKAI/MANFAAT (misal "nyaman dipakai seharian", "gerak bebas") TANPA menyebut bahan apa penyebabnya. KECUALI: kalau bahan produk itu SUDAH disebutkan sendiri secara eksplisit oleh user di info "keunggulan" pada daftar produk di atas — dalam kasus itu BOLEH disebut di script, karena berarti itu memang informasi yang sengaja user berikan untuk dipakai, bukan tebakan/asumsi dari foto atau nama produk.\n'
-    +'5. JANGAN PERNAH SEBUT PROMO/DISKON/KLAIM TERBATAS — di HOOK, STORY, MAUPUN CTA. Dilarang total kata/frasa seperti "promo", "diskon", "terbatas", "edisi terbatas", "limited edition", "stok terbatas", "buruan", atau klaim urgensi/kelangkaan/harga sejenis lainnya, dalam bentuk apapun. Skrip cukup fokus ke manfaat produk & ajakan cek keranjang bawah saja, TANPA embel-embel promosi/urgensi apapun.\n\n'
-    +'ATURAN WAJIB tiap script: jumlah kata WAJIB sesuai rentang yang disebutkan user di pesan berikutnya. Bahasa Indonesia casual sehari-hari (bukan baku), natural seperti orang ngomong beneran, TIDAK terdengar seperti iklan formal, TIDAK pakai emoji, TIDAK pakai tanda kutip.\n\n'
-    +'CEK ALUR sebelum menjawab (lakukan di kepala kamu): coba baca HOOK+STORY+CTA berurutan sebagai satu paragraf utuh — kalau kedengaran seperti 3 kalimat lepas yang topiknya lompat-lompat, revisi dulu transisinya (tanpa mengubah aturan rentang kata/kata terlarang di atas) sampai benar-benar mengalir sebagai satu cerita. CEK JUGA: pastikan tidak ada satupun kata bahan/material produk (katun, sutra, kulit, polyester, dll) di HOOK/STORY/CTA manapun KECUALI bahan itu memang disebut user sendiri di info "keunggulan" — kalau ada bahan yang disebut TANPA dasar dari "keunggulan" user, hapus/ganti dengan kalimat tentang manfaat atau rasa pakainya saja. CEK JUGA: pastikan tidak ada kata promo/diskon/terbatas/limited/buruan atau klaim urgensi sejenis di bagian manapun — kalau ada, hapus dan ganti dengan kalimat manfaat produk biasa.\n\n'
-    // FIX (permintaan user: skrip beneran pas rentang target TANPA mengorbankan
-    // kualitas): sebelumnya AI cuma diminta "HARUS tepat 25 kata" tanpa
-    // diminta verifikasi hitungannya sendiri sebelum menjawab — jadi kalau
-    // meleset, baru ketauan belakangan lewat proses potong/tulis-ulang
-    // terpisah (yang risikonya bisa ganggu alur kalimat karena mengedit
-    // teks yang SUDAH jadi). Sekarang diminta draft-hitung-revisi DI DALAM
-    // proses berpikirnya sendiri SEBELUM menulis jawaban akhir — supaya
-    // hasil pertama sudah lebih sering pas 25 kata secara alami (bukan
-    // hasil tempelan/potongan), dan proses potong/tulis-ulang di app cuma
-    // jadi jaring pengaman kalau masih ada yang meleset dikit.
-    //
-    // BUGFIX (audit lanjutan, Sept 2026): komentar di atas ini sudah lama
-    // BILANG instruksi draft-hitung-revisi sudah ditambahkan, tapi baris
-    // teksnya sendiri ternyata KELEWAT/tidak pernah benar-benar ditambahkan
-    // — sama sekali tidak ada di string prompt ini. Akibatnya jalur single
-    // ("Buatkan 3 Script") ini SATU-SATUNYA yang tidak punya instruksi
-    // hitung-sendiri SEKALIGUS tidak punya jaring pengaman (proses
-    // _vbFixWordCountIfNeeded auto-koreksi juga sudah dimatikan terpisah,
-    // lihat komentar di definisinya), jadi paling rawan meleset rentang
-    // kata dibanding jalur bulk (_vbBulkSystemPrompt, poin 19) yang sudah
-    // benar. Baris berikut ini menambahkan instruksi intinya (versi
-    // RINGKAS — permintaan user, Sept 2026: berbeda dari poin 19 di bulk
-    // yang bisa panjang HAMPIR GRATIS karena di-cache, jalur single ini
-    // TIDAK PERNAH kena cache (lihat komentar cacheSystem=false di bawah,
-    // prompt cuma ~660 token, di bawah syarat minimum cache Haiku 4.5),
-    // jadi tiap kata di sini kena HARGA PENUH tiap panggilan — makanya
-    // dipangkas ke inti langkahnya saja, bukan versi lengkap dengan
-    // penjelasan alasan seperti di bulk).
-    // FIX KUALITAS POTONGAN (permintaan user, Sept 2026): rule baru di bawah
-    // ini ("RITME KALIMAT") ditambahkan supaya HOOK/STORY/CTA lebih sering
-    // ditulis sebagai beberapa kalimat pendek yang diakhiri titik (bukan 1
-    // kalimat panjang tanpa titik) — soalnya _vbHardEnforceMaxWords (jaring
-    // pengaman batas atas kata) nyari titik alami buat nentuin titik potong
-    // yang enak dibaca, jadi makin sering ada titik di tengah teks, makin
-    // jarang dia terpaksa "potong kasar + tempel titik sendiri". CATATAN
-    // BIAYA JUJUR: rule ini nambah ~40-50 kata ke _vbScript3SystemPrompt,
-    // dan karena system prompt mode single TIDAK PERNAH kena cache (lihat
-    // komentar cacheSystem=false di titik pemanggilnya), ~40-50 kata ini
-    // kena HARGA PENUH di SETIAP panggilan generate mode single — trade-off
-    // sadar: sedikit lebih mahal per panggilan, demi hasil potongan (kalau
-    // sampai terjadi) yang lebih rapi & berpotensi mengurangi trigger
-    // panggilan "perbaikan kata" juga (skrip lebih natural pas dari awal).
-    +'6. RITME KALIMAT — susun jadi beberapa kalimat pendek/sedang yang masing-masing diakhiri titik (.) secara wajar (sesuai makna kalimatnya selesai di situ), JANGAN ditulis sebagai satu kalimat panjang tanpa titik dari awal sampai akhir — selain lebih enak diucapkan di depan kamera, ini juga bikin sistem pemotong otomatis app (kalau skrip kelebihan kata) bisa berhenti di akhir kalimat yang wajar, bukan di tengah kalimat.\n'
-    // FIX (permintaan user, Sept 2026): jalur single ini SEKARANG TIDAK
-    // PERNAH lagi memanggil AI follow-up untuk "rapikan jumlah kata"
-    // (_vbFixWordCountBatchIfNeeded TIDAK DIPANGGIL LAGI di titik
-    // pemanggilnya, lihat komentar di sana) — apapun hasil generate
-    // PERTAMA ini yang dipakai (kecuali kelebihan kata, masih ada jaring
-    // pengaman LOKAL murni JS lewat _vbHardEnforceMaxWords, BUKAN
-    // panggilan API, lihat komentar di situ). Karena tidak ada lagi
-    // kesempatan kedua, poin 7 di bawah ini DIPERKUAT total — dari
-    // sekadar "hitung kata sebelum jawab" jadi teknik "penomoran tiap
-    // kata satu-satu" yang sudah TERBUKTI jauh lebih akurat di jalur
-    // bulk (_vbBulkSystemPrompt poin 17) — draft dulu, nomori tiap kata,
-    // bandingkan ke rentang, revisi & nomori ulang sampai pas, BARU
-    // dijawab final.
-    +'7. WAJIB HITUNG KATA SENDIRI SEBELUM MENJAWAB (PALING PENTING, jangan dilewati — TIDAK ADA LAGI proses koreksi otomatis terpisah sesudah ini, hasil PERTAMA ini WAJIB sudah pas) — untuk SETIAP bagian (HOOK, STORY, CTA): (1) draft dulu kalimatnya di kepalamu, JANGAN langsung ditulis sebagai jawaban; (2) HITUNG jumlah katanya sendiri dengan cara MEMBERI NOMOR URUT pada TIAP kata yang dipisah per spasi (bukan per karakter/suku kata) — angka terakhir yang kamu tulis adalah jumlah kata sebenarnya, JANGAN ditaksir/dikira-kira. Contoh cara menomori (ini CONTOH TEKNIK saja, BUKAN target kata — target asli tetap rentang di langkah (3) di bawah): "1.kalau 2.aku 3.bilang 4.ada 5.satu 6.item 7.yang 8.bisa 9.ngubah 10.vibe 11.outfit 12.lu 13.dari 14.boring 15.jadi 16.instantly 17.chic, 18.pasti 19.lo 20.langsung 21.mikir 22.apa 23.ya? 24.nah 25.coba 26.liat 27.ini"; (3) BANDINGKAN hasil hitungan bernomor itu dengan target rentang '+range.min+'-'+range.max+' kata (idealnya persis '+range.target+' kata); (4) kalau masih di luar rentang '+range.min+'-'+range.max+', REVISI draft itu (tambah/kurangi kata seperlunya, TANPA mengubah makna/alur/nada/aturan lain manapun) LALU HITUNG ULANG dengan cara menomori seperti langkah (2) — ulangi proses nomori-bandingkan-revisi ini sampai angka nomor terakhirnya BENAR-BENAR masuk rentang '+range.min+'-'+range.max+' kata, baru setelah itu tulis sebagai jawaban final. DILARANG KERAS menjawab draft pertama begitu saja tanpa dihitung & direvisi dulu, dan DILARANG menebak jumlah kata tanpa benar-benar menomori tiap kata satu-satu. Proses nomori-revisi ini WAJIB dilakukan untuk KETIGA bagian (HOOK, STORY, CTA) — krusial karena TIDAK ADA lagi proses perbaikan jumlah kata terpisah belakangan yang bisa menambal kalau ini meleset.\n\n'
-    +'Balas HANYA dengan JSON array berisi TEPAT 3 object, tanpa teks lain, tanpa markdown. Format: [{"role":"hook","script":"..."},{"role":"story","script":"..."},{"role":"cta","script":"..."}]';
+  // FIX HEMAT TOKEN (Opsi 2, Sept 2026): isi prompt ini dipindah jadi fungsi
+  // bersama _vbBuildSingleModeSystemPrompt(range) (lihat definisinya di atas
+  // _vbCallBulkBatch) supaya jalur Bulk 1-produk bisa memakai persis prompt
+  // yang sama — teksnya TIDAK berubah sama sekali, cuma dipindah lokasinya.
+  let _vbScript3SystemPrompt=_vbBuildSingleModeSystemPrompt(range);
   // Bagian yang BEDA-BEDA tiap generate (produk/karakter/target audience
   // spesifik kali ini) — ini yang jadi pesan user, TIDAK ikut di-cache
   // (memang wajar beda tiap generate, jadi percuma di-cache).
