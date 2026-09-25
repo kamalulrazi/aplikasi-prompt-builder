@@ -3562,7 +3562,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.68</div>
+  <div class="splash-version" id="splash-version">v6.70</div>
 </div>
 <script>
   (function(){
@@ -5548,7 +5548,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.68 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.70 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -15718,6 +15718,41 @@ async function _vbExportUsageCsv(){
   });
   var csv=rows.map(function(r){return r.map(function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',');}).join('\r\n');
   var fileName='statistik-biaya-'+_vbDayKey(Date.now())+'.csv';
+  // FIX UNDUH DI APK CAPACITOR (permintaan user, Sept 2026): app ini
+  // di-build jadi APK lewat Capacitor (kelihatan dari folder
+  // capacitor-android & plugin custom GoogleAuthNativePlugin di project
+  // Android Studio-nya) — BUKAN WebView polos manual. WebView bawaan
+  // Capacitor SAMA SEKALI tidak mengimplementasikan Web Share API
+  // (navigator.share === undefined di situ) dan tidak otomatis menangani
+  // unduhan <a download>/blob — persis kenapa sebelumnya "gak ada reaksi
+  // sama sekali". SOLUSI YANG BENAR untuk Capacitor: BUKAN bikin
+  // JavaScript-Interface manual sendiri (itu cara buat WebView polos,
+  // percuma di sini karena bridge-nya sudah dikelola Capacitor) —
+  // pakai PLUGIN RESMI Capacitor yang sudah pasti kompatibel dengan
+  // bridge-nya: @capacitor/filesystem (nulis file ke storage) +
+  // @capacitor/share (buka sheet share/simpan native), sama seperti
+  // GoogleAuthNativePlugin yang sudah jalan lewat window.Capacitor.Plugins.
+  // WAJIB dijalankan dulu sebelum build ulang APK (di folder project
+  // Capacitor, yang punya package.json & capacitor.config, BUKAN di
+  // folder /android):
+  //   npm install @capacitor/filesystem @capacitor/share
+  //   npx cap sync android
+  // Kalau app ini dibuka lewat browser/PWA biasa (bukan lewat APK),
+  // window.Capacitor tidak ada / isNativePlatform() false, jadi otomatis
+  // lanjut ke jalur Web Share/`<a download>` di bawah seperti sebelumnya.
+  if(window.Capacitor&&typeof window.Capacitor.isNativePlatform==='function'&&window.Capacitor.isNativePlatform()&&window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
+    try{
+      var CapFS=window.Capacitor.Plugins.Filesystem;
+      var CapShare=window.Capacitor.Plugins.Share;
+      var writeRes=await CapFS.writeFile({path:fileName,data:'\uFEFF'+csv,directory:'CACHE',encoding:'utf8',recursive:true});
+      if(CapShare&&typeof CapShare.share==='function'){
+        await CapShare.share({title:fileName,url:writeRes.uri});
+      }else{
+        alert('CSV tersimpan sementara di app ('+fileName+'), tapi plugin @capacitor/share belum terpasang untuk membuka sheet simpan/bagikan. Jalankan: npm install @capacitor/share lalu npx cap sync android.');
+      }
+      return;
+    }catch(capErr){console.warn('[_vbExportUsageCsv] jalur Capacitor Filesystem/Share gagal, lanjut fallback web biasa:',capErr);}
+  }
   // FIX UNDUH DI HP (permintaan user, Sept 2026): trik lama <a download>+
   // klik terprogram TIDAK bisa diandalkan di banyak HP — paling parah di
   // Safari iOS ketika app dibuka sebagai PWA ter-install (standalone, dari
