@@ -233,21 +233,54 @@
   // Biaya & Cache" di tab Panduan menampilkan angka yang SAMA persis di
   // semua perangkat yang login dengan Gmail yang sama — sebelumnya key-key
   // ini murni lokal per perangkat jadi tiap HP/laptop punya hitungan
-  // sendiri-sendiri. pb_usage_archive_v1 = arsip harian (riwayat lebih tua
-  // dari 60 hari yang diringkas per-tanggal, lihat komentar di dekat
-  // _vbCompactUsageLog).
-  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1','pb_usage_archive_v1'];
+  // sendiri-sendiri.
+  // pb_usage_log_v1 TETAP di daftar "timpa" (PB_SYNC_KEYS) di bawah supaya
+  // pengiriman chunk-nya tetap lewat _pushBlob seperti biasa, TAPI proses
+  // TARIK-nya (_pullAll) sekarang di-merge, bukan ditimpa mentah — lihat
+  // PB_LOG_MERGE_KEYS & _mergeLogArrays di bawah, dan catatan panjang di
+  // dekat PB_COUNTER_SYNC_KEYS kenapa ini perlu.
+  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1'];
   // FIX BUG SINKRON (audit lanjutan, Sept 2026): pb_usage_stats_v1 dan
   // pb_wordfix_stats_v1 DICABUT dari PB_SYNC_KEYS di atas (yang sinkronnya
   // "timpa seluruh nilai") karena keduanya cuma kumpulan ANGKA AKUMULASI
   // (hit/miss/token/dst). Kalau 2 perangkat generate hampir bersamaan, atau
   // user generate dulu SEBELUM login baru login belakangan, mekanisme timpa
   // itu bikin hitungan salah satu perangkat/sesi HILANG DIAM-DIAM (yang
-  // upload/pull terakhir menang, bukan dijumlah). Dua key ini sekarang
-  // disinkron lewat jalur KHUSUS di bawah (_pushCounterDelta/
+  // upload/pull terakhir menang, bukan dijumlah). Key-key ini sekarang
+  // disinkron lewat jalur KHUSUS di bawah (pbCloudQueueCounter/
   // _pullCounterMerge) yang pakai Firestore FieldValue.increment PER FIELD,
   // supaya kontribusi dari tiap perangkat DITAMBAHKAN, bukan ditimpa.
-  var PB_COUNTER_SYNC_KEYS = ['pb_usage_stats_v1','pb_wordfix_stats_v1'];
+  // FIX BUG LANJUTAN (audit statistik biaya & cache, ditemukan setelah fix di
+  // atas): pb_usage_archive_v1 (arsip harian, isinya JUGA murni angka
+  // akumulasi per-tanggal — persis kategori yang sama seperti 2 key di atas)
+  // KELEWATAN waktu itu, masih ikut ditimpa mentah lewat PB_SYNC_KEYS biasa.
+  // Akibatnya "TOTAL SEMUA BIAYA (selamanya)" (dari pb_usage_stats_v1, SUDAH
+  // aman) bisa beda dari jumlah breakdown per-periode/grafik/CSV (dari
+  // pb_usage_log_v1+pb_usage_archive_v1) kalau 2 perangkat generate
+  // berdekatan waktu — arsip salah satu perangkat bisa hilang tertimpa.
+  // Sekarang pb_usage_archive_v1 IKUT dipindah ke sini, pakai mekanisme
+  // delta-merge yang sama (flatten-nya sekarang rekursif — lihat
+  // _flattenCounterObj — supaya bentuk 2-level nested arsip, tanggal→jenis→
+  // field, ikut ke-cover, bukan cuma 1-level seperti attemptHist).
+  // CATATAN UKURAN: arsip cuma nambah 1 KEY TANGGAL BARU per hari (bukan per
+  // panggilan AI), jadi ukurannya tumbuh sangat lambat — aman disimpan
+  // langsung sebagai field di dokumen utama users/{uid} tanpa perlu chunking
+  // seperti pb_usage_log_v1 (yang bisa tumbuh cepat, 1 baris per panggilan).
+  var PB_COUNTER_SYNC_KEYS = ['pb_usage_stats_v1','pb_wordfix_stats_v1','pb_usage_archive_v1'];
+  // ── SINKRON MERGE UNTUK RIWAYAT MENTAH PER-PANGGILAN ────────────────────
+  // pb_usage_log_v1 BUKAN kumpulan angka akumulasi (beda dari 3 key counter
+  // di atas) — ini daftar EVENT diskrit, 1 baris per panggilan AI. Jadi tidak
+  // pas dipaksa ke mekanisme delta-per-field. Strateginya: union-by-id — tiap
+  // baris riwayat punya id unik (lihat _vbLogUsageEvent), waktu _pullAll
+  // gabungkan array cloud+lokal berdasarkan id (dedup otomatis, idempotent —
+  // aman dipanggil berkali-kali), simpan hasil gabungan, LALU push balik
+  // hasil gabungan itu kalau ternyata ada baris lokal yang belum cloud tahu
+  // — supaya cloud ikut lengkap juga buat perangkat lain, bukan cuma
+  // perangkat ini yang jadi lengkap. Baris yang sudah lebih tua dari
+  // PB_USAGE_LOG_RAW_DAYS SENGAJA tidak ikut digabung (lihat _mergeLogArrays)
+  // supaya baris yang sudah pernah diringkas ke arsip oleh perangkat mana pun
+  // tidak "hidup lagi" lalu diringkas dobel ke arsip.
+  var PB_LOG_MERGE_KEYS = ['pb_usage_log_v1'];
 
   var _fbReady = false;
   window.pbCloudUid = null;
@@ -441,21 +474,30 @@
   // Lihat catatan panjang di dekat definisi PB_COUNTER_SYNC_KEYS. Intinya:
   // simpan snapshot terakhir yang SUDAH sukses dikirim ke cloud (kunci
   // localStorage <key>__base). Tiap kali mau sync, hitung SELISIH (delta)
-  // antara nilai lokal sekarang vs snapshot itu per-field (termasuk 1 level
-  // nested seperti attemptHist.1/2/3), lalu kirim delta itu lewat
-  // FieldValue.increment — BUKAN nilai absolutnya. Firestore yang jumlahkan
-  // di server, jadi aman dipakai bersamaan dari beberapa perangkat tanpa
-  // saling menimpa. Field angka datar (flat) disimpan apa adanya; field
-  // object 1-level (mis. attemptHist:{1,2,3}) diratakan jadi "attemptHist.1"
-  // dst supaya bisa jadi field path Firestore.
-  function _flattenCounterObj(obj){
+  // antara nilai lokal sekarang vs snapshot itu per-field (termasuk field
+  // nested, DALAM SEBERAPA LEVEL PUN — mis. attemptHist.1/2/3 [1 level] atau
+  // arsip harian "2026-09-25.generate.calls" [2 level]), lalu kirim delta itu
+  // lewat FieldValue.increment — BUKAN nilai absolutnya. Firestore yang
+  // jumlahkan di server, jadi aman dipakai bersamaan dari beberapa perangkat
+  // tanpa saling menimpa. Field angka datar (flat) disimpan apa adanya; field
+  // object diratakan rekursif jadi "a.b.c" dst supaya bisa jadi field path
+  // Firestore.
+  // FIX BUG (audit lanjutan, statistik biaya & cache): dulu cuma menangani 1
+  // level nesting (ditulis manual k+'.'+k2, khusus buat bentuk attemptHist).
+  // Sekarang rekursif — sengaja diperluas supaya PB_USAGE_ARCHIVE_KEY (arsip
+  // harian, bentuknya {tanggal:{generate:{...},fix:{...}}}, 2 level nested)
+  // bisa ikut dipakaikan mekanisme delta-merge yang sama seperti
+  // pb_usage_stats_v1/pb_wordfix_stats_v1 — lihat catatan di PB_SYNC_KEYS/
+  // PB_COUNTER_SYNC_KEYS kenapa ini perlu.
+  function _flattenCounterObj(obj,prefix){
     var out={};
     Object.keys(obj||{}).forEach(function(k){
       var v=obj[k];
+      var path=prefix?prefix+'.'+k:k;
       if(v&&typeof v==='object'&&!Array.isArray(v)){
-        Object.keys(v).forEach(function(k2){ out[k+'.'+k2]=Number(v[k2])||0; });
+        Object.assign(out,_flattenCounterObj(v,path));
       }else{
-        out[k]=Number(v)||0;
+        out[path]=Number(v)||0;
       }
     });
     return out;
@@ -464,13 +506,13 @@
     var out={};
     Object.keys(flat||{}).forEach(function(fk){
       var val=Number(flat[fk])||0;
-      if(fk.indexOf('.')>-1){
-        var parts=fk.split('.');
-        if(!out[parts[0]])out[parts[0]]={};
-        out[parts[0]][parts[1]]=val;
-      }else{
-        out[fk]=val;
+      var parts=fk.split('.');
+      var cur=out;
+      for(var i=0;i<parts.length-1;i++){
+        if(!cur[parts[i]])cur[parts[i]]={};
+        cur=cur[parts[i]];
       }
+      cur[parts[parts.length-1]]=val;
     });
     return out;
   }
@@ -482,13 +524,13 @@
     var out={};
     Object.keys(flat||{}).forEach(function(fk){
       var val=flat[fk];
-      if(fk.indexOf('.')>-1){
-        var parts=fk.split('.');
-        if(!out[parts[0]])out[parts[0]]={};
-        out[parts[0]][parts[1]]=val;
-      }else{
-        out[fk]=val;
+      var parts=fk.split('.');
+      var cur=out;
+      for(var i=0;i<parts.length-1;i++){
+        if(!cur[parts[i]])cur[parts[i]]={};
+        cur=cur[parts[i]];
       }
+      cur[parts[parts.length-1]]=val;
     });
     return out;
   }
@@ -531,23 +573,24 @@
       }).catch(function(e){ console.warn('Sync counter gagal ('+key+'):', e); });
     }, 800);
   };
-  // Dipakai oleh "Reset Hitungan": paksa field counter di cloud jadi 0
-  // (SET langsung, bukan increment) supaya reset benar-benar nol lagi di
-  // semua perangkat, bukan cuma dikurangi sebesar kontribusi 1 perangkat.
+  // Dipakai oleh "Reset Hitungan": kosongkan field counter di cloud supaya
+  // reset benar-benar nol lagi di semua perangkat, bukan cuma dikurangi
+  // sebesar kontribusi 1 perangkat.
+  // FIX BUG (audit lanjutan, statistik biaya & cache): dulu di-set ke
+  // "bentuk nol" yang DIHARDCODE per key (cuma tau field pb_usage_stats_v1
+  // dan pb_wordfix_stats_v1) — field yang tidak ada di daftar hardcode itu
+  // (atau field baru yang ditambahkan nanti) tidak ikut ter-nol-kan di
+  // cloud. Sekarang pakai FieldValue.delete() buat menghapus field itu
+  // TOTAL dari dokumen, apa pun isi/bentuknya — tidak perlu tahu shape-nya
+  // sama sekali, jadi otomatis benar untuk key counter APA PUN, termasuk
+  // PB_USAGE_ARCHIVE_KEY (arsip harian, kumpulan key tanggal yang dinamis,
+  // tidak mungkin di-hardcode shape-nya di sini).
   window.pbCloudResetCounter = function(key){
     if(!_fbReady || !window.pbCloudUid) return;
     var ref=_docRef(); if(!ref) return;
-    var zeroed=_unflattenCounterObj((function(){
-      // pakai bentuk kosong bawaan masing-masing key (lihat _vbLoadUsageStats/
-      // _vbLoadFixStats) supaya semua field yang biasa dipakai ikut di-nol-kan.
-      var shape=(key==='pb_wordfix_stats_v1')
-        ?{calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0}
-        :{hit:0,miss:0,noCache:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0};
-      return _flattenCounterObj(shape);
-    })());
-    var patch={}; patch[key]=zeroed; patch._updatedAt=Date.now();
+    var patch={}; patch[key]=firebase.firestore.FieldValue.delete(); patch._updatedAt=Date.now();
     ref.set(patch,{merge:true}).catch(function(e){ console.warn('Reset counter cloud gagal ('+key+'):', e); });
-    _counterBaseSet(key, zeroed); // baseline lokal ikut di-nol-kan
+    _counterBaseSet(key, {}); // baseline lokal ikut di-nol-kan (field cloud sudah dihapus total)
   };
   // Gabungkan data counter dari cloud dengan delta lokal yang BELUM sempat
   // ke-push (supaya tidak hilang kalau pull kejadian pas ada perubahan lokal
@@ -577,6 +620,30 @@
     try{ localStorage.setItem(key, JSON.stringify(_unflattenCounterObj(mergedFlat))); }catch(e){}
     _counterBaseSet(key, _unflattenCounterObj(cloudFlat)); // baseline baru = state cloud yg baru ditarik (sudah rata→nested lagi, konsisten)
   }
+  // Gabungkan riwayat mentah cloud+lokal (pb_usage_log_v1) berdasarkan id unik
+  // tiap baris — union, dedup otomatis, jadi aman dipanggil berkali-kali dari
+  // kedua arah (pull maupun sebelum push balik). Baris LAMA (dibuat sebelum
+  // fix ini ada, belum punya field id) dikasih kunci gabungan dari beberapa
+  // field yang match persis biar tetap ke-dedup wajar, bukan malah dobel.
+  // Baris yang sudah lebih tua dari batas retensi mentah (PB_USAGE_LOG_RAW_DAYS)
+  // SENGAJA DIBUANG dari hasil gabungan — baris setua itu harusnya sudah
+  // diringkas ke arsip harian (oleh perangkat mana pun, arsipnya sendiri
+  // sekarang sudah aman lewat PB_COUNTER_SYNC_KEYS) sebelum ini; kalau tetap
+  // ikut digabung balik ke riwayat mentah, baris itu bisa diringkas KE ARSIP
+  // LAGI di kompaksi berikutnya (_vbCompactUsageLog) → dobel-hitung di arsip.
+  function _mergeLogArrays(cloudArr,localArr){
+    var rawDays=(typeof PB_USAGE_LOG_RAW_DAYS!=='undefined')?PB_USAGE_LOG_RAW_DAYS:60;
+    var cutoff=Date.now()-rawDays*24*60*60*1000;
+    function keyOf(e){
+      return e.id||('legacy-'+e.ts+'-'+e.kind+'-'+e.mode+'-'+e.noCacheInTok+'-'+e.cacheWriteInTok+'-'+e.cacheReadInTok+'-'+e.outTok);
+    }
+    var byKey={};
+    (cloudArr||[]).forEach(function(e){ if(e&&typeof e.ts==='number'&&e.ts>=cutoff)byKey[keyOf(e)]=e; });
+    (localArr||[]).forEach(function(e){ if(e&&typeof e.ts==='number'&&e.ts>=cutoff)byKey[keyOf(e)]=e; });
+    var merged=Object.keys(byKey).map(function(k){return byKey[k];});
+    merged.sort(function(a,b){return a.ts-b.ts;});
+    return merged;
+  }
 
   // Khusus API key Claude: yang disinkron PLAINTEXT-nya, bukan ciphertext
   // lokal (ciphertext dienkripsi pakai salt unik per perangkat — tidak
@@ -605,11 +672,38 @@
       await Promise.all(PB_SYNC_KEYS.map(async function(k){
         var isDirty = false;
         try{ isDirty = !!localStorage.getItem('__dirty_'+k); }catch(e){}
-        if(isDirty){ window.pbCloudQueue(k); return; } // ada perubahan lokal yg belum ke-push, jangan ditimpa — push dulu
+        var isMergeKey = PB_LOG_MERGE_KEYS.indexOf(k) > -1;
+        // FIX BUG SINKRON (audit lanjutan, statistik biaya & cache): dulu key
+        // dirty langsung short-circuit ke push tanpa sempat menarik/menggabung
+        // cloud dulu — utk pb_usage_log_v1 ini bisa membuang baris riwayat dari
+        // perangkat LAIN yang sudah lebih dulu ada di cloud. Sekarang khusus
+        // isMergeKey TETAP lanjut menarik+menggabung cloud dulu walau dirty
+        // (lihat cabang isMergeKey di bawah); key lain tetap short-circuit
+        // seperti semula (perilaku tidak berubah untuk key non-riwayat).
+        if(isDirty && !isMergeKey){ window.pbCloudQueue(k); return; } // ada perubahan lokal yg belum ke-push, jangan ditimpa — push dulu
         var val;
         try{ val = await _pullBlobKey(k); }catch(e){ val = undefined; }
         if(val === undefined && typeof data[k] === 'string') val = data[k]; // fallback data lama (pra-chunking)
-        if(typeof val === 'string'){ try{ localStorage.setItem(k, val); }catch(e){} }
+        if(typeof val !== 'string'){ if(isDirty) window.pbCloudQueue(k); return; } // belum ada data cloud sama sekali — kalau lokal dirty, tetap push
+        // FIX BUG SINKRON (audit lanjutan, statistik biaya & cache): pb_usage_log_v1
+        // (riwayat per-panggilan) BUKAN ditimpa mentah seperti key lain di atas —
+        // digabung (union by id, lihat _mergeLogArrays) dengan riwayat lokal,
+        // supaya baris dari perangkat lain yang sempat generate berdekatan
+        // waktu TIDAK hilang tertimpa. Kalau hasil gabungan ternyata punya baris
+        // yang cloud belum tahu (kontribusi lokal, termasuk yang sempat dirty),
+        // push balik hasil gabungannya supaya cloud ikut lengkap juga — bukan
+        // cuma perangkat ini yang jadi lengkap.
+        if(isMergeKey){
+          var cloudArr=[]; try{ cloudArr=JSON.parse(val)||[]; }catch(e){ cloudArr=[]; }
+          if(!Array.isArray(cloudArr))cloudArr=[];
+          var localArr=[]; try{ localArr=JSON.parse(localStorage.getItem(k)||'[]')||[]; }catch(e){ localArr=[]; }
+          if(!Array.isArray(localArr))localArr=[];
+          var merged=_mergeLogArrays(cloudArr,localArr);
+          try{ localStorage.setItem(k, JSON.stringify(merged)); }catch(e){}
+          if(isDirty || merged.length !== cloudArr.length){ try{ localStorage.setItem('__dirty_'+k,'1'); }catch(e){} window.pbCloudQueue(k); }
+          return;
+        }
+        try{ localStorage.setItem(k, val); }catch(e){}
       }));
       // FIX BUG SINKRON: pb_usage_stats_v1/pb_wordfix_stats_v1 TIDAK ditimpa
       // mentah-mentah seperti PB_SYNC_KEYS di atas — digabung (merge) dengan
@@ -3468,7 +3562,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.66</div>
+  <div class="splash-version" id="splash-version">v6.67</div>
 </div>
 <script>
   (function(){
@@ -5454,7 +5548,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.66 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.67 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10748,7 +10842,7 @@ function fResetNow(){
 // Sebelumnya provider-nya Groq (sebelum itu Gemini). Sekarang diganti ke
 // Claude (Anthropic) — endpoint Messages API resminya, BUKAN format
 // request/response Gemini/OpenAI. Supaya semua kode pemanggil di bawah
-// (_vbFetchWithGeminiFallback, _vbStreamGeminiJSONWithRetryModel, dst —
+// (_vbFetchWithClaudeFallback, _vbStreamClaudeJSONWithRetryModel, dst —
 // namanya sengaja TIDAK diganti biar tidak perlu ubah puluhan call-site
 // lain) tidak perlu diubah satu-satu, kedua fungsi itu yang menerjemahkan:
 // request dibungkus ulang jadi format Claude (content blocks {type:'text'}/
@@ -10758,8 +10852,8 @@ function fResetNow(){
 // data.candidates[0].content.parts[0].text tetap jalan apa adanya.
 // CATATAN CORS: Claude API baru bisa dipanggil langsung dari browser kalau
 // header 'anthropic-dangerous-direct-browser-access':'true' disertakan di
-// tiap request (lihat _vbStreamGeminiJSONWithRetryModel &
-// _vbFetchWithGeminiFallback) — tanpa header ini browser akan diblokir CORS.
+// tiap request (lihat _vbStreamClaudeJSONWithRetryModel &
+// _vbFetchWithClaudeFallback) — tanpa header ini browser akan diblokir CORS.
 // ── PROXY (permintaan user, Sep 2026) ───────────────────────────────────
 // App TIDAK LAGI memanggil api.anthropic.com langsung dari browser dan
 // TIDAK LAGI minta API Key dari user. Semua request AI sekarang lewat
@@ -10781,20 +10875,38 @@ function _pbGetDeviceId(){
     return id;
   }catch(e){return 'dev-unknown';}
 }
+// FIX KEAMANAN #2 lanjutan (nutup celah kuota Gratis anonim, Sept 2026):
+// Worker proxy sekarang verifikasi tier lewat Firestore ID token, bukan
+// dari localStorage lagi (lihat komentar besar dekat PB_FIREBASE_CONFIG).
+// Fungsi ini ambil ID token user yang sedang login lalu dikirim ke Worker
+// tiap generate lewat header X-Firebase-Token — TANPA ini, Worker anggap
+// semua orang anonim dan user Standar/Premium ikut kena limit Gratis.
+// getIdToken() Firebase SDK otomatis refresh sendiri kalau token sudah
+// lama (>1 jam), jadi aman dipanggil tiap request tanpa cache manual di
+// sini. Kosong ('') kalau belum login / Firebase belum siap — app tetap
+// jalan normal sebagai anonim (kena limit Gratis + pagar IP di Worker).
+async function _pbGetFirebaseIdToken(){
+  try{
+    if(typeof firebase==='undefined'||!firebase.auth)return '';
+    var u=firebase.auth().currentUser;
+    if(!u)return '';
+    return (await u.getIdToken())||'';
+  }catch(e){return '';}
+}
 // FIX (permintaan user, Sept 2026): Sonnet-5 SEBAGAI CADANGAN DIMATIKAN
 // TOTAL — sebelumnya kalau Haiku gagal total setelah retry habis, app
 // otomatis pindah ke Sonnet-5. Sekarang HANYA Haiku 4.5 yang dipakai,
-// tidak ada lagi model lain. GEMINI_MODEL_FALLBACK SENGAJA disamakan
-// nilainya dengan GEMINI_MODEL_PRIMARY (bukan dihapus) supaya seluruh
+// tidak ada lagi model lain. CLAUDE_MODEL_FALLBACK SENGAJA disamakan
+// nilainya dengan CLAUDE_MODEL_PRIMARY (bukan dihapus) supaya seluruh
 // call-site yang masih memanggil kedua konstanta ini (mis.
-// _vbStreamGeminiJSONWithRetry, _vbFetchWithGeminiFallback) TIDAK perlu
+// _vbStreamClaudeJSONWithRetry, _vbFetchWithClaudeFallback) TIDAK perlu
 // diubah satu-satu — "percobaan ke-2 pakai model fallback" itu sekarang
 // otomatis jadi percobaan ulang ke Haiku lagi (retry biasa), bukan
 // pindah ke AI lain. Kalau nanti mau benar-benar tidak ada percobaan
 // ke-2 sama sekali, itu perubahan terpisah di fungsi retry-nya, bukan
 // cukup ganti baris ini.
-const GEMINI_MODEL_PRIMARY='claude-haiku-4-5-20251001';
-const GEMINI_MODEL_FALLBACK='claude-haiku-4-5-20251001';
+const CLAUDE_MODEL_PRIMARY='claude-haiku-4-5-20251001';
+const CLAUDE_MODEL_FALLBACK='claude-haiku-4-5-20251001';
 // apiKey diisi placeholder tetap ('via-proxy') — bukan API key asli lagi.
 // Cukup supaya semua pengecekan "if(!VAI.apiKey)" di bawah otomatis lolos,
 // karena kunci Claude yang sesungguhnya sekarang disimpan aman di server
@@ -11046,6 +11158,28 @@ function pbToggleLimitBar(){
     if(!bar.contains(ev.target)){ bar.classList.remove('expanded'); document.removeEventListener('click',closeOutside,true); }
   };
   setTimeout(function(){ document.addEventListener('click',closeOutside,true); },0);
+}
+
+// FIX KEAMANAN #2 lanjutan (Sept 2026): Worker proxy sekarang balas 401
+// (token login kadaluarsa/tidak valid) atau 403 (login_required /
+// quota_exceeded — lihat komentar di Worker). Tanpa penanganan khusus,
+// pesan-pesan ini bakal ikut fallback generik "Status 403: ..." yang
+// kelihatan seperti error teknis, padahal ini pesan yang MEMANG dibuat
+// buat dibaca user apa adanya. Dipanggil dari 2 titik penanganan error
+// (mode single & bulk) SEBELUM fallback generik — return string pesan
+// kalau ini error Worker yang dikenali, atau null kalau bukan (biar
+// pemanggil lanjut ke penanganan status lain seperti biasa).
+function _pbWorkerAuthQuotaMsg(status,errJson){
+  var t=errJson&&errJson.error&&errJson.error.type;
+  var m=errJson&&errJson.error&&errJson.error.message;
+  if(status===401&&t==='invalid_token'){
+    return (m||'Sesi login kamu sudah kadaluarsa.')+' Coba logout lalu login lagi, ya.';
+  }
+  if(status===403&&(t==='quota_exceeded'||t==='login_required')){
+    try{ if(typeof pbOpenUpgradeModal==='function') pbOpenUpgradeModal(); }catch(e){}
+    return m||'Jatah generate hari ini sudah habis.';
+  }
+  return null;
 }
 
 // ── MODAL UPGRADE TIER ───────────────────────────────────────────────────
@@ -15179,7 +15313,7 @@ function _vbTryParsePartialJsonArray(buf){
 // JSON, sanitizer, fix kata) tidak perlu berubah sama sekali.
 // Retry & fallback meniru persis _vbFetchWithRetry lama.
 // Menerima parameter 'model' eksplisit — dipanggil oleh
-// _vbStreamGeminiJSONWithRetry (lihat di bawah) yang mengurus pergantian
+// _vbStreamClaudeJSONWithRetry (lihat di bawah) yang mengurus pergantian
 // primary→fallback antar model.
 // Ubah 'parts' gaya Gemini (dipakai di banyak tempat di file ini — teks
 // biasa {text:'...'} dan foto {inline_data:{mime_type,data}}) jadi
@@ -15290,7 +15424,13 @@ function _vbLoadUsageArchive(){
 }
 function _vbSaveUsageArchive(a){
   try{localStorage.setItem(PB_USAGE_ARCHIVE_KEY,JSON.stringify(a));}catch(e){}
-  if(typeof pbCloudQueue==='function')pbCloudQueue(PB_USAGE_ARCHIVE_KEY); // SINKRON ANTAR PERANGKAT
+  // FIX BUG SINKRON (audit lanjutan, statistik biaya & cache): dulu pakai
+  // pbCloudQueue (timpa nilai penuh, sama rawan-hilang-data seperti bug yang
+  // sudah diperbaiki utk pb_usage_stats_v1/pb_wordfix_stats_v1 — lihat
+  // catatan panjang di dekat PB_COUNTER_SYNC_KEYS). Arsip harian ini murni
+  // angka akumulasi per-tanggal juga, jadi sekarang dipindah ke sync counter
+  // yang sama (increment per-field, aman dipakai bersamaan dari 2+ perangkat).
+  if(typeof pbCloudQueueCounter==='function')pbCloudQueueCounter(PB_USAGE_ARCHIVE_KEY); // SINKRON ANTAR PERANGKAT
 }
 function _vbEmptyKindBucket(){return{calls:0,single:0,bulk:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,outTok:0};}
 function _vbMergeBucket(dst,src){
@@ -15399,7 +15539,12 @@ function _vbLogUsageEvent(kind,mode,tok,outTok){
   // tempat supaya baris riwayat ini tetap punya sesiId (jadi tidak error &
   // tetap kelihatan di panel, cuma jadi sesinya sendiri isi 1 baris).
   if(!_vbCurrentSessionId)_vbStartUsageSession(mode==='bulk'?'Bulk':'Single',_vbCurrentCallProdukCount||1);
-  l.push({ts:Date.now(),kind:kind||'generate',mode:mode||'unknown',
+  // FIX BUG SINKRON (audit lanjutan, statistik biaya & cache): id unik per
+  // baris riwayat — dipakai _mergeLogArrays supaya gabungan riwayat cloud+
+  // lokal antar-perangkat bisa dedup dengan benar (union by id) alih-alih
+  // saling menimpa. Lihat PB_LOG_MERGE_KEYS.
+  l.push({id:'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+    ts:Date.now(),kind:kind||'generate',mode:mode||'unknown',
     sesiId:_vbCurrentSessionId,sesiLabel:_vbCurrentSessionLabel,sesiTotal:_vbCurrentSessionTotal,
     produkCount:_vbCurrentCallProdukCount||1,fotoCount:_vbCurrentCallFotoCount||0,
     noCacheInTok:(tok&&tok.noCacheInTok)||0,cacheWriteInTok:(tok&&tok.cacheWriteInTok)||0,cacheReadInTok:(tok&&tok.cacheReadInTok)||0,outTok:outTok||0});
@@ -15668,7 +15813,7 @@ function _vbRenderUsageBadge(s){
   // atas sudah mencakup SEMUA panggilan generate utama (Cerita Produk,
   // Foto Referensi, dst) — termasuk token dari foto yang diupload user,
   // karena foto ikut terhitung sebagai input_tokens oleh API Anthropic
-  // persis seperti teks. Model generate utama (GEMINI_MODEL_PRIMARY/
+  // persis seperti teks. Model generate utama (CLAUDE_MODEL_PRIMARY/
   // FALLBACK) sama-sama Haiku, jadi tarif HAIKU_PRICE_* di bawah berlaku
   // sama untuk bagian ini.
   var mainUsd=_vbCalcUsd(s.noCacheInTok,s.cacheWriteInTok,s.cacheReadInTok,s.outTok);
@@ -15808,16 +15953,22 @@ function _vbResetUsageStats(){
   _vbSaveFixStats({calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0});
   _vbSaveUsageLog([]); // ikut kosongkan riwayat mentah saat reset
   _vbSaveUsageArchive({}); // ikut kosongkan arsip harian saat reset
-  // FIX BUG SINKRON: paksa field counter di CLOUD jadi 0 langsung (SET, bukan
-  // increment negatif) — supaya "Reset Hitungan" beneran nol di semua
-  // perangkat, tidak cuma dikurangi sebesar kontribusi perangkat ini saja.
+  // FIX BUG SINKRON: hapus field counter di CLOUD langsung (bukan increment
+  // negatif) — supaya "Reset Hitungan" beneran nol di semua perangkat, tidak
+  // cuma dikurangi sebesar kontribusi perangkat ini saja.
   if(typeof pbCloudResetCounter==='function'){
     pbCloudResetCounter(PB_USAGE_KEY);
     pbCloudResetCounter(PB_FIXSTATS_KEY);
+    // FIX BUG (audit lanjutan, statistik biaya & cache): PB_USAGE_ARCHIVE_KEY
+    // ikut direset di sini sekarang juga — sejak dipindah ke PB_COUNTER_SYNC_KEYS
+    // (lihat _vbSaveUsageArchive), field cloud-nya perlu di-reset lewat jalur
+    // counter yang sama, bukan cuma _vbSaveUsageArchive({}) di atas (yang
+    // sekarang hanya kirim DELTA, bukan hapus total field lama).
+    pbCloudResetCounter(PB_USAGE_ARCHIVE_KEY);
   }
   _vbRenderUsageBadge(_vbLoadUsageStats());
 }
-async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem){
+async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem){
   if(cacheSystem===undefined)cacheSystem=true;
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
@@ -15852,13 +16003,14 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
     // di catch di bawah (rawText cuma diisi ''). Akibatnya user cuma lihat
     // "Status 0: API error" tanpa petunjuk apa-apa. Sekarang pesan asli
     // disimpan ke netErrMsg supaya bisa ditampilkan ke user di pesan error
-    // final (lihat pemanggil _vbStreamGeminiJSONWithRetry).
+    // final (lihat pemanggil _vbStreamClaudeJSONWithRetry).
     let netErrMsg='';
     try{
       await _vbThrottleGeminiGate();
+      var _fbTok=await _pbGetFirebaseIdToken();
       resp=await fetch(url,{
         method:'POST',
-        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
+        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
         body:JSON.stringify(Object.assign(
           {model:model,stream:true,max_tokens:cfg.maxOutputTokens,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
@@ -15956,6 +16108,22 @@ async function _vbStreamGeminiJSONWithRetryModel(model,promptParts,onPartial,onW
     // sintetis dipetakan dari tipe error Anthropic-nya.
     if(streamOk&&streamErrType){
       streamOk=false;
+      // FIX AKURASI BIAYA (audit lanjutan, statistik biaya & cache): stream ini
+      // SEMPAT mulai (server sudah balas event message_start, usageInfo sudah
+      // keisi input_tokens/cache_*) tapi error DI TENGAH jalan (mis. server
+      // overload) — Anthropic kemungkinan besar SUDAH menagih token input
+      // (dan kadang output sebagian) attempt ini walau hasilnya dibuang &
+      // bakal di-retry dari nol. Sebelumnya usageInfo di sini dibuang total
+      // tanpa pernah masuk _vbTrackUsage sama sekali, jadi biaya attempt
+      // gagal ini TIDAK PERNAH tercatat di panel statistik — angka yang
+      // tampil bisa lebih RENDAH dari biaya real yang benar-benar tertagih.
+      // Sekarang dicatat sebagai baris riwayat tersendiri SEBELUM jatuh ke
+      // retry (kalau retry berikutnya sukses, itu tetap tercatat lagi
+      // sebagai baris terpisah — memang dua-duanya kena biaya beneran kalau
+      // attempt pertama sempat mulai diproses server).
+      if(usageInfo.input_tokens>0||usageInfo.cache_creation_input_tokens>0||usageInfo.cache_read_input_tokens>0){
+        try{_vbTrackUsage(usageInfo);}catch(e){}
+      }
       resp={ok:false,status:streamErrType==='overloaded_error'?529:(streamErrType==='rate_limit_error'?429:500)};
       rawText=JSON.stringify({error:{type:streamErrType,message:streamErrMsg}});
     }
@@ -16047,23 +16215,23 @@ function _vbSanitizeJsonText(s){
   return out;
 }
 
-// Coba GEMINI_MODEL_PRIMARY dulu (lewat _vbStreamGeminiJSONWithRetryModel,
+// Coba CLAUDE_MODEL_PRIMARY dulu (lewat _vbStreamClaudeJSONWithRetryModel,
 // termasuk retry internalnya sampai jaring pengaman ~3 menit). Kalau
 // PRIMARY tetap gagal total sesudah itu, baru dicoba SEKALI LAGI dari nol
-// pakai GEMINI_MODEL_FALLBACK — supaya generate tetap bisa jalan walau
+// pakai CLAUDE_MODEL_FALLBACK — supaya generate tetap bisa jalan walau
 // primary lagi kena limit/error, bukan langsung gagal ke user.
 // FIX HEMAT BIAYA (permintaan user, Sept 2026): parameter cacheSystem baru
-// (default true) — dilempar apa adanya ke _vbStreamGeminiJSONWithRetryModel
+// (default true) — dilempar apa adanya ke _vbStreamClaudeJSONWithRetryModel
 // supaya bisa dimatikan KHUSUS untuk pemanggil yang system prompt-nya
 // memang belum tembus syarat minimum cache (lihat vbGenerate3AI, satu-
 // satunya pemanggil yang mengirim false). Semua pemanggil lain tidak
 // perlu diubah — otomatis tetap true seperti sebelumnya.
-async function _vbStreamGeminiJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem){
+async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem){
   if(cacheSystem===undefined)cacheSystem=true;
-  let r=await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem);
+  let r=await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem);
   if(r.resp&&r.resp.ok)return r;
-  console.log('[_vbStreamGeminiJSONWithRetry] '+GEMINI_MODEL_PRIMARY+' gagal, coba '+GEMINI_MODEL_FALLBACK);
-  return await _vbStreamGeminiJSONWithRetryModel(GEMINI_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText,cacheSystem);
+  console.log('[_vbStreamClaudeJSONWithRetry] '+CLAUDE_MODEL_PRIMARY+' gagal, coba '+CLAUDE_MODEL_FALLBACK);
+  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText,cacheSystem);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -16192,10 +16360,10 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
 }
 
 // ── FALLBACK MODEL untuk panggilan generateContent (non-streaming) ──────
-// Coba GEMINI_MODEL_PRIMARY dulu lewat _vbFetchWithRetry seperti biasa
+// Coba CLAUDE_MODEL_PRIMARY dulu lewat _vbFetchWithRetry seperti biasa
 // (429/503/529 tetap di-retry sesuai maxRetries). Kalau setelah retry habis
 // hasilnya TETAP gagal (resp.ok false), baru dicoba SEKALI LAGI dari nol
-// pakai GEMINI_MODEL_FALLBACK. bodyObj sama persis dipakai di percobaan
+// pakai CLAUDE_MODEL_FALLBACK. bodyObj sama persis dipakai di percobaan
 // manapun — cuma model & url di endpoint yang beda.
 // bodyObj yang masuk ke sini masih bentuk Gemini ({contents:[{parts:[...]}],
 // generationConfig:{maxOutputTokens,...}}) karena semua pemanggil fungsi
@@ -16205,14 +16373,15 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
 // ({candidates:[{content:{parts:[{text}]}}]}) sebelum dikembalikan —
 // supaya semua pemanggil yang melakukan JSON.parse(rawText) lalu baca
 // data.candidates[0]... tetap jalan tanpa perlu diubah satu-satu.
-async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
+async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
   const parts=(bodyObj&&bodyObj.contents&&bodyObj.contents[0]&&bodyObj.contents[0].parts)||[];
   const maxTokens=(bodyObj&&bodyObj.generationConfig&&bodyObj.generationConfig.maxOutputTokens)||2048;
   const claudeMessages=[{role:'user',content:_vbGeminiPartsToClaudeContent(parts)}];
   async function callClaude(model){
+    let _fbTok=await _pbGetFirebaseIdToken();
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
-      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId()},
+      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
       body:JSON.stringify({model:model,max_tokens:maxTokens,messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
@@ -16237,10 +16406,10 @@ async function _vbFetchWithGeminiFallback(bodyObj,timeoutMs,maxRetries){
     }
     return r;
   }
-  let r=await callClaude(GEMINI_MODEL_PRIMARY);
+  let r=await callClaude(CLAUDE_MODEL_PRIMARY);
   if(r.resp.ok)return r;
-  console.log('[_vbFetchWithGeminiFallback] '+GEMINI_MODEL_PRIMARY+' gagal (status '+r.resp.status+'), coba '+GEMINI_MODEL_FALLBACK);
-  return await callClaude(GEMINI_MODEL_FALLBACK);
+  console.log('[_vbFetchWithClaudeFallback] '+CLAUDE_MODEL_PRIMARY+' gagal (status '+r.resp.status+'), coba '+CLAUDE_MODEL_FALLBACK);
+  return await callClaude(CLAUDE_MODEL_FALLBACK);
 }
 
 // ── STAT REAL PEMAKAIAN "PERBAIKAN JUMLAH KATA" (permintaan user, Sept 2026)
@@ -16511,7 +16680,7 @@ async function _vbFixWordCountIfNeeded(scriptText,roleLabelPlain,produkNama){
       +'Script saat ini ('+wc+' kata): '+current+'\n\n'
       +'Balas HANYA dengan teks script hasil perbaikan, tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
     try{
-      let{resp,rawText,usage}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
+      let{resp,rawText,usage}=await _vbFetchWithClaudeFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
       callsMade++;
       _vbTrackFixCall(usage);
       if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return _finish(_vbHardEnforceMaxWords(current,range.max));}
@@ -16572,7 +16741,7 @@ async function _vbFixWordCountIfNeededFULL_DISABLED(scriptText,roleLabelPlain,pr
       +'Script saat ini ('+wc+' kata): '+current+'\n\n'
       +'Balas HANYA dengan teks script hasil perbaikan (hitung ulang sendiri sampai masuk rentang '+range.min+'-'+range.max+' kata sebelum menjawab), tanpa tanda kutip di awal/akhir, tanpa penjelasan, tanpa markdown.';
     try{
-      let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
+      let{resp,rawText}=await _vbFetchWithClaudeFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:512,thinkingConfig:{thinkingLevel:'minimal'}}},30000,1);
       if(!resp.ok){console.warn('[_vbFixWordCountIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
       let data=JSON.parse(rawText);
       if(data.error){console.warn('[_vbFixWordCountIfNeeded] error API:',data.error.message);return current;}
@@ -16671,7 +16840,7 @@ async function _vbFixWordCountBatchIfNeeded(prod){
       +'Script yang perlu diperbaiki:\n'+listText+'\n\n'
       +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (hitung ulang sendiri sampai masuk rentang '+range.min+'-'+range.max+' kata tiap-tiap sebelum menjawab), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
     try{
-      let{resp,rawText,usage}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}},30000,1);
+      let{resp,rawText,usage}=await _vbFetchWithClaudeFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}},30000,1);
       callsMade++;
       _vbTrackFixCall(usage);
       if(!resp.ok){console.warn('[_vbFixWordCountBatchIfNeeded] gagal panggil AI, dibiarkan apa adanya');for(let key of needFix)current[key]=_vbHardEnforceMaxWords(current[key],range.max);return _finish(current);}
@@ -16737,7 +16906,7 @@ async function _vbFixWordCountBatchIfNeededFULL_DISABLED(prod){
       +'Script yang perlu diperbaiki:\n'+listText+'\n\n'
       +'Balas HANYA dengan JSON object satu level, key persis sama seperti di atas ('+needFix.map(function(k){return '"'+k+'"';}).join(', ')+'), value-nya teks script hasil perbaikan (hitung ulang sendiri sampai masuk rentang '+range.min+'-'+range.max+' kata tiap-tiap sebelum menjawab), tanpa tanda kutip nempel di awal/akhir teks, tanpa penjelasan, tanpa markdown. Contoh format: {'+needFix.map(function(k){return '"'+k+'":"..."';}).join(',')+'}';
     try{
-      let{resp,rawText}=await _vbFetchWithGeminiFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}},30000,1);
+      let{resp,rawText}=await _vbFetchWithClaudeFallback({contents:[{parts:[{text:fixPrompt}]}],generationConfig:{maxOutputTokens:768,thinkingConfig:{thinkingLevel:'minimal'},responseMimeType:'application/json'}},30000,1);
       if(!resp.ok){console.warn('[_vbFixWordCountBatchIfNeeded] gagal panggil AI, dibiarkan apa adanya');return current;}
       let data=JSON.parse(rawText);
       if(data.error){console.warn('[_vbFixWordCountBatchIfNeeded] error API:',data.error.message);return current;}
@@ -16786,7 +16955,7 @@ function vbPickTargetAudiencePreset(inputId,presetKey){
 }
 
 // FIX HEMAT BIAYA (permintaan user, Sept 2026): parameter cacheSystem baru
-// (default true) — dikirim ke _vbStreamGeminiJSONWithRetry supaya bisa
+// (default true) — dikirim ke _vbStreamClaudeJSONWithRetry supaya bisa
 // dimatikan KHUSUS untuk panggilan REVISI (vbRevisiProdukAI &
 // vbRevisiSingleAI, yang mengirim cacheSystem=false). Revisi biasanya
 // cuma dipanggil SEKALI per produk (dibatasi juga di sisi UI, lihat
@@ -16843,7 +17012,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // jadi TIDAK PERNAH bisa kena prompt caching Anthropic sama sekali
   // (padahal fitur bulk ini kemungkinan paling sering dipanggil). Sekarang
   // bagian statis dipisah jadi blok "system" tersendiri (_vbBulkSystemPrompt,
-  // ditandai cache_control di _vbStreamGeminiJSONWithRetryModel) — isinya
+  // ditandai cache_control di _vbStreamClaudeJSONWithRetryModel) — isinya
   // TIDAK diubah, cuma DIPINDAH & DIGENERALISASI (referensi ke target
   // audience/jumlah produk yang tadinya nilai langsung sekarang menunjuk
   // generik ke "yang disebutkan user di pesan berikutnya", nilai aslinya
@@ -16952,10 +17121,10 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // produk di batch ini bisa muncul kata-per-kata ke UI lewat onPartial
   // (kalau disediakan pemanggil) — sama seperti mode single, hasil
   // streaming ini cuma PREVIEW. Retry/fallback thinkingConfig tetap sama
-  // persis seperti sebelumnya, dibungkus di _vbStreamGeminiJSONWithRetry.
+  // persis seperti sebelumnya, dibungkus di _vbStreamClaudeJSONWithRetry.
   // _vbBulkSystemPrompt (bagian statis, lihat komentar di atas) dikirim
   // sebagai blok "system" tersendiri supaya bisa kena prompt caching.
-  let{resp,rawText}=await _vbStreamGeminiJSONWithRetry(_promptParts,onPartial,onWait,_vbBulkSystemPrompt,cacheSystem);
+  let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbBulkSystemPrompt,cacheSystem);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -16987,6 +17156,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(resp.status===503||resp.status===529)throw new Error('Server AI Claude masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Claude lagi padat, bukan masalah dari tools.');
     if(resp.status===429)throw new Error('Masih kena rate limit dari Claude walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
     if(resp.status===0)throw new Error('Gagal terhubung ke server AI Claude'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+    var _authQuotaMsg=_pbWorkerAuthQuotaMsg(resp.status,errJson);
+    if(_authQuotaMsg)throw new Error(_authQuotaMsg);
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
   }
   // FIX KONSISTENSI PENANGANAN ERROR: sebelumnya JSON.parse(rawText) di sini
@@ -18632,6 +18803,19 @@ async function vbRegenerateAllBulk(newSettings){
   // mengirim ulang ke AI TANPA arahan topik yang sudah user isi sebelumnya
   // di form Bulk, walau produk itu sebenarnya masih punya topik tersimpan.
   let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,topik:x.topik||'',hookType:x.hookType||'',hookCustom:x.hookCustom||'',overlay:x.overlay||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
+  // FIX HEMAT BIAYA (permintaan user, Sept 2026 — SAMA seperti
+  // _singleProdukCall di _vbRunBulkGenerate/vbGenerateBulkAI, lihat komentar
+  // lengkap di sana): jalur "Generate Ulang Semua" ini sebelumnya TIDAK
+  // PERNAH mengecek jumlah produk — cacheSystem dibiarkan default (true) ke
+  // _vbCallBulkBatch walau sesi bulk-nya cuma isi 1 produk (user isi "1" di
+  // "Mau generate berapa produk?"). Akibatnya kalau user cuma 1 produk lalu
+  // ganti Nada Bicara/Aksen/Target Audience dan pencet "Generate Ulang
+  // Semua", panggilan ini TETAP kena cache_control (cache_creation +25%)
+  // padahal ini juga panggilan sekali-jalan untuk 1 produk — sama persis
+  // kasusnya dengan generate pertama. Sekarang dicek juga di sini supaya
+  // user yang cuma 1 produk konsisten selalu "mode single" (tanpa cache) di
+  // SEMUA jalur generate, bukan cuma generate pertama saja.
+  let _singleProdukCall=(produkList.length===1);
   // SESI BARU (permintaan user, Sept 2026): "Generate Ulang Semua" = 1
   // baris ringkasan tersendiri di panel statistik, terpisah dari sesi
   // generate awal.
@@ -18674,7 +18858,7 @@ async function vbRegenerateAllBulk(newSettings){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
-      },undefined,usedHooksSoFar);
+      },undefined,usedHooksSoFar,(_singleProdukCall?false:undefined));
       dlIncrement();
       // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
       // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
@@ -19404,7 +19588,7 @@ async function vbGenerate3AI(){
   // di bawah) yang beda-beda. Supaya bisa kena prompt caching Anthropic
   // (diskon ~90% baca ulang teks yang identik), bagian statis ini SENGAJA
   // dipisah jadi blok "system" tersendiri (ditandai cache_control di
-  // _vbStreamGeminiJSONWithRetryModel) — bukan digabung jadi satu string
+  // _vbStreamClaudeJSONWithRetryModel) — bukan digabung jadi satu string
   // panjang dengan detail dinamis seperti sebelumnya. Isi instruksinya
   // TIDAK berubah, cuma dipindah lokasinya; dua tempat yang tadinya
   // menyisipkan nilai dinamis langsung di sini (target audience di aturan
@@ -19507,7 +19691,7 @@ async function vbGenerate3AI(){
     // akhirnya (dulu) muncul pesan gagal setelah 3x percobaan. Sekarang
     // retry-nya tanpa batas jumlah percobaan dan label tombol diganti
     // sementara jadi status "⏳ nunggu" yang jujur selama proses retry
-    // otomatis berlangsung. _vbStreamGeminiJSONWithRetry membungkus jalur
+    // otomatis berlangsung. _vbStreamClaudeJSONWithRetry membungkus jalur
     // streamGenerateContent (buat efek real-time) SEKALIGUS retry &
     // fallback thinkingConfig — hasilnya dibungkus dalam bentuk {resp,rawText}
     // yang PERSIS sama seperti generateContent biasa, jadi semua kode
@@ -19528,7 +19712,7 @@ async function vbGenerate3AI(){
       _vbCurrentCallMode='single'; // LOG RIWAYAT (permintaan user, Sept 2026): jalur ini (mode single/1 produk lewat wizard) dicatat sebagai "Single" — lihat _vbTrackUsage & _vbLogUsageEvent.
       _vbCurrentCallProdukCount=1;
       _vbCurrentCallFotoCount=VB.produkFotoBase64?1:0;
-      return _vbStreamGeminiJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt,false);
+      return _vbStreamClaudeJSONWithRetry(_vbPromptParts,null,_vbOnWait,_vbScript3SystemPrompt,false);
     })();
     console.log('[vbGenerate3AI] status:',resp.status,'body:',rawText.substring(0,500));
     if(!resp.ok){
@@ -19539,6 +19723,8 @@ async function vbGenerate3AI(){
       if(resp.status===503||resp.status===529)throw new Error('Server AI Claude masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Claude lagi padat, bukan masalah dari tools.');
       if(resp.status===429)throw new Error('Masih kena rate limit dari Claude walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
       if(resp.status===0)throw new Error('Gagal terhubung ke server AI Claude'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+      var _authQuotaMsg=_pbWorkerAuthQuotaMsg(resp.status,errJson);
+      if(_authQuotaMsg)throw new Error(_authQuotaMsg);
       throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
     }
     // FIX KONSISTENSI PENANGANAN ERROR (sama seperti _vbCallBulkBatch): kalau
