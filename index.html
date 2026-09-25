@@ -19721,7 +19721,20 @@ async function vbGenerate3AI(){
     // sampai terjadi) yang lebih rapi & berpotensi mengurangi trigger
     // panggilan "perbaikan kata" juga (skrip lebih natural pas dari awal).
     +'6. RITME KALIMAT — susun jadi beberapa kalimat pendek/sedang yang masing-masing diakhiri titik (.) secara wajar (sesuai makna kalimatnya selesai di situ), JANGAN ditulis sebagai satu kalimat panjang tanpa titik dari awal sampai akhir — selain lebih enak diucapkan di depan kamera, ini juga bikin sistem pemotong otomatis app (kalau skrip kelebihan kata) bisa berhenti di akhir kalimat yang wajar, bukan di tengah kalimat.\n'
-    +'7. WAJIB hitung sendiri jumlah kata tiap bagian (HOOK/STORY/CTA) SEBELUM menjawab: draft dulu, HITUNG kata (pisah per spasi, jangan ditebak), kalau di luar rentang '+range.min+'-'+range.max+' kata (idealnya '+range.target+') REVISI lalu hitung ulang sampai pas, baru tulis jawaban final. Ini pengganti auto-koreksi yang sudah dimatikan — hasil pertama WAJIB langsung pas.\n\n'
+    // FIX (permintaan user, Sept 2026): jalur single ini SEKARANG TIDAK
+    // PERNAH lagi memanggil AI follow-up untuk "rapikan jumlah kata"
+    // (_vbFixWordCountBatchIfNeeded TIDAK DIPANGGIL LAGI di titik
+    // pemanggilnya, lihat komentar di sana) — apapun hasil generate
+    // PERTAMA ini yang dipakai (kecuali kelebihan kata, masih ada jaring
+    // pengaman LOKAL murni JS lewat _vbHardEnforceMaxWords, BUKAN
+    // panggilan API, lihat komentar di situ). Karena tidak ada lagi
+    // kesempatan kedua, poin 7 di bawah ini DIPERKUAT total — dari
+    // sekadar "hitung kata sebelum jawab" jadi teknik "penomoran tiap
+    // kata satu-satu" yang sudah TERBUKTI jauh lebih akurat di jalur
+    // bulk (_vbBulkSystemPrompt poin 17) — draft dulu, nomori tiap kata,
+    // bandingkan ke rentang, revisi & nomori ulang sampai pas, BARU
+    // dijawab final.
+    +'7. WAJIB HITUNG KATA SENDIRI SEBELUM MENJAWAB (PALING PENTING, jangan dilewati — TIDAK ADA LAGI proses koreksi otomatis terpisah sesudah ini, hasil PERTAMA ini WAJIB sudah pas) — untuk SETIAP bagian (HOOK, STORY, CTA): (1) draft dulu kalimatnya di kepalamu, JANGAN langsung ditulis sebagai jawaban; (2) HITUNG jumlah katanya sendiri dengan cara MEMBERI NOMOR URUT pada TIAP kata yang dipisah per spasi (bukan per karakter/suku kata) — angka terakhir yang kamu tulis adalah jumlah kata sebenarnya, JANGAN ditaksir/dikira-kira. Contoh cara menomori (ini CONTOH TEKNIK saja, BUKAN target kata — target asli tetap rentang di langkah (3) di bawah): "1.kalau 2.aku 3.bilang 4.ada 5.satu 6.item 7.yang 8.bisa 9.ngubah 10.vibe 11.outfit 12.lu 13.dari 14.boring 15.jadi 16.instantly 17.chic, 18.pasti 19.lo 20.langsung 21.mikir 22.apa 23.ya? 24.nah 25.coba 26.liat 27.ini"; (3) BANDINGKAN hasil hitungan bernomor itu dengan target rentang '+range.min+'-'+range.max+' kata (idealnya persis '+range.target+' kata); (4) kalau masih di luar rentang '+range.min+'-'+range.max+', REVISI draft itu (tambah/kurangi kata seperlunya, TANPA mengubah makna/alur/nada/aturan lain manapun) LALU HITUNG ULANG dengan cara menomori seperti langkah (2) — ulangi proses nomori-bandingkan-revisi ini sampai angka nomor terakhirnya BENAR-BENAR masuk rentang '+range.min+'-'+range.max+' kata, baru setelah itu tulis sebagai jawaban final. DILARANG KERAS menjawab draft pertama begitu saja tanpa dihitung & direvisi dulu, dan DILARANG menebak jumlah kata tanpa benar-benar menomori tiap kata satu-satu. Proses nomori-revisi ini WAJIB dilakukan untuk KETIGA bagian (HOOK, STORY, CTA) — krusial karena TIDAK ADA lagi proses perbaikan jumlah kata terpisah belakangan yang bisa menambal kalau ini meleset.\n\n'
     +'Balas HANYA dengan JSON array berisi TEPAT 3 object, tanpa teks lain, tanpa markdown. Format: [{"role":"hook","script":"..."},{"role":"story","script":"..."},{"role":"cta","script":"..."}]';
   // Bagian yang BEDA-BEDA tiap generate (produk/karakter/target audience
   // spesifik kali ini) — ini yang jadi pesan user, TIDAK ikut di-cache
@@ -19907,76 +19920,40 @@ async function vbGenerate3AI(){
     // Salin yang jadi aktif sesudahnya) baru muncul begitu skrip benar-
     // benar final. Lihat blok yang sama persis di bawah, setelah for-loop.
 
-    // ── Rapikan jumlah kata di BACKGROUND (senyap), SETELAH animasi ketik
-    // selesai (lihat await di atas) — supaya tidak ada perubahan mendadak
-    // di tengah animasi yang sedang berjalan ────────────────────────────
-    // VAI._isGenerating TETAP true sampai bagian ini kelar (dilepas di
-    // finally di bawah) supaya tidak nabrak kalau user buru-buru generate
-    // lagi sebelum proses rapi-rapi ini beres — tapi UI tombol sudah balik
-    // normal dari sisi user, jadi tidak kelihatan seperti macet.
-    // FIX HEMAT BIAYA (permintaan user, Sept 2026): sebelumnya di sini ada
-    // loop yang manggil _vbFixWordCountIfNeeded SATU-SATU per bagian (bisa
-    // sampai 3 panggilan AI terpisah kalau HOOK, STORY, DAN CTA sama-sama
-    // meleset). Sekarang digabung jadi 1 panggilan lewat
-    // _vbFixWordCountBatchIfNeeded — worst case per produk turun dari 3
-    // panggilan penuh jadi 1 panggilan penuh (lihat komentar lengkap di
-    // definisi fungsinya).
-    // FIX BUG (ditemukan saat audit statistik biaya, Sept 2026): sama
-    // seperti di _vbCallBulkBatch — panggilan perbaikan kata ini murni
-    // teks, tidak pernah resend foto, jadi fotoCount dipaksa 0 di sini
-    // (produkCount di jalur single memang sudah 1) supaya baris riwayat
-    // "Perbaikan Kata" di panel statistik tidak salah tampil ada foto.
-    _vbCurrentCallProdukCount=1;
-    _vbCurrentCallFotoCount=0;
-    let _fixedBatch=await _vbFixWordCountBatchIfNeeded({hook:scripts[0]||'',story:scripts[1]||'',cta:scripts[2]||'',produk:produkNama});
-    let _batchKeys=['hook','story','cta'];
+    // ── Rapikan jumlah kata SECARA LOKAL (bukan panggilan AI lagi) ──────
+    // FIX (permintaan user, Sept 2026): sebelumnya di sini ada 1 panggilan
+    // AI tambahan (_vbFixWordCountBatchIfNeeded) buat nulis ulang HOOK/
+    // STORY/CTA kalau jumlah katanya meleset dari rentang. Sekarang
+    // panggilan itu DIHAPUS TOTAL sesuai permintaan user — TIDAK ADA LAGI
+    // pemanggilan AI untuk koreksi jumlah kata, apapun hasilnya. Sebagai
+    // gantinya, instruksi di _vbScript3SystemPrompt (poin 7) diperkuat
+    // pakai teknik "penomoran tiap kata" (lihat komentar di sana) supaya
+    // hasil generate PERTAMA sudah pas dari sononya.
+    // Yang tersisa di sini HANYA jaring pengaman LOKAL, murni JS, TANPA
+    // panggilan API sama sekali (jadi gratis & instan, tidak ada lagi
+    // proses "background senyap" yang perlu ditunggu):
+    // - Kalau hasilnya KELEBIHAN kata dari batas atas (range.max):
+    //   _vbHardEnforceMaxWords motong ke titik kalimat alami terdekat
+    //   (cari titik/tanya/seru dulu, baru koma, baru potong paksa — lihat
+    //   definisi fungsinya).
+    // - Kalau hasilnya KURANG kata dari batas bawah (range.min): TIDAK ADA
+    //   LAGI yang membetulkan otomatis (dulu ini juga ditambal panggilan
+    //   AI). User cuma dikasih tahu lewat label kuning di bawah script
+    //   terkait supaya bisa diedit manual kalau perlu.
     for(let si=0;si<scripts.length;si++){
-      // FIX (bug "salinan Hook bisa beda dengan yang tampil"): simpan
-      // teks ASLI (sebelum dirapikan) supaya nanti bisa dicek apakah user
-      // sudah mengedit textarea-nya sendiri sementara rapikan-kata ini
-      // masih berjalan di background.
       let originalScript=scripts[si];
-      let fixed=_fixedBatch[_batchKeys[si]]!==undefined?_fixedBatch[_batchKeys[si]]:scripts[si];
-      // FIX (akar masalah "keranjang kuning" lolos meski sudah ada sanitizer):
-      // _vbFixWordCountBatchIfNeeded MANGGIL AI LAGI buat nulis ulang script
-      // biar pas jumlah katanya. Sanitizer yang jalan SEBELUM ini (di atas)
-      // cuma membersihkan hasil generate AWAL — begitu AI menulis ulang
-      // teksnya demi pas-in jumlah kata, dia bisa (dan pada kasus nyata
-      // TERBUKTI) menyisipkan lagi frasa terlarang seperti "keranjang
-      // kuning" karena prompt "rapikan kata" ini tidak mengulang larangan
-      // itu. Hasil rewrite sebelumnya dipakai APA ADANYA tanpa disaring
-      // ulang. Sekarang disaring lagi di sini sebelum dipakai.
-      fixed=_vbSanitizeForbiddenPhrases(fixed);
+      let fixed=_vbHardEnforceMaxWords(scripts[si],range.max);
       if(fixed!==scripts[si]){
         scripts[si]=fixed;
         let ta=document.getElementById('vb-bulk-script-'+si);
-        // FIX (bug "salinan Hook bisa beda dengan yang tampil"): dulu baris
-        // ini SELALU menimpa ta.value dengan hasil rapikan, walaupun user
-        // sudah sempat mengedit textarea itu sendiri sementara rapikan-kata
-        // berjalan di background — editan user hilang tanpa peringatan.
-        // Sekarang timpa HANYA kalau isi textarea masih sama persis dengan
-        // teks asli sebelum dirapikan (artinya user belum menyentuhnya).
         if(ta && ta.value.trim()===(originalScript||'').trim()){ta.value=fixed;vbBulkUpdateJson(si);}
         if(VB_BULK_ITEMS[si])VB_BULK_ITEMS[si].script=fixed;
       }
-      // FIX LANJUTAN (bug yang sama seperti BUG#19, tapi kejadian di titik
-      // BERBEDA): vbBulkUpdateJson() di atas cuma nulis angka polos ("23/25
-      // kata") tanpa peringatan apa pun — baik lewat/kurang. Padahal titik
-      // INI (setelah proses rapikan-kata background selesai) adalah momen
-      // TERAKHIR kita tahu pasti apakah hasil akhirnya PAS 25 kata atau
-      // tidak (percobaan AI sudah habis di titik ini). Kalau masih meleset,
-      // kasih tahu user secara eksplisit di sini — jangan biarkan angka
-      // polos bikin user kira semuanya sudah pas.
-      // PENTING: cek ini di LUAR if(fixed!==scripts[si]) di atas — kalau AI
-      // GAGAL TOTAL memperbaiki (limit tercapai / exception / dlCheck gagal),
-      // _vbFixWordCountBatchIfNeeded balikin teks yang SAMA PERSIS seperti
-      // input (fixed===scripts[si]), jadi blok if di atas dilewati — tapi
-      // teksnya tetap belum 25 kata dan user tetap wajib diberi tahu.
       let _finalWc=fixed.trim().split(/\s+/).filter(Boolean).length;
       if(_finalWc<range.min||_finalWc>range.max){
         let wcLabelFinal=document.getElementById('vb-bulk-wc-'+si);
         if(wcLabelFinal){
-          wcLabelFinal.textContent=_finalWc+'/'+range.min+'-'+range.max+' kata — masih kurang kata setelah 1x perbaikan AI, cek/edit lagi manual';
+          wcLabelFinal.textContent=_finalWc+'/'+range.min+'-'+range.max+' kata — di luar rentang, cek/edit lagi manual';
           wcLabelFinal.style.color='#e0a05c';
         }
       }
