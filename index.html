@@ -17088,7 +17088,17 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // aman tapi percuma, jadi lebih jujur langsung dimatikan di sumbernya.
   let _vbSingleProdukInThisCall=(batch.length===1);
   if(_vbSingleProdukInThisCall)cacheSystem=false;
-  _vbCurrentCallMode='bulk'; // LOG RIWAYAT (permintaan user, Sept 2026): tiap panggilan lewat jalur ini dicatat sebagai mode "Bulk" — lihat _vbTrackUsage & _vbLogUsageEvent.
+  // FIX HEMAT TOKEN (Opsi 2, lanjutan — permintaan user "cek statistik
+  // biaya & cache"): sebelumnya baris ini SELALU menulis mode "Bulk" ke
+  // riwayat statistik apa pun jumlah produknya — jadi walau biaya ASLI
+  // panggilan 1-produk sudah turun (system prompt pendek, tanpa cache),
+  // labelnya di panel statistik tetap menyesatkan seolah masih lewat
+  // jalur Bulk penuh. Sekarang label ikut mencerminkan mode hemat yang
+  // SEBENARNYA dipakai: "Single" kalau batch ini cuma 1 produk, "Bulk"
+  // kalau 2+. Ini MURNI soal label/pencatatan (dibaca _vbLogUsageEvent
+  // buat kolom "Mode" di riwayat/CSV) — tidak mengubah request yang
+  // dikirim ke API sama sekali.
+  _vbCurrentCallMode=_vbSingleProdukInThisCall?'single':'bulk';
   // LOG RIWAYAT (permintaan user, Sept 2026, "biaya foto per-generate"):
   // catat jumlah produk & jumlah foto di PANGGILAN INI saja (bisa beda dari
   // total 1 sesi kalau sesi itu dipecah jadi beberapa batch) — dibaca
