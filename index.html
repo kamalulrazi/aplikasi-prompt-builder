@@ -17232,14 +17232,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+'.\n'
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+'.\n'
     +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n'
-    // FIX HEMAT TOKEN (permintaan user, Sept 2026): klausa "berlaku PENUH &
-    // TERPISAH..." dibuang dari sini — sudah tercakup di system prompt
-    // (poin 3 versi single / poin 13 versi bulk), jadi di sini murni
-    // pengulangan yang kena tagihan full price tiap panggilan (single
-    // maupun bulk, karena bagian "prompt" ini TIDAK ikut kena cache).
-    // Instruksi intinya (rentang kata wajib) tetap ada, cuma penjelasan
-    // tambahannya yang sudah redundan yang dipangkas.
-    +'Rentang jumlah kata WAJIB tiap script: '+range.min+'-'+range.max+' kata.\n\n'
+    +'Rentang jumlah kata WAJIB tiap script: '+range.min+'-'+range.max+' kata — berlaku PENUH & TERPISAH untuk HOOK, STORY, DAN CTA (bukan dibagi rata ke ketiganya).\n\n'
     +'Daftar produk ('+batch.length+' produk) — nama produk cuma referensi konteks, BUKAN teks wajib salin (tulis ulang natural, jangan tempel apa adanya kalau nama produknya panjang). Manfaatkan "keunggulan" di STORY:\n'+produkListText+'\n\n'
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
     // FIX (permintaan user: hook antar produk masih kedengaran "tempelan"
@@ -17251,15 +17244,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // dikirim ke tiap panggilan berikutnya sebagai larangan eksplisit, supaya
     // variasi hook terjaga LINTAS BATCH, bukan cuma di dalam 1 batch.
     +(usedHooks&&usedHooks.length?'HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA (batch lain, dalam sesi generate yang sama) — WAJIB DIHINDARI, jangan pakai kalimat yang sama/mirip maupun pola/struktur pembuka yang sama (misal sama-sama pertanyaan retoris dengan bentuk kalimat serupa, atau sama-sama mulai dengan gambaran situasi sehari-hari yang mirip):\n'+usedHooks.map(function(h,i){return'- "'+h+'"';}).join('\n')+'\n\nHOOK produk-produk di batch ini WAJIB pakai sudut masuk & pola kalimat yang BEDA dari semua contoh di atas, supaya kalau semua produk bulk ini dibaca berurutan dari awal, tidak ada 2 hook pun yang kedengaran seperti rumus yang sama ditempel ulang.\n\n':'')
-    // FIX HEMAT TOKEN (permintaan user, Sept 2026, khusus kasus 1 produk):
-    // kalimat "urutan sesuai Gambar N" ini cuma berguna kalau ada 2+ foto
-    // yang perlu dicocokkan ke produknya masing-masing. Untuk 1 produk (1
-    // foto) catatan per-produk yang sudah ditempel di produkListText di
-    // atas ("ADA FOTO REFERENSI PRODUK ASLI...") sudah cukup sendirian —
-    // jadi syaratnya diubah dari >0 ke >1 supaya kalimat ini di-skip pas
-    // cuma 1 produk (jalur bulk 2+ produk tetap dapat kalimat ini seperti
-    // biasa, tidak berubah).
-    +(_imgCounter>1?'Foto-foto yang dilampirkan supaya kamu tahu PERSIS jenis/tipe tiap produk (urutan sesuai "Gambar N" di daftar produk di atas).\n\n':'')
+    +(_imgCounter>0?'Foto-foto yang dilampirkan supaya kamu tahu PERSIS jenis/tipe tiap produk (urutan sesuai "Gambar N" di daftar produk di atas).\n\n':'')
     +'Ingat: WAJIB balikin TEPAT '+batch.length+' object per produk, urutan sama seperti daftar.';
 
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
