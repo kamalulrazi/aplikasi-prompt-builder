@@ -16167,6 +16167,53 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       }
     }catch(e){
       rawText='';
+      // FIX BUG BIAYA & KEANDALAN (audit mendalam, laporan user Sept 2026 —
+      // "jangan sampai ada bug biaya sekecil apapun"): kalau timeout/abort
+      // (controller.abort() dari setTimeout 30/45 detik di atas, atau koneksi
+      // putus) terjadi SETELAH streamOk sempat ditandai true (artinya header
+      // response sudah OK & sudah mulai baca body-nya, TAPI stream-nya belum
+      // sempat selesai/"done" waktu exception ini muncul), SEBELUMNYA
+      // streamOk TIDAK PERNAH direset balik ke false di sini — akibatnya blok
+      // "if(streamOk){...}" di bawah (setelah try/catch/finally) tetap
+      // dianggap SUKSES walau textBuf isinya cuma JSON TERPOTONG separuh,
+      // DAN resp (masih {ok:true,status:200} dari fetch() yang tadi sempat
+      // berhasil) ikut terbawa apa adanya. Dua akibatnya: (1) jaring pengaman
+      // retry otomatis ~3 menit (MAX_TOTAL_WAIT_MS) SAMA SEKALI tidak sempat
+      // jalan untuk kasus timeout paling umum ini (fungsi langsung "return"
+      // di jalur sukses, bukan lanjut ke logika retry), padahal timeout
+      // seharusnya masuk kategori transient yang WAJIB dicoba ulang otomatis
+      // sama seperti 429/503/529 (lihat komentar "isTransient" di bawah);
+      // (2) pemanggil (_vbCallBulkBatch/vbGenerate3AI) menerima resp.ok=true
+      // dengan JSON rusak, gagal parse, lalu MENYERAH & user harus pencet
+      // tombol Generate lagi SECARA MANUAL dari awal — padahal token attempt
+      // yang gagal tadi (kalau sempat lewat message_start, usageInfo sudah
+      // keisi & tetap dicatat lewat _vbTrackUsage di jalur "sukses palsu" ini)
+      // KEMUNGKINAN BESAR sudah ditagih beneran oleh Anthropic. Hasilnya:
+      // biaya dobel nyata (attempt gagal yang ditagih + generate ulang manual
+      // dari nol yang juga ditagih) untuk 1x niat generate, murni gara-gara
+      // klasifikasi sukses/gagal yang salah — BUKAN gara-gara 429/503 yang
+      // memang sudah ditangani rapi. Sekarang streamOk & resp direset di sini
+      // supaya exception APAPUN yang terjadi setelah fetch() (baik gagal
+      // total maupun putus di tengah streaming) SELALU jatuh ke jalur retry
+      // transient yang sama (status jadi 0, identik dengan fetch() gagal
+      // total) — konsisten dengan penanganan status 0 yang sudah ada di
+      // bawah, dan retry otomatis ~3 menit ikut berlaku untuk kasus ini juga.
+      //
+      // CATATAN BIAYA (supaya fix keandalan di atas TIDAK bikin statistik
+      // biaya jadi under-count): kalau streamOk sempat true, usageInfo
+      // BISA SAJA sudah keisi dari event message_start sebelum abort ini
+      // terjadi — token itu kemungkinan besar SUDAH ditagih beneran oleh
+      // Anthropic walau attempt-nya dibuang & di-retry dari nol. Sama
+      // persis seperti pola di cabang "streamOk&&streamErrType" di bawah
+      // (error di tengah stream dari Anthropic sendiri), dicatat DULU ke
+      // _vbTrackUsage SEBELUM streamOk direset, supaya baik kasus timeout
+      // MAUPUN error di tengah stream, dua-duanya konsisten tidak pernah
+      // kehilangan catatan biaya yang sudah benar-benar tertagih.
+      if(streamOk&&(usageInfo.input_tokens>0||usageInfo.cache_creation_input_tokens>0||usageInfo.cache_read_input_tokens>0)){
+        try{_vbTrackUsage(usageInfo);}catch(e2){}
+      }
+      streamOk=false;
+      resp=null;
       // Simpan pesan error asli (nama + pesan) sebelum hilang. Kalau abort
       // karena timeout, pakai pesan timeout yang sudah jelas; selain itu
       // pakai pesan asli dari browser apa adanya.
@@ -17106,15 +17153,42 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // berubah (tetap system prompt pendek & tanpa cache, memang sudah benar).
   if(totalProdukInSesi===undefined)totalProdukInSesi=batch.length;
   let _vbSingleProdukInThisCall=(totalProdukInSesi===1);
-  if(_vbSingleProdukInThisCall)cacheSystem=false;
+  // FIX BUG BIAYA LANJUTAN (laporan user, Sept 2026 — "bulk 3 produk kok
+  // malah lebih mahal daripada 3x single terpisah"): fix di atas (pakai
+  // totalProdukInSesi, bukan batch.length) BENAR untuk keputusan LABEL
+  // ("Single" vs "Bulk" di statistik — lihat komentar di bawah), TAPI SALAH
+  // kalau dipakai juga untuk keputusan PROMPT+CACHE. Akibatnya: generate
+  // Bulk 3 produk yang KETIGANYA pakai foto (jadi otomatis dipecah jadi 3
+  // panggilan API terpisah isi 1 produk oleh _vbBuildPhotoAwareBatches)
+  // tetap dipaksa pakai _vbBulkSystemPrompt raksasa (17 poin, sengaja
+  // digemukkan ~3,6x dari versi aslinya SEMATA supaya tembus syarat minimum
+  // cache Haiku 4.5) + cache_control, padahal tiap panggilan itu SECARA
+  // NYATA cuma memproses 1 produk sendirian — beban kerjanya sama persis
+  // dengan mode single biasa. Nulis-cache (+25%) di panggilan pertama tidak
+  // pernah balik modal hanya dengan 2 baca-cache (diskon 90%) susulan kalau
+  // prompt yang di-cache itu sendiri sudah digelembungkan berkali-kali
+  // lipat dari yang sebenarnya perlu — jadi TOTAL akhirnya (tulis-cache +
+  // 2x baca-cache + 3x konten unik + 3x output) masih kalah murah
+  // dibanding 3x panggilan single-mode polos (prompt ringkas ~7 poin,
+  // TANPA cache sama sekali, karena memang di bawah syarat minimum cache
+  // jadi tidak perlu dipaksa lolos). Variabel baru di bawah ini MURNI
+  // menentukan prompt+cache berdasarkan batch.length PANGGILAN INI (beban
+  // kerja NYATA saat ini) — kalau batch ini genuinely >1 produk (bulk
+  // beneran, biasanya produk tanpa foto yang digabung oleh
+  // _vbBuildPhotoAwareBatches), prompt besar+cache tetap dipakai seperti
+  // biasa (di situ caching-nya memang kepakai berkali-kali dan worth it).
+  let _vbUseBigPromptAndCache=(batch.length>1);
+  if(!_vbUseBigPromptAndCache)cacheSystem=false;
   // FIX HEMAT TOKEN (Opsi 2, lanjutan — permintaan user "cek statistik
   // biaya & cache"): label mode di riwayat statistik ("Single" vs "Bulk")
   // sekarang ikut mengikuti totalProdukInSesi di atas (BUKAN batch.length
   // panggilan ini) — jadi generate Bulk 3 produk-bersama-foto yang tiap
   // panggilannya kebetulan cuma 1 produk tetap tercatat jujur sebagai
   // "Bulk", bukan "Single" yang menyesatkan. Ini MURNI soal label/pencatatan
-  // (dibaca _vbLogUsageEvent buat kolom "Mode" di riwayat/CSV) — tidak
-  // mengubah request yang dikirim ke API sama sekali.
+  // (dibaca _vbLogUsageEvent buat kolom "Mode" di riwayat/CSV) — SENGAJA
+  // TETAP terpisah dari _vbUseBigPromptAndCache di atas (yang menentukan
+  // request yang beneran dikirim ke API) — lihat komentar panjang di atas
+  // kenapa dua hal ini tidak boleh disamakan lagi.
   _vbCurrentCallMode=_vbSingleProdukInThisCall?'single':'bulk';
   // LOG RIWAYAT (permintaan user, Sept 2026, "biaya foto per-generate"):
   // catat jumlah produk & jumlah foto di PANGGILAN INI saja (bisa beda dari
@@ -17272,14 +17346,18 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // persis seperti sebelumnya, dibungkus di _vbStreamClaudeJSONWithRetry.
   // _vbBulkSystemPrompt (bagian statis, lihat komentar di atas) dikirim
   // sebagai blok "system" tersendiri supaya bisa kena prompt caching.
-  // FIX HEMAT TOKEN (Opsi 2): kalau cuma 1 produk, kirim system prompt
-  // RINGKAS (_vbBuildSingleModeSystemPrompt) — bukan _vbBulkSystemPrompt
-  // yang jauh lebih panjang — supaya request-nya seringan mode single yang
-  // asli. _vbBulkSystemPrompt di atas tetap dibangun apa adanya (cuma
-  // string JS lokal, tidak pernah dikirim ke API kalau tidak dipilih di
-  // sini, jadi tidak menambah biaya apapun) supaya kode jalur bulk >1
-  // produk tidak perlu disentuh sama sekali.
-  let _vbEffectiveSystemPrompt=_vbSingleProdukInThisCall?_vbBuildSingleModeSystemPrompt(range):_vbBulkSystemPrompt;
+  // FIX HEMAT TOKEN (Opsi 2, diperbaiki — lihat komentar panjang di dekat
+  // deklarasi _vbUseBigPromptAndCache di atas): kalau PANGGILAN INI cuma
+  // berisi 1 produk (batch.length===1 — baik karena memang totalnya 1,
+  // MAUPUN karena dipecah paksa oleh _vbBuildPhotoAwareBatches gara-gara
+  // ada foto), kirim system prompt RINGKAS (_vbBuildSingleModeSystemPrompt,
+  // tanpa cache) — bukan _vbBulkSystemPrompt yang jauh lebih panjang &
+  // sengaja digemukkan cuma buat lolos syarat cache — supaya request-nya
+  // seringan mode single yang asli. SEBELUMNYA dicek pakai
+  // _vbSingleProdukInThisCall (ikut totalProdukInSesi) — itu sudah benar
+  // untuk LABEL statistik, tapi salah dipakai di sini juga (lihat detail
+  // biaya di komentar atas).
+  let _vbEffectiveSystemPrompt=_vbUseBigPromptAndCache?_vbBulkSystemPrompt:_vbBuildSingleModeSystemPrompt(range);
   let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
