@@ -17154,30 +17154,29 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   if(totalProdukInSesi===undefined)totalProdukInSesi=batch.length;
   let _vbSingleProdukInThisCall=(totalProdukInSesi===1);
   // FIX BUG BIAYA LANJUTAN (laporan user, Sept 2026 — "bulk 3 produk kok
-  // malah lebih mahal daripada 3x single terpisah"): fix di atas (pakai
-  // totalProdukInSesi, bukan batch.length) BENAR untuk keputusan LABEL
-  // ("Single" vs "Bulk" di statistik — lihat komentar di bawah), TAPI SALAH
-  // kalau dipakai juga untuk keputusan PROMPT+CACHE. Akibatnya: generate
-  // Bulk 3 produk yang KETIGANYA pakai foto (jadi otomatis dipecah jadi 3
-  // panggilan API terpisah isi 1 produk oleh _vbBuildPhotoAwareBatches)
-  // tetap dipaksa pakai _vbBulkSystemPrompt raksasa (17 poin, sengaja
-  // digemukkan ~3,6x dari versi aslinya SEMATA supaya tembus syarat minimum
-  // cache Haiku 4.5) + cache_control, padahal tiap panggilan itu SECARA
-  // NYATA cuma memproses 1 produk sendirian — beban kerjanya sama persis
-  // dengan mode single biasa. Nulis-cache (+25%) di panggilan pertama tidak
-  // pernah balik modal hanya dengan 2 baca-cache (diskon 90%) susulan kalau
-  // prompt yang di-cache itu sendiri sudah digelembungkan berkali-kali
-  // lipat dari yang sebenarnya perlu — jadi TOTAL akhirnya (tulis-cache +
-  // 2x baca-cache + 3x konten unik + 3x output) masih kalah murah
-  // dibanding 3x panggilan single-mode polos (prompt ringkas ~7 poin,
-  // TANPA cache sama sekali, karena memang di bawah syarat minimum cache
-  // jadi tidak perlu dipaksa lolos). Variabel baru di bawah ini MURNI
-  // menentukan prompt+cache berdasarkan batch.length PANGGILAN INI (beban
-  // kerja NYATA saat ini) — kalau batch ini genuinely >1 produk (bulk
-  // beneran, biasanya produk tanpa foto yang digabung oleh
-  // _vbBuildPhotoAwareBatches), prompt besar+cache tetap dipakai seperti
-  // biasa (di situ caching-nya memang kepakai berkali-kali dan worth it).
-  let _vbUseBigPromptAndCache=(batch.length>1);
+  // malah lebih mahal daripada 3x single terpisah"): sempat DIUBAH ke
+  // batch.length (bukan totalProdukInSesi) khusus untuk keputusan PROMPT+
+  // CACHE ini, karena kalau ketiga produk pakai foto (jadi otomatis dipecah
+  // jadi 3 panggilan API terpisah isi 1 produk oleh _vbBuildPhotoAwareBatches),
+  // memaksa _vbBulkSystemPrompt raksasa (17 poin, digemukkan ~3,6x supaya
+  // tembus syarat minimum cache Haiku 4.5) + cache_control di tiap panggilan
+  // yang SECARA NYATA cuma 1 produk terbukti LEBIH MAHAL secara matematis
+  // (nulis-cache +25% di panggilan pertama tidak balik modal cuma dari 2
+  // baca-cache susulan) dibanding 3x panggilan single-mode polos tanpa cache.
+  //
+  // KEPUTUSAN BARU (permintaan user, ronde berikutnya): user SUDAH TAHU &
+  // TERIMA trade-off biaya di atas (sudah dijelaskan & dihitung — untuk sesi
+  // kecil ini beneran lebih mahal, baru balik modal di sekitar ±10 produk
+  // berfoto per sesi) dan MEMILIH TETAP pakai prompt besar+cache begitu user
+  // sendiri men-set jumlah produk 2 atau lebih di wizard Bulk — TIDAK PEDULI
+  // batch/panggilan API-nya kebetulan kepecah jadi isi 1 gara-gara foto atau
+  // tidak. Jadi baris ini BALIK pakai totalProdukInSesi (bukan batch.length)
+  // — sama seperti versi SEBELUM fix lanjutan di atas — supaya "generate 3
+  // produk sekaligus" konsisten selalu kena cache_control + prompt besar,
+  // walau tiap panggilannya kepecah isi 1. Kalau user cuma set 1 produk
+  // (totalProdukInSesi===1, genuinely single), tetap prompt pendek & tanpa
+  // cache seperti biasa (memang sudah benar, tidak disentuh).
+  let _vbUseBigPromptAndCache=(totalProdukInSesi>1);
   if(!_vbUseBigPromptAndCache)cacheSystem=false;
   // FIX HEMAT TOKEN (Opsi 2, lanjutan — permintaan user "cek statistik
   // biaya & cache"): label mode di riwayat statistik ("Single" vs "Bulk")
@@ -17346,17 +17345,19 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // persis seperti sebelumnya, dibungkus di _vbStreamClaudeJSONWithRetry.
   // _vbBulkSystemPrompt (bagian statis, lihat komentar di atas) dikirim
   // sebagai blok "system" tersendiri supaya bisa kena prompt caching.
-  // FIX HEMAT TOKEN (Opsi 2, diperbaiki — lihat komentar panjang di dekat
-  // deklarasi _vbUseBigPromptAndCache di atas): kalau PANGGILAN INI cuma
-  // berisi 1 produk (batch.length===1 — baik karena memang totalnya 1,
-  // MAUPUN karena dipecah paksa oleh _vbBuildPhotoAwareBatches gara-gara
-  // ada foto), kirim system prompt RINGKAS (_vbBuildSingleModeSystemPrompt,
-  // tanpa cache) — bukan _vbBulkSystemPrompt yang jauh lebih panjang &
-  // sengaja digemukkan cuma buat lolos syarat cache — supaya request-nya
-  // seringan mode single yang asli. SEBELUMNYA dicek pakai
-  // _vbSingleProdukInThisCall (ikut totalProdukInSesi) — itu sudah benar
-  // untuk LABEL statistik, tapi salah dipakai di sini juga (lihat detail
-  // biaya di komentar atas).
+  // FIX HEMAT TOKEN (Opsi 2 — lihat komentar panjang & KEPUTUSAN BARU di
+  // dekat deklarasi _vbUseBigPromptAndCache di atas): keputusan RINGKAS
+  // vs BESAR+cache di sini ikut totalProdukInSesi (jumlah produk yang
+  // di-set user di wizard Bulk), BUKAN batch.length panggilan API ini.
+  // Jadi kalau user set 1 produk saja, tetap system prompt RINGKAS
+  // (_vbBuildSingleModeSystemPrompt, tanpa cache) seperti mode single asli.
+  // Tapi begitu user set 2 produk atau lebih, _vbBulkSystemPrompt (versi
+  // besar, sengaja digemukkan buat lolos syarat cache) + cache_control
+  // TETAP dipakai untuk SETIAP panggilan di sesi itu — termasuk panggilan
+  // yang kebetulan cuma isi 1 produk karena dipecah paksa oleh
+  // _vbBuildPhotoAwareBatches gara-gara ada foto. Ini memang bisa lebih
+  // mahal untuk sesi kecil (lihat perhitungan lengkap di komentar atas),
+  // tapi itu trade-off yang sudah disetujui user.
   let _vbEffectiveSystemPrompt=_vbUseBigPromptAndCache?_vbBulkSystemPrompt:_vbBuildSingleModeSystemPrompt(range);
   let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
