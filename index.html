@@ -10897,14 +10897,29 @@ async function _pbGetFirebaseIdToken(){
 // TOTAL — sebelumnya kalau Haiku gagal total setelah retry habis, app
 // otomatis pindah ke Sonnet-5. Sekarang HANYA Haiku 4.5 yang dipakai,
 // tidak ada lagi model lain. CLAUDE_MODEL_FALLBACK SENGAJA disamakan
-// nilainya dengan CLAUDE_MODEL_PRIMARY (bukan dihapus) supaya seluruh
-// call-site yang masih memanggil kedua konstanta ini (mis.
-// _vbStreamClaudeJSONWithRetry, _vbFetchWithClaudeFallback) TIDAK perlu
-// diubah satu-satu — "percobaan ke-2 pakai model fallback" itu sekarang
-// otomatis jadi percobaan ulang ke Haiku lagi (retry biasa), bukan
-// pindah ke AI lain. Kalau nanti mau benar-benar tidak ada percobaan
-// ke-2 sama sekali, itu perubahan terpisah di fungsi retry-nya, bukan
-// cukup ganti baris ini.
+// nilainya dengan CLAUDE_MODEL_PRIMARY (bukan dihapus) — kalau nanti mau
+// aktifkan model fallback yang BEDA lagi, cukup ganti nilai konstanta
+// ini kembali.
+// FIX BUG KRITIS (audit lanjutan, Sept 2026 — "stale-guard reset
+// isGenerating padahal proses masih hidup"): comment versi lama di sini
+// menganggap "percobaan ke-2 pakai fallback otomatis jadi retry biasa"
+// itu netral/aman. TERNYATA TIDAK — _vbStreamClaudeJSONWithRetry dan
+// _vbFetchWithClaudeFallback tetap menjalankan SIKLUS PERCOBAAN PENUH
+// ke-2 dari nol (jaring pengaman ~3 menit lagi di
+// _vbStreamClaudeJSONWithRetryModel) walau modelnya persis sama —
+// membuat total tunggu sebelum benar-benar gagal bisa sampai ~6+ menit,
+// MELEWATI _VB_GEN_STALE_MS (5 menit) di bawah. Kalau itu kejadian saat
+// primary kena error transient (429/503/529) berturut-turut,
+// _vbGuardGenerating() auto-reset VAI._isGenerating=false padahal
+// fetch/stream aslinya masih jalan di background — user bisa pencet
+// Generate lagi, 2 request jalan bersamaan, biaya token dobel, kartu
+// bisa ketiban. Sekarang KEDUA fungsi itu sudah diubah supaya hanya
+// menjalankan 1 siklus percobaan (PRIMARY) selama CLAUDE_MODEL_FALLBACK
+// masih sama dengan CLAUDE_MODEL_PRIMARY — total tunggu balik ke ~3
+// menit sesuai janji komentar MAX_TOTAL_WAIT_MS, aman di bawah
+// _VB_GEN_STALE_MS. Kalau nanti CLAUDE_MODEL_FALLBACK diisi model BEDA
+// lagi, siklus percobaan ke-2 perlu ditambahkan balik secara sadar di
+// kedua fungsi itu (bukan otomatis aktif lagi).
 const CLAUDE_MODEL_PRIMARY='claude-haiku-4-5-20251001';
 const CLAUDE_MODEL_FALLBACK='claude-haiku-4-5-20251001';
 // apiKey diisi placeholder tetap ('via-proxy') — bukan API key asli lagi.
@@ -11100,7 +11115,33 @@ function pbGetQuota(){
   }catch(e){}
   return q;
 }
-function dlCheckBeforeCall(){
+// BUG FIX KRITIS (audit Sept 2026, setelah fitur "1 panggilan aja untuk
+// banyak produk"): dlCheckBeforeCall/dlIncrement SEBELUMNYA selalu
+// menghitung SATU unit jatah per panggilan fungsi ini, dengan asumsi diam-
+// diam "1 panggilan AI = ±1 unit jatah" — asumsi itu dulu benar KARENA bulk
+// generate dipecah per BATCH_SIZE=3 produk (lihat histori _vbRunBulkGenerate/
+// vbRegenerateAllBulk), jadi dlIncrement() otomatis kepanggil ceil(N/3) kali
+// buat N produk (proporsional ke jumlah produk sungguhan). Sejak SEMUA
+// produk bulk digabung jadi SATU panggilan API saja (berapa pun jumlahnya,
+// sampai 30), dlCheckBeforeCall/dlIncrement di loop bulk cuma kepanggil TEPAT
+// 1 KALI per sesi generate — tidak peduli sesi itu isinya 1 produk atau 30
+// produk sekaligus. Akibatnya jatah harian (mis. tier Gratis: 3x/hari) yang
+// tadinya setara ±9 produk/hari (3 sesi x rata-rata 3 produk/batch) diam-diam
+// jadi setara sampai 90 produk/hari (3 sesi x 30 produk) — jatah tier
+// Standar/Premium ikut membengkak proporsional sama parahnya. Ini bukan cuma
+// soal tampilan angka; user bisa generate JAUH lebih banyak produk (dan app
+// ini bayar Claude API JAUH lebih banyak token) daripada yang sebenarnya
+// dijatah per tier, tanpa jatah harian kepakai secara wajar.
+// Sekarang KEDUA fungsi menerima parameter opsional `units` (jumlah unit
+// jatah yang dipakai/dibutuhkan aksi ini, default 1 — SAMA PERSIS seperti
+// perilaku lama untuk semua pemanggil single-produk yang tidak diubah).
+// Pemanggil bulk (_vbRunBulkGenerate & vbRegenerateAllBulk) mengirim
+// Math.ceil(jumlahProdukDalamPanggilanIni/3) supaya jatah yang kepakai
+// proporsional ke jumlah produk sungguhan — PERSIS meniru rasio unit/produk
+// dari BATCH_SIZE=3 yang dulu berlaku, cuma sekarang dihitung eksplisit
+// (bukan lagi kebetulan muncul sendiri dari banyaknya panggilan API).
+function dlCheckBeforeCall(units){
+  units=Math.max(1,units||1);
   // FIX KEAMANAN #2 (audit upgrade member, Sept 2026): sekalian tarik ulang
   // angka asli dari cloud tiap kali mau generate (lihat pbCloudRefreshQuota
   // di dekat pbCloudPushQuota) — diam-diam, tidak ditunggu, jadi tidak
@@ -11109,25 +11150,39 @@ function dlCheckBeforeCall(){
   // percobaan generate BERIKUTNYA.
   try{ if(typeof window.pbCloudRefreshQuota==='function') window.pbCloudRefreshQuota(); }catch(e){}
   var tier=pbGetTier(), cfg=window.PB_TIER_CONFIG[tier], q=pbGetQuota();
-  if(q.count>=cfg.limit){
+  // FIX (lanjutan bug di atas): dulu cuma cek "jatah SEKARANG sudah habis
+  // atau belum" (q.count>=cfg.limit) — begitu units>1 (sesi bulk banyak
+  // produk), itu cukup buat LOLOS walau sisa jatah tidak cukup menampung
+  // seluruh unit yang bakal dipakai sesi ini, jatah baru kelihatan jebol
+  // (minus/negatif secara efektif) SETELAH dlIncrement(units) dipanggil di
+  // akhir — padahal token Claude buat sesi itu sudah kepakai/dibayar duluan.
+  // Sekarang dicek DI MUKA: q.count+units>cfg.limit, supaya sesi yang
+  // butuh jatah lebih dari sisa yang ada ditolak SEBELUM request AI dikirim
+  // sama sekali (untuk units=1, ini identik persis dengan cek lama).
+  if(q.count+units>cfg.limit){
     // Buka modal upgrade otomatis pas limit kena (kecuali sudah Premium) —
     // dipasang di SATU titik ini (bukan di tiap call site generate) supaya
     // semua alur generate yang ada (single/bulk/wordfix/dst, ada belasan
     // titik pemanggil dlCheckBeforeCall di file ini) otomatis ikut tanpa
     // perlu diubah satu-satu.
     try{ if(tier!=='premium' && typeof pbOpenUpgradeModal==='function') pbOpenUpgradeModal(); }catch(e){}
+    var sisa=Math.max(0,cfg.limit-q.count);
     return {
       ok:false,
       tier:tier,
-      message:'Jatah generate '+cfg.label+' hari ini sudah habis ('+cfg.limit+'/'+cfg.limit+'). '+
-        (tier==='premium' ? 'Coba lagi besok ya.' : 'Upgrade buat lanjut generate hari ini juga →')
+      message: units>1
+        ? ('Jatah generate '+cfg.label+' hari ini tersisa '+sisa+' dari '+cfg.limit+', tidak cukup untuk sesi bulk ini (butuh setara '+units+'). '+
+           (tier==='premium' ? 'Coba kurangi jumlah produk sekaligus, atau lagi besok ya.' : 'Coba kurangi jumlah produk sekaligus, atau upgrade buat jatah lebih besar →'))
+        : ('Jatah generate '+cfg.label+' hari ini sudah habis ('+cfg.limit+'/'+cfg.limit+'). '+
+           (tier==='premium' ? 'Coba lagi besok ya.' : 'Upgrade buat lanjut generate hari ini juga →'))
     };
   }
   return {ok:true};
 }
-function dlIncrement(){
+function dlIncrement(units){
+  units=Math.max(1,units||1);
   var q=pbGetQuota();
-  q.count=(q.count||0)+1;
+  q.count=(q.count||0)+units;
   try{ localStorage.setItem('pb_quota_v1', JSON.stringify(q)); }catch(e){}
   try{ if(typeof window.pbCloudPushQuota==='function') window.pbCloudPushQuota(q); }catch(e){}
   dlRenderBar();
@@ -16382,11 +16437,18 @@ function _vbSanitizeJsonText(s){
   return out;
 }
 
-// Coba CLAUDE_MODEL_PRIMARY dulu (lewat _vbStreamClaudeJSONWithRetryModel,
-// termasuk retry internalnya sampai jaring pengaman ~3 menit). Kalau
-// PRIMARY tetap gagal total sesudah itu, baru dicoba SEKALI LAGI dari nol
-// pakai CLAUDE_MODEL_FALLBACK — supaya generate tetap bisa jalan walau
-// primary lagi kena limit/error, bukan langsung gagal ke user.
+// Coba CLAUDE_MODEL_PRIMARY (lewat _vbStreamClaudeJSONWithRetryModel,
+// termasuk retry internalnya sampai jaring pengaman ~3 menit).
+// FIX BUG KRITIS (audit lanjutan, Sept 2026 — lihat catatan panjang di
+// atas CLAUDE_MODEL_PRIMARY/FALLBACK): DULU di sini ada siklus percobaan
+// ke-2 penuh ke CLAUDE_MODEL_FALLBACK kalau PRIMARY gagal total — sudah
+// DIHAPUS karena FALLBACK sekarang identik dengan PRIMARY, jadi siklus
+// ke-2 itu cuma mengulang model yang PERSIS SAMA dari nol (bukan lagi
+// "pindah AI" beneran) sambil dobel total waktu tunggu sebelum gagal
+// (~3 menit jadi ~6+ menit) — sampai bentrok dengan _VB_GEN_STALE_MS (5
+// menit) dan memicu _vbGuardGenerating() salah reset _isGenerating.
+// Kalau nanti CLAUDE_MODEL_FALLBACK diisi model lain yang beneran beda,
+// siklus percobaan ke-2 boleh ditambahkan balik di sini secara sadar.
 // FIX HEMAT BIAYA (permintaan user, Sept 2026): parameter cacheSystem baru
 // (default true) — dilempar apa adanya ke _vbStreamClaudeJSONWithRetryModel
 // supaya bisa dimatikan KHUSUS untuk pemanggil yang system prompt-nya
@@ -16395,10 +16457,7 @@ function _vbSanitizeJsonText(s){
 // perlu diubah — otomatis tetap true seperti sebelumnya.
 async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride){
   if(cacheSystem===undefined)cacheSystem=true;
-  let r=await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride);
-  if(r.resp&&r.resp.ok)return r;
-  console.log('[_vbStreamClaudeJSONWithRetry] '+CLAUDE_MODEL_PRIMARY+' gagal, coba '+CLAUDE_MODEL_FALLBACK);
-  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride);
+  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -16527,11 +16586,15 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
 }
 
 // ── FALLBACK MODEL untuk panggilan generateContent (non-streaming) ──────
-// Coba CLAUDE_MODEL_PRIMARY dulu lewat _vbFetchWithRetry seperti biasa
-// (429/503/529 tetap di-retry sesuai maxRetries). Kalau setelah retry habis
-// hasilnya TETAP gagal (resp.ok false), baru dicoba SEKALI LAGI dari nol
-// pakai CLAUDE_MODEL_FALLBACK. bodyObj sama persis dipakai di percobaan
-// manapun — cuma model & url di endpoint yang beda.
+// Coba CLAUDE_MODEL_PRIMARY lewat _vbFetchWithRetry seperti biasa
+// (429/503/529 tetap di-retry sesuai maxRetries).
+// FIX BUG (audit lanjutan, Sept 2026 — sama seperti
+// _vbStreamClaudeJSONWithRetry, lihat catatan di atas
+// CLAUDE_MODEL_PRIMARY/FALLBACK): siklus percobaan ke-2 dari nol ke
+// CLAUDE_MODEL_FALLBACK DIHAPUS karena sekarang modelnya identik dengan
+// PRIMARY — dulu cuma mengulang percobaan yang sama percuma sambil dobel
+// total waktu tunggu. Kalau nanti CLAUDE_MODEL_FALLBACK diisi model lain
+// yang beneran beda, siklus ke-2 boleh ditambahkan balik secara sadar.
 // bodyObj yang masuk ke sini masih bentuk Gemini ({contents:[{parts:[...]}],
 // generationConfig:{maxOutputTokens,...}}) karena semua pemanggil fungsi
 // ini (tersebar di banyak tempat) tidak diubah. Di dalam sini bodyObj
@@ -16573,10 +16636,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
     }
     return r;
   }
-  let r=await callClaude(CLAUDE_MODEL_PRIMARY);
-  if(r.resp.ok)return r;
-  console.log('[_vbFetchWithClaudeFallback] '+CLAUDE_MODEL_PRIMARY+' gagal (status '+r.resp.status+'), coba '+CLAUDE_MODEL_FALLBACK);
-  return await callClaude(CLAUDE_MODEL_FALLBACK);
+  return await callClaude(CLAUDE_MODEL_PRIMARY);
 }
 
 // ── STAT REAL PEMAKAIAN "PERBAIKAN JUMLAH KATA" (permintaan user, Sept 2026)
@@ -17865,7 +17925,15 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   let doneCount=0;
   try{
     for(let b=0;b<batches.length;b++){
-      let dlCheck=dlCheckBeforeCall();
+      // BUG FIX KRITIS (lihat catatan lengkap di deklarasi dlCheckBeforeCall/
+      // dlIncrement): sejak batches selalu isi SATU elemen berapa pun jumlah
+      // produknya (lihat "let batches=[toProcess]" di atas), unit jatah yang
+      // dipakai WAJIB dihitung dari jumlah produk di batch ini (bukan lagi
+      // otomatis 1 per panggilan seperti asumsi lama waktu BATCH_SIZE=3 masih
+      // dipakai) — dibagi 3 supaya rasio jatah/produk PERSIS sama seperti
+      // sebelum fitur "1 panggilan aja" ini ada.
+      let dlUnits=Math.max(1,Math.ceil(batches[b].length/3));
+      let dlCheck=dlCheckBeforeCall(dlUnits);
       if(!dlCheck.ok){
         throw new Error(dlCheck.message+(allResults.length?' ('+allResults.length+' produk sudah berhasil dibuat.)':''));
       }
@@ -17917,7 +17985,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
       },onPartialThisBatch,usedHooksSoFar,(_tourOneOffCall||_singleProdukCall)?false:undefined,produkList.length);
-      dlIncrement();
+      dlIncrement(dlUnits);
       doneCount+=batchItems.length;
       if(batchArr.length<batchItems.length){
         console.warn('[_vbRunBulkGenerate] batch '+b+' cuma balikin '+batchArr.length+' dari '+batchItems.length+' produk diminta');
@@ -19214,7 +19282,14 @@ async function vbRegenerateAllBulk(newSettings){
   let idxOffset=0;
   try{
     for(let b=0;b<batches.length;b++){
-      let dc=dlCheckBeforeCall();
+      // BUG FIX KRITIS (sama persis dengan _vbRunBulkGenerate, lihat catatan
+      // lengkap di deklarasi dlCheckBeforeCall/dlIncrement): batches di sini
+      // juga selalu isi SATU elemen (batches=[produkList], lihat di atas)
+      // berapa pun jumlah produknya sejak "Generate Ulang Semua" ikut
+      // digabung jadi 1 panggilan API — unit jatah WAJIB dihitung dari
+      // jumlah produk di batch ini, bukan 1 tetap per panggilan.
+      let dlUnits=Math.max(1,Math.ceil(batches[b].length/3));
+      let dc=dlCheckBeforeCall(dlUnits);
       if(!dc.ok)throw new Error(dc.message+(allResults.length?' ('+allResults.length+' produk pertama sudah berhasil dibuat ulang.)':''));
       let batchLabelBase='Batch '+(b+1)+'/'+batches.length+'...';
       updateGenLogoLabel(genLogoState,batchLabelBase);
@@ -19233,7 +19308,7 @@ async function vbRegenerateAllBulk(newSettings){
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
       },undefined,usedHooksSoFar,(_singleProdukCall?false:undefined),produkList.length);
-      dlIncrement();
+      dlIncrement(dlUnits);
       // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
       // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
       // masalah salah-tempel nama saat ada produk yang di-drop di tengah batch.
@@ -20672,18 +20747,26 @@ function vbPickLokasiCard(idx,key,label){
 }
 
 // Satu entri Riwayat GABUNGAN untuk 1 sesi generate (dipanggil sekali per
-// generate/regenerate-all, bukan per kartu) — mengambil isi dari
-// VB_BULK_ITEMS yang sudah diisi _vbBuildEditableCard untuk semua kartu yang
-// baru saja dibangun. Prompt dipisah "---" antar satu sama lain, mengikuti
-// aturan baku Haha kalau ada beberapa prompt sekaligus dalam satu balasan.
+// generate/regenerate-all, bukan per kartu) — dulu mengambil isi dari
+// VB_BULK_ITEMS untuk dibangun jadi teks gabungan lalu disimpan ke
+// historyAdd(...).
+// FIX INEFISIENSI (audit lanjutan, Sept 2026): historyAdd(...) auto-save
+// prompt sudah DIMATIKAN dari awal (lihat catatan di fGenerate(), fitur
+// digantikan "Halaman Tersimpan" manual) — TAPI baris pembangun
+// `blocks=VB_BULK_ITEMS.map(...)` (yang manggil _vbBuildFlowText +
+// regex trim per kartu) tidak ikut dihapus waktu itu, jadi tiap generate/
+// revisi (dipanggil di 11 titik: generate manual, AI single, bulk sampai
+// 30 produk, revisi, undo revisi, update metadata) tetap membangun ulang
+// teks lengkap semua kartu HANYA UNTUK DIBUANG — kerja CPU sia-sia di
+// jalur paling sering dipakai, paling terasa saat bulk 30 produk (90
+// kartu dibangun ulang percuma tiap generate). Sekarang fungsi ini
+// benar-benar no-op selama historyAdd masih mati — dipertahankan sebagai
+// fungsi kosong (bukan dihapus) supaya 11 call-site di atas tidak perlu
+// diubah satu-satu. Kalau nanti fitur auto-history diaktifkan lagi,
+// bangun ulang `blocks` di sini dan panggil historyAdd(...) dengan
+// sessionLabel yang sudah dikirim oleh semua pemanggil.
 function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
-  let blocks=VB_BULK_ITEMS.map(function(item,idx){
-    let plainLabel=String(item.roleLabel||'').replace(/<[^>]*>/g,'').trim();
-    let jsonText=_vbBuildFlowText(item.script,item.produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
-    return '// '+plainLabel+(item.produk?' — '+item.produk:'')+'\n'+jsonText;
-  });
-  // historyAdd(...) auto-save prompt DIMATIKAN — lihat catatan di fGenerate().
 }
 
 // Bangun 3 kartu KOSONG (Hook/Story/CTA) di #vb-multi-output SEBELUM AI
