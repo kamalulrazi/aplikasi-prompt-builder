@@ -17080,30 +17080,41 @@ function _vbBuildSingleModeSystemPrompt(range){
     // WAJIB tetap sinkron dengan format yang dibaca _vbCallBulkBatch.
     +'Balas HANYA dengan JSON array berisi TEPAT 1 object, tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk","hook":"...","story":"...","cta":"..."}]';
 }
-async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem){
+async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi){
   if(cacheSystem===undefined)cacheSystem=true;
-  // FIX HEMAT TOKEN (Opsi 2, Sept 2026): berapa pun jalur pemanggilnya
-  // (_vbRunBulkGenerate, revisi 1 produk, dst), begitu batch ini CUMA
-  // berisi 1 produk, jalur generate-nya otomatis dianggap "mode hemat" —
-  // system prompt pendek (_vbBuildSingleModeSystemPrompt, 7 poin) & TANPA
-  // cache (lihat pemakaiannya di bawah), PERSIS seperti perilaku
-  // vbGenerate3AI() dulu — bukan cuma soal cache seperti fix sebelumnya.
-  // Caching sengaja dipaksa mati juga di sini (bukan cuma diserahkan ke
-  // parameter cacheSystem dari pemanggil) karena system prompt pendek ini
-  // TIDAK PERNAH tembus syarat minimum cache Haiku 4.5 — menandainya tetap
-  // aman tapi percuma, jadi lebih jujur langsung dimatikan di sumbernya.
-  let _vbSingleProdukInThisCall=(batch.length===1);
+  // FIX BUG BIAYA (laporan user, Sept 2026 — "generate 3 produk sekaligus
+  // kok gak kena cache diskon 90%"): parameter baru totalProdukInSesi —
+  // jumlah produk ASLI di seluruh AKSI generate ini (satu sesi bisa terdiri
+  // dari BEBERAPA panggilan _vbCallBulkBatch/batch), bukan cuma jumlah
+  // produk di batch/panggilan API INI saja. AKAR MASALAHNYA: "mode hemat"
+  // (system prompt pendek 7-poin & TANPA cache) dulu ditentukan MURNI dari
+  // batch.length===1 — padahal _vbBuildPhotoAwareBatches (lihat definisinya)
+  // MEMAKSA tiap produk yang punya foto referensi jadi batch sendiri isi 1
+  // (supaya tidak 413). Akibatnya generate Bulk 3 produk yang KETIGANYA
+  // pakai foto referensi diam-diam terpecah jadi 3 panggilan API terpisah
+  // yang MASING-MASING salah dikira "single produk" walau totalnya tetap 3
+  // — makanya cache_control tidak pernah dipasang (diskon 90% hilang) DAN
+  // system prompt yang kepakai jadi versi pendek, bukan versi Bulk 17-poin
+  // yang sudah sengaja diperpanjang supaya tembus syarat minimum cache.
+  // Sekarang "mode hemat" ditentukan dari totalProdukInSesi (dikirim apa
+  // adanya oleh pemanggil loop — _vbRunBulkGenerate & vbRegenerateAllBulk —
+  // dan diteruskan tanpa berubah lewat pemecahan otomatis 413 di bawah),
+  // BUKAN batch.length lagi. Kalau pemanggil tidak mengirim parameter ini
+  // (jalur revisi 1 produk yang genuinely single: vbRevisiProdukAI,
+  // vbRevisiSingleAI, dkk — lihat pemanggil masing-masing), default-nya
+  // balik ke batch.length supaya perilaku jalur-jalur itu SAMA SEKALI tidak
+  // berubah (tetap system prompt pendek & tanpa cache, memang sudah benar).
+  if(totalProdukInSesi===undefined)totalProdukInSesi=batch.length;
+  let _vbSingleProdukInThisCall=(totalProdukInSesi===1);
   if(_vbSingleProdukInThisCall)cacheSystem=false;
   // FIX HEMAT TOKEN (Opsi 2, lanjutan — permintaan user "cek statistik
-  // biaya & cache"): sebelumnya baris ini SELALU menulis mode "Bulk" ke
-  // riwayat statistik apa pun jumlah produknya — jadi walau biaya ASLI
-  // panggilan 1-produk sudah turun (system prompt pendek, tanpa cache),
-  // labelnya di panel statistik tetap menyesatkan seolah masih lewat
-  // jalur Bulk penuh. Sekarang label ikut mencerminkan mode hemat yang
-  // SEBENARNYA dipakai: "Single" kalau batch ini cuma 1 produk, "Bulk"
-  // kalau 2+. Ini MURNI soal label/pencatatan (dibaca _vbLogUsageEvent
-  // buat kolom "Mode" di riwayat/CSV) — tidak mengubah request yang
-  // dikirim ke API sama sekali.
+  // biaya & cache"): label mode di riwayat statistik ("Single" vs "Bulk")
+  // sekarang ikut mengikuti totalProdukInSesi di atas (BUKAN batch.length
+  // panggilan ini) — jadi generate Bulk 3 produk-bersama-foto yang tiap
+  // panggilannya kebetulan cuma 1 produk tetap tercatat jujur sebagai
+  // "Bulk", bukan "Single" yang menyesatkan. Ini MURNI soal label/pencatatan
+  // (dibaca _vbLogUsageEvent buat kolom "Mode" di riwayat/CSV) — tidak
+  // mengubah request yang dikirim ke API sama sekali.
   _vbCurrentCallMode=_vbSingleProdukInThisCall?'single':'bulk';
   // LOG RIWAYAT (permintaan user, Sept 2026, "biaya foto per-generate"):
   // catat jumlah produk & jumlah foto di PANGGILAN INI saja (bisa beda dari
@@ -17292,8 +17303,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
         let mid=Math.ceil(batch.length/2);
         let firstHalf=batch.slice(0,mid),secondHalf=batch.slice(mid);
         console.warn('[_vbCallBulkBatch] status 413 (request kebesaran) dengan '+batch.length+' produk sekaligus — otomatis dipecah jadi 2 batch lebih kecil ('+firstHalf.length+' + '+secondHalf.length+' produk) dan dicoba ulang.');
-        let r1=await _vbCallBulkBatch(firstHalf,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem);
-        let r2=await _vbCallBulkBatch(secondHalf,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem);
+        let r1=await _vbCallBulkBatch(firstHalf,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi);
+        let r2=await _vbCallBulkBatch(secondHalf,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi);
         return r1.concat(r2);
       }
       throw new Error('Request ke AI kebesaran (413) walau cuma 1 produk yang dikirim — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
@@ -17404,43 +17415,27 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(prod.hook)prod.hook=_vbSanitizeForbiddenPhrases(prod.hook);
     if(prod.story)prod.story=_vbSanitizeForbiddenPhrases(prod.story);
     if(prod.cta)prod.cta=_vbSanitizeForbiddenPhrases(prod.cta);
-    // FIX HEMAT TOKEN (Opsi 2, Sept 2026): kalau batch ini cuma 1 produk,
-    // TIDAK ada lagi panggilan API terpisah "Perbaikan Kata"
-    // (_vbFixWordCountBatchIfNeeded) — persis seperti vbGenerate3AI() dulu,
-    // karena _vbBuildSingleModeSystemPrompt di atas SUDAH menyuruh AI
-    // menghitung & merevisi kata sendiri sebelum menjawab (poin 7). Jaring
+    // FIX HEMAT BIAYA (permintaan user, Sept 2026 — "generate banyak produk
+    // sekaligus juga jangan ada perbaikan kata lagi"): panggilan API
+    // terpisah "Perbaikan Kata" (_vbFixWordCountBatchIfNeeded) SEKARANG
+    // DIMATIKAN TOTAL untuk SEMUA jalur — baik batch 1 produk (mode hemat
+    // lama) MAUPUN batch/sesi berisi 2+ produk (mode Bulk penuh, dulu masih
+    // lewat _vbFixWordCountBatchIfNeeded). Sebelumnya cuma mode 1-produk
+    // yang dimatikan (lihat histori git kalau perlu balikin), karena
+    // _vbBuildSingleModeSystemPrompt maupun _vbBulkSystemPrompt DUA-DUANYA
+    // sudah menyuruh AI menghitung & merevisi jumlah katanya sendiri sebelum
+    // menjawab (poin "WAJIB HITUNG KATA SENDIRI" di masing-masing system
+    // prompt) — jadi panggilan fix tambahan ini sekarang dianggap tidak
+    // perlu lagi buat SEMUA mode, bukan cuma mode hemat 1-produk. Jaring
     // pengaman yang tersisa MURNI lokal/JS (_vbHardEnforceMaxWords, potong
     // ke titik kalimat alami kalau kelebihan kata) — TANPA panggilan API
-    // apapun, sama seperti jaring pengaman lokal yang dulu dipakai
-    // vbGenerate3AI() setelah _vbFixWordCountBatchIfNeeded dihapus dari
-    // jalur itu. Jalur bulk berisi ≥2 produk TIDAK disentuh, tetap lewat
-    // _vbFixWordCountBatchIfNeeded seperti sebelumnya.
-    if(_vbSingleProdukInThisCall){
-      if(prod.hook)prod.hook=_vbHardEnforceMaxWords(prod.hook,range.max);
-      if(prod.story)prod.story=_vbHardEnforceMaxWords(prod.story,range.max);
-      if(prod.cta)prod.cta=_vbHardEnforceMaxWords(prod.cta,range.max);
-      continue;
-    }
-    // FIX BUG (ditemukan saat audit statistik biaya, Sept 2026): panggilan
-    // perbaikan kata di bawah ini SELALU untuk 1 produk & TIDAK PERNAH
-    // menyertakan foto (lihat _vbFixWordCountBatchIfNeeded — promptnya
-    // cuma teks, tanpa inline_data gambar). Kalau tidak di-reset di sini,
-    // _vbCurrentCallProdukCount/_vbCurrentCallFotoCount masih menyimpan
-    // nilai dari panggilan BATCH UTAMA di atas (bisa >1 produk & >0 foto),
-    // sehingga baris riwayat "Perbaikan Kata" di panel statistik salah
-    // menampilkan "N produk sekaligus"/"📷 N foto" padahal panggilan ini
-    // murni 1 produk berbasis teks saja.
-    _vbCurrentCallProdukCount=1;
-    _vbCurrentCallFotoCount=0;
-    let fixed=await _vbFixWordCountBatchIfNeeded(prod);
-    // FIX (bug sama seperti mode single, lihat komentar lengkap di
-    // vbGenerate3AI): hasil rewrite dari _vbFixWordCountBatchIfNeeded bisa
-    // menyisipkan lagi frasa terlarang ("keranjang kuning" dkk) karena
-    // prompt rapikan-kata tidak mengulang larangan itu. Saring ulang di sini
-    // sebelum dipakai.
-    prod.hook=_vbSanitizeForbiddenPhrases(fixed.hook);
-    prod.story=_vbSanitizeForbiddenPhrases(fixed.story);
-    prod.cta=_vbSanitizeForbiddenPhrases(fixed.cta);
+    // apapun, berlaku sama rata untuk 1 produk maupun banyak produk.
+    // Fungsi _vbFixWordCountBatchIfNeeded SENGAJA tidak dihapus (lihat
+    // definisinya) — dibiarkan sebagai referensi kalau suatu saat perlu
+    // diaktifkan lagi, sama seperti pola *_FULL_DISABLED lain di file ini.
+    if(prod.hook)prod.hook=_vbHardEnforceMaxWords(prod.hook,range.max);
+    if(prod.story)prod.story=_vbHardEnforceMaxWords(prod.story,range.max);
+    if(prod.cta)prod.cta=_vbHardEnforceMaxWords(prod.cta,range.max);
   }
   return arr;
 }
@@ -17705,7 +17700,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
-      },onPartialThisBatch,usedHooksSoFar,(_tourOneOffCall||_singleProdukCall)?false:undefined);
+      },onPartialThisBatch,usedHooksSoFar,(_tourOneOffCall||_singleProdukCall)?false:undefined,produkList.length);
       dlIncrement();
       doneCount+=batchItems.length;
       if(batchArr.length<batchItems.length){
@@ -19020,7 +19015,7 @@ async function vbRegenerateAllBulk(newSettings){
         let detik=Math.ceil(waitMs/1000);
         let alasan=_vbWaitReasonLabel(status);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
-      },undefined,usedHooksSoFar,(_singleProdukCall?false:undefined));
+      },undefined,usedHooksSoFar,(_singleProdukCall?false:undefined),produkList.length);
       dlIncrement();
       // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
       // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
