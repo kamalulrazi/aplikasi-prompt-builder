@@ -3562,7 +3562,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.70</div>
+  <div class="splash-version" id="splash-version">v6.72</div>
 </div>
 <script>
   (function(){
@@ -5548,7 +5548,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.70 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.72 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -16042,7 +16042,7 @@ function _vbResetUsageStats(){
   }
   _vbRenderUsageBadge(_vbLoadUsageStats());
 }
-async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem){
+async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride){
   if(cacheSystem===undefined)cacheSystem=true;
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
@@ -16056,11 +16056,52 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // max_tokens memang dipakai buat jawaban, jadi parameter itu dibuang.
     // max_tokens tetap 6144 sebagai jaring pengaman token yang cukup lega
     // untuk jawaban JSON hook/story/cta.
-    let cfg={maxOutputTokens:6144};
+    // BUG FIX KRITIS (audit Sept 2026, "1 panggilan aja untuk banyak
+    // produk"): 6144 dihitung waktu 1 panggilan API maksimal cuma isi
+    // BATCH_SIZE=3 produk (atau 1 produk kalau ada foto). Sekarang
+    // _vbRunBulkGenerate menggabung SEMUA produk sesi (sampai 30, lihat
+    // validasi count>30 di vbGenerateBulkAI) jadi SATU panggilan — 6144
+    // token jelas tidak cukup untuk puluhan produk x 3 bagian x ~30 kata,
+    // hasilnya JSON kepotong (finishReason 'length') sebelum semua produk
+    // selesai. maxOutputTokensOverride (dikirim _vbCallBulkBatch berdasar
+    // jumlah produk di batch ini) dipakai kalau ada; 6144 tetap jadi
+    // fallback/minimum untuk pemanggil lain yang tidak mengirim parameter
+    // ini (vbGenerate3AI, perbaikan kata, dll — tidak berubah).
+    let cfg={maxOutputTokens:maxOutputTokensOverride||6144};
     const url=ANTHROPIC_ENDPOINT;
     let controller=new AbortController();
     let timedOut=false;
-    let timer=setTimeout(function(){timedOut=true;controller.abort();},isFirstAttempt?30000:45000);
+    // BUG FIX KRITIS (audit lanjutan, laporan user Sept 2026 — "timeout
+    // generate gak nyesuain jumlah token"): timer abort di bawah ini adalah
+    // batas waktu MUTLAK untuk SELURUH durasi streaming (bukan idle-timeout
+    // per-chunk yang direset tiap ada data masuk) — tapi sebelumnya SELALU
+    // tetap 30 detik (percobaan pertama) / 45 detik (percobaan berikutnya)
+    // TIDAK PEDULI cfg.maxOutputTokens diminta berapa. Sejak bug #1/#2 di
+    // atas diperbaiki, cfg.maxOutputTokens bisa sampai 8192 untuk batch besar
+    // (lihat _vbDynamicMaxTokens di _vbCallBulkBatch, sampai 30 produk
+    // sekaligus dalam 1 panggilan) — makin banyak token yang diminta, makin
+    // lama AI-nya selesai stream, TAPI timer abort tidak ikut membesar.
+    // Akibatnya untuk batch besar, request PASTI kena abort duluan oleh kode
+    // sendiri sebelum AI selesai menjawab, walau server masih aktif
+    // mengirim & tidak ada masalah jaringan sama sekali — generate bulk
+    // besar jadi selalu gagal timeout, bukan gara-gara 429/503 atau koneksi
+    // putus beneran (retry otomatis di bawah pun percuma karena attempt
+    // berikutnya kena masalah yang sama).
+    // Sekarang timeout diskalakan proporsional ke cfg.maxOutputTokens, pakai
+    // rasio dari batas lama itu sendiri (30 detik / 45 detik dihitung utk
+    // 6144 token, jatah lama utk batch kecil BATCH_SIZE=3) supaya batch kecil
+    // (perilaku paling umum & sudah terbukti cukup) TIDAK berubah sama
+    // sekali, ditambah jatah tetap di depan (TTFB_BUFFER_MS) buat waktu
+    // koneksi awal sebelum token pertama keluar (belum ikut terhitung di
+    // rasio per-token). Batas bawah tetap 30/45 detik seperti sebelumnya
+    // (jaga-jaga kalau maxOutputTokens kecil), batas atas 120 detik sebagai
+    // jaring pengaman supaya kalau koneksi memang benar-benar macet total,
+    // tidak nunggu tanpa batas — retry otomatis (MAX_TOTAL_WAIT_MS ~3 menit
+    // di bawah) tetap jalan seperti biasa kalau attempt ini akhirnya timeout.
+    const TTFB_BUFFER_MS=8000;
+    const MS_PER_TOKEN=(isFirstAttempt?30000:45000)/6144;
+    let timeoutMs=Math.min(120000,Math.max(isFirstAttempt?30000:45000,TTFB_BUFFER_MS+cfg.maxOutputTokens*MS_PER_TOKEN));
+    let timer=setTimeout(function(){timedOut=true;controller.abort();},timeoutMs);
     let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
     let streamErrType='',streamErrMsg='';
     // LOGGING TOKEN (permintaan user, Sept 2026): tampung angka token ASLI
@@ -16217,7 +16258,12 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       // Simpan pesan error asli (nama + pesan) sebelum hilang. Kalau abort
       // karena timeout, pakai pesan timeout yang sudah jelas; selain itu
       // pakai pesan asli dari browser apa adanya.
-      netErrMsg=timedOut?'timeout — server tidak merespons dalam '+((isFirstAttempt?30000:45000)/1000)+' detik'
+      // FIX (ikut bug timeout dinamis di atas): pesan ini dulu selalu
+      // nyebut 30/45 detik hardcode padahal timeout sebenarnya sekarang
+      // ikut membesar sesuai cfg.maxOutputTokens (timeoutMs) — kalau tetap
+      // pakai angka lama di sini, user salah paham timeout-nya lebih
+      // pendek dari yang sebenarnya terjadi.
+      netErrMsg=timedOut?'timeout — server tidak merespons dalam '+(timeoutMs/1000)+' detik'
         :((e&&e.name)?e.name+': ':'')+((e&&e.message)?e.message:String(e));
     }finally{
       clearTimeout(timer);
@@ -16347,12 +16393,12 @@ function _vbSanitizeJsonText(s){
 // memang belum tembus syarat minimum cache (lihat vbGenerate3AI, satu-
 // satunya pemanggil yang mengirim false). Semua pemanggil lain tidak
 // perlu diubah — otomatis tetap true seperti sebelumnya.
-async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem){
+async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride){
   if(cacheSystem===undefined)cacheSystem=true;
-  let r=await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem);
+  let r=await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride);
   if(r.resp&&r.resp.ok)return r;
   console.log('[_vbStreamClaudeJSONWithRetry] '+CLAUDE_MODEL_PRIMARY+' gagal, coba '+CLAUDE_MODEL_FALLBACK);
-  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText,cacheSystem);
+  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_FALLBACK,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -16552,6 +16598,28 @@ var HAIKU_PRICE_OUT_PER_MTOK=5.0;  // USD per 1,000,000 token output
 // sekarang dihitung terpisah lewat _vbCalcUsd di bawah.
 var HAIKU_PRICE_CACHE_WRITE_MULT=1.25;
 var HAIKU_PRICE_CACHE_READ_MULT=0.1;
+// AMBANG BATAS PROMPT BESAR+CACHE (permintaan user, Sept 2026 — ronde
+// setelah "kok bulk 3 produk malah lebih mahal dari 3x single"): dihitung
+// dari data pemakaian nyata user sendiri, ongkos "nulis" cache pertama kali
+// (+25% dari _vbBulkSystemPrompt, ~6.766 token) baru balik modal dibanding
+// jalur RINGKAS tanpa cache setelah sekitar ~19-20 produk dalam SATU sesi
+// bulk (selisih hemat per produk dari cache-hit terlalu tipis dibanding
+// markup nulis cache-nya di depan, untuk sesi kecil). Sebelumnya ambang ini
+// cuma totalProdukInSesi>1 (langsung pakai prompt besar+cache begitu user
+// set 2 produk atau lebih) — sekarang dinaikkan jadi PB_MIN_PRODUK_UNTUK_CACHE
+// ini SUPAYA sesi kecil (di bawah ambang) otomatis lewat jalur RINGKAS
+// (system prompt pendek _vbBuildSingleModeSystemPrompt, cacheSystem=false)
+// persis seperti mode Single asli, walau user tetap generate lewat wizard
+// Bulk. Dipakai satu-satunya di deklarasi _vbUseBigPromptAndCache di bawah
+// (lihat _vbCallBulkBatch) — kalau titik impasnya nanti bergeser (mis. tarif
+// Anthropic berubah, atau _vbBulkSystemPrompt diperpanjang/dipendekkan),
+// cukup ubah angka ini saja, tidak perlu sentuh logika di tempat lain.
+// SUDAH TIDAK DIPAKAI LAGI (Sept 2026) — sejak _vbUseBigPromptAndCache
+// dipaksa false permanen (lihat komentar lengkap di deklarasinya, dekat
+// _vbCallBulkBatch), angka ambang ini tidak lagi menentukan apa pun. Tetap
+// dibiarkan di sini (tidak dihapus) sebagai referensi angka impas kalau
+// suatu saat flow-nya balik lagi ke multi-panggilan-per-sesi.
+var PB_MIN_PRODUK_UNTUK_CACHE=20;
 function _vbCalcUsd(noCacheTok,cacheWriteTok,cacheReadTok,outTok){
   return((noCacheTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK)
     +((cacheWriteTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK*HAIKU_PRICE_CACHE_WRITE_MULT)
@@ -17096,7 +17164,7 @@ function vbPickTargetAudiencePreset(inputId,presetKey){
 // poin aturan vs 7 poin di sini) yang sebelumnya SELALU terpakai apa pun
 // jumlah produknya. Isi teksnya TIDAK diubah sama sekali dari versi asli
 // vbGenerate3AI, cuma dipindah ke sini.
-function _vbBuildSingleModeSystemPrompt(range){
+function _vbBuildSingleModeSystemPrompt(range,count){
   // DIPANGKAS (permintaan user, Sept 2026, hemat token mode single) — versi
   // lengkap 7-poin (lebih aman dari sisi kepatuhan larangan bahan/promo &
   // kalibrasi jumlah kata) ada di histori git/backup sebelum perubahan ini.
@@ -17104,6 +17172,20 @@ function _vbBuildSingleModeSystemPrompt(range){
   // bahan/promo, atau makin sering meleset jumlah kata, BALIKIN ke versi
   // lengkap itu — hematnya (~1.200 token/panggilan) tidak sepadan kalau
   // sampai memicu panggilan _vbFixWordCountIfNeeded tambahan (full harga).
+  // BUG FIX KRITIS (audit Sept 2026, setelah fitur "1 panggilan aja untuk
+  // banyak produk" + prompt caching dimatikan permanen): sejak
+  // _vbUseBigPromptAndCache dipaksa false di _vbCallBulkBatch, fungsi INI
+  // (yang tadinya cuma dipakai utk kasus 1 produk) sekarang jadi SATU-
+  // SATUNYA system prompt yang dipakai untuk SEMUA ukuran batch — termasuk
+  // batch berisi puluhan produk sekaligus (lihat _vbRunBulkGenerate,
+  // batches=[toProcess]). Baris format balasan di bawah dulu HARDCODE
+  // "TEPAT 1 object", yang kontradiksi langsung dengan pesan user yang
+  // minta N object (satu per produk) begitu count>1 — AI jadi dapat
+  // instruksi yang saling bertentangan dan sering cuma balikin 1 produk
+  // dari N yang diminta. Parameter `count` baru di sini (dikirim oleh
+  // pemanggil sebagai batch.length) dipakai untuk membuat instruksi format
+  // yang BENAR sesuai jumlah produk sebenarnya di batch ini.
+  count=count||1;
   return 'Kamu ahli menulis skrip konten pendek. User akan kasih detail produk, karakter, target audience di pesan berikutnya. Buat TEPAT 3 bagian (HOOK, STORY, CTA) yang WAJIB nyambung jadi SATU monolog utuh (bukan 3 topik lepas), sesuai peran:\n'
     +'1. HOOK: pembuka kreatif & variatif, bikin penasaran, BUKAN jualan langsung. Hindari klise ("pernah gak sih", "tau gak", dst) — pilih sudut segar sesuai produk & audience.\n'
     +'2. STORY: lanjutan natural dari HOOK, gaya ngobrol santai. WAJIB skenario AUDIENS pakai produknya (bukan pengalaman pribadi karakter — dilarang "aku pernah"/"pengalamanku"). Dilarang deskripsi fisik/bahan/tekstur/warna produk di sini.\n'
@@ -17125,7 +17207,16 @@ function _vbBuildSingleModeSystemPrompt(range){
     // dipertahankan di sini, setiap generate 1 produk lewat jalur Bulk akan
     // gagal total (field hook/story/cta jadi undefined). Skema di bawah ini
     // WAJIB tetap sinkron dengan format yang dibaca _vbCallBulkBatch.
-    +'Balas HANYA dengan JSON array berisi TEPAT 1 object, tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk","hook":"...","story":"...","cta":"..."}]';
+    +(count>1
+      // BUG FIX KRITIS (lihat catatan panjang di deklarasi fungsi ini):
+      // begitu count>1, instruksi jumlah object WAJIB ikut N produk (bukan
+      // hardcode 1) + ditambah aturan minimal urutan/independensi antar
+      // produk (versi ringkas dari rule 15 _vbBulkSystemPrompt yang sudah
+      // tidak pernah dipakai lagi) supaya kualitas tetap terjaga walau
+      // system prompt-nya singkat.
+      ?('PENTING: jumlah object di JSON array jawabanmu WAJIB sama persis dengan jumlah produk yang diberikan (TEPAT '+count+' object), urutan SAMA seperti daftar produk di pesan berikutnya, SATU object utuh untuk SETIAP produk — jangan ada yang digabung/dilewati/dikurangi. Perlakukan tiap produk sebagai cerita independen (jangan sampai STORY/CTA satu produk menyebut detail produk lain).\n\n'
+        +'Balas HANYA dengan JSON array berisi TEPAT '+count+' object, tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk 1","hook":"...","story":"...","cta":"..."}, {"produk":"nama produk 2","hook":"...","story":"...","cta":"..."}]')
+      :'Balas HANYA dengan JSON array berisi TEPAT 1 object, tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk","hook":"...","story":"...","cta":"..."}]');
 }
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi){
   if(cacheSystem===undefined)cacheSystem=true;
@@ -17164,19 +17255,41 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // (nulis-cache +25% di panggilan pertama tidak balik modal cuma dari 2
   // baca-cache susulan) dibanding 3x panggilan single-mode polos tanpa cache.
   //
-  // KEPUTUSAN BARU (permintaan user, ronde berikutnya): user SUDAH TAHU &
-  // TERIMA trade-off biaya di atas (sudah dijelaskan & dihitung — untuk sesi
-  // kecil ini beneran lebih mahal, baru balik modal di sekitar ±10 produk
-  // berfoto per sesi) dan MEMILIH TETAP pakai prompt besar+cache begitu user
-  // sendiri men-set jumlah produk 2 atau lebih di wizard Bulk — TIDAK PEDULI
-  // batch/panggilan API-nya kebetulan kepecah jadi isi 1 gara-gara foto atau
-  // tidak. Jadi baris ini BALIK pakai totalProdukInSesi (bukan batch.length)
-  // — sama seperti versi SEBELUM fix lanjutan di atas — supaya "generate 3
-  // produk sekaligus" konsisten selalu kena cache_control + prompt besar,
-  // walau tiap panggilannya kepecah isi 1. Kalau user cuma set 1 produk
-  // (totalProdukInSesi===1, genuinely single), tetap prompt pendek & tanpa
-  // cache seperti biasa (memang sudah benar, tidak disentuh).
-  let _vbUseBigPromptAndCache=(totalProdukInSesi>1);
+  // KEPUTUSAN TERBARU (permintaan user, ronde setelah audit biaya lanjutan):
+  // versi SEBELUMNYA di sini sempat balik ke totalProdukInSesi>1 (langsung
+  // prompt besar+cache begitu user set 2 produk atau lebih) — TAPI setelah
+  // dihitung ulang pakai data pemakaian nyata, titik impasnya baru tercapai
+  // di sekitar ~19-20 produk per sesi (lihat komentar di PB_MIN_PRODUK_UNTUK_CACHE
+  // dekat deklarasi _vbCalcUsd), BUKAN ±10 seperti perkiraan kasar sebelumnya.
+  // Jadi sekarang baris ini pakai PB_MIN_PRODUK_UNTUK_CACHE sebagai ambang:
+  // di BAWAH ambang itu, sesi bulk (berapapun produknya, walau tiap
+  // panggilannya kepecah isi 1 gara-gara foto) otomatis lewat jalur RINGKAS
+  // tanpa cache — SAMA PERSIS seperti mode Single asli secara biaya — supaya
+  // tidak ada lagi sesi kecil yang diam-diam lebih mahal daripada generate
+  // satu-satu. Begitu totalProdukInSesi mencapai ambang ini, BARU prompt
+  // besar+cache_control dipakai (di situ ongkos nulis cache-nya sudah pasti
+  // balik modal). Kalau user cuma set 1 produk (totalProdukInSesi===1,
+  // genuinely single), tetap prompt pendek & tanpa cache seperti biasa
+  // (memang sudah benar, tidak disentuh — otomatis di bawah ambang manapun).
+  // DIMATIKAN (permintaan user, Sept 2026 — "prompt caching gak relevan lagi
+  // karena sekarang 1 sesi = 1 panggilan"): dulu baris ini nyalain system
+  // prompt versi besar (_vbBulkSystemPrompt, sengaja digemukkan ~3,6x biar
+  // lolos syarat minimum cache Haiku 4.5) + cache_control begitu
+  // totalProdukInSesi>=PB_MIN_PRODUK_UNTUK_CACHE (20) — untungnya baru balik
+  // modal kalau ADA panggilan susulan dalam sesi yang sama yang bisa BACA
+  // cache itu (dulu: 1 sesi 20 produk = ~7 panggilan lewat BATCH_SIZE=3, jadi
+  // 1x nulis + 6x baca). Sekarang SEMUA produk di 1 sesi digabung jadi 1
+  // panggilan saja (lihat _vbRunBulkGenerate/vbRegenerateAllBulk) — jadi
+  // tidak akan pernah ada panggilan ke-2 dalam sesi yang sama yang bisa
+  // manfaatin cache itu. Kalau tetap dipaksa nyala: bayar markup nulis cache
+  // +25% DAN token instruksi 10x lebih banyak (versi besar ~6.766 token vs
+  // versi ringkas cuma beberapa ratus token) TANPA kompensasi diskon baca
+  // sama sekali — murni rugi, bukan hemat. Makanya dipaksa false permanen di
+  // sini; _vbBulkSystemPrompt & PB_MIN_PRODUK_UNTUK_CACHE SENGAJA tidak
+  // dihapus (dibiarkan sebagai referensi kalau suatu saat flow-nya balik lagi
+  // ke multi-panggilan-per-sesi, sama seperti pola *_FULL_DISABLED lain di
+  // file ini).
+  let _vbUseBigPromptAndCache=false;
   if(!_vbUseBigPromptAndCache)cacheSystem=false;
   // FIX HEMAT TOKEN (Opsi 2, lanjutan — permintaan user "cek statistik
   // biaya & cache"): label mode di riwayat statistik ("Single" vs "Bulk")
@@ -17358,8 +17471,20 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // _vbBuildPhotoAwareBatches gara-gara ada foto. Ini memang bisa lebih
   // mahal untuk sesi kecil (lihat perhitungan lengkap di komentar atas),
   // tapi itu trade-off yang sudah disetujui user.
-  let _vbEffectiveSystemPrompt=_vbUseBigPromptAndCache?_vbBulkSystemPrompt:_vbBuildSingleModeSystemPrompt(range);
-  let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem);
+  let _vbEffectiveSystemPrompt=_vbUseBigPromptAndCache?_vbBulkSystemPrompt:_vbBuildSingleModeSystemPrompt(range,batch.length);
+  // BUG FIX KRITIS (audit Sept 2026, lihat catatan lengkap di deklarasi
+  // cfg.maxOutputTokens di _vbStreamClaudeJSONWithRetryModel): batch
+  // sekarang bisa berisi sampai 30 produk dalam 1 panggilan API — jatah
+  // token keluaran WAJIB ikut membesar, bukan tetap 6144. Estimasi per
+  // produk: 3 bagian (HOOK/STORY/CTA) x maksimal range.max kata, dikali
+  // ~2 token/kata (jaga-jaga tokenisasi Bahasa Indonesia + gaya bahasa
+  // gaul) ditambah overhead struktur JSON (~40 token/object) — dibulatkan
+  // ke atas & dikasih dasar 1000 token buat pembuka/penutup JSON array.
+  // Tetap tidak boleh di bawah 6144 (perilaku lama utk batch kecil tidak
+  // berubah) dan dibatasi 8192 (batas keluaran default Claude tanpa
+  // header beta output panjang) sebagai jaring pengaman.
+  let _vbDynamicMaxTokens=Math.min(8192,Math.max(6144,batch.length*(range.max*3*2+40)+1000));
+  let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem,_vbDynamicMaxTokens);
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -17685,10 +17810,22 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   // Sekarang dipecah jadi batch kecil (3 produk/panggilan) yang sudah
   // terbukti reliable, dikirim berurutan.
   const BATCH_SIZE=3;
-  // FIX 413 (lihat komentar lengkap di _vbBuildPhotoAwareBatches): produk
-  // yang punya foto referensi dipaksa jadi batch sendiri isi 1, produk
-  // tanpa foto tetap digabung sampai BATCH_SIZE seperti sebelumnya.
-  let batches=_vbBuildPhotoAwareBatches(toProcess,BATCH_SIZE,function(x){return!!(x.p&&x.p.fotoBase64);});
+  // PERMINTAAN USER (Sept 2026 — "mau langsung 1 panggilan aja" biar hemat):
+  // SEMUA produk di sesi ini (berfoto maupun tidak, berapa pun jumlahnya)
+  // sekarang digabung jadi SATU batch/panggilan API saja — BATCH_SIZE=3 &
+  // pemaksaan foto jadi batch isi 1 (_vbBuildPhotoAwareBatches, fungsinya
+  // TETAP ADA tapi TIDAK DIPAKAI lagi di sini) TIDAK dipakai lagi di jalur
+  // ini. Auto-split 413 yang sudah ada di _vbCallBulkBatch (lihat
+  // definisinya — otomatis belah dua & retry rekursif kalau 1 request
+  // kebesaran) tetap jadi jaring pengaman kalau ternyata kegedean.
+  // RISIKO YANG SUDAH DIKETAHUI (alasan BATCH_SIZE=3 dibuat dulu, lihat FIX
+  // di atas fungsi ini): makin banyak produk dijejalkan ke 1 panggilan,
+  // makin besar juga risiko model "kelupaan"/nge-drop sebagian produk
+  // (minta 15, balik cuma sebagian) — beda dari 413 (bukan error HTTP, jadi
+  // TIDAK ke-auto-split). Kalau ini terjadi, produk yang hilang tetap bisa
+  // di-generate lagi lewat tombol "Lanjutkan" seperti biasa (lihat
+  // batchArr.length<batchItems.length di bawah).
+  let batches=[toProcess];
 
   VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
@@ -19056,11 +19193,12 @@ async function vbRegenerateAllBulk(newSettings){
   // baris ringkasan tersendiri di panel statistik, terpisah dari sesi
   // generate awal.
   _vbStartUsageSession('Generate Ulang Semua (Bulk) — '+produkList.length+' produk',produkList.length);
-  // FIX 413 (sama seperti di _vbRunBulkGenerate — lihat komentar lengkap di
-  // _vbBuildPhotoAwareBatches): produk yang punya foto referensi dipaksa
-  // jadi batch sendiri isi 1, produk tanpa foto tetap digabung sampai
-  // BATCH_SIZE seperti sebelumnya.
-  let batches=_vbBuildPhotoAwareBatches(produkList,BATCH_SIZE,function(p){return!!p.fotoBase64;});
+  // PERMINTAAN USER (Sept 2026 — sama seperti di _vbRunBulkGenerate, lihat
+  // komentar lengkap di sana): SEMUA produk digabung jadi SATU panggilan
+  // API saja, apa pun jumlahnya — BATCH_SIZE=3 & _vbBuildPhotoAwareBatches
+  // (fungsinya tetap ada, tidak dipakai lagi di sini) tidak dipakai lagi.
+  // Auto-split 413 di _vbCallBulkBatch tetap jadi jaring pengaman.
+  let batches=[produkList];
   // FIX: sebelumnya tidak ada indikator loading sama sekali selama proses ini
   // berjalan (bisa berlangsung lama untuk banyak produk) — cuma 1 toast di
   // awal lalu sunyi total, terkesan macet. Sekarang pakai animasi logo yang
