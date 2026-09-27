@@ -196,8 +196,12 @@
   };
 
   // ── KONFIGURASI TIER & PEMBAYARAN (Sept 2026) ───────────────────────────
-  // 3 tier: Gratis (3/hari), Standar (40/hari, Rp29rb/bulan), Premium
-  // (200/hari, Rp79rb/bulan). Alur bayar SENGAJA dibuat manual dulu (paling
+  // 3 tier: Gratis (3/hari), Standar (15/hari, Rp29rb/bulan), Premium
+  // (40/hari, Rp79rb/bulan). Angka limit ini SEKARANG literal jumlah produk
+  // per hari (lihat catatan "unit = produk langsung" di dekat dlCheckBeforeCall/
+  // dlIncrement) — bukan lagi "unit" yang senilai 3 produk seperti versi lama,
+  // supaya biaya API riil (±Rp45/produk, linear, tanpa efek hemat batching)
+  // benar-benar sesuai dengan angka yang diiklankan ke user. Alur bayar SENGAJA dibuat manual dulu (paling
   // gampang buat mulai, tanpa integrasi payment gateway): user transfer →
   // klik "Sudah Transfer" → kebuka WhatsApp ke nomor admin dengan pesan
   // otomatis (email + tier yang dipilih) → ADMIN CEK MUTASI SENDIRI, lalu
@@ -214,8 +218,8 @@
   // dan tier di-set otomatis lewat webhook, bukan manual lewat WA lagi.
   var PB_TIER_CONFIG = {
     free:    {label:'Gratis',  limit:3,   price:0,     periodDays:0},
-    standar: {label:'Standar', limit:40,  price:29000, periodDays:30},
-    premium: {label:'Premium', limit:200, price:79000, periodDays:30}
+    standar: {label:'Standar', limit:15,  price:29000, periodDays:30},
+    premium: {label:'Premium', limit:40,  price:79000, periodDays:30}
   };
   var PB_PAYMENT_CONFIG = {
     waNumber: '62812XXXXXXXX', // GANTI: nomor WA admin, format 62..., tanpa + atau spasi
@@ -3562,7 +3566,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.79</div>
+  <div class="splash-version" id="splash-version">v6.80</div>
 </div>
 <script>
   (function(){
@@ -5473,7 +5477,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.79 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.80 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11009,7 +11013,7 @@ async function _vaiDecKey(b64){
 }
 
 // ── LIMIT PAKAI AI (dl = "download/daily limit") — TIER BERBAYAR ────────
-// Gratis 3/hari, Standar 40/hari, Premium 200/hari (lihat PB_TIER_CONFIG).
+// Gratis 3/hari, Standar 15/hari, Premium 40/hari (lihat PB_TIER_CONFIG).
 // Dihitung PER AKUN (uid Google), bukan per device — tersimpan di
 // localStorage utk cek instan/offline, disinkron ke Firestore tiap kali
 // generate (lihat pbCloudPushQuota) supaya akurat lintas HP/laptop.
@@ -11046,21 +11050,19 @@ function pbGetQuota(){
 // produk bulk digabung jadi SATU panggilan API saja (berapa pun jumlahnya,
 // sampai 30), dlCheckBeforeCall/dlIncrement di loop bulk cuma kepanggil TEPAT
 // 1 KALI per sesi generate — tidak peduli sesi itu isinya 1 produk atau 30
-// produk sekaligus. Akibatnya jatah harian (mis. tier Gratis: 3x/hari) yang
-// tadinya setara ±9 produk/hari (3 sesi x rata-rata 3 produk/batch) diam-diam
-// jadi setara sampai 90 produk/hari (3 sesi x 30 produk) — jatah tier
-// Standar/Premium ikut membengkak proporsional sama parahnya. Ini bukan cuma
-// soal tampilan angka; user bisa generate JAUH lebih banyak produk (dan app
-// ini bayar Claude API JAUH lebih banyak token) daripada yang sebenarnya
-// dijatah per tier, tanpa jatah harian kepakai secara wajar.
+// produk sekaligus. Akibatnya jatah harian bisa jebol jauh dari yang
+// seharusnya dijatah per tier, tanpa jatah harian kepakai secara wajar.
 // Sekarang KEDUA fungsi menerima parameter opsional `units` (jumlah unit
 // jatah yang dipakai/dibutuhkan aksi ini, default 1 — SAMA PERSIS seperti
 // perilaku lama untuk semua pemanggil single-produk yang tidak diubah).
-// Pemanggil bulk (_vbRunBulkGenerate & vbRegenerateAllBulk) mengirim
-// Math.ceil(jumlahProdukDalamPanggilanIni/3) supaya jatah yang kepakai
-// proporsional ke jumlah produk sungguhan — PERSIS meniru rasio unit/produk
-// dari BATCH_SIZE=3 yang dulu berlaku, cuma sekarang dihitung eksplisit
-// (bukan lagi kebetulan muncul sendiri dari banyaknya panggilan API).
+// UPDATE (audit biaya API, Sept 2026): pemanggil bulk sekarang mengirim
+// `units = jumlah produk sungguhan dalam panggilan ini secara LANGSUNG`
+// (bukan lagi dibagi 3) — karena biaya API riil per produk itu LINEAR
+// (tidak ada efek hemat dari nge-batch banyak produk sekaligus), jadi
+// 1 unit jatah HARUS sama persis dengan 1 produk supaya angka limit di
+// PB_TIER_CONFIG (dan teks "X produk/hari" di UI upgrade) benar-benar
+// akurat, bukan cuma sepertiga dari kapasitas produk riil yang bisa dicapai
+// lewat bulk seperti versi rasio /3 sebelumnya.
 function dlCheckBeforeCall(units){
   units=Math.max(1,units||1);
   // FIX KEAMANAN #2 (audit upgrade member, Sept 2026): sekalian tarik ulang
@@ -17498,9 +17500,10 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // produknya (lihat "let batches=[toProcess]" di atas), unit jatah yang
       // dipakai WAJIB dihitung dari jumlah produk di batch ini (bukan lagi
       // otomatis 1 per panggilan seperti asumsi lama waktu BATCH_SIZE=3 masih
-      // dipakai) — dibagi 3 supaya rasio jatah/produk PERSIS sama seperti
-      // sebelum fitur "1 panggilan aja" ini ada.
-      let dlUnits=Math.max(1,Math.ceil(batches[b].length/3));
+      // dipakai). UPDATE (audit biaya API, Sept 2026): TIDAK dibagi 3 lagi —
+      // 1 unit jatah = 1 produk secara langsung, karena biaya API riil per
+      // produk linear (Rp45/produk, tidak ada efek hemat batching).
+      let dlUnits=Math.max(1,batches[b].length);
       let dlCheck=dlCheckBeforeCall(dlUnits);
       if(!dlCheck.ok){
         throw new Error(dlCheck.message+(allResults.length?' ('+allResults.length+' produk sudah berhasil dibuat.)':''));
@@ -18866,8 +18869,10 @@ async function vbRegenerateAllBulk(newSettings){
       // juga selalu isi SATU elemen (batches=[produkList], lihat di atas)
       // berapa pun jumlah produknya sejak "Generate Ulang Semua" ikut
       // digabung jadi 1 panggilan API — unit jatah WAJIB dihitung dari
-      // jumlah produk di batch ini, bukan 1 tetap per panggilan.
-      let dlUnits=Math.max(1,Math.ceil(batches[b].length/3));
+      // jumlah produk di batch ini, bukan 1 tetap per panggilan. UPDATE
+      // (audit biaya API, Sept 2026): TIDAK dibagi 3 lagi — 1 unit jatah =
+      // 1 produk langsung, biaya API riil per produk linear (Rp45/produk).
+      let dlUnits=Math.max(1,batches[b].length);
       let dc=dlCheckBeforeCall(dlUnits);
       if(!dc.ok)throw new Error(dc.message+(allResults.length?' ('+allResults.length+' produk pertama sudah berhasil dibuat ulang.)':''));
       let batchLabelBase='Batch '+(b+1)+'/'+batches.length+'...';
@@ -21199,9 +21204,9 @@ window.addEventListener('beforeunload', function(e){
     <div id="upgrade-plans-panel" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
       <div id="upg-card-free" class="info-card" style="align-items:center;"><div class="num-badge" style="background:var(--surface3);color:var(--muted);">✓</div><div><div style="font-size:var(--fs-base);font-weight:700;">Gratis — <span id="upg-current-tag" style="color:var(--muted);">paket kamu sekarang</span></div><div class="desc-text">3 produk/hari. Cukup buat coba-coba fitur.</div></div></div>
 
-      <div class="info-card" style="align-items:center;border-color:var(--border-hi);"><div class="num-badge">Rp</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Standar</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp29.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">40 produk/hari — buat kerja harian seller UMKM.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('standar')">Upgrade ke Standar</button></div></div>
+      <div class="info-card" style="align-items:center;border-color:var(--border-hi);"><div class="num-badge">Rp</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Standar</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp29.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">15 produk/hari — buat kerja harian seller UMKM.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('standar')">Upgrade ke Standar</button></div></div>
 
-      <div class="info-card" style="align-items:center;border-color:rgba(240,217,160,0.4);background:rgba(240,217,160,0.06);"><div class="num-badge" style="background:var(--accent);color:#1a1a1a;">★</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Premium</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp79.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">200 produk/hari — buat reseller/agency generate banyak produk.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('premium')">Upgrade ke Premium</button></div></div>
+      <div class="info-card" style="align-items:center;border-color:rgba(240,217,160,0.4);background:rgba(240,217,160,0.06);"><div class="num-badge" style="background:var(--accent);color:#1a1a1a;">★</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Premium</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp79.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">40 produk/hari — buat reseller/agency generate banyak produk.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('premium')">Upgrade ke Premium</button></div></div>
 
       <div style="font-size:var(--fs-2xs);color:var(--muted2);text-align:center;padding-top:4px;">Pembayaran manual transfer, aktif setelah dikonfirmasi admin (biasanya cepat).</div>
     </div>
