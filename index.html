@@ -34,11 +34,14 @@
      dengan pbGetTier(). Dipasang di <head> supaya tidak ada kedip tema lama. -->
 <script>
 (function(){
+  window.pbTL=function(m){try{var a=JSON.parse(localStorage.getItem('pb_tl')||'[]');a.push(new Date().toLocaleTimeString()+' '+m);if(a.length>60)a=a.slice(-60);localStorage.setItem('pb_tl',JSON.stringify(a));var el=document.getElementById('pb-tl');if(el)el.textContent=a.slice(-14).join('\n');}catch(x){}};
+  if(/debugtier/.test(location.search)){document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('pre');d.id='pb-tl';d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:2147483647;margin:0;padding:6px 8px;max-height:45vh;overflow:auto;background:rgba(0,0,0,.88);color:#7CFC9A;font:11px/1.35 monospace;white-space:pre-wrap;pointer-events:none;';try{d.textContent=JSON.parse(localStorage.getItem('pb_tl')||'[]').slice(-14).join('\n');}catch(x){}document.body.appendChild(d);});}
   var GLASS_TIERS={standar:1,premium:1};
   function apply(){
     var t='free',e=0;
     try{t=localStorage.getItem('pb_tier_v1')||'free';e=Number(localStorage.getItem('pb_tier_expiry_v1'))||0;}catch(x){}
     if(t!=='free'&&e&&Date.now()>e)t='free';
+    if(window._pbLastT!==t){window._pbLastT=t;window.pbTL('tampilan: tier lokal='+t+' exp='+e);}
     var on=Object.prototype.hasOwnProperty.call(GLASS_TIERS,t);
     document.documentElement.classList.toggle('pb-glass',on);
     // TEMA ONYX PLATINUM: hanya paket premium (Standar tetap Obsidian Glass).
@@ -741,6 +744,7 @@
   // basi tidak menaikkan/menurunkan paket. Hasilnya juga disimpan per-akun
   // lewat pbTierCacheSave (lihat <head>) supaya login berikutnya instan.
   function _applyCloudTier(data, fromCache){
+    try{ window.pbTL('baca cloud: uid='+String(window.pbCloudUid).slice(0,6)+' tier='+data.pb_tier+' exp='+data.pb_tier_expiry+' fromCache='+fromCache); }catch(x){}
     if(fromCache){ if(_tierState !== 'ok'){ _setTierState('loading'); _scheduleTierRetry(); } return; }
     try{
       var t = (typeof data.pb_tier === 'string') ? data.pb_tier.trim().toLowerCase() : '';
@@ -802,7 +806,7 @@
       _tierRetryN = 0; clearTimeout(_tierRetryT);
       return true;
     }).catch(function(e){
-      console.warn('Muat paket gagal:', e);
+      console.warn('Muat paket gagal:', e); try{ window.pbTL('refresh GAGAL: '+(e&&(e.code||e.message))); }catch(x){}
       if(_tierState !== 'ok') _scheduleTierRetry();
       return false;
     }).then(function(ok){ _tierBusy = null; return ok; });
@@ -917,7 +921,7 @@
         }catch(e){}
       }
       _setSyncStatus('ok');
-    }catch(e){ console.warn('Ambil data cloud gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(_tierState !== 'ok') _scheduleTierRetry(); }
+    }catch(e){ console.warn('Ambil data cloud gagal:', e); try{ window.pbTL('pullAll GAGAL: '+(e&&(e.code||e.message))); }catch(x){} _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(_tierState !== 'ok') _scheduleTierRetry(); }
     // Segarkan tampilan yang mungkin sudah kadung dirender sebelum data
     // cloud ini turun (mis. riwayat/halaman tersimpan render kosong dulu
     // sebelum login selesai).
@@ -962,7 +966,7 @@
         // belum ikut mengirim idToken ke pbNativeLoginSuccess (lihat
         // komentar di dekat window.pbNativeLoginSuccess). App tetap jalan
         // normal, cuma sinkron antar-perangkat belum aktif utk sesi ini.
-        console.info('Sinkron cloud belum aktif untuk sesi ini (tidak ada idToken/sesi Firebase yang cocok).');
+        console.info('Sinkron cloud belum aktif untuk sesi ini (tidak ada idToken/sesi Firebase yang cocok).'); try{ window.pbTL('init: TIDAK ada sesi Firebase yang cocok'); }catch(x){}
         _setTierState('unknown');
         _setSyncStatus('off');
         return;
@@ -978,6 +982,7 @@
       if(_lastUid && _lastUid !== window.pbCloudUid){
         // FIX (audit auth #1 & #4): kuota harian + flag dirty/chunk akun LAMA ikut dibersihkan.
         PB_SYNC_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); localStorage.removeItem('__dirty_'+k); localStorage.removeItem('__chunkN_'+k); }catch(e){} });
+        try{ window.pbTL('uid BERGANTI, tier lokal dihapus'); }catch(x){}
         try{ localStorage.removeItem('pb_quota_v1'); localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1'); }catch(e){}
         // FIX BUG (audit lanjutan, Sept 2026): PB_COUNTER_SYNC_KEYS (pb_usage_stats_v1/
         // pb_wordfix_stats_v1) DAN file baseline "__base" pendampingnya HARUS
@@ -991,6 +996,7 @@
         });
         try{ localStorage.removeItem('pb_vai_k'); }catch(e){}
       }
+      try{ window.pbTL('init: uid='+String(window.pbCloudUid).slice(0,6)+' sebelumnya='+String(_lastUid).slice(0,6)); }catch(x){}
       try{ localStorage.setItem('pb_last_cloud_uid', window.pbCloudUid); }catch(e){}
       // Simpan email di dokumen user (BUKAN sebagai id dokumen, cuma field
       // biasa) supaya admin gampang cari user di Firestore Console pas mau
@@ -1001,7 +1007,7 @@
         if(_emForDoc){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(){}); }
       }catch(e){}
       await _pullAll();
-    }catch(e){ console.warn('pbCloudInit gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(window.pbCloudUid && _tierState !== 'ok') _scheduleTierRetry(); else if(_tierState === 'loading') _setTierState('unknown'); }
+    }catch(e){ console.warn('pbCloudInit gagal:', e); try{ window.pbTL('init GAGAL: '+(e&&(e.code||e.message))); }catch(x){} _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(window.pbCloudUid && _tierState !== 'ok') _scheduleTierRetry(); else if(_tierState === 'loading') _setTierState('unknown'); }
     finally{
       // FITUR BARU (permintaan user): apapun hasilnya (berhasil, gagal,
       // atau memang tidak ada sinkron aktif utk sesi ini), tandai proses
