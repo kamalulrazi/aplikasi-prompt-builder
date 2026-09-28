@@ -271,8 +271,9 @@
   //   2. Koleksi "users" → cari dokumen dengan field pb_email sesuai yang
   //      WA masuk (atau cari pb_upgrade_request.status == "pending")
   //   3. Edit field di dokumen itu: pb_tier = "standar" atau "premium",
-  //      pb_tier_expiry = (waktu sekarang + jumlah hari di field days pada pb_upgrade_request: 30/90/365, dalam MILIDETIK unix,
-  //      contoh untuk 30 hari: Date.now()+30*86400000 (ganti 30 sesuai isi days) — bisa dihitung lewat console browser)
+  //      pb_tier_expiry = MAX(waktu sekarang, pb_tier_expiry LAMA) + jumlah hari di field days pada pb_upgrade_request (30/90/365),
+  //      dalam MILIDETIK unix (angka, bukan detik/teks). MAX dipakai supaya perpanjang sebelum habis tidak memotong sisa hari.
+  //      Contoh 30 hari di console browser: Math.max(Date.now(), expiryLama||0)+30*86400000 (ganti 30 sesuai isi days)
   //   4. (opsional) hapus/ubah pb_upgrade_request.status jadi "done"
   // Kalau nanti mau otomatis pakai Midtrans/Xendit dll, tinggal ganti isi
   // fungsi pbConfirmUpgradeWA() di bawah supaya redirect ke payment gateway
@@ -738,11 +739,12 @@
   // basi tidak menaikkan/menurunkan paket. Hasilnya juga disimpan per-akun
   // lewat pbTierCacheSave (lihat <head>) supaya login berikutnya instan.
   function _applyCloudTier(data, fromCache){
-    if(fromCache) return;
+    if(fromCache){ if(_tierState !== 'ok'){ _setTierState('loading'); _scheduleTierRetry(); } return; }
     try{
       var t = (typeof data.pb_tier === 'string') ? data.pb_tier.trim().toLowerCase() : '';
       if(!t || !window.PB_TIER_CONFIG || !window.PB_TIER_CONFIG[t]) t = 'free';
-      var e = (typeof data.pb_tier_expiry === 'number') ? data.pb_tier_expiry : 0;
+      var e = _pbNormExpiry(data.pb_tier_expiry);
+      if(e < 0){ console.warn('pb_tier_expiry tidak terbaca, paket dianggap Gratis:', data.pb_tier_expiry); t = 'free'; e = 0; }
       if(t === 'free'){
         e = 0;
         localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1');
@@ -754,10 +756,84 @@
       try{ em = (firebase.auth().currentUser && firebase.auth().currentUser.email) || ''; }catch(x){}
       if(!em){ try{ var au = JSON.parse(localStorage.getItem('pb_auth_user') || 'null'); em = (au && au.email) || ''; }catch(x){} }
       if(typeof window.pbTierCacheSave === 'function') window.pbTierCacheSave(em, t, e);
+      _tierAt = Date.now(); _tierRetryN = 0; _setTierState('ok');
       if(typeof window.pbApplyTheme === 'function') window.pbApplyTheme();
       try{ if(typeof dlRenderBar === 'function') dlRenderBar(); }catch(x){}
     }catch(x){}
   }
+
+  // FIX (audit auth #3/#5, Sept 2026): status muat paket + retry + normalisasi expiry.
+  var _tierState = 'unknown', _tierAt = 0, _tierBusy = null, _tierRetryT = null, _tierRetryN = 0;
+  window.pbTierState = function(){ return _tierState; };
+  function _setTierState(s){
+    if(_tierState === s) return;
+    _tierState = s;
+    try{ if(typeof dlRenderBar === 'function') dlRenderBar(); }catch(x){}
+  }
+  // Hasil: ms (>0) | 0 = tanpa kedaluwarsa | -1 = ada isinya tapi tidak terbaca.
+  // Terima number, string (angka/ISO), Firestore Timestamp, Date; nilai DETIK otomatis jadi ms.
+  function _pbNormExpiry(v){
+    if(v == null || v === '' || v === 0) return 0;
+    var n = NaN;
+    if(typeof v === 'number') n = v;
+    else if(typeof v === 'string'){ var s = v.trim(); n = /^\d+(\.\d+)?$/.test(s) ? Number(s) : Date.parse(s); }
+    else if(v instanceof Date) n = v.getTime();
+    else if(typeof v.toMillis === 'function') n = v.toMillis();
+    else if(typeof v.seconds === 'number') n = v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
+    if(!isFinite(n) || n <= 0) return -1;
+    return n < 1e11 ? n * 1000 : n;
+  }
+  function _scheduleTierRetry(){
+    clearTimeout(_tierRetryT);
+    var d = [3000, 8000, 20000, 60000][_tierRetryN++];
+    if(d == null){ _setTierState('failed'); return; }
+    _tierRetryT = setTimeout(function(){ if(window.pbCloudUid) window.pbRefreshTier(); }, d);
+  }
+  // Baca ulang paket LANGSUNG dari server (bukan cache). Balikin Promise<boolean>.
+  window.pbRefreshTier = function(){
+    if(_tierBusy) return _tierBusy;
+    var ref = _docRef();
+    if(!ref) return Promise.resolve(false);
+    if(_tierState !== 'ok') _setTierState('loading');
+    _tierBusy = ref.get({source: 'server'}).then(function(snap){
+      _applyCloudTier(snap.exists ? (snap.data() || {}) : {}, false);
+      _tierRetryN = 0; clearTimeout(_tierRetryT);
+      return true;
+    }).catch(function(e){
+      console.warn('Muat paket gagal:', e);
+      if(_tierState !== 'ok') _scheduleTierRetry();
+      return false;
+    }).then(function(ok){ _tierBusy = null; return ok; });
+    return _tierBusy;
+  };
+  function _tierMaybeRefresh(){
+    if(!_fbReady || !window.pbCloudUid) return;
+    if(_tierState !== 'ok'){ _tierRetryN = 0; window.pbRefreshTier(); }
+    else if(Date.now() - _tierAt > 120000) window.pbRefreshTier();
+  }
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) _tierMaybeRefresh(); });
+  window.addEventListener('online', _tierMaybeRefresh);
+  // Tombol "Muat ulang paket" di modal upgrade.
+  window.pbReloadTier = function(btn){
+    var old = btn ? btn.textContent : '';
+    if(btn){ btn.disabled = true; btn.textContent = 'Memuat…'; }
+    _tierRetryN = 0;
+    var p = (_fbReady && window.pbCloudUid) ? window.pbRefreshTier() : Promise.resolve(false);
+    return p.then(function(ok){
+      if(btn){ btn.disabled = false; btn.textContent = old; }
+      try{
+        if(ok){
+          var C = window.PB_TIER_CONFIG, t = pbGetTier(), cur = document.getElementById('upg-cur'), h = document.getElementById('upg-h');
+          if(cur && C && C[t]) cur.textContent = 'Paket kamu: ' + C[t].label + ', ' + C[t].limit + ' produk/hari';
+          if(h) h.textContent = (t === 'premium') ? 'Perpanjang paket Premium-mu' : 'Naik paket, produk harianmu makin banyak';
+          showToast('Paket diperbarui: ' + C[t].label, 'success');
+        }else{
+          showToast(window.pbCloudUid ? 'Paket belum bisa dimuat. Cek koneksi lalu coba lagi.' : 'Akunmu belum tersambung ke server. Buka ulang aplikasi atau login ulang.', 'error');
+        }
+      }catch(x){}
+      return ok;
+    });
+  };
 
   async function _pullAll(){
     var ref = _docRef(); if(!ref) return;
@@ -839,7 +915,7 @@
         }catch(e){}
       }
       _setSyncStatus('ok');
-    }catch(e){ console.warn('Ambil data cloud gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); }
+    }catch(e){ console.warn('Ambil data cloud gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(_tierState !== 'ok') _scheduleTierRetry(); }
     // Segarkan tampilan yang mungkin sudah kadung dirender sebelum data
     // cloud ini turun (mis. riwayat/halaman tersimpan render kosong dulu
     // sebelum login selesai).
@@ -861,6 +937,7 @@
   window.pbCloudInit = async function(user, idToken){
     if(!_fbReady){ _setSyncStatus('off'); _pbCloudReadyDone(); return; } // belum disetel di langkah 1-6 atas → tetap lokal
     _setSyncStatus('connecting');
+    if(_tierState !== 'ok') _setTierState('loading');
     try{
       if(idToken){
         var cred = firebase.auth.GoogleAuthProvider.credential(idToken);
@@ -884,6 +961,7 @@
         // komentar di dekat window.pbNativeLoginSuccess). App tetap jalan
         // normal, cuma sinkron antar-perangkat belum aktif utk sesi ini.
         console.info('Sinkron cloud belum aktif untuk sesi ini (tidak ada idToken/sesi Firebase yang cocok).');
+        _setTierState('unknown');
         _setSyncStatus('off');
         return;
       }
@@ -896,7 +974,9 @@
       var _lastUid = null;
       try{ _lastUid = localStorage.getItem('pb_last_cloud_uid'); }catch(e){}
       if(_lastUid && _lastUid !== window.pbCloudUid){
-        PB_SYNC_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+        // FIX (audit auth #1 & #4): kuota harian + flag dirty/chunk akun LAMA ikut dibersihkan.
+        PB_SYNC_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); localStorage.removeItem('__dirty_'+k); localStorage.removeItem('__chunkN_'+k); }catch(e){} });
+        try{ localStorage.removeItem('pb_quota_v1'); }catch(e){}
         // FIX BUG (audit lanjutan, Sept 2026): PB_COUNTER_SYNC_KEYS (pb_usage_stats_v1/
         // pb_wordfix_stats_v1) DAN file baseline "__base" pendampingnya HARUS
         // ikut dibersihkan di sini juga — sejak dipisah dari PB_SYNC_KEYS (lihat
@@ -919,7 +999,7 @@
         if(_emForDoc){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(){}); }
       }catch(e){}
       await _pullAll();
-    }catch(e){ console.warn('pbCloudInit gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); }
+    }catch(e){ console.warn('pbCloudInit gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(window.pbCloudUid && _tierState !== 'ok') _scheduleTierRetry(); else if(_tierState === 'loading') _setTierState('unknown'); }
     finally{
       // FITUR BARU (permintaan user): apapun hasilnya (berhasil, gagal,
       // atau memang tidak ada sinkron aktif utk sesi ini), tandai proses
@@ -975,7 +1055,21 @@
     ref.set({pb_upgrade_request: reqObj, _updatedAt: Date.now()}, {merge:true})
       .catch(function(e){ console.warn('Sync upgrade request gagal:', e); });
   };
+  // FIX (audit auth #4): kirim semua key yang masih dirty (dipanggil sebelum logout).
+  window.pbCloudFlush = function(){
+    if(!_fbReady || !window.pbCloudUid) return Promise.resolve();
+    var jobs = [];
+    PB_SYNC_KEYS.forEach(function(k){
+      var dirty = false;
+      try{ dirty = !!localStorage.getItem('__dirty_'+k); }catch(e){}
+      if(!dirty) return;
+      clearTimeout(_timers[k]);
+      jobs.push(_pushBlob(k, k === PB_SAVED_SYNC_KEY).catch(function(){}));
+    });
+    return Promise.all(jobs);
+  };
   window.pbCloudSignOut = function(){
+    clearTimeout(_tierRetryT); _tierState = 'unknown';
     window.pbCloudUid = null;
     _setSyncStatus('off');
     // FIX (Sept 2026): kembalikan promise-nya supaya logout bisa MENUNGGU
@@ -3894,7 +3988,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.97</div>
+  <div class="splash-version" id="splash-version">v6.98</div>
 </div>
 <script>
   (function(){
@@ -4187,8 +4281,17 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       localStorage.removeItem('pb_tour_last_step');
     }catch(e){}
     try{ localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1'); }catch(e){}
+    // FIX (audit auth #1): kuota harian akun ini tidak boleh terwariskan ke akun berikutnya di perangkat ini.
+    try{ localStorage.removeItem('pb_quota_v1'); }catch(e){}
+    // FIX (audit auth #4): dorong dulu perubahan lokal yang belum ke-push (maks 4 dtk), baru signOut.
     var _pbSo = null;
-    try{ if(typeof pbCloudSignOut === 'function') _pbSo = pbCloudSignOut(); }catch(e){}
+    try{
+      if(typeof pbCloudSignOut === 'function'){
+        var _pbFl = (typeof pbCloudFlush === 'function')
+          ? Promise.race([pbCloudFlush(), new Promise(function(r){ setTimeout(r, 4000); })]) : Promise.resolve();
+        _pbSo = _pbFl.then(function(){ return pbCloudSignOut(); });
+      }
+    }catch(e){}
     if(pbIsInsideNativeApp()){
       var plugin = pbNativePlugin();
       try{ if(plugin && typeof plugin.logout === 'function') plugin.logout(); }catch(e){}
@@ -4206,7 +4309,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     // pernah ketarik.
     var _pbGone = false;
     function _pbGo(){ if(_pbGone) return; _pbGone = true; location.reload(); }
-    if(_pbSo && typeof _pbSo.then === 'function'){ _pbSo.then(_pbGo, _pbGo); setTimeout(_pbGo, 1500); }
+    if(_pbSo && typeof _pbSo.then === 'function'){ _pbSo.then(_pbGo, _pbGo); setTimeout(_pbGo, 6000); }
     else _pbGo();
   }
 
@@ -5825,7 +5928,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.97 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.98 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11162,13 +11265,40 @@ function _pbGetDeviceId(){
 // lama (>1 jam), jadi aman dipanggil tiap request tanpa cache manual di
 // sini. Kosong ('') kalau belum login / Firebase belum siap — app tetap
 // jalan normal sebagai anonim (kena limit Gratis + pagar IP di Worker).
+// FIX (audit auth #2, Sept 2026): kalau user sudah login tapi sesi Firebase belum siap
+// (signInWithCredential masih jalan / sesi dipulihkan), TUNGGU dulu (maks 8 dtk). Kalau tetap
+// kosong padahal paket berbayar, JANGAN kirim anonim (Worker akan pakai limit Gratis) —
+// lempar error jelas (err.pbAuthSession). User Gratis tetap jalan seperti biasa.
+function _pbWaitFirebaseUser(ms){
+  return new Promise(function(resolve){
+    var done=false,unsub=null,t=null;
+    function fin(){
+      if(done)return; done=true; clearTimeout(t);
+      try{unsub&&unsub();}catch(e){}
+      var u=null; try{u=firebase.auth().currentUser;}catch(e){}
+      resolve(u);
+    }
+    t=setTimeout(fin,ms);
+    try{unsub=firebase.auth().onAuthStateChanged(function(u){if(u)fin();});}catch(e){fin();return;}
+    try{if(window.pbCloudReady&&window.pbCloudReady.then)window.pbCloudReady.then(fin,fin);}catch(e){}
+  });
+}
 async function _pbGetFirebaseIdToken(){
+  var loggedIn=false,paid=false;
+  try{loggedIn=!!localStorage.getItem('pb_auth_user');paid=(typeof pbGetTier==='function'&&pbGetTier()!=='free');}catch(e){}
   try{
-    if(typeof firebase==='undefined'||!firebase.auth)return '';
-    var u=firebase.auth().currentUser;
-    if(!u)return '';
-    return (await u.getIdToken())||'';
-  }catch(e){return '';}
+    if(typeof firebase!=='undefined'&&firebase.auth){
+      var u=firebase.auth().currentUser;
+      if(!u&&loggedIn)u=await _pbWaitFirebaseUser(8000);
+      if(u){var t=(await u.getIdToken())||'';if(t)return t;}
+    }
+  }catch(e){}
+  if(loggedIn&&paid&&navigator.onLine!==false){
+    var err=new Error('Sesi akunmu belum tersambung ke server, jadi paket berbayarmu belum bisa dipakai. Tutup lalu buka lagi aplikasinya; kalau masih sama, keluar lalu login ulang.');
+    err.pbAuthSession=true;
+    throw err;
+  }
+  return '';
 }
 // FIX (permintaan user, Sept 2026): Sonnet-5 SEBAGAI CADANGAN DIMATIKAN
 // TOTAL — sebelumnya kalau Haiku gagal total setelah retry habis, app
@@ -11476,7 +11606,8 @@ function dlRenderBar(){
   if(fill){ fill.style.width=pct+'%'; fill.style.background = state==='empty'?'var(--red)':(state==='warn'?'var(--warning)':'var(--green)'); }
   if(countEl) countEl.textContent = q.count+'/'+cfg.limit;
   if(resetEl) resetEl.textContent = sisa+' sisa hari ini • reset tengah malam';
-  if(label) label.textContent = cfg.label;
+  var _ts = (typeof window.pbTierState === 'function') ? window.pbTierState() : '';
+  if(label) label.textContent = cfg.label + (_ts === 'loading' ? ' · memuat…' : (_ts === 'failed' ? ' · gagal muat' : ''));
   bar.style.display='flex';
 }
 function pbToggleLimitBar(){
@@ -16631,6 +16762,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         try{retryAfterHeader=resp.headers&&typeof resp.headers.get==='function'?resp.headers.get('retry-after'):null;}catch(e){}
       }
     }catch(e){
+      if(e&&e.pbAuthSession)throw e; // FIX (audit auth #2): jangan di-retry sebagai error jaringan
       rawText='';
       // FIX BUG BIAYA & KEANDALAN (audit mendalam, laporan user Sept 2026 —
       // "jangan sampai ada bug biaya sekecil apapun"): kalau timeout/abort
@@ -21669,7 +21801,7 @@ window.addEventListener('beforeunload', function(e){
 
     <!-- PANEL 1: pilih paket (gaya sheet) — harga & limit diisi JS dari PB_TIER_CONFIG -->
     <div id="upgrade-plans-panel" style="display:flex;">
-      <div class="upg-top"><div class="upg-logo">P</div><h2 id="upg-h">Naik paket, produk harianmu makin banyak</h2><span class="upg-cur" id="upg-cur"></span></div>
+      <div class="upg-top"><div class="upg-logo">P</div><h2 id="upg-h">Naik paket, produk harianmu makin banyak</h2><span class="upg-cur" id="upg-cur"></span><button type="button" class="upg-cur" id="upg-reload" onclick="pbReloadTier(this)" style="cursor:pointer;margin-left:6px;font-family:inherit">Muat ulang paket</button></div>
       <div class="upg-sheet">
         <div class="upg-pg" id="upg-grid" onclick="var b=event.target.closest('.upg-pk');if(b)pbUpgSetPlan(b.dataset.k)"></div>
         <div class="upg-chp" id="upg-chips" role="group" aria-label="Periode langganan" onclick="var b=event.target.closest('.upg-pill');if(b)pbUpgSetPlan(null,+b.dataset.j)"></div>
