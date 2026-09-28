@@ -740,7 +740,32 @@
   // Hasil baca dari cache offline Firestore (fromCache) diabaikan supaya data
   // basi tidak menaikkan/menurunkan paket. Hasilnya juga disimpan per-akun
   // lewat pbTierCacheSave (lihat <head>) supaya login berikutnya instan.
+  // LOG PENYEBAB TIER (Sept 2026): kejadian penting soal paket dicatat permanen
+  // (14 terakhir) supaya kalau tampilan balik ke Gratis, alasannya kelihatan lewat
+  // link "Info paket" di modal upgrade. Tidak ikut disinkron ke cloud.
+  function _tlog(ev, info){
+    try{
+      var a = JSON.parse(localStorage.getItem('pb_tier_log_v1') || '[]'); if(!Array.isArray(a)) a = [];
+      a.push({t: new Date().toISOString().slice(5,19).replace('T',' '), e: ev, i: info || ''});
+      if(a.length > 14) a = a.slice(-14);
+      localStorage.setItem('pb_tier_log_v1', JSON.stringify(a));
+    }catch(x){}
+  }
+  window.pbTierLog = _tlog;
+  window.pbTierLogText = function(){
+    var a = []; try{ a = JSON.parse(localStorage.getItem('pb_tier_log_v1') || '[]') || []; }catch(x){}
+    var lines = a.map(function(r){ return r.t + '  ' + r.e + (r.i ? '  ' + r.i : ''); });
+    return lines.length ? lines.join('\n') : '(belum ada catatan)';
+  };
+  function _uidTail(){ return String(window.pbCloudUid || '-').slice(-6); }
+
   function _applyCloudTier(data, fromCache){
+    try{
+      var _before = localStorage.getItem('pb_tier_v1') || 'free';
+      _tlog(fromCache ? 'baca-cache(diabaikan)' : 'baca-server',
+            'uid…' + _uidTail() + ' pb_tier=' + ((data && data.pb_tier != null) ? data.pb_tier : '(kosong)') +
+            ' lokal=' + _before);
+    }catch(x){}
     if(fromCache){ if(_tierState !== 'ok'){ _setTierState('loading'); _scheduleTierRetry(); } return; }
     try{
       var t = (typeof data.pb_tier === 'string') ? data.pb_tier.trim().toLowerCase() : '';
@@ -749,6 +774,7 @@
       if(e < 0){ console.warn('pb_tier_expiry tidak terbaca, paket dianggap Gratis:', data.pb_tier_expiry); t = 'free'; e = 0; }
       if(t === 'free'){
         e = 0;
+        try{ if((localStorage.getItem('pb_tier_v1') || 'free') !== 'free') _tlog('TURUN-KE-GRATIS', 'uid…' + _uidTail() + ' doc.pb_tier=' + ((data && data.pb_tier != null) ? data.pb_tier : '(kosong)')); }catch(x){}
         localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1');
       }else{
         localStorage.setItem('pb_tier_v1', t);
@@ -787,7 +813,7 @@
   }
   function _scheduleTierRetry(){
     clearTimeout(_tierRetryT);
-    var d = [3000, 8000, 20000, 60000][_tierRetryN++];
+    var d = [3000, 8000, 20000, 60000, 60000, 60000, 60000, 60000][_tierRetryN++];
     if(d == null){ _setTierState('failed'); return; }
     _tierRetryT = setTimeout(function(){ if(window.pbCloudUid) window.pbRefreshTier(); }, d);
   }
@@ -840,9 +866,21 @@
   async function _pullAll(){
     var ref = _docRef(); if(!ref) return;
     try{
-      var snap = await ref.get();
+      // FIX (Sept 2026, "balik gratis setelah refresh beberapa kali"): dulu di sini
+      // ref.get() biasa, yang boleh mengembalikan salinan cache/setengah jadi (mis. dokumen
+      // yang isinya baru pb_email dari tulisan tertunda di pbCloudInit) — sedangkan tombol
+      // "Muat ulang paket" memakai source:'server' dan selalu benar. Sekarang startup pakai
+      // jalur yang sama. Kalau server tidak terjangkau, jatuh ke ref.get() biasa TAPI tier-nya
+      // tidak dipakai (dianggap cache) dan retry terjadwal yang menentukan.
+      var snap, _viaServer = true;
+      try{ snap = await ref.get({source: 'server'}); }
+      catch(_se){
+        _viaServer = false;
+        _tlog('startup-server-gagal', 'uid…' + _uidTail() + ' ' + String((_se && (_se.code || _se.message)) || _se).slice(0, 60));
+        snap = await ref.get();
+      }
       var data = snap.exists ? (snap.data() || {}) : {};
-      _applyCloudTier(data, !!(snap.metadata && snap.metadata.fromCache)); // tier dulu, baru data berat di bawah
+      _applyCloudTier(data, !_viaServer || !!(snap.metadata && snap.metadata.fromCache)); // tier dulu, baru data berat di bawah
       // FIX (chunking, Sept 2026): tarik tiap key dari struktur potongan baru
       // (users/{uid}/blobs/{key}__N) secara paralel. Kalau belum ada manifest
       // utk key itu (akun lama / belum pernah ke-push pakai kode baru ini),
@@ -990,6 +1028,11 @@
           try{ localStorage.removeItem(k+'__base'); }catch(e){}
         });
         try{ localStorage.removeItem('pb_vai_k'); }catch(e){}
+        _tlog('uid-berubah', '…' + String(_lastUid).slice(-6) + ' → …' + _uidTail() + ' (tier lokal dibersihkan)');
+        try{
+          var _emR = (firebase.auth().currentUser && firebase.auth().currentUser.email) || (user && user.email) || '';
+          if(_emR && typeof window.pbTierCacheRestore === 'function') window.pbTierCacheRestore(_emR);
+        }catch(e){}
       }
       try{ localStorage.setItem('pb_last_cloud_uid', window.pbCloudUid); }catch(e){}
       // Simpan email di dokumen user (BUKAN sebagai id dokumen, cuma field
@@ -4286,6 +4329,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       localStorage.removeItem('pb_tour_in_progress');
       localStorage.removeItem('pb_tour_last_step');
     }catch(e){}
+    try{ if(window.pbTierLog) window.pbTierLog('logout', 'tier lokal dibuang'); }catch(e){}
     try{ localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1'); }catch(e){}
     // FIX (audit auth #1): kuota harian akun ini tidak boleh terwariskan ke akun berikutnya di perangkat ini.
     try{ localStorage.removeItem('pb_quota_v1'); }catch(e){}
@@ -21807,7 +21851,7 @@ window.addEventListener('beforeunload', function(e){
 
     <!-- PANEL 1: pilih paket (gaya sheet) — harga & limit diisi JS dari PB_TIER_CONFIG -->
     <div id="upgrade-plans-panel" style="display:flex;">
-      <div class="upg-top"><div class="upg-logo">P</div><h2 id="upg-h">Naik paket, produk harianmu makin banyak</h2><span class="upg-cur" id="upg-cur"></span><button type="button" class="upg-cur" id="upg-reload" onclick="pbReloadTier(this)" style="cursor:pointer;margin-left:6px;font-family:inherit">Muat ulang paket</button></div>
+      <div class="upg-top"><div class="upg-logo">P</div><h2 id="upg-h">Naik paket, produk harianmu makin banyak</h2><span class="upg-cur" id="upg-cur"></span><button type="button" class="upg-cur" id="upg-reload" onclick="pbReloadTier(this)" style="cursor:pointer;margin-left:6px;font-family:inherit">Muat ulang paket</button><button type="button" class="upg-cur" onclick="alert(window.pbTierLogText?pbTierLogText():'-')" style="cursor:pointer;margin-left:6px;font-family:inherit">Info paket</button></div>
       <div class="upg-sheet">
         <div class="upg-pg" id="upg-grid" onclick="var b=event.target.closest('.upg-pk');if(b)pbUpgSetPlan(b.dataset.k)"></div>
         <div class="upg-chp" id="upg-chips" role="group" aria-label="Periode langganan" onclick="var b=event.target.closest('.upg-pill');if(b)pbUpgSetPlan(null,+b.dataset.j)"></div>
