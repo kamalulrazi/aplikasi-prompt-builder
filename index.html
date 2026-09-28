@@ -234,8 +234,8 @@
   //   2. Koleksi "users" → cari dokumen dengan field pb_email sesuai yang
   //      WA masuk (atau cari pb_upgrade_request.status == "pending")
   //   3. Edit field di dokumen itu: pb_tier = "standar" atau "premium",
-  //      pb_tier_expiry = (waktu sekarang + 30 hari, dalam MILIDETIK unix,
-  //      contoh: Date.now()+30*86400000 — bisa dihitung lewat console browser)
+  //      pb_tier_expiry = (waktu sekarang + jumlah hari di field days pada pb_upgrade_request: 30/90/365, dalam MILIDETIK unix,
+  //      contoh untuk 30 hari: Date.now()+30*86400000 (ganti 30 sesuai isi days) — bisa dihitung lewat console browser)
   //   4. (opsional) hapus/ubah pb_upgrade_request.status jadi "done"
   // Kalau nanti mau otomatis pakai Midtrans/Xendit dll, tinggal ganti isi
   // fungsi pbConfirmUpgradeWA() di bawah supaya redirect ke payment gateway
@@ -252,6 +252,13 @@
   };
   window.PB_TIER_CONFIG = PB_TIER_CONFIG;
   window.PB_PAYMENT_CONFIG = PB_PAYMENT_CONFIG;
+  // Pilihan periode di sheet upgrade. Harga = harga bulanan x months x (1 - disc), dibulatkan ke ribuan.
+  // days = lama aktif; ikut tercatat di pb_upgrade_request supaya admin tinggal set pb_tier_expiry.
+  window.PB_PERIOD_CONFIG = [
+    {label:'Bulanan', months:1,  days:30,  disc:0},
+    {label:'3 bulan', months:3,  days:90,  disc:0.10},
+    {label:'Tahunan', months:12, days:365, disc:0.25}
+  ];
 
   // Kunci-kunci localStorage yang disinkron ke Firestore. SENGAJA TIDAK
   // termasuk: pb_auth_user (sesi login lokal, dibentuk ulang tiap login),
@@ -11398,24 +11405,37 @@ function _pbWorkerAuthQuotaMsg(status,errJson){
 var _pbUpgradeSelectedTier=null;
 
 // ── Tampilan upgrade gaya "sheet": harga & limit dibaca dari PB_TIER_CONFIG ──
-var _pbUpgPlan='premium';
-function pbUpgSetPlan(k){
+var _pbUpgPlan='premium', _pbUpgPer=2, _pbUpgradeSelectedPer=2;
+function pbUpgPer(j){ return (window.PB_PERIOD_CONFIG||[])[j]||{label:'Bulanan',months:1,days:30,disc:0}; }
+function pbUpgPrice(t,j){ var p=pbUpgPer(j); return Math.round(window.PB_TIER_CONFIG[t].price*p.months*(1-p.disc)/1000)*1000; }
+function pbUpgSetPlan(k,j){
   if(k) _pbUpgPlan=k;
-  var C=window.PB_TIER_CONFIG, d=document.getElementById('upgrade-modal-dlg');
-  if(!C||!d||!C[_pbUpgPlan]) return;
+  if(typeof j==='number') _pbUpgPer=j;
+  var C=window.PB_TIER_CONFIG, P=window.PB_PERIOD_CONFIG, d=document.getElementById('upgrade-modal-dlg');
+  if(!C||!P||!d||!C[_pbUpgPlan]) return;
   var rp=function(n){return 'Rp'+n.toLocaleString('id-ID');};
-  d.classList.toggle('pt',_pbUpgPlan==='premium');
-  document.getElementById('upg-grid').innerHTML=['standar','premium'].map(function(t){
-    var c=C[t], on=(t===_pbUpgPlan);
-    return '<button type="button" class="upg-pk'+(on?' on':'')+'" data-k="'+t+'" aria-pressed="'+on+'">'
-      +(t==='premium'?'<em>Paling lengkap</em>':'')
+  var ae=document.activeElement, fk=(ae&&d.contains(ae)&&ae.dataset)?(ae.dataset.j!==undefined?'#upg-chips [data-j="'+ae.dataset.j+'"]':(ae.dataset.k?'#upg-grid [data-k="'+ae.dataset.k+'"]':null)):null;
+  var t=_pbUpgPlan, per=pbUpgPer(_pbUpgPer), m=per.months, tot=pbUpgPrice(t,_pbUpgPer), hemat=C[t].price*m-tot;
+  d.classList.toggle('pt',t==='premium');
+  document.getElementById('upg-grid').innerHTML=['standar','premium'].map(function(x){
+    var c=C[x], on=(x===t);
+    return '<button type="button" class="upg-pk'+(on?' on':'')+'" data-k="'+x+'" aria-pressed="'+on+'">'
+      +(x==='premium'?'<em>Paling lengkap</em>':'')
       +'<b>'+c.label+'</b><strong>'+rp(c.price)+'<span>/bln</span></strong><small>'+c.limit+' produk/hari</small></button>';
   }).join('');
-  var f=[C[_pbUpgPlan].limit+' produk per hari'].concat(_pbUpgPlan==='premium'
+  document.getElementById('upg-chips').innerHTML=P.map(function(p,i){
+    var on=(i===_pbUpgPer);
+    return '<button type="button" class="upg-pill'+(on?' on':'')+'" data-j="'+i+'" aria-pressed="'+on+'">'+p.label+'<em>'+(p.disc?'-'+Math.round(p.disc*100)+'%':'')+'</em></button>';
+  }).join('');
+  document.getElementById('upg-sum').innerHTML='<div><small>Total ditagih</small><b>'+rp(tot)+'</b></div>'
+    +'<div class="r"><small>'+(m>1?'setara '+rp(Math.round(tot/m))+'/bln':'per bulan')+'</small><b>'+(hemat>0?'Hemat '+rp(hemat):'Tanpa diskon')+'</b></div>';
+  var f=[C[t].limit+' produk per hari'].concat(t==='premium'
     ?['Tema Onyx Platinum eksklusif','Prompt foto &amp; video Veo 3','Semua fitur Standar']
     :['Tema Obsidian Glass','Prompt foto &amp; video Veo 3']);
   document.getElementById('upg-list').innerHTML=f.map(function(x){return '<li>'+x+'</li>';}).join('');
-  document.getElementById('upg-cta-amt').textContent=rp(C[_pbUpgPlan].price);
+  document.getElementById('upg-cta-amt').textContent=rp(tot);
+  document.getElementById('upg-cta-sub').textContent=C[t].label+', '+per.label+'. Aktif setelah dikonfirmasi admin';
+  if(fk){ var nf=d.querySelector(fk); if(nf) nf.focus({preventScroll:true}); }
 }
 function pbUpgInit(){
   var C=window.PB_TIER_CONFIG, t=pbGetTier(), cur=document.getElementById('upg-cur'), d=document.getElementById('upgrade-modal-dlg');
@@ -11423,7 +11443,7 @@ function pbUpgInit(){
   var h=document.getElementById('upg-h');
   if(h) h.textContent=(t==='premium')?'Perpanjang paket Premium-mu':'Naik paket, produk harianmu makin banyak';
   if(d) d.scrollTop=0;
-  pbUpgSetPlan('premium');
+  pbUpgSetPlan('premium',2);
 }
 
 function pbOpenUpgradeModal(){
@@ -11451,12 +11471,12 @@ function pbBackToUpgradePlans(){
 function pbSelectUpgradeTier(tier){
   var cfg=window.PB_TIER_CONFIG[tier];
   if(!cfg) return;
-  _pbUpgradeSelectedTier=tier;
+  _pbUpgradeSelectedTier=tier; _pbUpgradeSelectedPer=_pbUpgPer;
   var pay=window.PB_PAYMENT_CONFIG;
   document.getElementById('upgrade-plans-panel').style.display='none';
   document.getElementById('upgrade-payment-panel').style.display='block';
-  document.getElementById('upg-pay-tier-label').textContent=cfg.label;
-  document.getElementById('upg-pay-amount').textContent='Rp'+cfg.price.toLocaleString('id-ID');
+  document.getElementById('upg-pay-tier-label').textContent=cfg.label+' ('+pbUpgPer(_pbUpgradeSelectedPer).label+')';
+  document.getElementById('upg-pay-amount').textContent='Rp'+pbUpgPrice(tier,_pbUpgradeSelectedPer).toLocaleString('id-ID');
   document.getElementById('upg-pay-bank').textContent=pay.bank.nama+' — '+pay.bank.noRek;
   document.getElementById('upg-pay-an').textContent='a.n. '+pay.bank.atasNama;
 }
@@ -11466,17 +11486,17 @@ function pbSelectUpgradeTier(tier){
 // dengan mutasi transfer sebelum naikkan tier manual (lihat instruksi
 // lengkap di dekat PB_TIER_CONFIG, awal file).
 function pbConfirmUpgradeWA(){
-  var tier=_pbUpgradeSelectedTier;
+  var tier=_pbUpgradeSelectedTier, per=pbUpgPer(_pbUpgradeSelectedPer), total=(tier&&window.PB_TIER_CONFIG[tier])?pbUpgPrice(tier,_pbUpgradeSelectedPer):0;
   var cfg=window.PB_TIER_CONFIG[tier];
   if(!cfg) return;
   var email='';
   try{ var u=JSON.parse(localStorage.getItem('pb_auth_user')||'null'); email=(u&&u.email)||''; }catch(e){}
   try{
     if(typeof window.pbCloudPushUpgradeRequest==='function'){
-      window.pbCloudPushUpgradeRequest({tier:tier, price:cfg.price, email:email, requestedAt:Date.now(), status:'pending'});
+      window.pbCloudPushUpgradeRequest({tier:tier, price:total, period:per.label, months:per.months, days:per.days, email:email, requestedAt:Date.now(), status:'pending'});
     }
   }catch(e){}
-  var pesan='Halo, saya mau konfirmasi upgrade Prompt AI Builder Studio ke paket '+cfg.label+' (Rp'+cfg.price.toLocaleString('id-ID')+'/bulan).'+
+  var pesan='Halo, saya mau konfirmasi upgrade Prompt AI Builder Studio ke paket '+cfg.label+' periode '+per.label+' (Rp'+total.toLocaleString('id-ID')+').'+
     (email?(' Akun: '+email+'.'):'')+' Berikut bukti transfernya 🙏';
   var wa='https://wa.me/'+window.PB_PAYMENT_CONFIG.waNumber+'?text='+encodeURIComponent(pesan);
   window.open(wa,'_blank');
@@ -21511,8 +21531,20 @@ window.addEventListener('beforeunload', function(e){
 .upg-ck{list-style:none;padding:0;margin:14px 2px 0;display:grid;gap:8px;font-size:13.5px}
 .upg-ck li::before{content:"✓";color:var(--ac);font-weight:700;margin-right:8px}
 .upg-cta{display:block;width:100%;margin-top:16px;padding:14px;border:0;border-radius:18px;background:linear-gradient(135deg,var(--ac2),var(--acd));color:#1A1408;font:700 16px Geist,system-ui,sans-serif;cursor:pointer}
-.upg-cta small{display:block;font-weight:400;font-size:12px;opacity:.8;margin-top:2px}
+.upg-cta small{display:block;font-weight:400;font-size:12px;opacity:.8;margin-top:2px;text-wrap:balance}
 .upg-note{color:var(--muted);font-size:11.5px;text-align:center;margin:12px 0 0}
+.upg-chp{display:flex;gap:8px;margin:14px 0 10px}
+.upg-pill{flex:1;padding:10px 4px;border-radius:99px;border:1px solid var(--border);background:none;color:var(--text);font:600 13px Geist,system-ui,sans-serif;cursor:pointer}
+.upg-pill.on{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac) inset,0 0 24px var(--gl)}
+.upg-pill em{display:block;font-style:normal;font-size:10.5px;color:var(--ac);min-height:14px}
+.upg-sum{display:flex;justify-content:space-between;align-items:flex-end;padding:12px 14px;border-radius:16px;background:var(--surface2);border:1px dashed var(--border)}
+.upg-sum small{display:block;color:var(--muted);font-size:12px}
+.upg-sum b{font-size:20px}
+.upg-sum .r{text-align:right}
+.upg-sum .r b{font-size:14px;color:var(--ac)}
+@media (max-height:700px){.upg-top{padding:10px 18px 14px}.upg-logo{width:40px;height:40px;font-size:22px;border-radius:13px}.upg-top h2{margin-top:10px}.upg-cur{margin-top:8px}.upg-sheet{padding-top:16px}.upg-chp{margin:10px 0 8px}.upg-ck{gap:6px;margin-top:10px}}
+@media (max-height:660px){.upg-ck li:nth-child(n+3){display:none}}
+@media (max-height:600px){.upg-logo{display:none}.upg-top h2{margin-top:0}.upg-ck{display:none}}
 .upg-dlg :focus-visible{outline:2px solid var(--ac2);outline-offset:2px}
 @media (max-height:700px){.upg-top{padding:12px 18px 16px}.upg-logo{width:44px;height:44px;border-radius:14px;font-size:24px}.upg-top h2{font-size:22px;margin-top:10px}.upg-cur{margin-top:8px}.upg-sheet{padding-top:16px}.upg-ck{gap:6px;margin-top:12px}.upg-cta{margin-top:12px;padding:12px}}
 </style>
@@ -21529,8 +21561,10 @@ window.addEventListener('beforeunload', function(e){
       <div class="upg-top"><div class="upg-logo">P</div><h2 id="upg-h">Naik paket, produk harianmu makin banyak</h2><span class="upg-cur" id="upg-cur"></span></div>
       <div class="upg-sheet">
         <div class="upg-pg" id="upg-grid" onclick="var b=event.target.closest('.upg-pk');if(b)pbUpgSetPlan(b.dataset.k)"></div>
+        <div class="upg-chp" id="upg-chips" role="group" aria-label="Periode langganan" onclick="var b=event.target.closest('.upg-pill');if(b)pbUpgSetPlan(null,+b.dataset.j)"></div>
+        <div class="upg-sum" id="upg-sum" aria-live="polite"></div>
         <ul class="upg-ck" id="upg-list"></ul>
-        <button type="button" class="upg-cta" onclick="pbSelectUpgradeTier(_pbUpgPlan)">Lanjut bayar <span id="upg-cta-amt"></span><small>Aktif setelah dikonfirmasi admin</small></button>
+        <button type="button" class="upg-cta" onclick="pbSelectUpgradeTier(_pbUpgPlan)">Lanjut bayar <span id="upg-cta-amt"></span><small id="upg-cta-sub">Aktif setelah dikonfirmasi admin</small></button>
         <p class="upg-note">Transfer manual, biasanya dikonfirmasi cepat.</p>
       </div>
     </div>
