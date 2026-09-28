@@ -752,10 +752,24 @@
     }catch(x){}
   }
   window.pbTierLog = _tlog;
+  var _lastDocInfo = null; // hasil baca server terakhir: {hasTier:boolean}
   window.pbTierLogText = function(){
     var a = []; try{ a = JSON.parse(localStorage.getItem('pb_tier_log_v1') || '[]') || []; }catch(x){}
     var lines = a.map(function(r){ return r.t + '  ' + r.e + (r.i ? '  ' + r.i : ''); });
-    return lines.length ? lines.join('\n') : '(belum ada catatan)';
+    var uid = window.pbCloudUid || '', em = '', head = [];
+    try{ em = (firebase.auth().currentUser && firebase.auth().currentUser.email) || ''; }catch(x){}
+    if(uid){
+      head.push('ID dokumen: users/' + uid);
+      if(em) head.push('Email: ' + em);
+      // Disalin otomatis (dipanggil dari klik tombol) supaya tinggal ditempel di pencarian Firebase Console.
+      try{ if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(uid).then(function(){}, function(){}); }catch(x){}
+      if(_lastDocInfo && !_lastDocInfo.hasTier){
+        head.push('>> Dokumen ini BELUM punya field pb_tier di Firestore. Buka Firebase Console > users > dokumen dengan ID di atas (ID sudah disalin), lalu isi pb_tier = premium dan pb_tier_expiry = angka milidetik. Kalau kamu sudah mengisinya di dokumen lain, itu dokumen yang salah.');
+      }
+    }else{
+      head.push('Belum tersambung ke server (uid kosong).');
+    }
+    return head.concat(['-----'], lines.length ? lines : ['(belum ada catatan)']).join('\n');
   };
   function _uidTail(){ return String(window.pbCloudUid || '-').slice(-6); }
 
@@ -764,7 +778,9 @@
       var _before = localStorage.getItem('pb_tier_v1') || 'free';
       _tlog(fromCache ? 'baca-cache(diabaikan)' : 'baca-server',
             'uid…' + _uidTail() + ' pb_tier=' + ((data && data.pb_tier != null) ? data.pb_tier : '(kosong)') +
-            ' lokal=' + _before);
+            ' lokal=' + _before +
+            ' field=' + Object.keys(data || {}).filter(function(k){ return /^pb_(tier|email|quota|upgrade)/.test(k); }).join(','));
+      if(!fromCache) _lastDocInfo = {hasTier: !!(data && data.pb_tier != null), email: (data && data.pb_email) || ''};
     }catch(x){}
     if(fromCache){ if(_tierState !== 'ok'){ _setTierState('loading'); _scheduleTierRetry(); } return; }
     try{
@@ -817,13 +833,32 @@
     if(d == null){ _setTierState('failed'); return; }
     _tierRetryT = setTimeout(function(){ if(window.pbCloudUid) window.pbRefreshTier(); }, d);
   }
+  // FIX AKAR MASALAH "balik Gratis padahal Premium" (Sept 2026): SDK Firestore bisa mengembalikan
+  // dokumen SETENGAH JADI (cuma berisi hasil tulisan lokal seperti pb_email) yang lolos sebagai
+  // hasil server. Bukti dari log: baca-server pb_tier=(kosong), 2 detik kemudian baca-server
+  // pb_tier=premium untuk dokumen yang SAMA. Jadi pb_tier kosong TIDAK boleh langsung dianggap
+  // Gratis: tunggu tulisan tertunda selesai, lalu baca ulang dari server (maks 2x). Hasil null =
+  // verifikasi gagal (jaringan), pemanggil TIDAK boleh menurunkan paket.
+  async function _verifyNoTier(ref, snap){
+    for(var i = 0; i < 2; i++){
+      var d = (snap && snap.exists) ? (snap.data() || {}) : {};
+      if(d.pb_tier != null) return snap;
+      try{ await Promise.race([firebase.firestore().waitForPendingWrites(), new Promise(function(r){ setTimeout(r, 4000); })]); }catch(x){}
+      await new Promise(function(r){ setTimeout(r, i === 0 ? 300 : 1200); });
+      try{ snap = await ref.get({source: 'server'}); }catch(x){ return null; }
+      var d2 = snap.exists ? (snap.data() || {}) : {};
+      _tlog('cek-ulang-server', 'uid…' + _uidTail() + ' ke-' + (i + 1) + ' pb_tier=' + (d2.pb_tier != null ? d2.pb_tier : '(kosong)'));
+    }
+    return snap;
+  }
   // Baca ulang paket LANGSUNG dari server (bukan cache). Balikin Promise<boolean>.
   window.pbRefreshTier = function(){
     if(_tierBusy) return _tierBusy;
     var ref = _docRef();
     if(!ref) return Promise.resolve(false);
     if(_tierState !== 'ok') _setTierState('loading');
-    _tierBusy = ref.get({source: 'server'}).then(function(snap){
+    _tierBusy = ref.get({source: 'server'}).then(function(snap){ return _verifyNoTier(ref, snap); }).then(function(snap){
+      if(!snap) throw new Error('verifikasi paket gagal');
       _applyCloudTier(snap.exists ? (snap.data() || {}) : {}, false);
       _tierRetryN = 0; clearTimeout(_tierRetryT);
       return true;
@@ -873,7 +908,11 @@
       // jalur yang sama. Kalau server tidak terjangkau, jatuh ke ref.get() biasa TAPI tier-nya
       // tidak dipakai (dianggap cache) dan retry terjadwal yang menentukan.
       var snap, _viaServer = true;
-      try{ snap = await ref.get({source: 'server'}); }
+      try{
+        snap = await ref.get({source: 'server'});
+        snap = await _verifyNoTier(ref, snap);
+        if(!snap) throw new Error('verifikasi paket gagal');
+      }
       catch(_se){
         _viaServer = false;
         _tlog('startup-server-gagal', 'uid…' + _uidTail() + ' ' + String((_se && (_se.code || _se.message)) || _se).slice(0, 60));
@@ -1039,11 +1078,13 @@
       // biasa) supaya admin gampang cari user di Firestore Console pas mau
       // naikkan tier manual setelah cek transfer — id dokumennya sendiri
       // tetap uid (bukan email), jadi ini murni buat pencarian manual.
+      // FIX (Sept 2026): pb_email SEKARANG ditulis SETELAH _pullAll() selesai (dulu sebelum, dan tulisan
+      // tertunda itulah yang memicu dokumen setengah jadi tanpa pb_tier), dan hanya kalau memang beda.
+      await _pullAll();
       try{
         var _emForDoc = (firebase.auth().currentUser && firebase.auth().currentUser.email) || (user && user.email) || '';
-        if(_emForDoc){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(){}); }
+        if(_emForDoc && (!_lastDocInfo || _lastDocInfo.email !== _emForDoc)){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(){}); }
       }catch(e){}
-      await _pullAll();
     }catch(e){ console.warn('pbCloudInit gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(window.pbCloudUid && _tierState !== 'ok') _scheduleTierRetry(); else if(_tierState === 'loading') _setTierState('unknown'); }
     finally{
       // FITUR BARU (permintaan user): apapun hasilnya (berhasil, gagal,
