@@ -972,7 +972,8 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
   position:fixed;top:0;left:0;right:0;
   display:flex;align-items:center;justify-content:center;
   padding-top:env(safe-area-inset-top,0px);
-  height:70px;
+  /* FIX: tinggi ikut safe-area (border-box) supaya logo tidak terjepit di HP berponi */
+  height:calc(70px + env(safe-area-inset-top,0px));
   z-index:50;
   opacity:0;
   pointer-events:none;
@@ -985,13 +986,16 @@ html::-webkit-scrollbar, body::-webkit-scrollbar{
    kejaran" dengan sentuhan jari. Begitu jari dilepas & masuk mode
    settle/loading, transition balik aktif. */
 #ptr-indicator .p-layer{transition:none;}
-#ptr-indicator.ptr-settle .p-layer{transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);}
+/* FIX: indikator memudar halus saat tarikan dibatalkan (dipasang resetPull) */
+#ptr-indicator.ptr-fade{transition:opacity .3s ease;}
 /* Dipasang pas ambang refresh tercapai (lepas jari) — logo lanjut pecah↔
    menyatu terus-menerus selagi location.reload() diproses, pakai keyframes
    pLoopBack/pLoopFront yang SAMA persis dengan loading generate (bukan
    animasi baru). */
-#ptr-indicator.looping .p-layer-back{animation:pLoopBack 4.4s infinite;}
-#ptr-indicator.looping .p-layer-front{animation:pLoopFront 4.4s infinite;}
+/* FIX: animation-delay -1.1s = mulai dari keyframe 25% (logo sudah MENYATU), jadi
+   saat jari dilepas logo tidak loncat ke posisi pecah. */
+#ptr-indicator.looping .p-layer-back{animation:pLoopBack 4.4s infinite;animation-delay:-1.1s;}
+#ptr-indicator.looping .p-layer-front{animation:pLoopFront 4.4s infinite;animation-delay:-1.1s;}
 #app-shell.ptr-settling{transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);}
 :root{
   /* Premium dark palette — deep charcoal with warm undertone */
@@ -3465,25 +3469,37 @@ html.pb-glass .subjek-card.sel .sk-icon svg{stroke:var(--accent);}
   html.pb-glass #f0 .subjek-card{flex-direction:column;align-items:flex-start;gap:10px;padding:13px 11px 12px;}
   html.pb-glass #f0 .sk-desc{font-size:10.5px;}
 }
-html.pb-glass .btn:not(.ghost):not(.btn-loading):not(:has(.gen-logo-wrap)):not([style*="background"]){
+/* PERMINTAAN USER: tombol "Lanjut" (gaya gradasi emas .btn/.pb-tour-next/dst
+   5 aturan di bawah ini) DISAMAKAN antara mode Gratis & mode Standar.
+   Sebelumnya gradasi emas ini cuma nyala lewat gerbang html.pb-glass
+   (Standar & Premium), jadi user tier Gratis lihat tombol gelap polos
+   (gaya dasar .btn paling atas file). Sekarang gerbang html.pb-glass
+   DILEPAS khusus dari 5 aturan tombol ini saja (bukan dari seluruh tema
+   Obsidian Glass — header/wcard/subjek-card/progress-bar/nav/background
+   di atas & bawah blok ini TETAP exclusive Standar/Premium seperti
+   biasa), jadi tombol Lanjut/CTA selalu gradasi emas di semua tier.
+   Premium tetap override ke gaya platinum lewat html.pb-premium di
+   bawah (spesifisitasnya lebih tinggi + urutannya belakangan), jadi
+   tidak terpengaruh oleh pelepasan gerbang ini. */
+.btn:not(.ghost):not(.btn-loading):not(:has(.gen-logo-wrap)):not([style*="background"]){
   background:linear-gradient(180deg,#F0D599,#E3C27E);color:#1B1407;border-color:#F6E2B0;
   border-radius:16px;text-shadow:none;
   box-shadow:0 10px 28px rgba(227,194,126,0.30),inset 0 1px 0 rgba(255,255,255,0.35);
 }
-html.pb-glass .pb-tour-next,html.pb-glass #pb-premium-notif .pb-pn-cta,
-html.pb-glass body.pb-tour-active .vb-scriptready-btn,html.pb-glass body.pb-tour-active .vb-scriptready-btn-sm{
+.pb-tour-next,#pb-premium-notif .pb-pn-cta,
+body.pb-tour-active .vb-scriptready-btn,body.pb-tour-active .vb-scriptready-btn-sm{
   background:linear-gradient(180deg,#F0D599,#E3C27E);color:#1B1407;border-color:#F6E2B0;
   border-radius:16px;text-shadow:none;
   box-shadow:0 10px 28px rgba(227,194,126,0.30),inset 0 1px 0 rgba(255,255,255,0.35);
 }
-html.pb-glass .confirm-overlay.pb-tour-notif .confirm-box button{
+.confirm-overlay.pb-tour-notif .confirm-box button{
   background:linear-gradient(180deg,#F0D599,#E3C27E)!important;color:#1B1407!important;
   border-color:#F6E2B0!important;text-shadow:none;
 }
-html.pb-glass .btn:not(.ghost):not(.btn-loading):not(:has(.gen-logo-wrap)):not([style*="background"]):hover{
+.btn:not(.ghost):not(.btn-loading):not(:has(.gen-logo-wrap)):not([style*="background"]):hover{
   filter:brightness(1.05);box-shadow:0 12px 34px rgba(227,194,126,0.40),inset 0 1px 0 rgba(255,255,255,0.35);
 }
-html.pb-glass .btn:disabled,html.pb-glass .btn[disabled]{opacity:0.45;filter:saturate(0.6);}
+.btn:disabled,.btn[disabled]{opacity:0.45;filter:saturate(0.6);}
 html.pb-glass .nav{
   background:rgba(30,28,42,0.55);border-top:1px solid rgba(255,255,255,0.14);
   backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
@@ -3768,7 +3784,7 @@ html.pb-premium .info-card[style*="240,217,160"]{border-color:rgba(230,236,247,0
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.88</div>
+  <div class="splash-version" id="splash-version">v6.91</div>
 </div>
 <script>
   (function(){
@@ -5680,7 +5696,7 @@ html.pb-premium .info-card[style*="240,217,160"]{border-color:rgba(230,236,247,0
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.88 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.91 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -24707,6 +24723,10 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     var csModal = document.getElementById('cs-modal');
     if(apikeyModal && apikeyModal.style.display !== 'none') return false;
     if(csModal && csModal.style.display !== 'none') return false;
+    // FIX: #outfit-random-modal juga ada di dalam #app-shell (position:fixed) — tanpa
+    // cek ini, tarik ke bawah saat modal Outfit terbuka ikut menarik seluruh app.
+    var outfitModal = document.getElementById('outfit-random-modal');
+    if(outfitModal && outfitModal.style.display !== 'none') return false;
     // Elemen (atau leluhurnya) yang scroll-nya sendiri sedang tidak di
     // puncak — biarkan itu yang menangani gesture-nya sendiri.
     if(target && target.closest){
@@ -24740,14 +24760,18 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   function resetPull(animate){
     pulling = false; currentPull = 0; armed = false;
     if(settleTimer) clearTimeout(settleTimer);
-    if(animate) appShell.classList.add('ptr-settling');
+    if(animate){ appShell.classList.add('ptr-settling'); indicator.classList.add('ptr-fade'); }
     appShell.style.transform = 'translateY(0px)';
     indicator.style.opacity = '0';
     indicator.classList.remove('looping');
-    backLayer.style.transform = '';
-    frontLayer.style.transform = '';
-    backLayer.style.opacity = '';
-    settleTimer = setTimeout(function(){ appShell.classList.remove('ptr-settling'); if(!pulling && !refreshing) appShell.style.transform = ''; }, 380);
+    // FIX: posisi keping logo baru dibersihkan SETELAH fade selesai (bukan langsung),
+    // supaya logo tidak "pecah" mendadak selagi indikator masih memudar.
+    settleTimer = setTimeout(function(){
+      appShell.classList.remove('ptr-settling');
+      indicator.classList.remove('ptr-fade');
+      backLayer.style.transform = ''; frontLayer.style.transform = ''; backLayer.style.opacity = '';
+      if(!pulling && !refreshing) appShell.style.transform = '';
+    }, 380);
   }
 
   function triggerRefresh(){
@@ -24765,21 +24789,30 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     // pas location.reload() beneran dipanggil.
     window._pbSkipUnloadWarn = true;
     setTimeout(function(){ location.reload(); }, 550);
-    // FIX BUG "bisa macet": kalau location.reload() di atas ternyata DIBATALKAN
-    // user lewat dialog beforeunload bawaan browser, refreshing & _pbSkipUnloadWarn
-    // tidak pernah kembali normal (tidak ada jalur lain yang mereset keduanya) —
-    // app macet: logo tetap berputar, PTR mati total, dan F5 berikutnya juga
-    // diam-diam tidak dikonfirmasi. Jaring pengaman: kalau setelah beberapa
-    // detik halaman ini MASIH ada (berarti reload batal/gagal), pulihkan semua.
+    // Jaring pengaman: kalau reload benar-benar macet/gagal, pulihkan app supaya
+    // PTR tidak mati total. FIX: sebelumnya 3 detik — di jaringan lambat, reload
+    // belum selesai tapi app sudah "dipulihkan" (isian yang diketik setelahnya
+    // hilang begitu reload akhirnya jalan, dan _pbSkipUnloadWarn sudah false lagi).
+    // Reload di sini tidak bisa dibatalkan user (flag skip aktif), jadi waktu
+    // tunggunya dibuat jauh lebih longgar.
     setTimeout(function(){
       refreshing = false;
       window._pbSkipUnloadWarn = false;
       resetPull(true);
-    }, 3000);
+    }, 15000);
   }
 
   appShell.addEventListener('touchstart', function(e){
-    if(e.touches.length !== 1) return;
+    if(e.touches.length !== 1){
+      // FIX: jari kedua menyentuh di tengah tarikan (mis. telapak tangan/pinch) —
+      // sebelumnya tarikan jalan terus pakai jari pertama, lalu saat salah satu jari
+      // diangkat dianggap "lepas" dan bisa memicu refresh tidak sengaja. Batalkan.
+      if(pulling){ if(currentPull > 0) resetPull(true); else pulling = false; }
+      return;
+    }
+    // FIX: selama animasi kembali (ptr-settling, ~350ms) jangan mulai tarikan baru —
+    // sebelumnya class dicopot mendadak sehingga app-shell "teleport" ke posisi 0.
+    if(appShell.classList.contains('ptr-settling')) { pulling = false; return; }
     if(!canStartPull(e.target)) { pulling = false; return; }
     startY = e.touches[0].clientY;
     startX = e.touches[0].clientX;
@@ -24805,14 +24838,16 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       if(Math.abs(deltaX) >= Math.abs(deltaY)){ pulling = false; return; }
     }
     if(deltaY <= 0){
-      if(currentPull > 0) resetPull(true);
+      // FIX: jangan matikan gesture (pulling=false) — kalau jari turun lagi di
+      // gesture yang sama, tarikan bisa lanjut. Cukup kembalikan visual ke 0.
+      if(currentPull > 0){ currentPull = 0; renderPull(0); }
       return; // bukan menarik ke bawah (atau lagi scroll konten) — biarkan scroll normal
     }
     if(appShell.scrollTop > 0){ // sempat ke-scroll di tengah gesture — batalkan
       if(currentPull > 0) resetPull(true);
       return;
     }
-    e.preventDefault(); // cegah bounce/scroll browser selama kita tangani manual
+    if(e.cancelable) e.preventDefault(); // FIX: hindari warning "Ignored attempt to cancel a touchmove" di Chrome
     currentPull = Math.min(deltaY * RESISTANCE, MAX_PULL);
     renderPull(currentPull);
   }, {passive:false});
@@ -24833,6 +24868,14 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     if(!pulling) return;
     pulling = false;
     if(refreshing) return;
+    if(currentPull <= 0){
+      // FIX: tap biasa / tidak ada tarikan — JANGAN panggil resetPull. Sebelumnya tiap
+      // tap di puncak halaman memasang transform:translateY(0px) selama 380ms yang
+      // membuat #app-shell jadi containing block untuk elemen position:fixed di
+      // dalamnya (modal yang dibuka lewat tap itu sempat kedip/loncat).
+      if(appShell.style.transform){ appShell.classList.remove('ptr-settling'); appShell.style.transform = ''; }
+      return;
+    }
     if(currentPull >= THRESHOLD){
       // FITUR BARU (permintaan user): kalau tur panduan lagi berjalan
       // (belum Selesai/Lewati), prioritaskan pertanyaan soal TUR ini
@@ -24857,6 +24900,11 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
         return;
       }
       var adaProgres = (typeof window.pbHasUnsavedProgress==='function') && window.pbHasUnsavedProgress();
+      // FIX: proses generate yang sedang berjalan juga dianggap "progres" — guard
+      // beforeunload-nya mati karena _pbSkipUnloadWarn, jadi PTR harus bertanya sendiri.
+      try{
+        if(!adaProgres && typeof _vbGuardGenerating==='function') adaProgres = !!_vbGuardGenerating();
+      }catch(err){}
       if(adaProgres){
         pbAskConfirm('Kamu masih mengisi proses ini. Refresh akan menghapus isian yang belum di-generate dan wizard mulai lagi dari Step 1. Lanjutkan refresh?', 'Ya, Refresh',
           function(){ triggerRefresh(); },
