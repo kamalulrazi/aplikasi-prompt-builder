@@ -614,10 +614,8 @@
   function _counterBaseSet(key,obj){
     try{ localStorage.setItem(key+'__base', JSON.stringify(obj)); }catch(e){}
   }
-  window.pbCloudQueueCounter = function(key){
-    if(!_fbReady || !window.pbCloudUid) return;
-    clearTimeout(_timers['__ctr_'+key]);
-    _timers['__ctr_'+key] = setTimeout(function(){
+  // FIX (audit lanjutan): dipisah dari timer debounce supaya bisa dipanggil langsung (pbCloudFlush saat logout).
+  function _pushCounter(key){
       var ref=_docRef(); if(!ref) return;
       var localRaw=null; try{ localRaw=localStorage.getItem(key); }catch(e){}
       if(localRaw==null) return;
@@ -641,10 +639,14 @@
       // deep-merge dari set(...,{merge:true}), tidak bergantung interpretasi
       // dot-notation sama sekali.
       var patch={}; patch[key]=_unflattenRaw(incFlat); patch._updatedAt=Date.now();
-      ref.set(patch,{merge:true}).then(function(){
+      return ref.set(patch,{merge:true}).then(function(){
         _counterBaseSet(key, local); // baseline baru = nilai lokal yang barusan ke-push
       }).catch(function(e){ console.warn('Sync counter gagal ('+key+'):', e); });
-    }, 800);
+  }
+  window.pbCloudQueueCounter = function(key){
+    if(!_fbReady || !window.pbCloudUid) return;
+    clearTimeout(_timers['__ctr_'+key]);
+    _timers['__ctr_'+key] = setTimeout(function(){ _pushCounter(key); }, 800);
   };
   // Dipakai oleh "Reset Hitungan": kosongkan field counter di cloud supaya
   // reset benar-benar nol lagi di semua perangkat, bukan cuma dikurangi
@@ -976,7 +978,7 @@
       if(_lastUid && _lastUid !== window.pbCloudUid){
         // FIX (audit auth #1 & #4): kuota harian + flag dirty/chunk akun LAMA ikut dibersihkan.
         PB_SYNC_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); localStorage.removeItem('__dirty_'+k); localStorage.removeItem('__chunkN_'+k); }catch(e){} });
-        try{ localStorage.removeItem('pb_quota_v1'); }catch(e){}
+        try{ localStorage.removeItem('pb_quota_v1'); localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1'); }catch(e){}
         // FIX BUG (audit lanjutan, Sept 2026): PB_COUNTER_SYNC_KEYS (pb_usage_stats_v1/
         // pb_wordfix_stats_v1) DAN file baseline "__base" pendampingnya HARUS
         // ikut dibersihkan di sini juga — sejak dipisah dari PB_SYNC_KEYS (lihat
@@ -1065,6 +1067,10 @@
       if(!dirty) return;
       clearTimeout(_timers[k]);
       jobs.push(_pushBlob(k, k === PB_SAVED_SYNC_KEY).catch(function(){}));
+    });
+    PB_COUNTER_SYNC_KEYS.forEach(function(k){
+      clearTimeout(_timers['__ctr_'+k]);
+      try{ jobs.push(Promise.resolve(_pushCounter(k)).catch(function(){})); }catch(e){}
     });
     return Promise.all(jobs);
   };
@@ -3988,7 +3994,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.98</div>
+  <div class="splash-version" id="splash-version">v6.99</div>
 </div>
 <script>
   (function(){
@@ -5928,7 +5934,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.98 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.99 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
