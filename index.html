@@ -1727,25 +1727,38 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    Control, Mirror Selfie) sekarang disusun BERURUTAN dari atas ke bawah di
    kolom kiri, bukan lagi berjejer menyamping. Kolom kanan sengaja dikosongkan
    supaya muat untuk menempelkan Video AI + foto bahannya — sekarang baru
-   Start Frame yang punya isi (#vb-mode-preview), gayanya disamakan persis
-   dengan kartu "Ringkasan alurnya dulu, ya" di tur (kotak Video AI di atas,
-   panah "butuh 1 bahan", lalu kotak Foto AI di bawah). Lebar kolom kiri
+   Start Frame yang punya isi (#vb-mode-preview). Gaya pratinjaunya "tiket/struk"
+   (blok CSS .vbt-* di bawah) — Video AI & Foto AI satu kartu, dipisah garis
+   sobekan putus-putus berlabel "butuh 1 bahan", menggantikan gaya kotak+panah
+   lama. Lebar kolom kiri
    ngikutin chip terpanjang (flex:0 0 auto), semua chip dibuat sama lebar. */
 .vb-mode-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:6px;}
 .chips.vb-mode-list{flex:0 0 auto;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:var(--space-2);}
 .chips.vb-mode-list .chip{white-space:nowrap;}
-#vb-mode-preview{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;animation:vbModePreviewIn .28s ease;}
+#vb-mode-preview{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:stretch;animation:vbModePreviewIn .28s ease;}
 @keyframes vbModePreviewIn{from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:none;}}
-#vb-mode-preview .pb-flow-box{width:min(100px,100%);padding:7px;gap:4px;border-radius:12px;box-sizing:border-box;}
-#vb-mode-preview .pb-flow-box.pb-flow-hero{width:min(112px,100%);box-shadow:none;}
-#vb-mode-preview .pb-flow-thumb{width:min(70px,100%);height:auto;aspect-ratio:1/1;border-radius:8px;cursor:pointer;}
-#vb-mode-preview .pb-flow-box.pb-flow-hero .pb-flow-thumb{width:min(84px,100%);}
-#vb-mode-preview .pb-flow-label{font-size:12px;}
-#vb-mode-preview .pb-flow-sub{font-size:10px;line-height:1.35;margin-top:-1px;}
-#vb-mode-preview .pb-flow-arrow{margin:4px 0;}
-#vb-mode-preview .pb-flow-arrow .ln{height:8px;}
-#vb-mode-preview .pb-flow-arrow .ic{font-size:14px;}
-#vb-mode-preview .pb-flow-arrow .tx{font-size:11px;margin-top:1px;}
+/* GAYA "TIKET" (Sept 2026, opsi 3/4 yang diminta user — ganti dari gaya
+   kotak+panah lama). Video AI & Foto AI digabung jadi SATU kartu struk,
+   dipisah garis putus-putus dengan label "butuh 1 bahan" menindih garis
+   itu (gaya sobekan tiket) + 2 lubang kecil di ujung garis. Strip aksen
+   tipis di atas kartu = aksen "tiket/admit one". Semua id & onclick lama
+   (vb-mode-preview-video-thumb/-video/-foto, pbFlowLightboxOpen) tetap
+   dipertahankan persis — JANGAN diubah, vbSyncModePreview() & lightbox
+   bergantung pada id-id itu. */
+.vbt-card{position:relative;background:var(--surface2);border:1px solid var(--border-hi);border-radius:14px;padding:13px 8px 10px;display:flex;flex-direction:column;align-items:center;overflow:hidden;}
+.vbt-card::before{content:'';position:absolute;top:0;left:16px;right:16px;height:3px;border-radius:0 0 3px 3px;background:var(--accent);opacity:.85;}
+.vbt-item{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;}
+#vb-mode-preview .pb-flow-thumb.vbt-thumb{width:min(62px,100%);height:auto;aspect-ratio:1/1;border-radius:8px;}
+#vb-mode-preview .pb-flow-thumb.vbt-thumb.vbt-hero{width:min(78px,100%);box-shadow:0 0 0 1px var(--accent-glow);}
+.vbt-label{font-size:12px;font-weight:700;color:var(--text);line-height:1.25;}
+.vbt-sub{font-size:10px;line-height:1.35;color:var(--muted2);margin-top:-1px;}
+.vbt-sub-ai{color:var(--accent);font-weight:700;}
+.vbt-tear{position:relative;width:100%;border-top:1.5px dashed var(--border-hi);margin:10px 0;display:flex;align-items:center;justify-content:center;}
+.vbt-chip{position:relative;top:-9px;background:var(--surface2);padding:0 7px;font-size:10px;font-weight:600;color:var(--muted2);white-space:nowrap;}
+.vbt-chip b{font-family:'Geist Mono',monospace;color:var(--accent);font-size:12px;font-weight:700;margin:0 1px;}
+.vbt-notch{position:absolute;top:50%;width:10px;height:10px;border-radius:50%;background:var(--surface);border:1px solid var(--border-hi);transform:translateY(-50%);}
+.vbt-notch.l{left:-5px;}
+.vbt-notch.r{right:-5px;}
 /* LOKASI: baris tombol kategori (Kamar/Indoor/Outdoor) + grup chip yang
    muncul/hilang bergantian saat salah satu kategori diklik. */
 
@@ -5441,7 +5454,10 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
            #vb-mode-preview cuma tampil kalau Start Frame yang dipilih (lihat
            vbSyncModePreview() yang dipanggil dari vbPickRefMode()). src video &
            foto diisi malas (lazy) dari PB_IMG_VBREF_VIDEO / PB_IMG_VBREF_FOTO
-           supaya video tidak didecode sebelum dibutuhkan. -->
+           supaya video tidak didecode sebelum dibutuhkan. Tampilan pratinjau:
+           gaya "tiket/struk" (lihat blok CSS .vbt-* di atas) — Video AI &
+           Foto AI satu kartu, dipisah garis sobekan putus-putus berlabel
+           "butuh 1 bahan". -->
       <div class="vb-mode-row">
         <div class="chips vb-mode-list">
           <div class="chip sel" id="vb-mode-satu" onclick="vbPickRefMode('satu')">Start Frame</div>
@@ -5451,16 +5467,18 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           <div class="chip" id="vb-mode-mirrorselfie" onclick="vbPickRefMode('mirrorselfie')">Mirror Selfie</div>
         </div>
         <div id="vb-mode-preview" class="hidden">
-          <div class="pb-flow-box pb-flow-hero">
-            <div class="pb-flow-thumb" id="vb-mode-preview-video-thumb" data-label="Video AI" onclick="pbFlowLightboxOpen(this)"><video id="vb-mode-preview-video" muted autoplay loop playsinline preload="none"></video></div>
-            <div class="pb-flow-label">🎬 Video AI</div>
-            <div class="pb-flow-sub pb-flow-sub-ai">hasil akhirnya</div>
-          </div>
-          <div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh 1 bahan</span></div>
-          <div class="pb-flow-box">
-            <div class="pb-flow-thumb" data-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><img id="vb-mode-preview-foto" alt="Foto AI"></div>
-            <div class="pb-flow-label">Foto AI</div>
-            <div class="pb-flow-sub">akan kita buat bersama</div>
+          <div class="vbt-card">
+            <div class="vbt-item">
+              <div class="pb-flow-thumb vbt-thumb vbt-hero" id="vb-mode-preview-video-thumb" data-label="Video AI" onclick="pbFlowLightboxOpen(this)"><video id="vb-mode-preview-video" muted autoplay loop playsinline preload="none"></video></div>
+              <div class="vbt-label">🎬 Video AI</div>
+              <div class="vbt-sub vbt-sub-ai">hasil akhirnya</div>
+            </div>
+            <div class="vbt-tear"><span class="vbt-notch l"></span><span class="vbt-chip">butuh <b>1</b> bahan</span><span class="vbt-notch r"></span></div>
+            <div class="vbt-item">
+              <div class="pb-flow-thumb vbt-thumb" data-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><img id="vb-mode-preview-foto" alt="Foto AI"></div>
+              <div class="vbt-label">Foto AI</div>
+              <div class="vbt-sub">akan kita buat bersama</div>
+            </div>
           </div>
         </div>
       </div>
@@ -11458,6 +11476,18 @@ function _vbGuardGenerating(){
   }
   return true;
 }
+// FIX (Sept 2026 — laporan user "Status 403: Request not allowed"): pesan ini
+// dibalas API Claude (diteruskan apa adanya oleh Worker proxy) dan sifatnya
+// sementara/acak — bukan kuota (kuota pakai type quota_exceeded/login_required
+// dari Worker sendiri) dan bukan token login (401). Dicoba ulang otomatis
+// maks _VB_403_MAX_RETRY kali sebelum dianggap gagal beneran.
+var _VB_403_MAX_RETRY=3;
+function _vbIsRegionBlock403(status,rawText){
+  if(status!==403)return false;
+  var t=String(rawText||'');
+  if(/quota_exceeded|login_required|invalid_token/i.test(t))return false;
+  return /request not allowed/i.test(t);
+}
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 
 // ── GEN LOGO LOADING (VIDEO) — pakai animasi brand yang sama persis dengan
@@ -13023,7 +13053,7 @@ function _pbEnhanceFotoVariations(item,content,head,sec){
   genBtn.onclick=function(){
     let chosen=Object.keys(checks).filter(function(k){return checks[k].checked;});
     if(!chosen.length){showToast('Centang minimal 1 variasi dulu','error');return;}
-    if(typeof VAI!=='undefined' && VAI._isGenerating){showToast('Tunggu proses sebelumnya selesai dulu.','error');return;}
+    if(typeof _vbGuardGenerating==='function'?_vbGuardGenerating():(typeof VAI!=='undefined' && VAI._isGenerating)){showToast('Tunggu proses sebelumnya selesai dulu.','error');return;}
     let orig=genBtn.textContent;
     genBtn.disabled=true;genBtn.textContent='Memproses...';
     try{
@@ -13989,7 +14019,7 @@ function pbContinueInBuilder(item){
 // ke entri Riwayat (supaya tidak hilang walau overlay ditutup tanpa tap
 // Simpan manual).
 async function pbContinueInOverlay(item,content,btnEl){
-  if(typeof VAI!=='undefined' && VAI._isGenerating){
+  if(typeof _vbGuardGenerating==='function'?_vbGuardGenerating():(typeof VAI!=='undefined' && VAI._isGenerating)){
     showToast('Tunggu proses AI sebelumnya selesai dulu.','error');
     return;
   }
@@ -15845,6 +15875,7 @@ function _vbWaitReasonLabel(status){
   if(status===429)return'nunggu limit Claude reset';
   if(status===529)return'server Claude lagi overload';
   if(status===0)return'koneksi sempat putus, mencoba lagi';
+  if(status===403)return'koneksi ke server AI ditolak sesaat, mencoba lagi';
   return'server Claude lagi sibuk';
 }
 
@@ -16637,6 +16668,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
   if(cacheSystem===undefined)cacheSystem=true;
   const MAX_TOTAL_WAIT_MS=3*60*1000;
   let totalWaited=0;
+  let blocked403Retries=0;
   for(let attempt=0;;attempt++){
     let isFirstAttempt=(attempt===0);
     // CATATAN MIGRASI CLAUDE: dulu di sini ada logic paksa "reasoning_effort:
@@ -16975,7 +17007,9 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // dibatasi jaring pengaman MAX_TOTAL_WAIT_MS yang sama (~3 menit)
     // supaya kalau internetnya memang benar-benar mati, tidak dicoba
     // selamanya. Status 529 = kode resmi Anthropic untuk server overload.
-    let isTransient=status===503||status===429||status===529||status===0;
+    let isBlocked403=_vbIsRegionBlock403(status,rawText)&&blocked403Retries<_VB_403_MAX_RETRY;
+    if(isBlocked403)blocked403Retries++;
+    let isTransient=status===503||status===429||status===529||status===0||isBlocked403;
     if(!isTransient||totalWaited>=MAX_TOTAL_WAIT_MS){
       // Kalau fetch gagal total (status 0, resp null) dan belum ada rawText,
       // selipkan pesan error jaringan asli (netErrMsg) supaya pemanggil bisa
@@ -16984,7 +17018,9 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       return{resp:resp||{ok:false,status:0},rawText};
     }
     let waitMs;
-    if(status===429){
+    if(isBlocked403){
+      waitMs=1500*blocked403Retries;
+    }else if(status===429){
       let suggested=_vbParseRetryDelayMs(rawText,retryAfterHeader);
       waitMs=suggested?Math.min(suggested,45000):Math.min(9000*(attempt+1),45000);
     }else{
@@ -17154,20 +17190,25 @@ async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
   const MAX_TOTAL_WAIT_MS=unlimited?3*60*1000:Infinity; // jaring pengaman ~3 menit, cuma berlaku saat unlimited
   let totalWaited=0;
   let lastResp,lastRawText;
+  let blocked403Retries=0;
   for(let attempt=0;;attempt++){
     let resp=await fetchFn();
     let rawText=await resp.text();
     lastResp=resp;lastRawText=rawText;
     if(resp.ok)return{resp,rawText};
-    let isTransient=resp.status===503||resp.status===429||resp.status===529;
-    if(!isTransient||attempt>=cap||totalWaited>=MAX_TOTAL_WAIT_MS)return{resp,rawText};
+    let isBlocked403=_vbIsRegionBlock403(resp.status,rawText)&&blocked403Retries<_VB_403_MAX_RETRY;
+    if(isBlocked403)blocked403Retries++;
+    let isTransient=resp.status===503||resp.status===429||resp.status===529||isBlocked403;
+    if(!isTransient||(attempt>=cap&&!isBlocked403)||totalWaited>=MAX_TOTAL_WAIT_MS)return{resp,rawText};
     // FIX (audit — retry-after header Anthropic tidak pernah dibaca): resp
     // di sini SELALU Response asli dari fetch() (fungsi ini tidak pernah
     // menimpanya jadi objek sintetis), jadi headernya aman dibaca langsung.
     let _retryAfterHeader=null;
     try{_retryAfterHeader=resp.headers&&typeof resp.headers.get==='function'?resp.headers.get('retry-after'):null;}catch(e){}
     let waitMs;
-    if(resp.status===429){
+    if(isBlocked403){
+      waitMs=1500*blocked403Retries;
+    }else if(resp.status===429){
       let suggested=_vbParseRetryDelayMs(rawText,_retryAfterHeader);
       // BUG FIX (audit lanjutan): cap 45 detik sebelumnya CUMA berlaku untuk
       // angka hitungan sendiri (fallback), TIDAK untuk 'suggested' (angka
@@ -17793,6 +17834,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(resp.status===503||resp.status===529)throw new Error('Server AI Claude masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Claude lagi padat, bukan masalah dari tools.');
     if(resp.status===429)throw new Error('Masih kena rate limit dari Claude walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
     if(resp.status===0)throw new Error('Gagal terhubung ke server AI Claude'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+    if(_vbIsRegionBlock403(resp.status,rawText))throw new Error('Server AI menolak request (403) beberapa kali berturut-turut. Ini biasanya sementara dan bukan salah tools atau kuota kamu — tunggu beberapa detik lalu coba lagi (produk yang sudah jadi tidak hilang).');
     var _authQuotaMsg=_pbWorkerAuthQuotaMsg(resp.status,errJson);
     if(_authQuotaMsg)throw new Error(_authQuotaMsg);
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
