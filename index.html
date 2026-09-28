@@ -11396,6 +11396,36 @@ function _pbWorkerAuthQuotaMsg(status,errJson){
 
 // ── MODAL UPGRADE TIER ───────────────────────────────────────────────────
 var _pbUpgradeSelectedTier=null;
+
+// ── Tampilan upgrade gaya "sheet": harga & limit dibaca dari PB_TIER_CONFIG ──
+var _pbUpgPlan='premium';
+function pbUpgSetPlan(k){
+  if(k) _pbUpgPlan=k;
+  var C=window.PB_TIER_CONFIG, d=document.getElementById('upgrade-modal-dlg');
+  if(!C||!d||!C[_pbUpgPlan]) return;
+  var rp=function(n){return 'Rp'+n.toLocaleString('id-ID');};
+  d.classList.toggle('pt',_pbUpgPlan==='premium');
+  document.getElementById('upg-grid').innerHTML=['standar','premium'].map(function(t){
+    var c=C[t], on=(t===_pbUpgPlan);
+    return '<button type="button" class="upg-pk'+(on?' on':'')+'" data-k="'+t+'" aria-pressed="'+on+'">'
+      +(t==='premium'?'<em>Paling lengkap</em>':'')
+      +'<b>'+c.label+'</b><strong>'+rp(c.price)+'<span>/bln</span></strong><small>'+c.limit+' produk/hari</small></button>';
+  }).join('');
+  var f=[C[_pbUpgPlan].limit+' produk per hari'].concat(_pbUpgPlan==='premium'
+    ?['Tema Onyx Platinum eksklusif','Prompt foto &amp; video Veo 3','Semua fitur Standar']
+    :['Tema Obsidian Glass','Prompt foto &amp; video Veo 3']);
+  document.getElementById('upg-list').innerHTML=f.map(function(x){return '<li>'+x+'</li>';}).join('');
+  document.getElementById('upg-cta-amt').textContent=rp(C[_pbUpgPlan].price);
+}
+function pbUpgInit(){
+  var C=window.PB_TIER_CONFIG, t=pbGetTier(), cur=document.getElementById('upg-cur'), d=document.getElementById('upgrade-modal-dlg');
+  if(cur&&C&&C[t]) cur.textContent='Paket kamu: '+C[t].label+', '+C[t].limit+' produk/hari';
+  var h=document.getElementById('upg-h');
+  if(h) h.textContent=(t==='premium')?'Perpanjang paket Premium-mu':'Naik paket, produk harianmu makin banyak';
+  if(d) d.scrollTop=0;
+  pbUpgSetPlan('premium');
+}
+
 function pbOpenUpgradeModal(){
   var ov=document.getElementById('upgrade-modal-overlay');
   if(!ov) return;
@@ -11407,6 +11437,7 @@ function pbOpenUpgradeModal(){
     tag.textContent = t==='free' ? 'paket kamu sekarang' : ('paket dasar — kamu sekarang di '+window.PB_TIER_CONFIG[t].label);
   }
   ov.style.display='flex';
+  try{pbUpgInit();}catch(e){}
 }
 function pbCloseUpgradeModal(){
   var ov=document.getElementById('upgrade-modal-overlay');
@@ -21456,26 +21487,57 @@ window.addEventListener('beforeunload', function(e){
 </div>
 
 <!-- MODAL: UPGRADE TIER — pola sama dgn #apikey-modal-overlay biar konsisten -->
-<div id="upgrade-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9998;display:none;align-items:center;justify-content:center;padding:16px;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:440px;max-height:88vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.6);">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);">
-      <div style="font-size:var(--fs-base);font-weight:700;">Upgrade Paket</div>
-      <button class="tap-target" onclick="pbCloseUpgradeModal()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-xl);cursor:pointer;line-height:1;padding:2px 4px;"><svg class="icon"><use href="#ic-close"></use></svg></button>
+<style>
+.upg-dlg{--ac:var(--accent);--ac2:var(--accent-2);--acd:var(--accent-dim);--gl:rgba(227,194,126,.26);width:100%;max-width:440px;display:flex;flex-direction:column;overflow-y:auto;background:radial-gradient(75% 38% at 50% 14%,var(--gl),transparent 70%),var(--bg);color:var(--text)}
+.upg-dlg.pt{--ac:#DCE3EF;--ac2:#fff;--acd:#95A0B4;--gl:rgba(220,227,239,.22);--bg:#090B10;--surface:#11141B;--surface2:#191D27;--surface3:#232834;--border:rgba(255,255,255,.10);--border-hi:rgba(255,255,255,.20)}
+.upg-bar{display:flex;align-items:center;justify-content:space-between;padding:calc(10px + env(safe-area-inset-top,0px)) 10px 0}
+.upg-bar b{font-size:16px;font-weight:600}
+.upg-bar span{width:40px}
+.upg-bar button{width:40px;height:40px;display:grid;place-items:center;background:none;border:0;border-radius:12px;color:var(--text);font-size:22px;cursor:pointer}
+#upgrade-plans-panel{flex:1;flex-direction:column}
+.upg-top{padding:20px 18px 24px}
+.upg-logo{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font:700 28px Geist,system-ui,sans-serif;color:#1A1408;background:linear-gradient(135deg,#F6E2B0,#C9A25E);box-shadow:0 0 44px rgba(227,194,126,.4)}
+.upg-top h2{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:14px 0 0;color:var(--text)}
+.upg-cur{display:inline-block;margin-top:12px;padding:6px 10px;border-radius:99px;background:var(--surface2);border:1px solid var(--border);font-size:12px;color:var(--muted)}
+.upg-cur:empty{display:none}
+.upg-sheet{margin-top:auto;background:var(--surface);border-top:1px solid var(--border);border-radius:26px 26px 0 0;padding:20px 16px calc(14px + env(safe-area-inset-bottom,0px))}
+.upg-pg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.upg-pk{position:relative;text-align:left;padding:14px 12px;border-radius:18px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font:500 13px Geist,system-ui,sans-serif}
+.upg-pk.on{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac) inset,0 0 24px var(--gl)}
+.upg-pk em{position:absolute;top:-10px;right:10px;font-style:normal;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--ac);color:#1A1408}
+.upg-pk strong{display:block;font-size:20px;margin:6px 0 2px}
+.upg-pk small{color:var(--muted);font-size:12px}
+.upg-pk strong span{font-size:11px;font-weight:400;color:var(--muted);margin-left:3px}
+.upg-ck{list-style:none;padding:0;margin:14px 2px 0;display:grid;gap:8px;font-size:13.5px}
+.upg-ck li::before{content:"✓";color:var(--ac);font-weight:700;margin-right:8px}
+.upg-cta{display:block;width:100%;margin-top:16px;padding:14px;border:0;border-radius:18px;background:linear-gradient(135deg,var(--ac2),var(--acd));color:#1A1408;font:700 16px Geist,system-ui,sans-serif;cursor:pointer}
+.upg-cta small{display:block;font-weight:400;font-size:12px;opacity:.8;margin-top:2px}
+.upg-note{color:var(--muted);font-size:11.5px;text-align:center;margin:12px 0 0}
+.upg-dlg :focus-visible{outline:2px solid var(--ac2);outline-offset:2px}
+@media (max-height:700px){.upg-top{padding:12px 18px 16px}.upg-logo{width:44px;height:44px;border-radius:14px;font-size:24px}.upg-top h2{font-size:22px;margin-top:10px}.upg-cur{margin-top:8px}.upg-sheet{padding-top:16px}.upg-ck{gap:6px;margin-top:12px}.upg-cta{margin-top:12px;padding:12px}}
+</style>
+
+<div id="upgrade-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9998;display:none;align-items:stretch;justify-content:center;">
+  <div id="upgrade-modal-dlg" class="upg-dlg">
+    <div class="upg-bar">
+      <button type="button" class="tap-target" aria-label="Tutup" onclick="pbCloseUpgradeModal()"><svg class="icon"><use href="#ic-close"></use></svg></button>
+      <b>Upgrade Paket</b><span></span>
     </div>
 
-    <!-- PANEL 1: daftar paket -->
-    <div id="upgrade-plans-panel" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
-      <div id="upg-card-free" class="info-card" style="align-items:center;"><div class="num-badge" style="background:var(--surface3);color:var(--muted);">✓</div><div><div style="font-size:var(--fs-base);font-weight:700;">Gratis — <span id="upg-current-tag" style="color:var(--muted);">paket kamu sekarang</span></div><div class="desc-text">3 produk/hari. Cukup buat coba-coba fitur.</div></div></div>
-
-      <div class="info-card" style="align-items:center;border-color:var(--border-hi);"><div class="num-badge">Rp</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Standar</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp29.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">15 produk/hari — buat kerja harian seller UMKM.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('standar')">Upgrade ke Standar</button></div></div>
-
-      <div class="info-card" style="align-items:center;border-color:rgba(240,217,160,0.4);background:rgba(240,217,160,0.06);"><div class="num-badge" style="background:var(--accent);color:#1a1a1a;">★</div><div style="flex:1;"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;"><div style="font-size:var(--fs-base);font-weight:700;">Premium</div><div style="font-size:var(--fs-sm);font-weight:700;color:var(--accent);">Rp79.000<span style="color:var(--muted);font-weight:400;">/bln</span></div></div><div class="desc-text" style="margin-bottom:10px;">40 produk/hari — buat reseller/agency generate banyak produk.</div><button class="btn" style="width:100%;" onclick="pbSelectUpgradeTier('premium')">Upgrade ke Premium</button></div></div>
-
-      <div style="font-size:var(--fs-2xs);color:var(--muted2);text-align:center;padding-top:4px;">Pembayaran manual transfer, aktif setelah dikonfirmasi admin (biasanya cepat).</div>
+    <!-- PANEL 1: pilih paket (gaya sheet) — harga & limit diisi JS dari PB_TIER_CONFIG -->
+    <div id="upgrade-plans-panel" style="display:flex;">
+      <div class="upg-top"><div class="upg-logo">P</div><h2 id="upg-h">Naik paket, produk harianmu makin banyak</h2><span class="upg-cur" id="upg-cur"></span></div>
+      <div class="upg-sheet">
+        <div class="upg-pg" id="upg-grid" onclick="var b=event.target.closest('.upg-pk');if(b)pbUpgSetPlan(b.dataset.k)"></div>
+        <ul class="upg-ck" id="upg-list"></ul>
+        <button type="button" class="upg-cta" onclick="pbSelectUpgradeTier(_pbUpgPlan)">Lanjut bayar <span id="upg-cta-amt"></span><small>Aktif setelah dikonfirmasi admin</small></button>
+        <p class="upg-note">Transfer manual, biasanya dikonfirmasi cepat.</p>
+      </div>
     </div>
 
-    <!-- PANEL 2: instruksi bayar (diisi JS pas pilih paket) -->
-    <div id="upgrade-payment-panel" style="padding:14px 16px;display:none;">
+    
+<!-- PANEL 2: instruksi bayar (diisi JS pas pilih paket) -->
+    <div id="upgrade-payment-panel" class="upg-sheet" style="display:none;">
       <button onclick="pbBackToUpgradePlans()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-sm);cursor:pointer;padding:0;margin-bottom:12px;">← Kembali</button>
       <div style="font-size:var(--fs-base);font-weight:700;margin-bottom:4px;">Upgrade ke <span id="upg-pay-tier-label"></span></div>
       <div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:14px;">Transfer <strong id="upg-pay-amount" style="color:var(--text);"></strong> ke rekening di bawah, lalu konfirmasi via WhatsApp.</div>
