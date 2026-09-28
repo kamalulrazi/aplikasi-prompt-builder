@@ -48,6 +48,43 @@
     if(m)m.setAttribute('content',pm?'#090B10':(on?'#0A0912':'#08080A'));
   }
   window.pbApplyTheme=apply;
+  // ── CACHE TIER PER AKUN (fix Sept 2026: premium langsung tampil saat login) ──
+  // Logout SENGAJA membuang pb_tier_v1 supaya paket akun lama tidak kebawa ke
+  // akun berikutnya. Akibatnya tiap login ulang mulai dari "gratis" dan
+  // premium baru muncul setelah jaringan (login Firebase + baca Firestore)
+  // selesai. Solusinya: tiap kali cloud mengonfirmasi tier sebuah akun, hasilnya
+  // disimpan di sini per-akun (kunci = hash email, bukan email polos, supaya
+  // tidak menyisakan daftar email setelah logout). Saat akun itu login lagi
+  // di perangkat yang sama, pbTierCacheRestore() memasang tier-nya seketika;
+  // hasil cloud tetap jadi penentu akhir (dan mengoreksi kalau ternyata berubah).
+  var CK='pb_tier_cache_v1';
+  function hk(s){
+    s=String(s||'').trim().toLowerCase();
+    var a=5381,b=0;
+    for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);a=((a<<5)+a+c)|0;b=(c+(b<<6)+(b<<16)-b)|0;}
+    return (a>>>0).toString(36)+(b>>>0).toString(36);
+  }
+  function rc(){try{var o=JSON.parse(localStorage.getItem(CK)||'{}');return(o&&typeof o==='object')?o:{};}catch(x){return {};}}
+  window.pbTierCacheSave=function(email,t,e){
+    if(!email)return;
+    try{var c=rc();c[hk(email)]={t:t||'free',e:Number(e)||0};localStorage.setItem(CK,JSON.stringify(c));}catch(x){}
+  };
+  window.pbTierCacheRestore=function(email){
+    var changed=false;
+    try{
+      var cur=localStorage.getItem('pb_tier_v1')||'free';
+      if(cur==='free'&&email){
+        var c=rc()[hk(email)];
+        if(c&&c.t&&c.t!=='free'&&!(c.e&&Date.now()>c.e)){
+          localStorage.setItem('pb_tier_v1',c.t);
+          if(c.e)localStorage.setItem('pb_tier_expiry_v1',String(c.e));else localStorage.removeItem('pb_tier_expiry_v1');
+          changed=true;
+        }
+      }
+    }catch(x){}
+    apply();
+    return changed;
+  };
   apply();
   document.addEventListener('visibilitychange',function(){if(!document.hidden)apply();});
 })();
@@ -691,11 +728,43 @@
       .catch(function(e){ console.warn('Sync API key gagal:', e); });
   };
 
+  // FIX (Sept 2026, "premium lambat / balik gratis setelah ganti akun"):
+  // tier SEKARANG dipasang segera setelah dokumen user terbaca — sebelum
+  // riwayat/halaman tersimpan/dll ditarik. Dulu tier baru dipasang di
+  // PALING AKHIR _pullAll, jadi tampilan premium telat selama semua tarikan
+  // data itu belum kelar, dan ikut batal total kalau salah satu tarikan di
+  // atasnya error. Cloud = sumber kebenaran (field pb_tier tidak ada = gratis).
+  // Hasil baca dari cache offline Firestore (fromCache) diabaikan supaya data
+  // basi tidak menaikkan/menurunkan paket. Hasilnya juga disimpan per-akun
+  // lewat pbTierCacheSave (lihat <head>) supaya login berikutnya instan.
+  function _applyCloudTier(data, fromCache){
+    if(fromCache) return;
+    try{
+      var t = (typeof data.pb_tier === 'string') ? data.pb_tier.trim().toLowerCase() : '';
+      if(!t || !window.PB_TIER_CONFIG || !window.PB_TIER_CONFIG[t]) t = 'free';
+      var e = (typeof data.pb_tier_expiry === 'number') ? data.pb_tier_expiry : 0;
+      if(t === 'free'){
+        e = 0;
+        localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1');
+      }else{
+        localStorage.setItem('pb_tier_v1', t);
+        if(e) localStorage.setItem('pb_tier_expiry_v1', String(e)); else localStorage.removeItem('pb_tier_expiry_v1');
+      }
+      var em = '';
+      try{ em = (firebase.auth().currentUser && firebase.auth().currentUser.email) || ''; }catch(x){}
+      if(!em){ try{ var au = JSON.parse(localStorage.getItem('pb_auth_user') || 'null'); em = (au && au.email) || ''; }catch(x){} }
+      if(typeof window.pbTierCacheSave === 'function') window.pbTierCacheSave(em, t, e);
+      if(typeof window.pbApplyTheme === 'function') window.pbApplyTheme();
+      try{ if(typeof dlRenderBar === 'function') dlRenderBar(); }catch(x){}
+    }catch(x){}
+  }
+
   async function _pullAll(){
     var ref = _docRef(); if(!ref) return;
     try{
       var snap = await ref.get();
       var data = snap.exists ? (snap.data() || {}) : {};
+      _applyCloudTier(data, !!(snap.metadata && snap.metadata.fromCache)); // tier dulu, baru data berat di bawah
       // FIX (chunking, Sept 2026): tarik tiap key dari struktur potongan baru
       // (users/{uid}/blobs/{key}__N) secara paralel. Kalau belum ada manifest
       // utk key itu (akun lama / belum pernah ke-push pakai kode baru ini),
@@ -752,9 +821,7 @@
       // device generate di hari yang sama, ambil angka TERBESAR biar tidak
       // ada quota yang "hilang" gara-gara device lain menimpa duluan.
       try{
-        if(typeof data.pb_tier === 'string') localStorage.setItem('pb_tier_v1', data.pb_tier);
-        if(typeof data.pb_tier_expiry === 'number') localStorage.setItem('pb_tier_expiry_v1', String(data.pb_tier_expiry));
-        try{ if(window.pbApplyTheme) window.pbApplyTheme(); }catch(e){}
+        // (tier sudah dipasang di awal _pullAll lewat _applyCloudTier — tidak diulang di sini)
         if(data.pb_quota && typeof data.pb_quota === 'object' && data.pb_quota.date){
           var _cq = data.pb_quota, _today = (typeof pbTodayStr==='function') ? pbTodayStr() : null;
           if(_today && _cq.date === _today){
@@ -911,7 +978,10 @@
   window.pbCloudSignOut = function(){
     window.pbCloudUid = null;
     _setSyncStatus('off');
-    if(_fbReady){ try{ firebase.auth().signOut(); }catch(e){} }
+    // FIX (Sept 2026): kembalikan promise-nya supaya logout bisa MENUNGGU
+    // signOut() selesai sebelum reload (lihat _pbDoLogout).
+    if(_fbReady){ try{ return firebase.auth().signOut(); }catch(e){} }
+    return Promise.resolve();
   };
 })();
 </script>
@@ -3824,7 +3894,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.96</div>
+  <div class="splash-version" id="splash-version">v6.97</div>
 </div>
 <script>
   (function(){
@@ -4004,6 +4074,15 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   function pbShowApp(user){
     var gate = document.getElementById('login-gate');
     if(gate) gate.classList.add('hidden');
+    // FIX (Sept 2026): pasang tier akun ini dari cache lokal SEKARANG juga
+    // (sebelum jaringan) — kalau akun ini pernah dikonfirmasi premium di
+    // perangkat ini, tema/tampilan premium langsung muncul begitu gerbang
+    // login menutup. Hasil cloud yang menyusul tetap jadi penentu akhir.
+    try{
+      if(typeof window.pbTierCacheRestore === 'function' && window.pbTierCacheRestore(user && user.email)){
+        try{ if(typeof dlRenderBar === 'function') dlRenderBar(); }catch(e){}
+      }
+    }catch(e){}
     pbApplyUserToHeader(user);
   }
 
@@ -4108,7 +4187,8 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       localStorage.removeItem('pb_tour_last_step');
     }catch(e){}
     try{ localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1'); }catch(e){}
-    if(typeof pbCloudSignOut === 'function') pbCloudSignOut();
+    var _pbSo = null;
+    try{ if(typeof pbCloudSignOut === 'function') _pbSo = pbCloudSignOut(); }catch(e){}
     if(pbIsInsideNativeApp()){
       var plugin = pbNativePlugin();
       try{ if(plugin && typeof plugin.logout === 'function') plugin.logout(); }catch(e){}
@@ -4119,7 +4199,15 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
         }
       }catch(e){}
     }
-    location.reload();
+    // FIX (Sept 2026): tunggu signOut Firebase kelar (maks 1,5 detik) baru
+    // reload. Dulu reload langsung jalan, signOut() yang async bisa terpotong
+    // dan sesi Firebase akun LAMA nyangkut di perangkat — akibatnya login
+    // berikutnya (terutama tanpa idToken) bisa gagal sinkron & tier tidak
+    // pernah ketarik.
+    var _pbGone = false;
+    function _pbGo(){ if(_pbGone) return; _pbGone = true; location.reload(); }
+    if(_pbSo && typeof _pbSo.then === 'function'){ _pbSo.then(_pbGo, _pbGo); setTimeout(_pbGo, 1500); }
+    else _pbGo();
   }
 
   function pbInitLogin(){
@@ -5737,7 +5825,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.96 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.97 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
