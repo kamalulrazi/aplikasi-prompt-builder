@@ -36,7 +36,7 @@
   .empty{color:var(--muted2);font-size:13px;text-align:center;padding:24px 0;}
   .hidden{display:none!important;}
   #login-screen{text-align:center;padding:60px 20px;}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border-hi);padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:92vw;text-align:center;background:var(--surface2);border:1px solid var(--border-hi);padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
   .toast.show{opacity:1;}
 </style>
 </head>
@@ -111,25 +111,39 @@ var PB_FIREBASE_CONFIG = {
 };
 var OWNER_EMAILS = ['vid1hihu@gmail.com'];
 
-/* ── WAJIB: update Firestore Security Rules dulu (Firebase Console →
-   Firestore Database → tab Rules → Publish), atau halaman ini TIDAK akan
-   bisa baca/ubah dokumen user lain (cuma bisa dokumen uid sendiri):
+/* ── WAJIB: Firestore Rules GABUNGAN (Firebase Console → Firestore → Rules → Publish).
+   User biasa TIDAK bisa ubah pb_tier/pb_tier_expiry sendiri; hanya akun admin
+   (email di bawah) yang bisa baca & ubah dokumen user mana pun.
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email == 'vid1hihu@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function quotaTidakBolehTurun(newData, oldData) {
+      let newQ = newData.get('pb_quota', null);
+      let oldQ = oldData.get('pb_quota', null);
+      return newQ == null || oldQ == null || newQ.date != oldQ.date || newQ.count >= oldQ.count;
+    }
     match /users/{uid} {
-      allow read, write: if request.auth != null &&
-        (request.auth.uid == uid || request.auth.token.email in ['vid1hihu@gmail.com']);
+      allow read: if request.auth != null && (request.auth.uid == uid || isOwner());
+      allow create: if isOwner() || (request.auth != null && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['pb_tier','pb_tier_expiry']));
+      allow update: if isOwner() || (request.auth != null && request.auth.uid == uid
+        && request.resource.data.get('pb_tier', null) == resource.data.get('pb_tier', null)
+        && request.resource.data.get('pb_tier_expiry', null) == resource.data.get('pb_tier_expiry', null)
+        && quotaTidakBolehTurun(request.resource.data, resource.data));
+      allow delete: if isOwner();
       match /blobs/{doc} {
-        allow read, write: if request.auth != null &&
-          (request.auth.uid == uid || request.auth.token.email in ['vid1hihu@gmail.com']);
+        allow read, write: if request.auth != null && request.auth.uid == uid;
       }
     }
   }
 }
-
-   Email di atas sudah disesuaikan dengan OWNER_EMAILS di script bawah. */
+*/
 
 firebase.initializeApp(PB_FIREBASE_CONFIG);
 var db = firebase.firestore();
@@ -137,7 +151,7 @@ var db = firebase.firestore();
 function showToast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show');},2200);
+  setTimeout(function(){t.classList.remove('show');},6000);
 }
 
 function adminLogin(){
@@ -201,18 +215,36 @@ async function loadPending(){
   }
 }
 
+function errMsg(e){
+  var m=(e&&e.message)||String(e);
+  if(e&&e.code==='permission-denied') m+=' — Firestore Rules belum diganti ke versi gabungan (lihat komentar di atas script).';
+  return m;
+}
+// Baca balik dari SERVER dan pastikan tier benar-benar tersimpan.
+async function verifyTier(ref, tier){
+  var snap=await ref.get({source:'server'});
+  var d=snap.data()||{};
+  if(d.pb_tier!==tier) throw new Error('Tulis terlihat sukses tapi pb_tier di server = '+(d.pb_tier||'(kosong)'));
+  return d;
+}
 async function approveRequest(uid, tier){
-  var days = tier==='premium' ? 30 : 30; // sesuaikan kalau mau beda masa aktif per tier
-  var expiry = Date.now() + days*86400000;
   try{
-    await db.collection('users').doc(uid).set({
+    var ref=db.collection('users').doc(uid);
+    var cur=await ref.get();
+    var d=cur.data()||{};
+    var req=d.pb_upgrade_request||{};
+    var days=Number(req.days)||30;
+    var old=Number(d.pb_tier_expiry)||0;
+    var expiry=Math.max(Date.now(), old)+days*86400000; // perpanjang tidak memotong sisa hari
+    await ref.set({
       pb_tier: tier,
       pb_tier_expiry: expiry,
       pb_upgrade_request: firebase.firestore.FieldValue.delete()
     }, {merge:true});
+    await verifyTier(ref, tier);
     showToast('Disetujui: '+tier+' aktif sampai '+fmtDate(expiry));
     loadPending();
-  }catch(e){ showToast('Gagal: '+(e.message||e)); }
+  }catch(e){ showToast('Gagal: '+errMsg(e)); }
 }
 async function rejectRequest(uid){
   try{
@@ -230,13 +262,22 @@ async function manualSetTier(){
   var days=Number(document.getElementById('manual-days').value);
   if(!email){ showToast('Isi email dulu.'); return; }
   try{
-    var snap = await db.collection('users').where('pb_email','==',email).limit(1).get();
-    if(snap.empty){ showToast('User dengan email ini belum pernah login/sinkron ke app.'); return; }
-    var doc = snap.docs[0];
+    // Cari persis; kalau kosong coba versi huruf kecil (email disimpan app apa adanya).
+    var snap = await db.collection('users').where('pb_email','==',email).get();
+    if(snap.empty && email!==email.toLowerCase()){
+      snap = await db.collection('users').where('pb_email','==',email.toLowerCase()).get();
+    }
+    if(snap.empty){ showToast('Tidak ada user dengan email ini. Login dulu ke app pakai email itu, lalu coba lagi.'); return; }
     var expiry = tier==='free' ? 0 : (Date.now() + days*86400000);
-    await doc.ref.set({ pb_tier: tier, pb_tier_expiry: expiry }, {merge:true});
-    showToast('Berhasil: '+email+' → '+tier+(tier!=='free' ? (' sampai '+fmtDate(expiry)) : ''));
-  }catch(e){ showToast('Gagal: '+(e.message||e)); }
+    // Update SEMUA dokumen dengan email ini (bisa >1 kalau akun pernah login lewat jalur berbeda),
+    // supaya dokumen yang dibaca app pasti ikut terupdate.
+    for(var i=0;i<snap.docs.length;i++){
+      var ref=snap.docs[i].ref;
+      await ref.set({ pb_tier: tier, pb_tier_expiry: expiry }, {merge:true});
+      if(tier!=='free') await verifyTier(ref, tier);
+    }
+    showToast('Berhasil ('+snap.docs.length+' dokumen): '+email+' → '+tier+(tier!=='free' ? (' sampai '+fmtDate(expiry)) : '')+'. Di app: buka ulang / tombol Muat ulang paket.');
+  }catch(e){ showToast('Gagal: '+errMsg(e)); }
 }
 </script>
 </body>
