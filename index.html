@@ -16363,6 +16363,9 @@ var PB_USAGE_LOG_RAW_DAYS=60;      // simpan detail per-panggilan untuk 60 hari 
 var PB_USAGE_LOG_SAFETY_MAX=4000;  // jaga-jaga kalau volume sangat tinggi (mis. impor data lama)
 var PB_USAGE_ARCHIVE_KEY='pb_usage_archive_v1';
 var _vbCurrentCallMode='unknown';
+// Penanda: kalau 'fix', pemakaian token panggilan yang sedang jalan dicatat sebagai PERBAIKAN KATA
+// (statistik & riwayat kind 'fix'), bukan generate biasa. Diisi hanya oleh _vbExtendShortScriptsOnce.
+var _vbUsageKindOverride='';
 // ── SESI GENERATE (permintaan user, Sept 2026, "statistik dipisah per
 // generate"): kelompokkan semua panggilan AI yang berasal dari SATU aksi
 // generate user (misal 1x klik "Generate Semua" utk 8 produk sebenarnya
@@ -16568,6 +16571,12 @@ function _vbSaveUsageStats(s){
   if(typeof pbCloudQueueCounter==='function')pbCloudQueueCounter(PB_USAGE_KEY);
 }
 function _vbTrackUsage(usageInfo){
+  // Panggilan perbaikan skrip kependekan: catat ke statistik 'Perbaikan jumlah kata' (kind 'fix'),
+  // JANGAN campur ke statistik generate/cache utama supaya hit-rate cache tidak terganggu.
+  if(_vbUsageKindOverride==='fix'){
+    try{_vbTrackFixCall(usageInfo);}catch(eFix){console.warn('[_vbTrackUsage] catat fix gagal:',eFix);}
+    return;
+  }
   var s=_vbLoadUsageStats();
   if(usageInfo.cache_read_input_tokens>0)s.hit++;
   else if(usageInfo.cache_creation_input_tokens>0)s.miss++;
@@ -17034,9 +17043,9 @@ function _vbResetUsageStats(){
   }
   _vbRenderUsageBadge(_vbLoadUsageStats());
 }
-async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride){
+async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs){
   if(cacheSystem===undefined)cacheSystem=true;
-  const MAX_TOTAL_WAIT_MS=3*60*1000;
+  const MAX_TOTAL_WAIT_MS=maxTotalWaitMs||3*60*1000; // opsional: panggilan tambahan (perbaikan skrip) pakai batas lebih pendek
   let totalWaited=0;
   let blocked403Retries=0;
   for(let attempt=0;;attempt++){
@@ -17459,9 +17468,9 @@ function _vbSanitizeJsonText(s){
 // memang belum tembus syarat minimum cache (lihat vbGenerate3AI, satu-
 // satunya pemanggil yang mengirim false). Semua pemanggil lain tidak
 // perlu diubah — otomatis tetap true seperti sebelumnya.
-async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride){
+async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs){
   if(cacheSystem===undefined)cacheSystem=true;
-  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride);
+  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -18026,7 +18035,107 @@ function _vbBuildSingleModeSystemPrompt(range,count){
     +'- DILARANG: menyebut bahan/material/tekstur produk (kecuali user sudah menyebutnya di keunggulan), dan menyebut promo/diskon/limited/urgensi.\n\n'
     +'Balas HANYA JSON array berisi TEPAT '+count+' object (satu per produk, urutan sama seperti daftar, jangan ada yang dilewati atau digabung), tanpa teks lain dan tanpa markdown. Format: [{"produk":"...","hook":"...","story":"...","cta":"..."}]';
 }
-async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi){
+// ── PERBAIKAN SKRIP KEPENDEKAN — 1 PANGGILAN SAJA (permintaan user, 29 Sep 2026)
+// Setelah generate bulk selesai, semua bagian (hook/story/cta) yang jumlah
+// katanya di bawah range.min (24) dikumpulkan dari SEMUA produk di batch,
+// lalu dikirim ke Claude dalam SATU panggilan untuk diperpanjang. Tidak ada
+// pengulangan: kalau hasilnya masih kependekan, dibiarkan (kartu sudah
+// menandainya oranye lewat _wasStillShort & bisa diedit manual). Batas atas
+// tetap dijaga _vbHardEnforceMaxWords di pemanggil. Kalau panggilan ini
+// gagal/error apa pun, teks asli dipakai apa adanya (tidak melempar error).
+const VB_SHORTFIX_SYSTEM=
+  'Kamu ahli dalam menulis skrip. Tugasmu hanya menambahkan kata dalam teks.\n\n'
+ +'- Setiap teks kurang dari 24 kata. Perpanjang hingga di atas 24 kata, maksimal 30 kata.\n'
+ +'- Pertahankan makna, gaya, dan kalimat aslinya. Tambah detail situasi atau manfaat, bukan pengulangan.\n'
+ +'- CTA mengajak klik "keranjang bawah". Jangan sebut bahan, promo, diskon, limited, atau urgensi.\n'
+ +'- Bahasa Indonesia, tanpa emoji dan tanda kutip, akhiri dengan titik.\n'
+ +'- Bagian "konteks" hanya untuk menjaga kenyambungan, jangan ditulis ulang.\n\n'
+ +'Balas HANYA JSON array, jumlah dan urutan sama, "id" disalin persis:\n'
+ +'[{"id":"...","teks":"..."}]';
+function _vbSalvageIdTeks(text){
+  const out=[];
+  const re=/\{\s*"id"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"teks"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g;
+  let m;
+  while((m=re.exec(String(text||'')))){
+    try{out.push({id:JSON.parse('"'+m[1]+'"'),teks:JSON.parse('"'+m[2]+'"')});}catch(e){}
+  }
+  return out;
+}
+// Pembungkus: sanitasi -> 1 panggilan perbaikan -> potong batas atas. Tidak pernah melempar error.
+async function _vbApplyShortFix(arr,batch,range,onWait){
+  for(let si=0;si<arr.length;si++){
+    const sp=arr[si];if(!sp)continue;
+    if(sp.hook)sp.hook=_vbSanitizeForbiddenPhrases(sp.hook);
+    if(sp.story)sp.story=_vbSanitizeForbiddenPhrases(sp.story);
+    if(sp.cta)sp.cta=_vbSanitizeForbiddenPhrases(sp.cta);
+  }
+  try{await _vbExtendShortScriptsOnce(arr,batch,range,onWait);}
+  catch(eShort){console.warn('[_vbApplyShortFix] perbaikan skrip kependekan dilewati:',eShort);}
+  for(let ei=0;ei<arr.length;ei++){
+    const ep=arr[ei];if(!ep)continue;
+    if(ep.hook)ep.hook=_vbHardEnforceMaxWords(ep.hook,range.max);
+    if(ep.story)ep.story=_vbHardEnforceMaxWords(ep.story,range.max);
+    if(ep.cta)ep.cta=_vbHardEnforceMaxWords(ep.cta,range.max);
+  }
+}
+async function _vbExtendShortScriptsOnce(arr,batch,range,onWait){
+  const KEYS=['hook','story','cta'];
+  const wc=function(t){return String(t||'').trim().split(/\s+/).filter(Boolean).length;};
+  const aligned=(arr.length===batch.length);
+  let items=[];
+  for(let pi=0;pi<arr.length;pi++){
+    const prod=arr[pi];
+    if(!prod)continue;
+    for(const k of KEYS){
+      const t=prod[k];
+      if(t&&wc(t)<range.min){
+        const ctx=KEYS.filter(function(o){return o!==k&&prod[o];}).map(function(o){return o+': '+prod[o];}).join(' | ');
+        const nama=(aligned&&batch[pi]&&batch[pi].nama)||prod.produk||('Produk '+(pi+1));
+        items.push({id:pi+'-'+k,pi:pi,k:k,nama:nama,t:t,n:wc(t),ctx:ctx});
+      }
+    }
+  }
+  if(!items.length)return;
+  let msg='Perpanjang teks-teks berikut.\n\n'+items.map(function(it){
+    return '[id: '+it.id+']\nProduk: '+it.nama+'\nTeks ('+it.n+' kata): '+it.t+(it.ctx?'\nKonteks: '+it.ctx:'');
+  }).join('\n\n');
+  // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
+  const maxTok=Math.min(8192,600+items.length*130);
+  // batas tunggu retry cuma 30 dtk (bukan 3 menit): ini panggilan tambahan, bukan inti.
+  let out;
+  _vbUsageKindOverride='fix';
+  try{out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,VB_SHORTFIX_SYSTEM,false,maxTok,30000);}
+  finally{_vbUsageKindOverride='';}
+  if(!out||!out.resp||!out.resp.ok)return;
+  let data;try{data=JSON.parse(out.rawText);}catch(e){return;}
+  let text=((data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text)||'').trim();
+  text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+  text=_vbSanitizeJsonText(text);
+  let res;try{res=JSON.parse(text);}catch(e1){
+    const a=text.indexOf('['),b=text.lastIndexOf(']');
+    if(a!==-1&&b>a){try{res=JSON.parse(text.substring(a,b+1));}catch(e2){res=null;}}
+  }
+  // Jaring pengaman: kalau JSON terpotong/rusak, selamatkan object {id,teks} yang lengkap
+  // supaya biaya panggilan ini tidak sia-sia.
+  if(!Array.isArray(res))res=_vbSalvageIdTeks(text);
+  if(!Array.isArray(res)||!res.length)return;
+  const byId={};
+  res.forEach(function(r){if(r&&typeof r.id==='string'&&typeof r.teks==='string')byId[r.id]=r.teks;});
+  items.forEach(function(it){
+    let nt=byId[it.id];
+    if(!nt)return;
+    nt=_vbSanitizeForbiddenPhrases(nt.trim());
+    // Terima hanya kalau benar-benar lebih panjang dari teks asli.
+    if(nt&&wc(nt)>it.n)arr[it.pi][it.k]=nt;
+  });
+  // Catat hasil ke statistik perbaikan kata: 1 percobaan per teks, dan apakah masih kependekan.
+  try{
+    items.forEach(function(it){
+      _vbTrackFixOutcome(1,wc(arr[it.pi][it.k])<range.min);
+    });
+  }catch(eOut){console.warn('[_vbExtendShortScriptsOnce] catat hasil gagal:',eOut);}
+}
+async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi,fixShort){
   if(cacheSystem===undefined)cacheSystem=true;
   // FIX BUG BIAYA (laporan user, Sept 2026 — "generate 3 produk sekaligus
   // kok gak kena cache diskon 90%"): parameter baru totalProdukInSesi —
@@ -18205,7 +18314,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
           errSplit.partialResults=salvaged;
           throw errSplit;
         }
-        return r1.concat(r2);
+        let mergedSplit=r1.concat(r2);
+        if(fixShort)await _vbApplyShortFix(mergedSplit,batch,range,onWait);
+        return mergedSplit;
       }
       throw new Error('Request ke AI kebesaran (413) walau cuma 1 produk yang dikirim — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
     }
@@ -18308,6 +18419,10 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   }else{
     console.warn('[_vbCallBulkBatch] jumlah hasil ('+arr.length+') beda dari jumlah diminta ('+batch.length+') — backfill nama produk by-index dilewati demi mencegah nama salah tempel ke produk lain.');
   }
+
+  // PERBAIKAN SKRIP KEPENDEKAN (permintaan user, 29 Sep 2026): HANYA kalau pemanggil
+  // meminta (fixShort=true, yaitu generate bulk). Revisi & jalur lain tidak kena.
+  if(fixShort)await _vbApplyShortFix(arr,batch,range,onWait);
 
   for(let pi=0;pi<arr.length;pi++){
     let prod=arr[pi];
@@ -18625,7 +18740,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
         if(status==='thinking'){updateGenLogoLabel(genLogoState,'🤔 '+alasan+'... '+batchLabelBase);return;}
         let detik=Math.ceil(waitMs/1000);
         updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
-      },onPartialThisBatch,usedHooksSoFar,(_tourOneOffCall||_singleProdukCall)?false:undefined,produkList.length);
+      },onPartialThisBatch,usedHooksSoFar,(_tourOneOffCall||_singleProdukCall)?false:undefined,produkList.length,!_tourOneOffCall); // param terakhir = fixShort: MATI selama tur panduan (permintaan user, 29 Sep 2026)
       dlIncrement(dlUnits);
       doneCount+=batchItems.length;
       if(batchArr.length<batchItems.length){
