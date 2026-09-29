@@ -6671,6 +6671,7 @@ function doneCard(id,ansId,text){
               VB_CARD_LOKASI={};
               VB_PRODUCT_FOTOCOUNT={};
               VB_HOOK_OVERLAY={};
+              VB_CHAR_OVR={};
               _doOpenEdit();
             },null,'Ya, Ubah & Hapus Hasil');
           }else{
@@ -12476,6 +12477,7 @@ function _vbPackState(){
       VB_CARD_LOKASI:(typeof VB_CARD_LOKASI!=='undefined'?VB_CARD_LOKASI:{}),
       VB_PRODUCT_FOTOCOUNT:(typeof VB_PRODUCT_FOTOCOUNT!=='undefined'?VB_PRODUCT_FOTOCOUNT:{}),
       VB_HOOK_OVERLAY:(typeof VB_HOOK_OVERLAY!=='undefined'?VB_HOOK_OVERLAY:{}),
+      VB_CHAR_OVR:(typeof VB_CHAR_OVR!=='undefined'?VB_CHAR_OVR:{}),
       // Teks overlay Mode 4 (Ikuti Gerakan) & Mirror Selfie — sebelumnya TIDAK
       // ikut dipaketkan (lihat _pbCollectSpecialVideo).
       M4_OVERLAY:(typeof VB_MODE4_OVERLAY_TEXT!=='undefined'?VB_MODE4_OVERLAY_TEXT:''),
@@ -12494,6 +12496,7 @@ function _vbUnpackState(json){
     if(typeof VB_CARD_LOKASI!=='undefined')VB_CARD_LOKASI=obj.VB_CARD_LOKASI||{};
     if(typeof VB_PRODUCT_FOTOCOUNT!=='undefined')VB_PRODUCT_FOTOCOUNT=obj.VB_PRODUCT_FOTOCOUNT||{};
     if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=obj.VB_HOOK_OVERLAY||{};
+    if(typeof VB_CHAR_OVR!=='undefined')VB_CHAR_OVR=obj.VB_CHAR_OVR||{};
     if('M4_OVERLAY' in obj && typeof VB_MODE4_OVERLAY_TEXT!=='undefined')VB_MODE4_OVERLAY_TEXT=obj.M4_OVERLAY||'';
     if('MIRROR_OVERLAY' in obj)_pbMirrorOvOpen=obj.MIRROR_OVERLAY||'';
     _vbUnpackAttachLastContextFoto();
@@ -12531,6 +12534,7 @@ function _pbRestorePreOpenSnapshot(){
     if(typeof VB_CARD_LOKASI!=='undefined')VB_CARD_LOKASI=vbObj.VB_CARD_LOKASI||{};
     if(typeof VB_PRODUCT_FOTOCOUNT!=='undefined')VB_PRODUCT_FOTOCOUNT=vbObj.VB_PRODUCT_FOTOCOUNT||{};
     if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=vbObj.VB_HOOK_OVERLAY||{};
+    if(typeof VB_CHAR_OVR!=='undefined')VB_CHAR_OVR=vbObj.VB_CHAR_OVR||{};
     if('M4_OVERLAY' in vbObj && typeof VB_MODE4_OVERLAY_TEXT!=='undefined')VB_MODE4_OVERLAY_TEXT=vbObj.M4_OVERLAY||'';
   }catch(e){/* snapshot video korup — biarkan VB apa adanya daripada error */}
   // Sinkronkan ulang tampilan chip Mode Referensi Foto (V1) di wizard Video
@@ -15337,7 +15341,7 @@ function vbManualSetCount(){
 // untuk kp), jadi aman diisi apa saja tanpa mengubah hasil prompt.
 function vbManualRenderGroups(count){
   VB_SINGLE_OVERLAY=null;
-  VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};
+  VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};VB_CHAR_OVR={};
   _vbTypewriterReset();
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -15369,7 +15373,9 @@ function vbManualRenderGroups(count){
     namaInput.style.cssText='flex:1;min-width:0;font-size:var(--fs-xs2);padding:6px 8px;';
     namaInput.oninput=(function(pi){return function(){VB_MANUAL_ROW_CACHE[pi]={nama:this.value};};})(p);
     groupHead.appendChild(namaInput);
+    groupHead.appendChild(_vbCharMakeBtn(p,false));
     group.appendChild(groupHead);
+    group.appendChild(_vbCharMakePanel(p,VB_CHAR_PANEL_STYLE_GROUP));
     let groupBody=document.createElement('div');
     groupBody.style.cssText='padding:8px;display:flex;flex-direction:column;gap:6px;';
     // FIX BUG (laporan user, Sept 2026): mode Bulk MANUAL ("Tulis Manual"
@@ -15519,6 +15525,9 @@ function _vbOverlaySentence(txt){
 // apapun ke prompt. Direset bareng di semua titik reset sesi yang sama
 // (lihat VB_CARD_TAMPIL dkk).
 let VB_HOOK_OVERLAY={};
+// FITUR BARU: override karakter/suara per PRODUK (ikon pensil) — {prodIdx:{motion,gender,age,pitch,accent}}.
+// Cuma menempel di teks prompt akhir, TIDAK dikirim ke AI. Lihat _vbCharVal().
+let VB_CHAR_OVR={};
 // FITUR BARU (permintaan user, Sept 2026): kolom "Isi" (teks overlay) di
 // "Atur detail" mode SINGLE AI (#vb-overlay-input). null = tidak ada output
 // single-AI yang sedang tampil (jadi tidak ada yang perlu disinkronkan);
@@ -15545,6 +15554,137 @@ function vbSingleOverlayInput(){
 function _vbHookOverlayText(idx){
   let prodIdx=Math.floor(idx/3);
   return (VB_HOOK_OVERLAY[prodIdx]||'').trim();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FITUR BARU (permintaan user): EDIT KARAKTER LANGSUNG DI PROMPT (ikon pensil
+// di samping tombol Revisi). Motion Karakter, Jenis Kelamin, Usia, Nada Bicara
+// & Aksen bisa diganti KAPAN SAJA setelah skrip muncul, per produk. Perubahan
+// langsung menulis ulang prompt Hook/Cerita Produk/CTA produk itu — TIDAK
+// dikirim ke AI, TIDAK memakai jatah revisi, dan teks skrip tidak berubah.
+// Nilai override disimpan di VB_CHAR_OVR[prodIdx]; kalau key-nya tidak ada,
+// dipakai nilai default dari wizard (VB). idx kartu → produk = floor(idx/3).
+// ═══════════════════════════════════════════════════════════════════
+function _vbCharProdIdx(idx){return (typeof idx==='number'&&idx>=0)?Math.floor(idx/3):-1;}
+function _vbCharVal(idx,key){
+  var pi=_vbCharProdIdx(idx);
+  var o=(pi>=0&&typeof VB_CHAR_OVR!=='undefined')?VB_CHAR_OVR[pi]:null;
+  if(o&&Object.prototype.hasOwnProperty.call(o,key))return o[key];
+  return VB[key]||'';
+}
+function _vbCharFields(){
+  return [
+    {key:'motion',title:'Motion Karakter',none:'Tanpa motion',ph:'Atau isi sendiri, contoh: anggun dan kalem',max:80,chips:[['lebay banget','Lebay Banget']]},
+    {key:'gender',title:'Jenis Kelamin',chips:[['male','Laki-laki'],['female','Perempuan']]},
+    {key:'age',title:'Usia',ph:'Atau isi sendiri, contoh: elderly woman, around 65 years old',max:120,chips:[['child, approximately 5-10 years old','Anak-anak'],['teenager, approximately 15-20 years old','Remaja'],['young adult, approximately 20-30 years old','Dewasa Muda'],['adult, approximately 30-45 years old','Dewasa'],['middle-aged adult, approximately 45-60 years old','Paruh Baya']]},
+    {key:'pitch',title:'Nada Bicara',ph:'Atau tulis sendiri, contoh: lelah tapi tetap ramah',max:80,chips:[['bercanda','Bercanda']]},
+    {key:'accent',title:'Aksen',ph:'Atau tulis sendiri, contoh: nada santai dan ramah',max:120,chips:[['warm and expressive','Hangat & Ekspresif'],['confident and energetic','Percaya Diri & Bersemangat'],['friendly and approachable','Ramah & Bersahabat'],['playful and bubbly','Ceria & Lincah'],['calm and reassuring','Tenang & Meyakinkan'],['sincere and genuine','Tulus & Apa Adanya'],['clear and crisp','Tegas & Jelas'],['bold and charismatic','Berani & Karismatik'],['soft and soothing','Lembut & Menenangkan']]}
+  ];
+}
+function _vbCharHasOvr(prodIdx){return !!(VB_CHAR_OVR[prodIdx]&&Object.keys(VB_CHAR_OVR[prodIdx]).length);}
+function _vbCharBtnState(b,prodIdx){
+  var on=_vbCharHasOvr(prodIdx);
+  b.style.color=on?'var(--accent)':'';
+  b.style.borderColor=on?'var(--accent)':'';
+}
+function _vbCharMakeBtn(prodIdx,big){
+  var b=document.createElement('button');
+  b.id='vb-char-btn-'+prodIdx;b.type='button';b.className='copy-btn';
+  b.title='Edit motion, jenis kelamin, usia, nada & aksen';
+  b.setAttribute('aria-label','Edit karakter dan suara');
+  b.style.cssText=(big?'font-size:var(--fs-xs2);padding:8px 12px;':'font-size:var(--fs-2xs);padding:3px 8px;')+'flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;';
+  b.innerHTML='<svg class="icon"><use href="#ic-edit"></use></svg>';
+  b.onclick=function(){vbToggleCharPanel(prodIdx);};
+  _vbCharBtnState(b,prodIdx);
+  return b;
+}
+function _vbCharMakePanel(prodIdx,style){
+  var d=document.createElement('div');
+  d.id='vb-char-panel-'+prodIdx;d.className='hidden';d.style.cssText=style;
+  return d;
+}
+var VB_CHAR_PANEL_STYLE_GROUP='padding:9px;background:var(--surface2);border-bottom:1px solid var(--border-hi);display:flex;flex-direction:column;gap:4px;';
+var VB_CHAR_PANEL_STYLE_SINGLE='padding:9px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-xs);display:flex;flex-direction:column;gap:4px;';
+function _vbCharBuildPanel(prodIdx,panel){
+  var h='<div style="font-size:var(--fs-2xs);color:var(--muted);line-height:1.6;">Langsung mengubah prompt Hook, Cerita Produk &amp; CTA produk ini. Tidak dikirim ke AI dan tidak memakai jatah revisi.</div>';
+  _vbCharFields().forEach(function(f){
+    h+='<div class="text-hint-mb" style="margin-top:6px;">'+f.title+'</div><div class="chips" style="margin-bottom:6px;">';
+    if(f.none)h+='<div class="chip" data-k="'+f.key+'" data-v="" onclick="vbCharPick('+prodIdx+',this)">'+esc(f.none)+'</div>';
+    f.chips.forEach(function(c){h+='<div class="chip" data-k="'+f.key+'" data-v="'+esc(c[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(c[1])+'</div>';});
+    h+='</div>';
+    if(f.ph)h+='<input class="inp" data-k="'+f.key+'" maxlength="'+f.max+'" placeholder="'+esc(f.ph)+'" oninput="vbCharCustom('+prodIdx+',this)" style="font-size:var(--fs-xs2);padding:6px 8px;width:100%;box-sizing:border-box;" />';
+  });
+  h+='<div style="display:flex;gap:6px;margin-top:8px;">'
+    +'<button type="button" class="reset-btn" style="flex:1;" onclick="vbCharReset('+prodIdx+')">Kembalikan Default</button>'
+    +'<button type="button" class="btn sm" style="flex:1;" onclick="vbToggleCharPanel('+prodIdx+',true)">Selesai</button>'
+    +'</div>';
+  panel.innerHTML=h;
+}
+function _vbCharSync(prodIdx){
+  var idx0=prodIdx*3;
+  var panel=document.getElementById('vb-char-panel-'+prodIdx);
+  if(panel){
+    panel.querySelectorAll('.chip[data-k]').forEach(function(c){
+      c.classList.toggle('sel',String(_vbCharVal(idx0,c.dataset.k)||'')===String(c.dataset.v));
+    });
+    panel.querySelectorAll('input[data-k]').forEach(function(inp){
+      if(document.activeElement===inp)return; // jangan ganggu yang lagi diketik
+      var cur=String(_vbCharVal(idx0,inp.dataset.k)||'');
+      var isPreset=Array.prototype.some.call(panel.querySelectorAll('.chip[data-k="'+inp.dataset.k+'"]'),function(c){return c.dataset.v===cur;});
+      inp.value=isPreset?'':cur;
+    });
+  }
+  var btn=document.getElementById('vb-char-btn-'+prodIdx);
+  if(btn)_vbCharBtnState(btn,prodIdx);
+}
+function _vbCharRefresh(prodIdx){
+  for(var k=0;k<3;k++){
+    var idx=prodIdx*3+k;
+    if(document.getElementById('vb-bulk-script-'+idx)&&document.getElementById('vb-bulk-json-'+idx))vbBulkUpdateJson(idx);
+  }
+  _vbCharSync(prodIdx);
+}
+function vbCharSet(prodIdx,key,val){
+  var o=VB_CHAR_OVR[prodIdx]||(VB_CHAR_OVR[prodIdx]={});
+  if(val===null)delete o[key];else o[key]=val;
+  if(!Object.keys(o).length)delete VB_CHAR_OVR[prodIdx];
+  _vbCharRefresh(prodIdx);
+}
+function vbCharPick(prodIdx,el){vbCharSet(prodIdx,el.dataset.k,el.dataset.v);}
+function vbCharCustom(prodIdx,inp){
+  var v=inp.value.trim();
+  vbCharSet(prodIdx,inp.dataset.k,v?v:null); // kosong = balik ke default wizard
+}
+function vbCharReset(prodIdx){
+  delete VB_CHAR_OVR[prodIdx];
+  _vbCharRefresh(prodIdx);
+  showToast('Karakter dikembalikan ke pengaturan awal.','success');
+}
+function vbToggleCharPanel(prodIdx,forceClose){
+  var panel=document.getElementById('vb-char-panel-'+prodIdx);
+  if(!panel)return;
+  if(forceClose||!panel.classList.contains('hidden')){panel.classList.add('hidden');return;}
+  if(!panel.dataset.built){_vbCharBuildPanel(prodIdx,panel);panel.dataset.built='1';}
+  panel.classList.remove('hidden');
+  _vbCharSync(prodIdx);
+}
+// Dipanggil saat pengaturan GLOBAL (Ubah Suara Karakter / Target Audience) diterapkan:
+// override per-produk untuk field yang ikut berubah dibuang, supaya pengaturan global
+// yang baru berlaku di semua produk. Field yang tidak berubah tetap aman.
+function _vbCharClearGlobalChanged(s){
+  ['gender','age','pitch','accent'].forEach(function(k){
+    if(s[k]===VB[k])return;
+    Object.keys(VB_CHAR_OVR).forEach(function(pi){
+      delete VB_CHAR_OVR[pi][k];
+      if(!Object.keys(VB_CHAR_OVR[pi]).length)delete VB_CHAR_OVR[pi];
+    });
+  });
+  setTimeout(function(){
+    document.querySelectorAll('[id^="vb-char-btn-"]').forEach(function(b){
+      var n=parseInt(b.id.replace('vb-char-btn-',''),10);
+      if(!isNaN(n))_vbCharSync(n);
+    });
+  },0);
 }
 // Bangun baris UI "Jumlah Foto Produk" untuk produk ke-prodIdx — chip angka
 // 1-5 + "Ikuti foto asli", dengan ikon kamera KUNING (var(--accent)) di
@@ -18239,6 +18379,7 @@ async function vbBulkResumeAI(){
 async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResults){
   let errBox=document.getElementById('vb-bulk-error');
   let isResume=priorResults.length>0;
+  if(!isResume)VB_CHAR_OVR={}; // generate bulk baru = pengaturan pensil lama tidak relevan lagi
   // FIX HEMAT BIAYA (permintaan user, Sept 2026): selama tur panduan pemula
   // (pbTourVideoScriptActive true), generate script cuma terjadi TEPAT 1x
   // dalam alur tur itu sendiri (bukan seperti pemakaian normal yang bisa
@@ -18821,8 +18962,10 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
     revisiBtn.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
     revisiBtn.textContent='Revisi';
     revisiBtn.onclick=(function(idx){return function(){vbToggleRevisiPanel(idx);};})(prodIdx);
+    groupHead.appendChild(_vbCharMakeBtn(prodIdx,false));
     groupHead.appendChild(revisiBtn);
     group.appendChild(groupHead);
+    group.appendChild(_vbCharMakePanel(prodIdx,VB_CHAR_PANEL_STYLE_GROUP));
 
     // ── Panel revisi per-produk (tersembunyi default) ──
     let revisiPanel=document.createElement('div');
@@ -19617,6 +19760,7 @@ function vbApplyGlobalSettings(){
   );
 }
 function vbApplyMetadataOnly(s){
+  _vbCharClearGlobalChanged(s);
   VB.gender=s.gender;VB.genderLabel=s.genderLabel;
   VB.age=s.age;VB.ageLabel=s.ageLabel;
   VB.pitch=s.pitch;VB.pitchLabel=s.pitchLabel;
@@ -19642,6 +19786,7 @@ async function vbRegenerateAllBulk(newSettings){
   let dlCheck=dlCheckBeforeCall();
   if(!dlCheck.ok){showToast(dlCheck.message,'error');return;}
 
+  _vbCharClearGlobalChanged(newSettings);
   VB.gender=newSettings.gender;VB.genderLabel=newSettings.genderLabel;
   VB.age=newSettings.age;VB.ageLabel=newSettings.ageLabel;
   VB.pitch=newSettings.pitch;VB.pitchLabel=newSettings.pitchLabel;
@@ -19917,7 +20062,7 @@ function pbLockScriptAreaExtras(exceptBtnId){
     let el=document.getElementById(id);
     if(el) el.classList.add('pb-tour-hidden-extra');
   });
-  wrap.querySelectorAll('[id^="vb-revisi-btn-"]').forEach(function(el){
+  wrap.querySelectorAll('[id^="vb-revisi-btn-"],[id^="vb-char-btn-"]').forEach(function(el){
     el.classList.add('pb-tour-hidden-extra');
   });
 }
@@ -20849,6 +20994,7 @@ function _vbRenderMultiOutputLive(produkNamaForHistory){
   VB_CARD_LOKASI={};
   VB_PRODUCT_FOTOCOUNT={};
   VB_HOOK_OVERLAY={};
+  VB_CHAR_OVR={};
   if(VB_SINGLE_OVERLAY)VB_HOOK_OVERLAY[0]=VB_SINGLE_OVERLAY;
   _vbTypewriterReset(); // sesi baru — buang target lama biar ga nyangkut ke kartu baru
   let multiWrap=document.getElementById('vb-multi-output');
@@ -20948,6 +21094,7 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate,manualMode){
   revisiBtn.innerHTML='<svg class="icon"><use href="#ic-refresh"></use></svg> Revisi Script dengan AI';
   revisiBtn.onclick=vbToggleSingleRevisiPanel;
   revisiRow.appendChild(revisiBtn);
+  revisiRow.appendChild(_vbCharMakeBtn(0,true));
 
   // Tombol undo — tersembunyi sampai revisi pertama berhasil (lihat
   // vbRevisiSingleAI), dipakai buat kembali 1 langkah ke versi sebelumnya.
@@ -20983,6 +21130,7 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate,manualMode){
     +'<button class="reset-btn sm" style="flex:1;" onclick="vbToggleSingleRevisiPanel()">Batal</button>'
     +'</div>';
   multiWrap.appendChild(revisiPanel);
+  multiWrap.appendChild(_vbCharMakePanel(0,VB_CHAR_PANEL_STYLE_SINGLE));
 
   let resetBtn=document.createElement('button');
   resetBtn.className='reset-btn';
@@ -21019,7 +21167,7 @@ function _vbEsc(s){
     .replace(/[\u0000-\u001F]/g,function(ch){return '\\u'+ch.charCodeAt(0).toString(16).padStart(4,'0');});
 }
 function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride,fotoCountOverride,idx){
-  let accentFull='Natural Indonesian intonation, '+VB.accent;
+  let accentFull='Natural Indonesian intonation, '+_vbCharVal(idx,'accent');
   let instructionText;
   if(VB.refMode==='kp'){
     // Nama produk buat teks referensi diambil per-konteks (field AI/manual/bulk
@@ -21068,10 +21216,11 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // (apa pun isinya) tetap dipakai apa adanya sebagai prefix.
   // FITUR BARU: Motion Karakter (opsional) — ditempel di antara instruksi foto
   // referensi dan blok "dialogue:". Kosong = output sama persis seperti sebelumnya.
-  let motionTxt=String(VB.motion||'').replace(/[.\s]+$/,'').trim();
+  let motionTxt=String(_vbCharVal(idx,'motion')||'').replace(/[.\s]+$/,'').trim();
   if(motionTxt)instructionText=instructionText.replace(/\s+$/,'')+' motion karakter: '+motionTxt+'. ';
-  let genderPrefix=VB.gender==='male'?'Male, ':VB.gender==='female'?'Female, ':(VB.gender?VB.gender+', ':'');
-  let ageFull=genderPrefix+VB.age;
+  let _cg=_vbCharVal(idx,'gender');
+  let genderPrefix=_cg==='male'?'Male, ':_cg==='female'?'Female, ':(_cg?_cg+', ':'');
+  let ageFull=genderPrefix+_vbCharVal(idx,'age');
   // FORMAT OUTPUT (permintaan user, menggantikan format JSON lama): bukan JSON valid,
   // "instruction:...dialogue:voice_character:age:...,pitch:...,accent:...,script:"...""
   // — tidak perlu escaping JSON karena tidak ada JSON.parse yang membaca
@@ -21085,7 +21234,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // / ada motion) — Start Frame & Frame Asset tanpa motion jadi menempel
   // ("...sepanjang video.dialogue:"). Sekarang selalu tepat 1 spasi.
   let safeScript=String(scriptText==null?'':scriptText).replace(/"/g,"'");
-  let flowText=instructionText.replace(/\s+$/,'')+' dialogue:voice_character:age:'+ageFull+',pitch:'+VB.pitch+',accent:'+accentFull+',script:"'+safeScript+'"';
+  let flowText=instructionText.replace(/\s+$/,'')+' dialogue:voice_character:age:'+ageFull+',pitch:'+_vbCharVal(idx,'pitch')+',accent:'+accentFull+',script:"'+safeScript+'"';
   // GANTI TOTAL (permintaan user, Sept 2026): kalimat overlay Hook lama
   // ("Tulis :"X" muncul pada detik 0 sampai detik 2 (2 detik) lalu
   // menghilang, dengan ukuran teks 10px.") DIHAPUS, diganti kalimat baru di
@@ -21292,6 +21441,7 @@ function vbResetNow(){
     VB_CARD_LOKASI={};
     VB_PRODUCT_FOTOCOUNT={};
     VB_HOOK_OVERLAY={};
+    VB_CHAR_OVR={};
     vbUpdateProgress(1,'Mode Referensi Foto');
     // FIX BUG#1: sama seperti saat init — vbUpdateProgress(1,...) hitung 20%,
     // override balik ke 0% karena user baru saja reset (belum isi apa-apa).
@@ -24770,7 +24920,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   var PB_UNDO_STATE_VARS = [
     'FS','csState','VAI','VB','VB_MODE4_OVERLAY_TEXT','VB_MANUAL_ROW_CACHE',
     'VB_MANUAL_COUNT','VB_BULK_ITEMS','VB_CARD_TAMPIL','VB_CARD_LOKASI',
-    'VB_PRODUCT_FOTOCOUNT','VB_HOOK_OVERLAY','VB_BULK_PRODUCTS',
+    'VB_PRODUCT_FOTOCOUNT','VB_HOOK_OVERLAY','VB_CHAR_OVR','VB_BULK_PRODUCTS',
     'VB_REVISI_FOTO_OVERRIDE','VB_BULK_ROW_CACHE','VB_BULK_LAST_CONTEXT',
     'VB_SINGLE_REVISI_BACKUP','VB_BULK_REVISI_BACKUP','VB_PANEL','VB_SINGLE_OVERLAY','PB_ACTIVE_SAVED_ID',
     'pbProdukFotoUploaded','pbProdukFotoDataUrl','pbKsFotoUploaded',
