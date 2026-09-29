@@ -6083,9 +6083,28 @@ function switchPage(id,btn){
   if(id==='foto' && typeof pbF0KsThumbSync==='function') pbF0KsThumbSync();
 }
 
+// Dipakai menu step desktop (#f-step-nav). scrollIntoView() sudah di-override
+// jadi no-op (lihat <script> paling atas) dan step yang sudah selesai
+// disembunyikan total oleh doneCard(), jadi dulu klik menu ini tidak
+// melakukan apa-apa. Sekarang: step yang sudah selesai dibuka lewat
+// fSummaryEdit() (jalur yang sama dengan sheet \"Lompat ke step\"), step yang
+// sedang aktif cukup di-scroll, step yang belum sampai dikasih tahu lewat toast.
 function fJumpStep(id){
   let el=document.getElementById(id);
-  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+  if(!el)return;
+  if(el.classList.contains('done')){
+    let m=/^f(\d+)$/.exec(id);
+    if(m && typeof fSummaryEdit==='function'){
+      fSummaryEdit(parseInt(m[1],10));
+      setTimeout(function(){fScrollToCard(el);},80);
+      return;
+    }
+  }
+  if(el.classList.contains('pending')){
+    showToast('Selesaikan step sebelumnya dulu ya','info');
+    return;
+  }
+  fScrollToCard(el);
 }
 
 function openApiKeyModal(){
@@ -7801,7 +7820,7 @@ function fBack1(){
   fResetFrom(0);
   let f0=document.getElementById('f0');
   if(f0)f0.classList.remove('done','hidden','pending');
-  fUpdateProgress(1,'Subjek Foto');
+  fUpdateProgress(0,'Subjek Foto');
   let selMap={hijab:'sk-hijab',pria:'sk-pria',produk:'sk-produk'};
   let selId=selMap[prevSubjek];
   let selEl=selId?document.getElementById(selId):null;
@@ -8055,7 +8074,7 @@ function fKonfirmRef(){
     let c3=document.getElementById('f3');if(c3){c3.classList.add('done','hidden');c3.classList.remove('pending');}
     let c4=document.getElementById('f4');if(c4){c4.classList.add('done','hidden');c4.classList.remove('pending');}
     fSyncStepNums();
-    fUpdateProgress(3,'Lokasi');
+    fUpdateProgress(5,'Lokasi');
     // Framing khusus produk saja — overhead/flat lay atau close-up produk
     FS.kamera='product placed on a clean surface or held up close to camera, filling majority of frame, no person visible, product sharp and detailed';
     // Reset f5, f7, f8 agar bersih
@@ -8125,7 +8144,7 @@ function fKonfirmRef(){
     let fa3clr=document.getElementById('fa3');if(fa3clr)fa3clr.innerHTML='';
     let c3=document.getElementById('f3');if(c3){c3.classList.add('done','hidden');c3.classList.remove('pending');}
     fSyncStepNums();
-    fUpdateProgress(2,'Pose');
+    fUpdateProgress(4,'Pose');
     fBuildPoseChips();
     showCard('f4');
   }
@@ -9242,23 +9261,32 @@ function fBack9(){
 // HELPER: konversi nomor card ke nomor step display yang benar
 // Jalur 7-step (hasStep3): f4→4, f5→5, f7→6, f8→7 (f6/Framing dihapus)
 // Jalur 6-step (!hasStep3): f4→3, f5→4, f7→5, f8→6 (f6/Framing dihapus)
-function fTotalSteps(){
-  if(FS.subjek==='produk') return 6; // f0,f1,f5,f7,f8,f9
-  return (FS.produkMode==='foto'||FS.produkMode==='pegang')?9:8;
-}
-function fCardToStep(cardNum){
-  if(FS.subjek==='produk'){
-    // f0=1, f1=2, f5=3, f7=4, f8=5, f9=6
-    if(cardNum<=1) return cardNum;
-    if(cardNum===5) return 3;
-    if(cardNum===7) return 4;
-    if(cardNum===8) return 5;
-    if(cardNum===9) return 6;
-    return cardNum;
-  }
+// SUMBER KEBENARAN TUNGGAL urutan step tab Foto (dipakai header "Step X dari Y",
+// badge nomor kartu, daftar "Lompat ke step" dan menu step desktop).
+// Card f2 (Produk) & f6 (Framing) sudah dihapus dari alur, jadi nomor tidak
+// boleh dihitung dari nomor card mentah (dulu f7 tampil "7" padahal step ke-6,
+// total 9 padahal cuma 8). Urutan aktif:
+//   Produk Saja       : Subjek, Foto Referensi, Lokasi, Cahaya, Sudut, Mood      (6)
+//   Ada produk        : Subjek, Foto Referensi, Cara Tampil, Pose, Lokasi, ...   (8)
+//   Tanpa produk      : Subjek, Foto Referensi, Pose, Lokasi, ...                (7)
+const F_STEP_TITLES={f0:'Subjek',f1:'Foto Referensi',f3:'Cara Tampil',f4:'Pose',f5:'Lokasi',f7:'Pencahayaan',f8:'Sudut Kamera',f9:'Mood & Tone'};
+function fActiveSteps(){
+  if(FS.subjek==='produk') return ['f0','f1','f5','f7','f8','f9'];
   let hasStep3=(FS.produkMode==='foto'||FS.produkMode==='pegang');
-  if(!hasStep3 && cardNum>=4) return cardNum-1;
-  return cardNum;
+  return hasStep3?['f0','f1','f3','f4','f5','f7','f8','f9']:['f0','f1','f4','f5','f7','f8','f9'];
+}
+function fTotalSteps(){
+  return fActiveSteps().length;
+}
+// cardNum = nomor card (0=f0 Subjek, 1=f1 Foto Referensi, 3=f3, 4=f4, 5=f5, 7=f7, ...).
+// Card yang tidak ada di alur aktif (mis. f2 yang sudah dihapus, atau f3 saat
+// tanpa produk) dipetakan ke step berikutnya yang ada, jadi tidak pernah NaN.
+function fCardToStep(cardNum){
+  let steps=fActiveSteps();
+  let idx=steps.indexOf('f'+cardNum);
+  if(idx>=0) return idx+1;
+  let after=steps.filter(function(id){return parseInt(id.slice(1),10)<cardNum;}).length;
+  return Math.min(after+1,steps.length);
 }
 
 // FIX #6 (diperbaiki): nomor badge (f4-num dst) dan teks "Step X dari Y" di progress
@@ -9278,6 +9306,27 @@ function fSyncStepNums(){
   if(f7num)f7num.textContent=fCardToStep(7);
   if(f8num)f8num.textContent=fCardToStep(8);
   if(f9num)f9num.textContent=fCardToStep(9);
+  fSyncDesktopNav();
+}
+
+// Menu step desktop (#f-step-nav) dibangun ulang dari fActiveSteps() supaya
+// selalu sama dengan header, badge kartu & daftar "Lompat ke step": tanpa
+// produk tidak ada "Cara Tampil", mode Produk Saja tidak ada "Cara Tampil"/"Pose",
+// dan nomornya berurutan tanpa lompatan.
+function fSyncDesktopNav(){
+  let nav=document.getElementById('f-step-nav');
+  if(!nav) return;
+  let steps=fActiveSteps();
+  let sig=steps.join(',');
+  if(nav.dataset.sig===sig) return;
+  nav.dataset.sig=sig;
+  nav.innerHTML='';
+  steps.forEach(function(id,i){
+    let a=document.createElement('a');
+    a.textContent=(i+1)+' \u00b7 '+F_STEP_TITLES[id];
+    a.onclick=function(){fJumpStep(id);};
+    nav.appendChild(a);
+  });
 }
 
 // ── STEP JUMP — pengganti fungsi bulatan nomor hijau yang dihapus dari
@@ -9290,7 +9339,28 @@ function fOpenStepJump(pageId){
   let cards=Array.prototype.filter.call(page.querySelectorAll('.wcard.done'),function(c){
     // Step "Produk" (f2) sudah tidak dipakai — fungsinya sama dengan Foto Referensi.
     // Tidak ditampilkan di daftar Lompat ke step (tab foto).
-    return !(pageId==='foto' && c.id==='f2');
+    if(pageId==='foto' && c.id==='f2') return false;
+    // FIX: kalau user cuma pilih Karakter Sheet + Outfit (tanpa foto produk),
+    // f3 \"Cara Tampil Produk\" memang tidak relevan. Flow sengaja menandainya
+    // 'done' (lihat cabang \"Tidak ada foto produk\" di fKonfirmRef) supaya
+    // nomor step tidak bentrok — tapi karena berstatus 'done', dulu dia ikut
+    // nongol di daftar \"Lompat ke step\" dengan jawaban kosong padahal tidak
+    // ada produk yang dipilih. Step ini hanya relevan kalau ada produk
+    // (produkMode 'foto'/'pegang', sama seperti syarat hasStep3 di
+    // fTotalSteps/fCardToStep). CATATAN: jangan filter berdasarkan class
+    // 'hidden' — doneCard() menyembunyikan SEMUA step yang selesai, jadi
+    // seluruh daftar akan ikut kosong.
+    if(pageId==='foto' && c.id==='f3' && typeof FS!=='undefined' && FS &&
+       FS.produkMode!=='foto' && FS.produkMode!=='pegang') return false;
+    // Mode \"Produk Saja\": tidak ada karakter, jadi Cara Tampil (f3) dan Pose
+    // (f4) sama-sama tidak ada di alurnya (lihat fKonfirmRef & fCardToStep
+    // untuk subjek 'produk'). Keduanya cuma ditandai 'done' supaya validasi
+    // generate tidak memblokir — jangan sampai ikut tampil sebagai baris
+    // kosong di daftar \"Lompat ke step\". Di mode ini produkMode selalu
+    // 'foto', jadi filter f3 di atas TIDAK menangkapnya; harus dicek terpisah.
+    if(pageId==='foto' && (c.id==='f3' || c.id==='f4') && typeof FS!=='undefined' && FS &&
+       FS.subjek==='produk') return false;
+    return true;
   });
   let list=document.getElementById('step-jump-list');
   if(!list)return;
@@ -12019,7 +12089,7 @@ function vaiToggleKeyVisibility(btn){var input=document.getElementById('gemini-a
 // FIX A2: Progress bar init — set ke "Subjek Foto" (step 0/f0) dengan pct=0
 // fSyncStepNums() tidak dipanggil saat init karena produkMode='' → default tampilan badge = 7-step
 // yang benar, tapi ini hanya terjadi SETELAH user mulai isi — saat init badge tidak kelihatan
-fUpdateProgress(1,'Subjek Foto');
+fUpdateProgress(0,'Subjek Foto');
 if(typeof historyRender==='function')setTimeout(historyRender,50);
 if(typeof vbUpdateProgress==='function')vbUpdateProgress(1,'Mode Referensi Foto');
 if(typeof csRenderAll==='function')csRenderAll();
