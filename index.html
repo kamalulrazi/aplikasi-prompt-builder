@@ -5604,8 +5604,8 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
         <div class="inp-wrap">
-          <input class="inp" id="v2-custom" maxlength="120" placeholder="Contoh: elderly woman, around 65 years old" oninput="vbCountInpV2(this,'v2-counter')" />
-          <div class="inp-counter" id="v2-counter">0 / 120</div>
+          <input class="inp" id="v2-custom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="Contoh: 15" oninput="vbCountInpV2(this,'v2-counter')" />
+          <div class="inp-counter" id="v2-counter">Maks. 120 tahun</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAgeCustom()">Konfirmasi →</button>
       </div>
@@ -5776,6 +5776,16 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           </div>
           <div class="inp-wrap" style="margin-bottom:12px;">
             <input class="inp" id="vb-bulk-target" maxlength="200" placeholder="Contoh: perempuan usia 20-30 tahun yang suka belanja online" oninput="vbBulkTargetInput('vb-bulk-target',this)" />
+          </div>
+          <label class="inplabel">Sapaan ke penonton <span style="font-weight:400;color:var(--muted);">(opsional)</span></label>
+          <div id="vb-sapaan-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">
+            <div class="chip" onclick="vbPickSapaan('kak',this)">kak</div>
+            <div class="chip" onclick="vbPickSapaan('guys',this)">guys</div>
+            <div class="chip" onclick="vbPickSapaan('kalian',this)">kalian</div>
+            <div class="chip" onclick="vbPickSapaan('bestie',this)">bestie</div>
+          </div>
+          <div class="inp-wrap" style="margin-bottom:12px;">
+            <input class="inp" id="vb-sapaan-input" maxlength="20" placeholder="Atau isi sendiri, contoh: kakak semua" oninput="vbSapaanInput(this)" />
           </div>
           <button id="vb-bulk-btn" class="btn" onclick="vbBulkMainAction()" style="font-size:var(--fs-md);padding:13px;">Generate Prompt</button>
           <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">Tiap produk otomatis dapat 3 script (Hook, Cerita, CTA). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
@@ -6280,7 +6290,7 @@ document.addEventListener('keydown', function(e){
         if(next){e.preventDefault();next.focus();next.select&&next.select();}
         return;
       }
-      if(ae.id==='vb-bulk-target'){
+      if(ae.id==='vb-bulk-target'||ae.id==='vb-sapaan-input'){
         let bulkBtn=document.getElementById('vb-bulk-btn');
         if(bulkBtn){e.preventDefault();bulkBtn.click();}
         return;
@@ -6469,12 +6479,25 @@ function fSyncMt12ConfirmBtn(el,len){
 // lagi ngetik usia sendiri. Fungsi ini membatasi penghapusan 'sel' HANYA
 // ke chip di dalam #vb-age-chips, chip Gender tidak disentuh.
 function vbCountInpV2(el,counterId){
+  // Kolom usia custom: HANYA angka, maksimal 120 (tahun). Huruf/simbol
+  // dibuang otomatis, angka di atas 120 dipaksa jadi 120.
+  let _isAge=(el.id==='v2-custom');
+  if(_isAge){
+    let d=el.value.replace(/\D/g,'').slice(0,3).replace(/^0+(?=\d)/,'');
+    if(d!==''&&parseInt(d,10)>120)d='120';
+    if(el.value!==d)el.value=d;
+  }
   let max=parseInt(el.getAttribute('maxlength')||'120',10);
   let len=el.value.length;
   let counter=document.getElementById(counterId);
   if(counter){
-    counter.textContent=len+' / '+max;
-    counter.className='inp-counter'+(len>=max?' over':len>=max*0.8?' warn':'');
+    if(_isAge){
+      counter.textContent='Maks. 120 tahun';
+      counter.className='inp-counter';
+    }else{
+      counter.textContent=len+' / '+max;
+      counter.className='inp-counter'+(len>=max?' over':len>=max*0.8?' warn':'');
+    }
   }
   let card=el.closest('.wcard');
   if(card){
@@ -15146,9 +15169,12 @@ function vbPickAgeCustom(){
   // "Konfirmasi →" — harus diulang lagi setelah pilih gender. Sekarang nilai
   // usia custom disimpan dulu (state selalu update), baru cek gender untuk
   // memutuskan apakah sudah boleh lanjut ke step berikutnya atau belum.
-  let val=document.getElementById('v2-custom').value.trim();
-  if(!val){showToast('Isi dulu ya','error');return;}
-  VB.age=val;VB.ageLabel=val.length>24?val.substring(0,24)+'...':val;
+  let _raw=document.getElementById('v2-custom').value.replace(/\D/g,'');
+  if(!_raw){showToast('Isi dulu ya','error');return;}
+  let _n=parseInt(_raw,10);
+  if(!(_n>=1&&_n<=120)){showToast('Usia harus antara 1–120 tahun','error');return;}
+  let val=_n+' years old';
+  VB.age=val;VB.ageLabel=_n+' tahun';
   document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
   if(!VB.gender){showToast('Usia tersimpan — pilih Jenis Kelamin juga ya','error');return;}
   vbCheckV2Done();
@@ -17871,6 +17897,31 @@ var VB_TARGET_AUDIENCE_PRESETS={
   'genz-perempuan':'gen z perempuan'
 };
 var VB_TA_PRESET={};
+// FITUR BARU: sapaan ke penonton (opsional). Disimpan global supaya SEMUA
+// jalur generate/regenerate/revisi/lanjutkan yang lewat _vbCallBulkBatch
+// otomatis ikut memakainya. Kosong = Claude bebas memilih sapaan sendiri.
+var VB_SAPAAN='';
+function vbPickSapaan(val,el){
+  let wrap=document.getElementById('vb-sapaan-chips');
+  let inp=document.getElementById('vb-sapaan-input');
+  let already=(VB_SAPAAN===val&&el&&el.classList.contains('sel'));
+  if(wrap)wrap.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
+  if(already){VB_SAPAAN='';return;}
+  VB_SAPAAN=val;
+  if(el)el.classList.add('sel');
+  if(inp)inp.value='';
+}
+function vbSapaanInput(el){
+  VB_SAPAAN=String(el.value||'').replace(/[\r\n"]+/g,' ').trim();
+  let wrap=document.getElementById('vb-sapaan-chips');
+  if(wrap&&el.value.length>0)wrap.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
+}
+function vbResetSapaan(){
+  VB_SAPAAN='';
+  let inp=document.getElementById('vb-sapaan-input'); if(inp)inp.value='';
+  let wrap=document.getElementById('vb-sapaan-chips');
+  if(wrap)wrap.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
+}
 function vbPickTargetAudiencePreset(inputId,presetKey,el){
   if(!VB_TARGET_AUDIENCE_PRESETS[presetKey]) return;
   let field=document.getElementById(inputId);
@@ -18072,7 +18123,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   //
   // Bagian yang beda-beda tiap generate (produk/karakter/target audience/
   // catatan revisi/hook yang sudah dipakai) — dikirim sebagai pesan user.
-  let prompt='Jenis kelamin karakter: '+VB.genderLabel+' — sesuaikan sudut pandang & pilihan kata dengan gender ini.\n'
+  let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
+  let prompt='Karakter: '+VB.genderLabel+', usia '+(VB.age||VB.ageLabel)+'. '
+    +(_sapaanVal
+      ?'Sesuaikan sudut pandang dan pilihan kata dengan gender DAN usia karakter ini — gaya bicara harus terdengar natural untuk usia tersebut.\n'
+        +'Sapaan ke penonton WAJIB: '+_sapaanVal+'. Pakai sapaan ini secara konsisten di HOOK, STORY, dan CTA (sebut secara natural, tidak perlu di setiap kalimat), jangan diganti dengan sapaan lain.\n'
+      :'Sesuaikan sudut pandang, sapaan ke target audience (misal \"kak\", \"guys\", \"kalian\"), dan pilihan kata dengan gender DAN usia karakter ini — gaya bicara harus terdengar natural untuk usia tersebut.\n')
     +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+'(Skrip harus sesuai dengan nada bicara).\n'
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+'.\n'
     +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n'
@@ -21285,7 +21341,7 @@ function vbResetNow(){
     document.getElementById('v2-custom').value='';
     document.getElementById('v3-custom').value='';
     document.getElementById('v4-custom').value='';
-    let v2cnt=document.getElementById('v2-counter'); if(v2cnt){v2cnt.textContent='0 / 120';v2cnt.className='inp-counter';}
+    let v2cnt=document.getElementById('v2-counter'); if(v2cnt){v2cnt.textContent='Maks. 120 tahun';v2cnt.className='inp-counter';}
     let v3cnt=document.getElementById('v3-counter'); if(v3cnt){v3cnt.textContent='0 / 80';v3cnt.className='inp-counter';}
     let v4cnt=document.getElementById('v4-counter'); if(v4cnt){v4cnt.textContent='0 / 120';v4cnt.className='inp-counter';}
     VB_SINGLE_OVERLAY=null;
@@ -21330,6 +21386,7 @@ function vbResetNow(){
     let bulkCount=document.getElementById('vb-bulk-count'); if(bulkCount)bulkCount.value='1';
     let bulkTarget=document.getElementById('vb-bulk-target'); if(bulkTarget)bulkTarget.value='';
     VB_TA_PRESET={};
+    vbResetSapaan();
     document.querySelectorAll('#vb-bulk-area .chip.sel').forEach(function(c){if(c.getAttribute('onclick')&&c.getAttribute('onclick').indexOf('vbPickTargetAudiencePreset')===0)c.classList.remove('sel');});
     let bulkArea=document.getElementById('vb-bulk-area'); if(bulkArea)bulkArea.classList.remove('hidden');
     let bulkErr=document.getElementById('vb-bulk-error'); if(bulkErr){bulkErr.classList.add('hidden');bulkErr.textContent='';}
