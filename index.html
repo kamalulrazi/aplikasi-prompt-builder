@@ -18007,42 +18007,23 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // `range` sengaja TIDAK dipakai lagi di bawah (dibiarkan tetap ada di
   // signature fungsi supaya semua pemanggil yang masih mengirim argumen itu
   // tidak perlu diubah).
-  return 'Kamu ahli menulis skrip konten dengan minimal 24 kata skrip. User akan kasih detail produk, karakter, target audience di pesan berikutnya. Buat TEPAT 3 bagian (HOOK, STORY, CTA) yang WAJIB nyambung jadi SATU monolog utuh (bukan 3 topik lepas), sesuai peran:\n'
-    +'1. HOOK: Kalimat pembuka kuat yang menarik perhatian. Bisa berupa pertanyaan kocak, fakta mengejutkan, problem solving atau storytelling singkat. Jangan terlalu template. PENTING: WAJIB MINIMAL "24 KATA" DAN MAKSIMAL "30 KATA" DALAM SKRIP. KALAU GAGAL ULANGI LAGI.\n'
-    +'2. STORY: Bukan pengalaman pribadi. Bikin skrip yang membahas skenario audiens menggunakan produk untuk menyelesaikan masalah sehari-hari mereka. PENTING: WAJIB MINIMAL "24 KATA" DAN MAKSIMAL "30 KATA" DALAM SKRIP. KALAU GAGAL ULANGI LAGI.\n'
-    +'3. CTA: ajakan klik "keranjang bawah" saja (bukan "keranjang kuning", bukan "checkout"). Dilarang klaim urgensi/stok terbatas. PENTING: CTA secara alami cenderung singkat — JANGAN dibiarkan pendek hanya karena isinya cuma ajakan. CTA WAJIB MINIMAL "24 KATA" DAN MAKSIMAL "30 KATA", KALAU GAGAL ULANGI LAGI SAMPAI BISA.\n\n'
-    +'LARANGAN MUTLAK (semua bagian, tanpa kecuali):\n'
-    +'- Sebut bahan/material/tekstur produk (katun, kulit, polyester, dll) — KECUALI user sendiri sudah sebutkan di "keunggulan".\n'
-    +'- Sebut promo/diskon/limited/urgensi dalam bentuk apapun.\n\n'
-    +'ATURAN: jumlah kata tiap bagian WAJIB masuk rentang 24-30 kata (minimal 24, maksimal 30). Bahasa Indonesia, TANPA emoji/tanda kutip. Kalimat pendek-sedang diakhiri titik wajar (jangan 1 kalimat panjang tanpa jeda).\n\n'
-    +'SEBELUM JAWAB, cek 2 hal: (a) baca HOOK+STORY+CTA berurutan — kalau lompat topik, revisi transisinya biar mengalir; (b) pastikan tidak ada kata bahan/promo yang dilarang di atas.\n\n'
-    // DIREVISI (permintaan user, Sept 2026, "Opsi C" — thinking parameter API
-    // dimatikan tapi wording instruksi ini SENGAJA tetap dipertahankan minta
-    // Claude "berpikir dulu" menomori kata sebelum jawab, walau sekarang
-    // Claude cuma punya satu aliran output (tidak ada channel thinking
-    // terpisah lagi). User sudah diberi tahu risikonya: proses penomoran
-    // kata ini bisa saja ikut bocor ke depan/tercampur JSON jawaban akhir,
-    // atau kalau model patuh ke "HANYA JSON" maka proses hitungnya di-skip
-    // & cuma tebak jumlah kata (makanya _vbFixWordCountIfNeeded tetap ada
-    // sebagai jaring pengaman). Ini sudah dikonfirmasi & diterima risikonya.
-    +'WAJIB HITUNG KATA SENDIRI (PALING PENTING). Contoh teknik: "1.kalau 2.aku 3.bilang 4.ada 5.satu 6.item 7.yang 8.bisa 9.ngubah 10.vibe". WAJIB masuk rentang 24-30 kata (minimal 24, maksimal 30) — kalau meleset (kurang dari 24 ATAU lebih dari 30), revisi & hitung ulang sampai BENAR-BENAR masuk rentang itu, baru tulis jawaban akhir (HANYA JSON, tanpa proses hitung apapun ikut tertulis). Lakukan untuk KETIGA bagian — CTA PALING SERING kependekan, jadi cek hitungannya dua kali sebelum lanjut.\n\n'
-    // FIX BUG KRITIS (ditemukan saat audit, Sept 2026): format balasan di
-    // bawah ini SENGAJA DIUBAH dari versi asli vbGenerate3AI
-    // ([{"role":"hook","script":"..."}, ...] 3 object). Fungsi ini sekarang
-    // JUGA dipakai oleh _vbCallBulkBatch() untuk kasus 1 produk — dan
-    // parser _vbCallBulkBatch (arr.length===batch.length, lalu baca
-    // arr[pi].hook/.story/.cta) SELALU mengharapkan array berisi SATU
-    // object per produk dengan key hook/story/cta (skema yang sama dipakai
-    // untuk 2+ produk), BUKAN 3 object beda skema. Kalau format lama
-    // dipertahankan di sini, setiap generate 1 produk lewat jalur Bulk akan
-    // gagal total (field hook/story/cta jadi undefined). Skema di bawah ini
-    // WAJIB tetap sinkron dengan format yang dibaca _vbCallBulkBatch.
-    // DIPERSINGKAT (permintaan user, Sept 2026): dulu ada 2 versi (1 produk vs
-    // N produk) + paragraf "PENTING: jumlah object..." yang dobel dengan baris
-    // "Ingat: WAJIB balikin TEPAT N object TOTAL" di pesan user (lihat
-    // _vbCallBulkBatch). Sekarang 1 kalimat untuk semua jumlah produk (count=1
-    // otomatis jadi "TEPAT 1 object"). Nama kolom produk/hook/story/cta WAJIB
-    // tetap sama — dibaca parser _vbCallBulkBatch.
+  // DIPERSINGKAT LAGI (permintaan user, Sept 2026): versi ringkas ~separuh
+  // panjang sebelumnya. Yang SENGAJA dipertahankan: 3 bagian + peran, rentang
+  // 24-30 kata (sinkron VB_FIXED_WORD_RANGE), larangan bahan/promo/urgensi,
+  // aturan "keranjang bawah", bahasa Indonesia tanpa emoji/kutip, "proses hitung
+  // jangan ikut tertulis", dan format JSON (nama kolom WAJIB sama dgn parser
+  // _vbCallBulkBatch). Versi panjang sebelumnya: lihat prompt-ke-claude-v2.md.
+  // Kalau setelah ini AI sering lolos nyebut bahan/promo atau meleset jumlah
+  // kata (memicu _vbFixWordCountIfNeeded berbayar), balikin ke versi panjang.
+  return 'Kamu penulis skrip iklan video pendek. Detail produk, karakter, dan target audience ada di pesan berikutnya.\n\n'
+    +'Tulis TEPAT 3 bagian: HOOK, STORY, CTA. Ketiganya harus nyambung jadi SATU monolog utuh, bukan 3 topik lepas.\n'
+    +'- HOOK: kalimat pembuka kuat (pertanyaan kocak, fakta mengejutkan, masalah sehari-hari, atau cerita singkat). Jangan template.\n'
+    +'- STORY: skenario audiens memakai produk untuk menyelesaikan masalah sehari-hari (bukan pengalaman pribadi).\n'
+    +'- CTA: ajak klik "keranjang bawah" saja (bukan "keranjang kuning" atau "checkout"). Jangan klaim urgensi atau stok terbatas.\n\n'
+    +'ATURAN:\n'
+    +'- Tiap bagian WAJIB 24-30 kata (minimal 24, maksimal 30). CTA paling sering kependekan, jadi panjangkan sampai masuk rentang. Hitung kata satu per satu sebelum menjawab, kalau meleset revisi dulu (proses hitung jangan ikut tertulis).\n'
+    +'- Bahasa Indonesia, tanpa emoji dan tanda kutip. Kalimat pendek-sedang, diakhiri titik.\n'
+    +'- DILARANG: menyebut bahan/material/tekstur produk (kecuali user sudah menyebutnya di keunggulan), dan menyebut promo/diskon/limited/urgensi.\n\n'
     +'Balas HANYA JSON array berisi TEPAT '+count+' object (satu per produk, urutan sama seperti daftar, jangan ada yang dilewati atau digabung), tanpa teks lain dan tanpa markdown. Format: [{"produk":"...","hook":"...","story":"...","cta":"..."}]';
 }
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi){
