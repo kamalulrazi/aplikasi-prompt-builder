@@ -15119,17 +15119,19 @@ function vbShowMode3PhotoOrderNotice(){
 // tidak bentrok dengan aturan "TIDAK pakai tanda kutip" di system prompt.
 function _vbHookDirectiveInline(type,customText){
   customText=String(customText||'').trim();
+  // DIPERSINGKAT (permintaan user, hemat token): 1 baris pendek per gaya hook.
+  // Kalau user tidak memilih gaya, return '' (tidak ada yang dikirim ke Claude).
   if(type==='psikologis'){
-    return 'HOOK PSIKOLOGIS — buka dengan kalimat yang menyentuh sisi psikologis manusia (rasa penasaran, insecure, FOMO/takut tertinggal, kebutuhan validasi/diakui, atau relate ke masalah sehari-hari) supaya audiens berhenti scroll karena merasa kena, bukan sekadar pertanyaan generik. Tetap ikuti nada bicara & aksen karakter yang sudah ditentukan.';
+    return 'HOOK PSIKOLOGIS (bikin penonton merasa kena: penasaran/insecure/FOMO)';
   }
   if(type==='murah'){
-    return 'HOOK HARGA MURAH — buka dengan kesan bahwa produk ini terjangkau/murah/hemat di kantong. JANGAN PERNAH sebut angka harga atau nominal apapun (jangan sebut Rp, nominal ribuan, atau harga spesifik dalam bentuk apapun) — cukup kesan murah/terjangkau/hemat secara umum lewat kata seperti murah, terjangkau, hemat di kantong, gak bikin kantong bolong, tanpa embel-embel angka sama sekali.';
+    return 'HOOK HARGA MURAH (kesan murah/hemat, JANGAN sebut angka harga atau nominal apapun)';
   }
   if(type==='heboh'){
-    return 'HOOK SUPER HEBOH — buka dengan energi sangat tinggi & ekspresif, seolah lagi excited banget mau kasih tahu sesuatu, boleh pakai kata seru (wah, gila, gokil, parah, dst) dan kalimat bertenaga — tapi tetap jelas & tidak norak berlebihan sampai pesannya hilang.';
+    return 'HOOK SUPER HEBOH (energi tinggi, ekspresif, pakai kata seru)';
   }
   if(type==='custom'&&customText){
-    return 'arahan langsung dari user untuk HOOK: '+customText+' — pastikan HOOK benar-benar mengikuti arahan ini, tetap dalam nada bicara & aksen karakter yang sudah ditentukan.';
+    return 'arahan user untuk HOOK: '+customText;
   }
   return '';
 }
@@ -18012,7 +18014,7 @@ function _vbBuildSingleModeSystemPrompt(range,count){
     +'LARANGAN MUTLAK (semua bagian, tanpa kecuali):\n'
     +'- Sebut bahan/material/tekstur produk (katun, kulit, polyester, dll) — KECUALI user sendiri sudah sebutkan di "keunggulan".\n'
     +'- Sebut promo/diskon/limited/urgensi dalam bentuk apapun.\n\n'
-    +'ATURAN: jumlah kata tiap bagian WAJIB masuk rentang 24-30 kata (minimal 24, maksimal 30). Bahasa Indonesia casual, natural kayak ngomong temen, TANPA emoji/tanda kutip. Kalimat pendek-sedang diakhiri titik wajar (jangan 1 kalimat panjang tanpa jeda).\n\n'
+    +'ATURAN: jumlah kata tiap bagian WAJIB masuk rentang 24-30 kata (minimal 24, maksimal 30). Bahasa Indonesia, TANPA emoji/tanda kutip. Kalimat pendek-sedang diakhiri titik wajar (jangan 1 kalimat panjang tanpa jeda).\n\n'
     +'SEBELUM JAWAB, cek 2 hal: (a) baca HOOK+STORY+CTA berurutan — kalau lompat topik, revisi transisinya biar mengalir; (b) pastikan tidak ada kata bahan/promo yang dilarang di atas.\n\n'
     // DIREVISI (permintaan user, Sept 2026, "Opsi C" — thinking parameter API
     // dimatikan tapi wording instruksi ini SENGAJA tetap dipertahankan minta
@@ -18035,16 +18037,13 @@ function _vbBuildSingleModeSystemPrompt(range,count){
     // dipertahankan di sini, setiap generate 1 produk lewat jalur Bulk akan
     // gagal total (field hook/story/cta jadi undefined). Skema di bawah ini
     // WAJIB tetap sinkron dengan format yang dibaca _vbCallBulkBatch.
-    +(count>1
-      // BUG FIX KRITIS (lihat catatan panjang di deklarasi fungsi ini):
-      // begitu count>1, instruksi jumlah object WAJIB ikut N produk (bukan
-      // hardcode 1) + ditambah aturan minimal urutan/independensi antar
-      // produk (versi ringkas dari rule 15 _vbBulkSystemPrompt yang sudah
-      // tidak pernah dipakai lagi) supaya kualitas tetap terjaga walau
-      // system prompt-nya singkat.
-      ?('PENTING: jumlah object di JSON array jawabanmu WAJIB sama persis dengan jumlah produk yang diberikan (TEPAT '+count+' object), urutan SAMA seperti daftar produk di pesan berikutnya, SATU object utuh untuk SETIAP produk — jangan ada yang digabung/dilewati/dikurangi.\n\n'
-        +'Balas HANYA dengan JSON array berisi TEPAT '+count+' object, tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk 1","hook":"...","story":"...","cta":"..."}, {"produk":"nama produk 2","hook":"...","story":"...","cta":"..."}]')
-      :'Balas HANYA dengan JSON array berisi TEPAT 1 object, tanpa teks lain, tanpa markdown. Format: [{"produk":"nama produk","hook":"...","story":"...","cta":"..."}]');
+    // DIPERSINGKAT (permintaan user, Sept 2026): dulu ada 2 versi (1 produk vs
+    // N produk) + paragraf "PENTING: jumlah object..." yang dobel dengan baris
+    // "Ingat: WAJIB balikin TEPAT N object TOTAL" di pesan user (lihat
+    // _vbCallBulkBatch). Sekarang 1 kalimat untuk semua jumlah produk (count=1
+    // otomatis jadi "TEPAT 1 object"). Nama kolom produk/hook/story/cta WAJIB
+    // tetap sama — dibaca parser _vbCallBulkBatch.
+    +'Balas HANYA JSON array berisi TEPAT '+count+' object (satu per produk, urutan sama seperti daftar, jangan ada yang dilewati atau digabung), tanpa teks lain dan tanpa markdown. Format: [{"produk":"...","hook":"...","story":"...","cta":"..."}]';
 }
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi){
   if(cacheSystem===undefined)cacheSystem=true;
