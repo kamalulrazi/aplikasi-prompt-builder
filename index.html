@@ -2041,6 +2041,27 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    (lihat _vbCardSetLoading di JS) → blur hilang & logo P disembunyikan.
    Dipasang lewat wrapper .vb-ta-wrap yang membungkus textarea skrip. ── */
 .vb-ta-wrap{position:relative;}
+/* ── AKORDEON PRODUK (Step 6, mode banyak produk) ──────────────────────
+   Tiap produk = 1 baris ringkas (nomor, nama, 3 titik status, panah).
+   Isi grup TIDAK dihapus dari DOM, cuma disembunyikan lewat CSS, jadi
+   semua id (vb-card-N, vb-bulk-script-N, vb-bulk-json-N, dst) tetap ada. */
+.vb-acc:not(.open)>*:not(.vb-acc-head){display:none!important;}
+.vb-acc-head{cursor:pointer;}
+.vb-acc:not(.open) .vb-acc-head{border-bottom:0!important;}
+.vb-acc:not(.open) .vb-acc-tool{display:none!important;}
+.vb-acc.open .vb-acc-dots{display:none;}
+.vb-acc-dots{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.vb-acc-dots i{display:block;width:8px;height:8px;border-radius:50%;box-sizing:border-box;border:1.5px solid var(--muted2);background:transparent;}
+.vb-acc-dots i.ok{background:var(--green);border-color:var(--green);}
+.vb-acc-dots i.bad{background:var(--warning);border-color:var(--warning);}
+.vb-acc-chev{flex-shrink:0;width:32px;height:32px;margin:-4px -6px -4px 0;padding:0;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:var(--radius-md);color:var(--muted);cursor:pointer;}
+.vb-acc-chev svg{width:16px;height:16px;transition:transform .15s;}
+.vb-acc.open .vb-acc-chev svg{transform:rotate(180deg);}
+.vb-acc-chev:focus-visible,.vb-pre-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.vb-acc [id^="vb-card-"]{border-left:3px solid var(--vb-role,var(--border-hi))!important;}
+.vb-acc .vb-pre-collapsed{display:none!important;}
+.vb-pre-toggle{background:none;border:0;padding:6px 0 2px;margin:0;color:var(--muted);font:inherit;font-size:var(--fs-xs2);cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+@media (prefers-reduced-motion:reduce){.vb-acc-chev svg{transition:none;}}
 .vb-ta-wrap textarea{transition:filter 0.35s ease;}
 .vb-ta-wrap.vb-ta-loading textarea{filter:blur(4px);}
 .vb-ta-loading-badge{
@@ -12392,6 +12413,9 @@ function _pbCollectResult(type){
     clone.querySelectorAll('img').forEach(function(im){
       if((im.getAttribute('src')||'').indexOf('data:')===0)im.remove();
     });
+    // Akordeon produk: versi tersimpan harus tampil penuh & struktur grup sama seperti sebelum akordeon ada.
+    clone.querySelectorAll('.vb-acc-dots').forEach(function(n){n.remove();});
+    clone.querySelectorAll('.vb-acc,.vb-acc-head,.vb-acc-tool,.vb-pre-collapsed').forEach(function(n){n.classList.remove('vb-acc','open','vb-acc-head','vb-acc-tool','vb-pre-collapsed');});
     clone.removeAttribute('id');
     clone.querySelectorAll('[id]').forEach(function(n){n.removeAttribute('id');});
     // Lepas SEMUA atribut event inline (onclick, oninput, onchange, dst) —
@@ -15277,6 +15301,7 @@ function vbManualLiveInit(){
     if(count>30)count=30;
     VB_MANUAL_COUNT=count;
     VB_CHAR_OVR={}; // sesi manual baru — pengaturan pensil lama tidak relevan lagi
+    VB_ACC_OPEN=0;
     vbManualRenderGroups(count);
   }
   doneCard('v5','va5','Isi manual sendiri');
@@ -15345,6 +15370,7 @@ function vbManualSetCount(){
 // untuk kp), jadi aman diisi apa saja tanpa mengubah hasil prompt.
 function vbManualRenderGroups(count){
   VB_SINGLE_OVERLAY=null;
+  if(VB_ACC_OPEN>=count)VB_ACC_OPEN=0;
   VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};
   // Pengaturan pensil SENGAJA tidak direset di sini: fungsi ini juga jalan tiap jumlah produk diubah
   // (skrip yang sudah diketik tetap dipertahankan lewat cache), jadi pengaturan pensil produk yang
@@ -15407,6 +15433,7 @@ function vbManualRenderGroups(count){
     });
     group.appendChild(groupBody);
     multiWrap.appendChild(group);
+    _vbAccSetup(group,groupHead,p,count);
   }
   let resetBtn=document.createElement('button');
   resetBtn.className='reset-btn';
@@ -18914,7 +18941,121 @@ function _vbResolveProductMetas(products,produkListMeta){
   return res;
 }
 
+// ══════════════════════════════════════════════════════════════════
+// AKORDEON PRODUK (Step 6) — dipakai mode Bulk AI (_vbRenderBulkOutput) dan
+// mode Tulis Manual banyak produk (vbManualRenderGroups). Satu produk
+// terbuka sekaligus; sisanya jadi baris ringkas. Struktur elemen grup TIDAK
+// diubah (cuma ditambah kelas CSS + 2 elemen di header), jadi semua fungsi
+// lain yang mencari elemen lewat id tetap jalan. Hanya jalan kalau produk >= 2.
+// ══════════════════════════════════════════════════════════════════
+var VB_ACC_OPEN=0; // index produk yang sedang terbuka, -1 = semua tertutup
+var VB_ACC_ROLE_COLORS=['var(--accent)','var(--blue)','var(--green)']; // Hook, Cerita, CTA
+function _vbAccWordState(idx){
+  let ta=document.getElementById('vb-bulk-script-'+idx);
+  if(!ta)return '';
+  let wrap=document.getElementById('vb-ta-wrap-'+idx);
+  if(wrap&&wrap.classList.contains('vb-ta-loading'))return ''; // masih diketik/menunggu AI
+  let n=ta.value.split(/\s+/).filter(Boolean).length;
+  if(!n)return '';
+  let r=vbGetWordRange();
+  return(n>=r.min&&n<=r.max)?'ok':'bad';
+}
+function _vbAccRefresh(prodIdx){
+  let dots=document.getElementById('vb-acc-dots-'+prodIdx);
+  if(!dots)return;
+  let ok=0,it=dots.children;
+  for(let r=0;r<3;r++){
+    let st=_vbAccWordState(prodIdx*3+r);
+    if(st==='ok')ok++;
+    if(it[r])it[r].className=st;
+  }
+  let msg='Hook, Cerita, CTA: '+ok+' dari 3 sudah pas jumlah katanya';
+  dots.title=msg;dots.setAttribute('aria-label',msg);
+}
+function _vbAccScrollParent(el){
+  let p=el.parentElement;
+  while(p&&p!==document.body&&p!==document.documentElement){
+    let oy=getComputedStyle(p).overflowY;
+    if((oy==='auto'||oy==='scroll')&&p.scrollHeight>p.clientHeight+1)return p;
+    p=p.parentElement;
+  }
+  return document.scrollingElement||document.documentElement;
+}
+// open = index produk yang mau dibuka (-1 = tutup semua). anchorIdx = header
+// yang posisinya di layar dijaga supaya halaman tidak loncat saat ada grup
+// lain yang ikut menutup di atasnya.
+function _vbAccSet(open,anchorIdx){
+  let ag=document.querySelector('#vb-multi-output>.vb-acc[data-acc="'+anchorIdx+'"]');
+  let head=ag?ag.querySelector('.vb-acc-head'):null;
+  let before=head?head.getBoundingClientRect().top:0;
+  VB_ACC_OPEN=open;
+  document.querySelectorAll('#vb-multi-output>.vb-acc').forEach(function(g){
+    let on=parseInt(g.getAttribute('data-acc'),10)===open;
+    g.classList.toggle('open',on);
+    let b=g.querySelector('.vb-acc-chev');
+    if(b)b.setAttribute('aria-expanded',on?'true':'false');
+  });
+  if(head){
+    let delta=head.getBoundingClientRect().top-before;
+    if(Math.abs(delta)>1){let sp=_vbAccScrollParent(head);sp.scrollTop+=delta;}
+  }
+}
+function vbAccToggle(prodIdx){_vbAccSet(VB_ACC_OPEN===prodIdx?-1:prodIdx,prodIdx);}
+// Dipakai fitur lain yang butuh kartu produk tertentu kelihatan (mis. panduan/tur).
+function vbAccEnsureOpen(prodIdx){
+  if(VB_ACC_OPEN===prodIdx)return;
+  if(document.querySelector('#vb-multi-output>.vb-acc[data-acc="'+prodIdx+'"]'))_vbAccSet(prodIdx,prodIdx);
+}
+// Panggil SETELAH group sudah dimasukkan ke #vb-multi-output.
+function _vbAccSetup(group,groupHead,prodIdx,total){
+  if(total<2)return;
+  group.classList.add('vb-acc');
+  group.setAttribute('data-acc',String(prodIdx));
+  groupHead.classList.add('vb-acc-head');
+  Array.from(groupHead.children).forEach(function(el){
+    if(el.tagName==='BUTTON')el.classList.add('vb-acc-tool'); // pensil & Revisi: cuma tampil saat produk terbuka
+  });
+  let dots=document.createElement('div'); // sengaja DIV (bukan SPAN): _pbEnhanceBulkGroups mengambil SPAN terakhir sebagai nama produk
+  dots.className='vb-acc-dots';dots.id='vb-acc-dots-'+prodIdx;dots.setAttribute('role','img');
+  dots.innerHTML='<i></i><i></i><i></i>';
+  groupHead.appendChild(dots);
+  let chev=document.createElement('button');
+  chev.type='button';chev.className='vb-acc-chev';
+  chev.setAttribute('aria-label','Buka atau tutup produk '+(prodIdx+1));
+  chev.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+  chev.onclick=function(e){e.stopPropagation();vbAccToggle(prodIdx);};
+  groupHead.appendChild(chev);
+  groupHead.addEventListener('click',function(e){
+    if(e.target.closest('button,input,textarea,select,a,img,label'))return;
+    vbAccToggle(prodIdx);
+  });
+  // Kartu Hook/Cerita/CTA: garis warna di kiri + prompt panjang disembunyikan
+  // (tombol "Lihat prompt"). Tombol Salin tetap menyalin prompt LENGKAP karena
+  // isinya dibaca dari elemen vb-bulk-json-N yang tetap ada.
+  for(let r=0;r<3;r++){
+    let card=document.getElementById('vb-card-'+(prodIdx*3+r));
+    if(!card)continue;
+    card.style.setProperty('--vb-role',VB_ACC_ROLE_COLORS[r]);
+    let pre=card.querySelector('[id^="vb-bulk-json-"]');
+    if(pre&&pre.parentNode){
+      pre.classList.add('vb-pre-collapsed');
+      let t=document.createElement('button');
+      t.type='button';t.className='vb-pre-toggle';t.textContent='Lihat prompt';
+      t.onclick=function(){
+        let c=pre.classList.toggle('vb-pre-collapsed');
+        t.textContent=c?'Lihat prompt':'Sembunyikan prompt';
+      };
+      pre.parentNode.insertBefore(t,pre);
+    }
+  }
+  let on=(VB_ACC_OPEN===prodIdx);
+  group.classList.toggle('open',on);
+  chev.setAttribute('aria-expanded',on?'true':'false');
+  _vbAccRefresh(prodIdx);
+}
+
 function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
+  VB_ACC_OPEN=0; // hasil baru: produk pertama terbuka
   VB_SINGLE_OVERLAY=null;
   VB_BULK_ITEMS=[];
   VB_CARD_TAMPIL={};
@@ -19050,6 +19191,7 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
 
     group.appendChild(groupBody);
     multiWrap.appendChild(group);
+    _vbAccSetup(group,groupHead,prodIdx,products.length);
   });
 
   let resetBtn=document.createElement('button');
@@ -19107,6 +19249,7 @@ function _vbCardSetLoading(idx,isLoading){
   let wrap=document.getElementById('vb-ta-wrap-'+idx);
   if(!wrap)return; // kartu sudah diganti/dihapus, aman diabaikan
   wrap.classList.toggle('vb-ta-loading',!!isLoading);
+  if(typeof _vbAccRefresh==='function')_vbAccRefresh(Math.floor(idx/3));
 }
 // Matikan blur+logo P di SEMUA kartu yang sedang tampil — dipanggil kalau
 // generate gagal/batal (lihat catch di vbGenerate3AI) supaya kartu kosong
@@ -19733,6 +19876,7 @@ function vbBulkUpdateJson(i){
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
   jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i),_vbFotoCountVal(i),i);
   if(wcLabel){wcLabel.textContent=words.length+'/'+range.min+'-'+range.max+' kata';wcLabel.style.color=(words.length>=range.min&&words.length<=range.max)?'var(--green)':'var(--muted2)';}
+  _vbAccRefresh(Math.floor(i/3));
 }
 
 // CATATAN (Sept 2026): vbGenerate3Manual() (tombol "Buat 3 JSON dari Script
@@ -20242,6 +20386,7 @@ function vbVideoGuideWaitCardCopy(cardIdx){
   else if(cardIdx===2) pbTourWaitingCtaCopy=true;
   let copyBtn=document.getElementById('vb-bulk-copy-'+cardIdx);
   if(copyBtn) copyBtn.classList.add('vb-pulse-yellow');
+  vbAccEnsureOpen(Math.floor(cardIdx/3));
   let card=document.getElementById('vb-card-'+cardIdx);
   if(card) card.classList.add('vb-box-pulse-gold');
   // FIX (bug "setelah waitCopy, kartu tidak di-scroll ke layar"): overlay
