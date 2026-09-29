@@ -2628,6 +2628,13 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 #f1 .f1-ref-del::after{inset:0;}
 #f1 .f1-ref-input>.inp{grid-column:1/-1;grid-row:2;width:100%;margin:2px 0 4px;border-radius:var(--radius-sm);}
 #f1 .f1-ref-input>[id^="adv-area-"]{grid-column:1/-1;grid-row:3;margin-bottom:6px;}
+/* Foto Referensi — pemisah (opsi A): label grup di atas kartu bahan + garis pemisah bertulisan sebelum baris F1–F3 */
+#f1 .f1-grp-lab{display:flex;justify-content:space-between;align-items:baseline;margin:0 2px 8px;font-size:var(--fs-sm);font-weight:600;color:var(--text);}
+#f1 .f1-grp-lab em{font-style:normal;font-weight:400;font-size:var(--fs-xs2);color:var(--muted);}
+#f1 .f1-divider{display:flex;align-items:center;gap:8px;margin:22px 0 12px;font-size:var(--fs-sm);font-weight:600;color:var(--text);}
+#f1 .f1-divider::before,#f1 .f1-divider::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--border-hi));}
+#f1 .f1-divider::after{transform:scaleX(-1);}
+#f1 .f1-divider em{font-family:'Geist Mono',monospace;font-style:normal;font-weight:600;font-size:var(--fs-xs);color:var(--muted);background:var(--surface3);border:1px solid var(--border-hi);border-radius:var(--radius-xs);padding:2px 6px;}
 
 /* ============================================
    DESKTOP / LAPTOP ONLY — tidak memengaruhi HP
@@ -4786,6 +4793,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
         <div id="f1-tour-hint" style="display:none;padding:8px 10px;margin-bottom:12px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.4;">
           Tap bahan yang udah kakak siapkan, yaitu: karakter sheet dan produk.
         </div>
+        <div class="f1-grp-lab"><span>Pilih bahan foto</span><em id="f1-chips-count"></em></div>
         <div id="f1-type-chips" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px;">
 
           <button class="f1chip" id="ftb-wajah" onclick="fAddRef('wajah')">
@@ -4834,6 +4842,8 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           </button>
 
         </div>
+
+        <div class="f1-divider" id="f1-divider" style="display:none;"><span>Detail tiap foto</span><em id="f1-divider-count">0</em></div>
 
         <!-- FOTO DETAIL LIST — compact rows -->
         <div id="foto-ref-list"></div>
@@ -7478,6 +7488,35 @@ function fUpdateCounters(){
 
 // fRenderPreview — preview bar dihapus di v8, fungsi ini dibiarkan kosong agar call site tidak error
 function fRenderPreview(){ /* preview bar removed */ }
+
+// PEMISAH FOTO REFERENSI (opsi A) — label "Pilih bahan foto" di atas kartu bahan + garis pemisah
+// "Detail tiap foto" sebelum baris F1–F3. Angka & tampil/sembunyi disinkronkan otomatis lewat
+// MutationObserver (isi daftar baris + status chip), jadi fRenderList/fUpdateCounters tidak diubah.
+function fSyncF1Divider(){
+  let nChips=0;
+  document.querySelectorAll('#f1-type-chips .f1chip.has').forEach(c=>{if(c.style.display!=='none')nChips++;});
+  let cEl=document.getElementById('f1-chips-count');
+  if(cEl)cEl.textContent=nChips?nChips+' dipilih':'';
+  let total=document.querySelectorAll('#foto-ref-list .f1-ref-row').length;
+  let nFoto=0;
+  document.querySelectorAll('#foto-ref-list .f1-ref-num').forEach(el=>{if(/^F/.test(el.textContent.trim()))nFoto++;});
+  let d=document.getElementById('f1-divider');
+  if(d)d.style.display=total?'flex':'none';
+  let dEl=document.getElementById('f1-divider-count');
+  if(dEl){dEl.textContent=nFoto;dEl.style.display=nFoto?'':'none';}
+}
+(function(){
+  function init(){
+    let chips=document.getElementById('f1-type-chips');
+    let list=document.getElementById('foto-ref-list');
+    if(!chips||!list||typeof MutationObserver==='undefined')return;
+    let mo=new MutationObserver(fSyncF1Divider);
+    mo.observe(list,{childList:true});
+    mo.observe(chips,{attributes:true,attributeFilter:['class','style'],subtree:true});
+    fSyncF1Divider();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
 
 // RENDER FOTO CARD LIST
 function fRenderList(){
