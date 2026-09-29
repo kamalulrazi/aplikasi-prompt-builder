@@ -4092,7 +4092,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v7.1</div>
+  <div class="splash-version" id="splash-version">v7.5</div>
 </div>
 <script>
   (function(){
@@ -6037,7 +6037,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v7.1 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v7.5 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -12386,6 +12386,9 @@ function _pbCollectResult(type){
     // (VB_BULK_PRODUCTS). Buang dari HTML; thumbnail & panel Revisi dibangun
     // ulang dari state saat Riwayat dibuka (lihat _pbEnhanceBulkGroups).
     clone.querySelectorAll('[id^="vb-revisi-panel-"]').forEach(function(n){n.remove();});
+    // Panel pensil (tab karakter + Teks Hook) tidak ikut disimpan: tombol pensilnya sudah
+    // dibuang di bawah, jadi kalau panel sempat terbuka saat Simpan, di Riwayat jadi kotak mati.
+    clone.querySelectorAll('[id^="vb-char-panel-"]').forEach(function(n){n.remove();});
     clone.querySelectorAll('img').forEach(function(im){
       if((im.getAttribute('src')||'').indexOf('data:')===0)im.remove();
     });
@@ -15391,7 +15394,6 @@ function vbManualRenderGroups(count){
     // _vbRenderMultiOutput). Jadi fitur ini SEBELUMNYA belum benar-benar ada
     // di "setiap hook" seperti yang diminta — sekarang ditambahkan di sini
     // juga supaya konsisten di semua mode, termasuk isi sendiri + bulk.
-    groupBody.appendChild(_vbBuildHookOverlayRow(p));
     let cachedRow=VB_MANUAL_ROW_CACHE[p]||{};
     ['hook','story','cta'].forEach(function(roleKey){
       let roleInfo=VB_3SCRIPT_ROLES.find(function(r){return r.key===roleKey;});
@@ -15553,6 +15555,7 @@ function vbSingleOverlayInput(){
   let cardInp=document.getElementById('vb-hookoverlay-input-0');
   if(cardInp)cardInp.value=val;
   if(document.getElementById('vb-bulk-script-0'))vbBulkUpdateJson(0);
+  if(typeof _vbCharSync==='function')_vbCharSync(0); // segarkan label/titik Teks Hook & warna pensil
 }
 // Helper kecil: ambil teks overlay Hook untuk kartu ke-idx. HANYA dipakai
 // oleh _vbBuildFlowText kalau kartu ini benar-benar Hook (idx%3===0) — kartu
@@ -15595,7 +15598,7 @@ function _vbCharHasOvr(prodIdx){
   return Object.keys(o).some(function(k){return String(o[k])!==String(VB[k]||'');});
 }
 function _vbCharBtnState(b,prodIdx){
-  var on=_vbCharHasOvr(prodIdx);
+  var on=_vbCharHasOvr(prodIdx)||!!String((typeof VB_HOOK_OVERLAY!=='undefined'&&VB_HOOK_OVERLAY[prodIdx])||'').trim();
   b.style.color=on?'var(--accent)':'';
   b.style.borderColor=on?'var(--accent)':'';
 }
@@ -15617,20 +15620,55 @@ function _vbCharMakePanel(prodIdx,style){
 }
 var VB_CHAR_PANEL_STYLE_GROUP='padding:9px;background:var(--surface2);border-bottom:1px solid var(--border-hi);display:flex;flex-direction:column;gap:4px;';
 var VB_CHAR_PANEL_STYLE_SINGLE='padding:9px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-xs);display:flex;flex-direction:column;gap:4px;';
+var VB_CHAR_TAB_NAMES={motion:'Motion',gender:'Gender',age:'Usia',pitch:'Nada',accent:'Aksen',ov:'Teks Hook'};
+// Label yang ditampilkan untuk nilai field: nama chip kalau cocok preset, teks sendiri kalau custom.
+function _vbCharLabel(f,v){
+  v=String(v||'');
+  if(!v)return f.none||(f.key==='ov'?'Kosong':'Default');
+  var all=(f.none?[['',f.none]]:[]).concat(f.chips||[]);
+  for(var i=0;i<all.length;i++)if(String(all[i][0])===v)return all[i][1];
+  return v;
+}
+// Pindah tab di panel pensil (satu bagian ditampilkan sekali).
+function vbCharTab(prodIdx,i){
+  var panel=document.getElementById('vb-char-panel-'+prodIdx);
+  if(!panel)return;
+  panel.querySelectorAll('[data-ct]').forEach(function(t){t.classList.toggle('sel',t.dataset.ct===String(i));});
+  panel.querySelectorAll('[data-cp]').forEach(function(p){p.classList.toggle('hidden',p.dataset.cp!==String(i));});
+}
+// Panel pensil bergaya TAB: Motion | Gender | Usia | Nada | Aksen | Teks Hook.
+// Tiap tab = satu bagian (chip + kolom isi sendiri), ada titik emas di tab yang
+// sudah diubah dari default, dan ringkasan pilihan karakter di bawah tab.
 function _vbCharBuildPanel(prodIdx,panel){
-  var h='<div style="font-size:var(--fs-2xs);color:var(--muted);line-height:1.6;">Langsung mengubah prompt Hook, Cerita Produk &amp; CTA produk ini. Tidak dikirim ke AI dan tidak memakai jatah revisi.</div>';
-  _vbCharFields().forEach(function(f){
-    h+='<div class="text-hint-mb" style="margin-top:6px;">'+f.title+'</div><div class="chips" style="margin-bottom:6px;">';
-    if(f.none)h+='<div class="chip" data-k="'+f.key+'" data-v="" onclick="vbCharPick('+prodIdx+',this)">'+esc(f.none)+'</div>';
-    f.chips.forEach(function(c){h+='<div class="chip" data-k="'+f.key+'" data-v="'+esc(c[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(c[1])+'</div>';});
-    h+='</div>';
-    if(f.ph)h+='<input class="inp" data-k="'+f.key+'" maxlength="'+f.max+'" placeholder="'+esc(f.ph)+'" oninput="vbCharCustom('+prodIdx+',this)" style="font-size:var(--fs-xs2);padding:6px 8px;width:100%;box-sizing:border-box;" />';
+  var fs=_vbCharFields().concat([{key:'ov',title:'Isi (tulisan kecil di Hook)'}]);
+  var hd='display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-weight:600;font-size:var(--fs-sm);';
+  var vs='color:var(--muted);font-size:var(--fs-xs2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  var dot='display:none;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle;';
+  var tabs='',panes='';
+  fs.forEach(function(f,i){
+    tabs+='<div class="chip'+(i?'':' sel')+'" role="tab" data-ct="'+i+'" style="flex:none;white-space:nowrap;" onclick="vbCharTab('+prodIdx+','+i+')">'+esc(VB_CHAR_TAB_NAMES[f.key]||f.title)+'<span data-cvd="'+f.key+'" style="'+dot+'"></span></div>';
+    var p='<div data-cp="'+i+'"'+(i?' class="hidden"':'')+' style="min-height:170px;padding-top:8px;"><div style="'+hd+'"><span>'+f.title+'</span><span data-cvs="'+f.key+'" style="'+vs+'"></span></div>';
+    if(f.key==='ov'){
+      p+='<div data-ovhost></div>';
+    }else{
+      p+='<div class="chips" style="margin:8px 0 6px;">';
+      if(f.none)p+='<div class="chip" data-k="'+f.key+'" data-v="" onclick="vbCharPick('+prodIdx+',this)">'+esc(f.none)+'</div>';
+      (f.chips||[]).forEach(function(c){p+='<div class="chip" data-k="'+f.key+'" data-v="'+esc(c[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(c[1])+'</div>';});
+      p+='</div>';
+      if(f.ph)p+='<input class="inp" data-k="'+f.key+'" maxlength="'+f.max+'" placeholder="'+esc(f.ph)+'" oninput="vbCharCustom('+prodIdx+',this)" style="font-size:var(--fs-xs2);padding:6px 8px;width:100%;box-sizing:border-box;" />';
+    }
+    panes+=p+'</div>';
   });
-  h+='<div style="display:flex;gap:6px;margin-top:8px;">'
+  var h='<div style="font-size:var(--fs-2xs);color:var(--muted);line-height:1.6;">Langsung mengubah prompt Hook, Cerita Produk &amp; CTA produk ini. Tidak dikirim ke AI dan tidak memakai jatah revisi.</div>'
+    +'<div role="tablist" style="display:flex;gap:6px;overflow-x:auto;padding:8px 0 4px;-webkit-overflow-scrolling:touch;">'+tabs+'</div>'
+    +panes
+    +'<div data-cvline style="margin-top:10px;padding:8px 10px;border:1px dashed var(--border-hi);border-radius:var(--radius-xs);font-size:var(--fs-2xs);color:var(--muted);line-height:1.5;"></div>'
+    +'<div style="display:flex;gap:6px;margin-top:8px;">'
     +'<button type="button" class="reset-btn" style="flex:1;" onclick="vbCharReset('+prodIdx+')">Kembalikan Default</button>'
     +'<button type="button" class="btn sm" style="flex:1;" onclick="vbToggleCharPanel('+prodIdx+',true)">Selesai</button>'
     +'</div>';
   panel.innerHTML=h;
+  panel.querySelector('[data-ovhost]').appendChild(_vbBuildHookOverlayInPanel(prodIdx));
 }
 function _vbCharSync(prodIdx){
   var idx0=prodIdx*3;
@@ -15645,6 +15683,26 @@ function _vbCharSync(prodIdx){
       var isPreset=Array.prototype.some.call(panel.querySelectorAll('.chip[data-k="'+inp.dataset.k+'"]'),function(c){return c.dataset.v===cur;});
       inp.value=isPreset?'':cur;
     });
+  }
+  var ovInp=document.getElementById('vb-hookoverlay-input-'+prodIdx);
+  if(ovInp&&document.activeElement!==ovInp)ovInp.value=(VB_HOOK_OVERLAY[prodIdx]||'');
+  if(panel){
+    var ln=[];
+    _vbCharFields().forEach(function(f){
+      var v=_vbCharVal(idx0,f.key),chg=String(v)!==String(VB[f.key]||''),lab=_vbCharLabel(f,v);
+      var sp=panel.querySelector('[data-cvs="'+f.key+'"]');
+      if(sp){sp.textContent=lab;sp.style.color=chg?'var(--accent-text-on-dark)':'var(--muted)';}
+      var d=panel.querySelector('[data-cvd="'+f.key+'"]');
+      if(d)d.style.display=chg?'inline-block':'none';
+      if(v)ln.push(lab);
+    });
+    var ov=String(VB_HOOK_OVERLAY[prodIdx]||'').trim();
+    var osp=panel.querySelector('[data-cvs="ov"]');
+    if(osp){osp.textContent=ov||'Kosong';osp.style.color=ov?'var(--accent-text-on-dark)':'var(--muted)';}
+    var od=panel.querySelector('[data-cvd="ov"]');
+    if(od)od.style.display=ov?'inline-block':'none';
+    var sl=panel.querySelector('[data-cvline]');
+    if(sl)sl.textContent=ln.length?ln.join(' \u00b7 '):'Ikuti pengaturan awal wizard';
   }
   var btn=document.getElementById('vb-char-btn-'+prodIdx);
   if(btn)_vbCharBtnState(btn,prodIdx);
@@ -15749,63 +15807,29 @@ function vbPickFotoCountProduct(prodIdx,count){
 // prodIdx 0,1,2,...). Tersembunyi & kosong secara default — teks overlay
 // HANYA ditambahkan ke prompt Hook (lihat _vbBuildFlowText) kalau user
 // benar-benar mengisi kotak ini.
-function _vbBuildHookOverlayRow(prodIdx){
-  let wrap=document.createElement('div');
-  wrap.id='vb-hookoverlay-wrap-'+prodIdx;
-  wrap.style.cssText='margin-bottom:8px;';
-
-  let btn=document.createElement('button');
-  btn.type='button';
-  btn.id='vb-hookoverlay-toggle-'+prodIdx;
-  btn.style.cssText='background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:600;';
-  let _ovPrefilled=!!(VB_HOOK_OVERLAY[prodIdx]||'').trim();
-  btn.textContent=_ovPrefilled?'– Sembunyikan detail':'+ Atur Detail (opsional)';
-  btn.onclick=(function(pi){return function(){vbToggleHookOverlay(pi);};})(prodIdx);
-  wrap.appendChild(btn);
-
+function _vbBuildHookOverlayInPanel(prodIdx){
+  // Sekarang bagian dari panel ikon pensil (bukan lagi baris "+ Atur Detail"
+  // terpisah di atas kartu Hook). id input & logika vbHookOverlayInput SAMA
+  // seperti sebelumnya, jadi semua sinkronisasi state tetap jalan.
   let box=document.createElement('div');
   box.id='vb-hookoverlay-box-'+prodIdx;
-  box.className=_ovPrefilled?'':'hidden';
-  box.style.cssText='margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;';
+  box.style.cssText='margin-top:8px;';
 
-  let label=document.createElement('label');
-  label.className='inplabel';
-  label.style.cssText='font-size:var(--fs-2xs);';
-  label.textContent='Isi (tulisan kecil di Hook)';
-  box.appendChild(label);
-
-  let inpWrap=document.createElement('div');
-  inpWrap.className='inp-wrap';
   let inp=document.createElement('input');
   inp.className='inp';
   inp.id='vb-hookoverlay-input-'+prodIdx;
   inp.maxLength=60;
   inp.placeholder='Contoh: polkadot';
+  inp.style.cssText='font-size:var(--fs-xs2);padding:6px 8px;width:100%;box-sizing:border-box;';
   inp.value=VB_HOOK_OVERLAY[prodIdx]||'';
   inp.oninput=(function(pi){return function(){vbHookOverlayInput(pi);};})(prodIdx);
-  inpWrap.appendChild(inp);
-  box.appendChild(inpWrap);
+  box.appendChild(inp);
 
   let hint=document.createElement('p');
   hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;';
   hint.textContent='Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt Hook: muncul tulisan kecil banget di pojok kanan paling bawah layar pada detik awal (0–2 detik) lalu menghilang. Kosongkan kalau tidak perlu teks overlay.';
   box.appendChild(hint);
-
-  wrap.appendChild(box);
-  return wrap;
-}
-// Buka/tutup panel "Atur Detail" (Teks Overlay Hook) milik produk ke-prodIdx.
-function vbToggleHookOverlay(prodIdx){
-  let box=document.getElementById('vb-hookoverlay-box-'+prodIdx);
-  let btn=document.getElementById('vb-hookoverlay-toggle-'+prodIdx);
-  if(!box)return;
-  let opening=box.classList.contains('hidden');
-  box.classList.toggle('hidden');
-  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
-  if(opening){
-    let inp=document.getElementById('vb-hookoverlay-input-'+prodIdx);
-    if(inp)inp.focus();
-  }
+  return box;
 }
 // Dipanggil tiap user ngetik di kotak Teks Overlay — simpan ke state &
 // rebuild JSON kartu Hook produk ini SAJA (idx=prodIdx*3), realtime, sama
@@ -15826,6 +15850,7 @@ function vbHookOverlayInput(prodIdx){
   }
   let hookIdx=prodIdx*3;
   if(document.getElementById('vb-bulk-script-'+hookIdx))vbBulkUpdateJson(hookIdx);
+  _vbCharSync(prodIdx);
 }
 
 let VB_BULK_PRODUCTS=[]; // {nama, keunggulan, fotoBase64, fotoMime} — 1 entri per produk, dipakai buat revisi ulang (per-produk & semua sekaligus)
@@ -19004,7 +19029,6 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
     // FITUR BARU: "Atur Detail" → Teks Overlay Hook (permintaan user) —
     // tampil di SEMUA mode referensi foto (1/2/3), per produk (grup) di mode
     // Bulk, diletakkan di atas kartu Hook produk ini.
-    groupBody.appendChild(_vbBuildHookOverlayRow(prodIdx));
 
     // FITUR BARU: "Jumlah Foto Produk" per PRODUK (prodIdx grup ini), khusus
     // Mode 3 — lihat _vbBuildProductFotoCountRow. Diletakkan di atas kartu
@@ -20784,7 +20808,6 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate,manualMode){
   // FITUR BARU: "Atur Detail" → Teks Overlay Hook (permintaan user) — tampil
   // di SEMUA mode referensi foto (1/2/3), diletakkan di atas kartu Hook,
   // sebelum baris "Jumlah Foto Produk" (yang cuma khusus Mode 3) di bawah.
-  multiWrap.appendChild(_vbBuildHookOverlayRow(0));
 
   // FITUR BARU: "Jumlah Foto Produk" per PRODUK (mode single = selalu
   // prodIdx 0), khusus Mode 3 — lihat _vbBuildProductFotoCountRow. Diletakkan
