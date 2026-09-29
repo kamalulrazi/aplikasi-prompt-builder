@@ -4092,7 +4092,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v6.99</div>
+  <div class="splash-version" id="splash-version">v7.1</div>
 </div>
 <script>
   (function(){
@@ -6037,7 +6037,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v6.99 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v7.1 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -15273,6 +15273,7 @@ function vbManualLiveInit(){
     if(count<1)count=1;
     if(count>30)count=30;
     VB_MANUAL_COUNT=count;
+    VB_CHAR_OVR={}; // sesi manual baru — pengaturan pensil lama tidak relevan lagi
     vbManualRenderGroups(count);
   }
   doneCard('v5','va5','Isi manual sendiri');
@@ -15341,7 +15342,12 @@ function vbManualSetCount(){
 // untuk kp), jadi aman diisi apa saja tanpa mengubah hasil prompt.
 function vbManualRenderGroups(count){
   VB_SINGLE_OVERLAY=null;
-  VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};VB_CHAR_OVR={};
+  VB_BULK_ITEMS=[];VB_CARD_TAMPIL={};VB_CARD_LOKASI={};VB_PRODUCT_FOTOCOUNT={};VB_HOOK_OVERLAY={};
+  // Pengaturan pensil SENGAJA tidak direset di sini: fungsi ini juga jalan tiap jumlah produk diubah
+  // (skrip yang sudah diketik tetap dipertahankan lewat cache), jadi pengaturan pensil produk yang
+  // masih ada harus ikut bertahan. Yang dibuang cuma produk yang sudah tidak ada (nomor >= count).
+  // Reset penuh untuk sesi baru dilakukan di vbManualLiveInit().
+  Object.keys(VB_CHAR_OVR).forEach(function(k){if(parseInt(k,10)>=count)delete VB_CHAR_OVR[k];});
   _vbTypewriterReset();
   let multiWrap=document.getElementById('vb-multi-output');
   multiWrap.innerHTML='';
@@ -15581,7 +15587,13 @@ function _vbCharFields(){
     {key:'accent',title:'Aksen',ph:'Atau tulis sendiri, contoh: nada santai dan ramah',max:120,chips:[['warm and expressive','Hangat & Ekspresif'],['confident and energetic','Percaya Diri & Bersemangat'],['friendly and approachable','Ramah & Bersahabat'],['playful and bubbly','Ceria & Lincah'],['calm and reassuring','Tenang & Meyakinkan'],['sincere and genuine','Tulus & Apa Adanya'],['clear and crisp','Tegas & Jelas'],['bold and charismatic','Berani & Karismatik'],['soft and soothing','Lembut & Menenangkan']]}
   ];
 }
-function _vbCharHasOvr(prodIdx){return !!(VB_CHAR_OVR[prodIdx]&&Object.keys(VB_CHAR_OVR[prodIdx]).length);}
+function _vbCharHasOvr(prodIdx){
+  // Emas hanya kalau ada field yang nilainya BEDA dari default wizard — memilih chip yang sama
+  // dengan default tidak dihitung sebagai pengaturan sendiri.
+  var o=VB_CHAR_OVR[prodIdx];
+  if(!o)return false;
+  return Object.keys(o).some(function(k){return String(o[k])!==String(VB[k]||'');});
+}
 function _vbCharBtnState(b,prodIdx){
   var on=_vbCharHasOvr(prodIdx);
   b.style.color=on?'var(--accent)':'';
@@ -15650,7 +15662,10 @@ function vbCharSet(prodIdx,key,val){
   if(!Object.keys(o).length)delete VB_CHAR_OVR[prodIdx];
   _vbCharRefresh(prodIdx);
 }
-function vbCharPick(prodIdx,el){vbCharSet(prodIdx,el.dataset.k,el.dataset.v);}
+// Klik chip tidak memicu 'input'/'change' (satu-satunya pemicu snapshot undo untuk elemen biasa),
+// jadi titik undo-nya dicatat manual di sini. Ketikan di kolom isi sudah tercatat lewat listener 'input'.
+function _vbCharSnap(){try{if(typeof pbForceSaveDraftNow==='function')pbForceSaveDraftNow();}catch(e){}}
+function vbCharPick(prodIdx,el){vbCharSet(prodIdx,el.dataset.k,el.dataset.v);_vbCharSnap();}
 function vbCharCustom(prodIdx,inp){
   var v=inp.value.trim();
   vbCharSet(prodIdx,inp.dataset.k,v?v:null); // kosong = balik ke default wizard
@@ -15658,6 +15673,7 @@ function vbCharCustom(prodIdx,inp){
 function vbCharReset(prodIdx){
   delete VB_CHAR_OVR[prodIdx];
   _vbCharRefresh(prodIdx);
+  _vbCharSnap();
   showToast('Karakter dikembalikan ke pengaturan awal.','success');
 }
 function vbToggleCharPanel(prodIdx,forceClose){
@@ -15668,23 +15684,16 @@ function vbToggleCharPanel(prodIdx,forceClose){
   panel.classList.remove('hidden');
   _vbCharSync(prodIdx);
 }
-// Dipanggil saat pengaturan GLOBAL (Ubah Suara Karakter / Target Audience) diterapkan:
-// override per-produk untuk field yang ikut berubah dibuang, supaya pengaturan global
-// yang baru berlaku di semua produk. Field yang tidak berubah tetap aman.
-function _vbCharClearGlobalChanged(s){
-  ['gender','age','pitch','accent'].forEach(function(k){
-    if(s[k]===VB[k])return;
-    Object.keys(VB_CHAR_OVR).forEach(function(pi){
-      delete VB_CHAR_OVR[pi][k];
-      if(!Object.keys(VB_CHAR_OVR[pi]).length)delete VB_CHAR_OVR[pi];
-    });
-  });
-  setTimeout(function(){
+// Dipanggil setelah Undo/Redo/pemulihan draft: state VB_CHAR_OVR sudah dipulihkan, tapi teks prompt
+// di kartu & warna tombol pensil masih versi lama (pengaturan pensil tidak punya input ber-id yang
+// ikut dipulihkan). Bangun ulang teks prompt semua kartu produk yang tampil & segarkan tombol/panelnya.
+function _vbCharResyncAll(){
+  try{
     document.querySelectorAll('[id^="vb-char-btn-"]').forEach(function(b){
       var n=parseInt(b.id.replace('vb-char-btn-',''),10);
-      if(!isNaN(n))_vbCharSync(n);
+      if(!isNaN(n))_vbCharRefresh(n);
     });
-  },0);
+  }catch(e){}
 }
 // Bangun baris UI "Jumlah Foto Produk" untuk produk ke-prodIdx — chip angka
 // 1-5 + "Ikuti foto asli", dengan ikon kamera KUNING (var(--accent)) di
@@ -18921,18 +18930,6 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
   multiWrap.innerHTML='';
   multiWrap.style.display='flex';
 
-  // ── Tombol buka panel "Ubah Suara & Target Audience" — berlaku utk SEMUA produk ──
-  let settingsBtn=document.createElement('button');
-  settingsBtn.id='vb-settings-btn';
-  settingsBtn.className='btn sm';
-  settingsBtn.style.cssText='width:100%;';
-  settingsBtn.innerHTML='<svg class="icon"><use href="#ic-refresh"></use></svg> Ubah Suara Karakter / Target Audience';
-  settingsBtn.onclick=vbToggleGlobalSettingsPanel;
-  multiWrap.appendChild(settingsBtn);
-  let settingsPanel=document.createElement('div');
-  settingsPanel.id='vb-global-settings-panel';
-  settingsPanel.className='hidden';
-  multiWrap.appendChild(settingsPanel);
 
   let i=0;
   let _vbBulkTypeItems=[];
@@ -19687,273 +19684,6 @@ function vbUndoSingleRevisi(){
   showToast('Dikembalikan ke versi sebelum revisi.','success');
 }
 
-// ============================================================
-// PANEL "UBAH SUARA KARAKTER & TARGET AUDIENCE" — berlaku utk
-// semua produk di hasil bulk. User pilih setting baru, lalu ada
-// 2 pilihan: generate ulang semua teks lewat AI, atau cukup
-// update metadata JSON tanpa mengubah teks yang sudah ada.
-// ============================================================
-let VB_PANEL={};
-function vbToggleGlobalSettingsPanel(){
-  let panel=document.getElementById('vb-global-settings-panel');
-  if(!panel)return;
-  if(!panel.classList.contains('hidden')){panel.classList.add('hidden');panel.innerHTML='';return;}
-  panel.classList.remove('hidden');
-  _vbBuildGlobalSettingsPanel(panel);
-}
-function _vbChipHtml(field,val,label,current){
-  let safeVal=String(val).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  let safeLabel=String(label).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  return '<div class="chip'+(current===val?' sel':'')+'" onclick="vbPanelPickField(\''+field+'\',\''+safeVal+'\',\''+safeLabel+'\',this)">'+esc(label)+'</div>';
-}
-function vbPanelPickField(field,val,label,el){
-  VB_PANEL[field]=val;
-  VB_PANEL[field+'Label']=label;
-  let group=el.parentElement;
-  group.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
-  el.classList.add('sel');
-}
-function _vbBuildGlobalSettingsPanel(panel){
-  VB_PANEL={gender:VB.gender,genderLabel:VB.genderLabel,age:VB.age,ageLabel:VB.ageLabel,pitch:VB.pitch,pitchLabel:VB.pitchLabel,accent:VB.accent,accentLabel:VB.accentLabel};
-  let genderOpts=[['male','Laki-laki'],['female','Perempuan']];
-  let ageOpts=[['child, approximately 5-10 years old','Anak-anak'],['teenager, approximately 15-20 years old','Remaja'],['young adult, approximately 20-30 years old','Dewasa Muda'],['adult, approximately 30-45 years old','Dewasa'],['middle-aged adult, approximately 45-60 years old','Paruh Baya']];
-  let pitchOpts=[['bercanda','Bercanda']];
-  let accentOpts=[['warm and expressive','Hangat & Ekspresif'],['confident and energetic','Percaya Diri & Bersemangat'],['friendly and approachable','Ramah & Bersahabat'],['playful and bubbly','Ceria & Lincah'],['calm and reassuring','Tenang & Meyakinkan'],['sincere and genuine','Tulus & Apa Adanya'],['clear and crisp','Tegas & Jelas'],['bold and charismatic','Berani & Karismatik'],['soft and soothing','Lembut & Menenangkan']];
-  function chipRow(field,opts,current){
-    return '<div class="chips" style="margin-bottom:10px;">'+opts.map(function(o){return _vbChipHtml(field,o[0],o[1],current);}).join('')+'</div>';
-  }
-  panel.innerHTML=''
-    +'<div style="background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px;">'
-    +'<div style="font-size:var(--fs-sm);font-weight:700;margin-bottom:8px;">Ubah Suara Karakter & Target Audience</div>'
-    +'<div class="text-hint-mb">Jenis Kelamin</div>'+chipRow('gender',genderOpts,VB_PANEL.gender)
-    +'<div class="text-hint-mb">Usia</div>'+chipRow('age',ageOpts,VB_PANEL.age)
-    +'<div class="text-hint-mb">Nada Bicara</div>'+chipRow('pitch',pitchOpts,VB_PANEL.pitch)
-    +'<div class="text-hint-mb">Aksen</div>'+chipRow('accent',accentOpts,VB_PANEL.accent)
-    +'<div class="text-hint-mb">Target Audience (penonton)</div>'
-    +'<input class="inp" id="vb-panel-target" maxlength="120" style="width:100%;box-sizing:border-box;margin-bottom:10px;" value="'+esc(VB.bulkTargetAudience||'')+'" />'
-    +'<div style="display:flex;gap:8px;">'
-    +'<button class="btn sm" style="flex:1;" onclick="vbApplyGlobalSettings()">Terapkan</button>'
-    +'<button class="reset-btn" style="flex:1;" onclick="vbToggleGlobalSettingsPanel()">Batal</button>'
-    +'</div>'
-    +'</div>';
-}
-function vbApplyGlobalSettings(){
-  let targetInput=document.getElementById('vb-panel-target');
-  let newTarget=targetInput?targetInput.value.trim():(VB.bulkTargetAudience||'');
-  if(!newTarget){showToast('Target Audience tidak boleh kosong','error');return;}
-  let contentChanged=VB_PANEL.gender!==VB.gender||VB_PANEL.pitch!==VB.pitch||VB_PANEL.accent!==VB.accent||newTarget!==VB.bulkTargetAudience;
-  let ageChanged=VB_PANEL.age!==VB.age;
-  let newSettings={gender:VB_PANEL.gender,genderLabel:VB_PANEL.genderLabel,age:VB_PANEL.age,ageLabel:VB_PANEL.ageLabel,pitch:VB_PANEL.pitch,pitchLabel:VB_PANEL.pitchLabel,accent:VB_PANEL.accent,accentLabel:VB_PANEL.accentLabel,targetAudience:newTarget};
-
-  if(!contentChanged&&!ageChanged){showToast('Tidak ada perubahan.','error');return;}
-  if(!contentChanged&&ageChanged){
-    // Cuma usia yang berubah — tidak pengaruh ke isi teks script, jadi langsung update metadata tanpa nanya
-    vbApplyMetadataOnly(newSettings);
-    vbToggleGlobalSettingsPanel();
-    return;
-  }
-  _vbShowRegenChoice(
-    'Pengaturan yang diubah ikut memengaruhi gaya/isi script. Teks yang sudah ada masih pakai pengaturan LAMA.\n\nMau digenerate ulang semua lewat AI (teks ikut berubah sesuai pengaturan baru), atau cukup update datanya saja (teks lama dibiarkan seperti semula, bisa kamu edit manual)?',
-    function(){vbToggleGlobalSettingsPanel();vbRegenerateAllBulk(newSettings);},
-    function(){vbApplyMetadataOnly(newSettings);vbToggleGlobalSettingsPanel();},
-    function(){}
-  );
-}
-function vbApplyMetadataOnly(s){
-  _vbCharClearGlobalChanged(s);
-  VB.gender=s.gender;VB.genderLabel=s.genderLabel;
-  VB.age=s.age;VB.ageLabel=s.ageLabel;
-  VB.pitch=s.pitch;VB.pitchLabel=s.pitchLabel;
-  VB.accent=s.accent;VB.accentLabel=s.accentLabel;
-  VB.bulkTargetAudience=s.targetAudience;
-  for(let idx=0;idx<VB_BULK_ITEMS.length;idx++){
-    let ta=document.getElementById('vb-bulk-script-'+idx);
-    let jsonBox=document.getElementById('vb-bulk-json-'+idx);
-    if(!ta||!jsonBox)continue;
-    jsonBox.textContent=_vbBuildFlowText(ta.value,VB_BULK_ITEMS[idx].produk,_vbTampilText(idx),_vbLokasiText(idx),_vbFotoCountVal(idx),idx);
-  }
-  // FIX BUG#20b (sama akar masalahnya dengan BUG#20 di vbRevisiProdukAI):
-  // update metadata (suara/target audience) di sini mengubah JSON yang
-  // TAMPIL di layar tapi tidak pernah disinkronkan ke Riwayat — kalau tab
-  // ditutup, Riwayat balik ke metadata LAMA (misal aksen sebelum diubah).
-  // Catat ulang entri Riwayat gabungan setelah metadata baru diterapkan.
-  _vbBuildCombinedHistoryEntry('Bulk '+VB_BULK_PRODUCTS.length+' produk (update metadata)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
-  showToast('Data diperbarui — teks script lama tetap seperti semula.','success');
-}
-async function vbRegenerateAllBulk(newSettings){
-  if(_vbGuardGenerating()){showToast('Tunggu proses AI sebelumnya selesai dulu.','error');return;}
-  if(!VB_BULK_PRODUCTS||VB_BULK_PRODUCTS.length===0){showToast('Data produk tidak ditemukan — generate bulk dari awal ya.','error');return;}
-  let dlCheck=dlCheckBeforeCall();
-  if(!dlCheck.ok){showToast(dlCheck.message,'error');return;}
-
-  _vbCharClearGlobalChanged(newSettings);
-  VB.gender=newSettings.gender;VB.genderLabel=newSettings.genderLabel;
-  VB.age=newSettings.age;VB.ageLabel=newSettings.ageLabel;
-  VB.pitch=newSettings.pitch;VB.pitchLabel=newSettings.pitchLabel;
-  VB.accent=newSettings.accent;VB.accentLabel=newSettings.accentLabel;
-  VB.bulkTargetAudience=newSettings.targetAudience;
-
-  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
-  _vbAcquireWakeLock();
-  const BATCH_SIZE=3;
-  // FIX BUG (ditemukan saat audit mendalam khusus builder video): "topik"
-  // (Arah Pembahasan per produk) dulu TIDAK ikut dibawa di sini — akibatnya
-  // "Generate Ulang Semua" lewat panel Ubah Suara/Target Audience diam-diam
-  // mengirim ulang ke AI TANPA arahan topik yang sudah user isi sebelumnya
-  // di form Bulk, walau produk itu sebenarnya masih punya topik tersimpan.
-  let produkList=VB_BULK_PRODUCTS.map(function(x){return{nama:x.nama,keunggulan:x.keunggulan,topik:x.topik||'',hookType:x.hookType||'',hookCustom:x.hookCustom||'',overlay:x.overlay||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};});
-  // FIX HEMAT BIAYA (permintaan user, Sept 2026 — SAMA seperti
-  // _singleProdukCall di _vbRunBulkGenerate/vbGenerateBulkAI, lihat komentar
-  // lengkap di sana): jalur "Generate Ulang Semua" ini sebelumnya TIDAK
-  // PERNAH mengecek jumlah produk — cacheSystem dibiarkan default (true) ke
-  // _vbCallBulkBatch walau sesi bulk-nya cuma isi 1 produk (user isi "1" di
-  // "Mau generate berapa produk?"). Akibatnya kalau user cuma 1 produk lalu
-  // ganti Nada Bicara/Aksen/Target Audience dan pencet "Generate Ulang
-  // Semua", panggilan ini TETAP kena cache_control (cache_creation +25%)
-  // padahal ini juga panggilan sekali-jalan untuk 1 produk — sama persis
-  // kasusnya dengan generate pertama. Sekarang dicek juga di sini supaya
-  // user yang cuma 1 produk konsisten selalu "mode single" (tanpa cache) di
-  // SEMUA jalur generate, bukan cuma generate pertama saja.
-  let _singleProdukCall=(produkList.length===1);
-  // SESI BARU (permintaan user, Sept 2026): "Generate Ulang Semua" = 1
-  // baris ringkasan tersendiri di panel statistik, terpisah dari sesi
-  // generate awal.
-  _vbStartUsageSession('Generate Ulang Semua (Bulk) — '+produkList.length+' produk',produkList.length);
-  // PERMINTAAN USER (Sept 2026 — sama seperti di _vbRunBulkGenerate, lihat
-  // komentar lengkap di sana): SEMUA produk digabung jadi SATU panggilan
-  // API saja, apa pun jumlahnya — BATCH_SIZE=3 & _vbBuildPhotoAwareBatches
-  // (fungsinya tetap ada, tidak dipakai lagi di sini) tidak dipakai lagi.
-  // Auto-split 413 di _vbCallBulkBatch tetap jadi jaring pengaman.
-  let batches=[produkList];
-  // FIX: sebelumnya tidak ada indikator loading sama sekali selama proses ini
-  // berjalan (bisa berlangsung lama untuk banyak produk) — cuma 1 toast di
-  // awal lalu sunyi total, terkesan macet. Sekarang pakai animasi logo yang
-  // sama seperti tombol generate lain, dengan progress per-batch di labelnya.
-  let btn=document.getElementById('vb-settings-btn');
-  let genLogoState=startGenLogoBtn(btn,'Generate Ulang Semua...');
-  let allResults=[];
-  // FIX (indeks kartu produk): dulu index global kartu dihitung dari
-  // b*BATCH_SIZE, yang cuma benar kalau semua batch seragam ukurannya —
-  // sejak batch berisi foto dipaksa jadi ukuran 1 (lihat
-  // _vbBuildPhotoAwareBatches), batch-batch bisa campuran ukuran, jadi
-  // offset-nya dihitung kumulatif beneran per batch yang sudah lewat.
-  let idxOffset=0;
-  try{
-    for(let b=0;b<batches.length;b++){
-      // BUG FIX KRITIS (sama persis dengan _vbRunBulkGenerate, lihat catatan
-      // lengkap di deklarasi dlCheckBeforeCall/dlIncrement): batches di sini
-      // juga selalu isi SATU elemen (batches=[produkList], lihat di atas)
-      // berapa pun jumlah produknya sejak "Generate Ulang Semua" ikut
-      // digabung jadi 1 panggilan API — unit jatah WAJIB dihitung dari
-      // jumlah produk di batch ini, bukan 1 tetap per panggilan. UPDATE
-      // (audit biaya API, Sept 2026): TIDAK dibagi 3 lagi — 1 unit jatah =
-      // 1 produk langsung, biaya API riil per produk linear (Rp45/produk).
-      let dlUnits=Math.max(1,batches[b].length);
-      let dc=dlCheckBeforeCall(dlUnits);
-      if(!dc.ok)throw new Error(dc.message+(allResults.length?' ('+allResults.length+' produk pertama sudah berhasil dibuat ulang.)':''));
-      let batchLabelBase='Batch '+(b+1)+'/'+batches.length+'...';
-      updateGenLogoLabel(genLogoState,batchLabelBase);
-      // FIX (audit lanjutan): jalur "Generate Ulang Semua" ini lupa disambungkan
-      // ke status "⏳ nunggu" waktu retry 429/503 dipasang — padahal sama-sama
-      // pakai genLogoState. Tanpa ini, jalur ini bakal kerasa ngagantung lagi
-      // persis seperti bug yang sudah diperbaiki di vbGenerateBulkAI.
-      // FIX (variasi hook lintas batch, sama seperti vbGenerateBulkAI): kirim
-      // HOOK yang sudah dipakai di batch sebelumnya sebagai larangan eksplisit.
-      // FIX (audit 413 — sama seperti di _vbRunBulkGenerate): cuma kirim 5
-      // hook TERAKHIR, bukan semua hook dari sesi ini, supaya prompt tidak
-      // terus membengkak di batch-batch belakangan.
-      let usedHooksSoFar=allResults.map(function(r){return(r&&r.hook||'').trim();}).filter(Boolean).slice(-5);
-      let batchArr=await _vbCallBulkBatch(batches[b],newSettings.targetAudience,undefined,function(waitMs,attempt,status){
-        let alasan=_vbWaitReasonLabel(status);
-        if(status==='thinking'){updateGenLogoLabel(genLogoState,'🤔 '+alasan+'... '+batchLabelBase);return;}
-        let detik=Math.ceil(waitMs/1000);
-        updateGenLogoLabel(genLogoState,'⏳ '+alasan+' (~'+detik+'dtk)... '+batchLabelBase);
-      },undefined,usedHooksSoFar,(_singleProdukCall?false:undefined),produkList.length);
-      dlIncrement(dlUnits);
-      // FIX BUG#16 (backfill nama produk) — sekarang dilakukan di DALAM
-      // _vbCallBulkBatch (lihat komentar lengkap di sana), sudah aman dari
-      // masalah salah-tempel nama saat ada produk yang di-drop di tengah batch.
-      allResults=allResults.concat(batchArr);
-      // FIX SCRIPT SUDAH JADI TAPI KOLOM MASIH KOSONG: sama seperti fix di
-      // vbGenerateBulkAI — begitu batch ini beres, langsung isi kartu
-      // produk-produk di batch ini juga (bukan nunggu semua batch kelar).
-      // Di jalur "Generate Ulang Semua" ini kartu lama masih kelihatan
-      // (bukan blank) selama proses, tapi tetap kepakai supaya produk yang
-      // batch-nya sudah selesai langsung ke-update ke hasil BARU, bukan
-      // nunggu revisi produk lain ikut kelar dulu.
-      // PENGAMAN SAMA seperti di vbGenerateBulkAI: cuma jalan kalau jumlah
-      // hasil PERSIS SAMA dengan jumlah diminta di batch ini (lihat komentar
-      // lengkap soal risiko drop-di-tengah-batch di vbGenerateBulkAI) —
-      // kalau ada drop, live update dilewati, render final di akhir
-      // (name-based matching) tetap menjamin hasilnya nempel ke produk yang
-      // benar.
-      if(batchArr.length===batches[b].length){
-        for(let j=0;j<batchArr.length;j++){
-          batchArr[j]._idx=idxOffset+j; // posisi asli produk — dipakai _vbResolveProductMetas
-          _vbUpdateProductCardsLive(idxOffset+j,batchArr[j]);
-        }
-      }
-      idxOffset+=batches[b].length;
-      if(b<batches.length-1)await new Promise(function(r){setTimeout(r,1500);});
-    }
-    if(allResults.length===0)throw new Error('Hasil AI kosong, coba lagi.');
-    setTimeout(function(){document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'});},100);
-    // animate dimatikan (false, sebelumnya true) — isi tiap kartu sudah
-    // tampil duluan lewat _vbUpdateProductCardsLive per-batch di atas,
-    // render final ini cuma buat konsistensi akhir (badge, dst), bukan
-    // buat mengetik ulang dari nol.
-    await _vbRenderBulkOutput(allResults,produkList,true,false);
-    _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script, revisi)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
-    doneCard('v5','va5',(allResults.length*3)+' script bulk AI (revisi)');
-    showToast('Semua produk berhasil digenerate ulang!','success');
-  }catch(err){
-    console.error('vbRegenerateAllBulk error:',err);
-    // FIX: sebelumnya hasil batch yang SUDAH berhasil dibuat ulang tidak pernah
-    // ditampilkan/disimpan kalau ada batch berikutnya yang gagal — kerja AI yang
-    // sudah selesai jadi hilang percuma dan tampilan tetap pakai data lama tanpa
-    // ada tanda apa-apa. Sekarang perilakunya disamakan dengan vbGenerateBulkAI:
-    // render dulu apa yang sudah berhasil sebelum kasih tau error-nya.
-    // FIX (audit — kehilangan hasil saat auto-split 413, sama seperti fix
-    // di _vbRunBulkGenerate): gabungkan err.partialResults (hasil batch
-    // yang sudah berhasil sebelum paruh kedua auto-split 413 gagal) ke
-    // allResults SEBELUM dirender, supaya progres yang sudah kena biaya
-    // nyata tidak hilang percuma di jalur "Generate Ulang Semua" ini juga.
-    if(Array.isArray(err.partialResults)&&err.partialResults.length){
-      allResults=allResults.concat(err.partialResults);
-    }
-    if(allResults.length>0){
-      _vbRenderBulkOutput(allResults,produkList);
-      setTimeout(function(){document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'});},100);
-    }
-    showToast('Gagal generate ulang: '+err.message,'error');
-  }finally{
-    stopGenLogoBtn(btn,genLogoState);
-    VAI._isGenerating=false;
-    _vbReleaseWakeLock();
-  }
-}
-// Modal pilihan 3-arah: generate ulang AI / update data aja / batal
-function _vbShowRegenChoice(msg,onAI,onMetaOnly,onCancel){
-  let overlay=document.createElement('div');overlay.className='confirm-overlay';
-  let box=document.createElement('div');box.className='confirm-box';
-  let h4=document.createElement('h4');h4.textContent='Pengaturan Diubah';
-  let p=document.createElement('p');p.textContent=msg;p.style.whiteSpace='pre-line';
-  let btns=document.createElement('div');btns.className='confirm-btns';btns.style.cssText='flex-direction:column;gap:6px;';
-  let aiBtn=document.createElement('button');aiBtn.className='confirm-ok';aiBtn.textContent='Ya, Generate Ulang Semua dengan AI';
-  let metaBtn=document.createElement('button');metaBtn.className='confirm-cancel';metaBtn.textContent='Update Data Aja (teks lama tetap)';
-  let cancelBtn=document.createElement('button');cancelBtn.className='confirm-cancel';cancelBtn.textContent='Batal';
-  btns.appendChild(aiBtn);btns.appendChild(metaBtn);btns.appendChild(cancelBtn);
-  box.appendChild(h4);box.appendChild(p);box.appendChild(btns);
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-  function close(){overlay.remove();document.removeEventListener('keydown',_escH);}
-  aiBtn.onclick=function(){close();if(onAI)onAI();};
-  metaBtn.onclick=function(){close();if(onMetaOnly)onMetaOnly();};
-  cancelBtn.onclick=function(){close();if(onCancel)onCancel();};
-  function _escH(e){if(e.key==='Escape'){close();if(onCancel)onCancel();}}
-  document.addEventListener('keydown',_escH);
-}
-
 // FIX (permintaan user): dulu fungsi ini motong paksa skrip hasil AI ke
 // maksimal N kata sesuai rentang nada bicara yang dipilih. Sekarang
 // dimatikan — skrip dari AI dipakai APA ADANYA (utuh, tidak dipotong).
@@ -20058,7 +19788,7 @@ function pbLockScriptAreaExtras(exceptBtnId){
   });
   // Sembunyikan total (bukan cuma dikunci) — mode single & Bulk sekaligus,
   // supaya tetap aman kalau suatu saat mode Bulk ikut dipakai di tengah tur.
-  ['vb-single-revisi-btn','vb-single-revisi-undo-btn','vb-settings-btn'].forEach(function(id){
+  ['vb-single-revisi-btn','vb-single-revisi-undo-btn'].forEach(function(id){
     let el=document.getElementById(id);
     if(el) el.classList.add('pb-tour-hidden-extra');
   });
@@ -21028,6 +20758,7 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate,manualMode){
   VB_CARD_LOKASI={};
   VB_PRODUCT_FOTOCOUNT={};
   VB_HOOK_OVERLAY={};
+  VB_CHAR_OVR={}; // render sesi baru — pengaturan pensil lama dibuang (sama seperti state per-kartu lainnya)
   // Jalur manual bukan bagian dari mode single AI — lepas sinkronisasi kolom Isi.
   if(manualMode)VB_SINGLE_OVERLAY=null;
   else if(VB_SINGLE_OVERLAY)VB_HOOK_OVERLAY[0]=VB_SINGLE_OVERLAY;
@@ -24922,7 +24653,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     'VB_MANUAL_COUNT','VB_BULK_ITEMS','VB_CARD_TAMPIL','VB_CARD_LOKASI',
     'VB_PRODUCT_FOTOCOUNT','VB_HOOK_OVERLAY','VB_CHAR_OVR','VB_BULK_PRODUCTS',
     'VB_REVISI_FOTO_OVERRIDE','VB_BULK_ROW_CACHE','VB_BULK_LAST_CONTEXT',
-    'VB_SINGLE_REVISI_BACKUP','VB_BULK_REVISI_BACKUP','VB_PANEL','VB_SINGLE_OVERLAY','PB_ACTIVE_SAVED_ID',
+    'VB_SINGLE_REVISI_BACKUP','VB_BULK_REVISI_BACKUP','VB_SINGLE_OVERLAY','PB_ACTIVE_SAVED_ID',
     'pbProdukFotoUploaded','pbProdukFotoDataUrl','pbKsFotoUploaded',
     'pbKsFotoDataUrl','pbFotoAiUploaded','pbFotoAiDataUrl',
     'pbStep3Revealed','pbVideoGuideIndex'
@@ -25199,6 +24930,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
         try{ window[snap.draftCall.fn].apply(null, snap.draftCall.args||[]); }catch(e){}
       }
       restoreDom(snap.dom);
+      if(typeof _vbCharResyncAll==='function') _vbCharResyncAll(); // segarkan prompt & tombol pensil sesuai state pulihan
     } finally {
       setTimeout(function(){ restoring = false; }, 60);
     }
