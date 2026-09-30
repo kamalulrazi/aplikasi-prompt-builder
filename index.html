@@ -11700,8 +11700,20 @@ async function _pbGetFirebaseIdToken(){
 // _VB_GEN_STALE_MS. Kalau nanti CLAUDE_MODEL_FALLBACK diisi model BEDA
 // lagi, siklus percobaan ke-2 perlu ditambahkan balik secara sadar di
 // kedua fungsi itu (bukan otomatis aktif lagi).
-const CLAUDE_MODEL_PRIMARY='claude-haiku-4-5-20251001';
-const CLAUDE_MODEL_FALLBACK='claude-haiku-4-5-20251001';
+// GANTI MODEL (permintaan user, 30 Sep 2026): Haiku 4.5 -> Claude Sonnet 5.5
+// ('claude-sonnet-5-5', tarif $2/juta input & $10/juta output — tier Sonnet
+// termurah saat ini, sama dengan Sonnet 5). System prompt & pesan user TIDAK
+// diubah sama sekali, cuma ID model + parameter thinking di bawah.
+// PENTING: Worker proxy (ANTHROPIC_ENDPOINT) harus mengizinkan ID model ini
+// kalau di sisi Worker ada whitelist model.
+const CLAUDE_MODEL_PRIMARY='claude-sonnet-5-5';
+const CLAUDE_MODEL_FALLBACK='claude-sonnet-5-5';
+// Sonnet 5.5 menyalakan adaptive thinking secara DEFAULT (effort 'high', token
+// thinking ditagih sebagai output) kalau field 'thinking' tidak dikirim, dan
+// MENOLAK thinking:{type:'disabled'} (400). Cara resmi mematikan thinking di
+// awal di Sonnet 5.5 adalah {type:'between_tools'} — tanpa tools, balasan
+// cuma teks biasa seperti 'disabled'. Tanpa ini tagihan & latency naik.
+const CLAUDE_THINKING_PARAM={type:'between_tools'};
 // apiKey diisi placeholder tetap ('via-proxy') — bukan API key asli lagi.
 // Cukup supaya semua pengecekan "if(!VAI.apiKey)" di bawah otomatis lolos,
 // karena kunci Claude yang sesungguhnya sekarang disimpan aman di server
@@ -16967,7 +16979,7 @@ function _vbRenderUsageBadge(s){
   // Foto Referensi, dst) — termasuk token dari foto yang diupload user,
   // karena foto ikut terhitung sebagai input_tokens oleh API Anthropic
   // persis seperti teks. Model generate utama (CLAUDE_MODEL_PRIMARY/
-  // FALLBACK) sama-sama Haiku, jadi tarif HAIKU_PRICE_* di bawah berlaku
+  // FALLBACK) sama-sama Sonnet 5.5, jadi tarif HAIKU_PRICE_* di bawah berlaku
   // sama untuk bagian ini.
   var mainUsd=_vbCalcUsd(s.noCacheInTok,s.cacheWriteInTok,s.cacheReadInTok,s.outTok);
   var mainIdr=Math.round(mainUsd*idr);
@@ -17258,7 +17270,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         method:'POST',
         headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
         body:JSON.stringify(Object.assign(
-          {model:model,stream:true,max_tokens:maxTokensWithThinking,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
+          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:CLAUDE_THINKING_PARAM,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
           // ditempel kalau cacheSystem true. System prompt generate pertama
           // mode single (_vbScript3SystemPrompt) TIDAK PERNAH tembus syarat
@@ -17734,7 +17746,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
       headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
-      body:JSON.stringify({model:model,max_tokens:maxTokensWithThinking,messages:claudeMessages})
+      body:JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:CLAUDE_THINKING_PARAM,messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
       try{
@@ -17766,12 +17778,12 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
 // (lihat obrolan) — sekarang dicatat dari angka token ASLI yang dikembalikan
 // API tiap kali _vbFixWordCountIfNeeded/_vbFixWordCountBatchIfNeeded benar-
 // benar memanggil AI (bukan estimasi). Harga per-token pakai tarif resmi
-// Claude Haiku 4.5 saat ini ($1/juta token input, $5/juta token output) —
-// kalau tarif berubah di masa depan, angka USD lama tetap akurat historis,
-// cuma proyeksi ke depan yang perlu update HAIKU_PRICE_* di bawah.
+// Claude Sonnet 5.5 saat ini ($2/juta token input, $10/juta token output) —
+// (nama variabel HAIKU_PRICE_* sengaja tidak diganti supaya tidak ubah banyak
+// tempat; isinya sekarang tarif Sonnet 5.5).
 var PB_FIXSTATS_KEY='pb_wordfix_stats_v1';
-var HAIKU_PRICE_IN_PER_MTOK=1.0;   // USD per 1,000,000 token input
-var HAIKU_PRICE_OUT_PER_MTOK=5.0;  // USD per 1,000,000 token output
+var HAIKU_PRICE_IN_PER_MTOK=2.0;   // USD per 1,000,000 token input (Sonnet 5.5)
+var HAIKU_PRICE_OUT_PER_MTOK=10.0; // USD per 1,000,000 token output (Sonnet 5.5)
 // FIX AKURASI BIAYA (permintaan user, Sept 2026): tarif resmi Anthropic untuk
 // prompt caching — token yang BARU ditulis ke cache (cache_creation) kena
 // markup +25% dari tarif input biasa, token yang DIBACA dari cache
@@ -18139,6 +18151,12 @@ function _vbSalvageIdTeks(text){
   return out;
 }
 // Pembungkus: sanitasi -> 1 panggilan perbaikan -> potong batas atas. Tidak pernah melempar error.
+// SAKELAR (permintaan user, 30 Sep 2026): false = TIDAK ADA lagi panggilan AI
+// otomatis untuk menambah kata saat skrip kurang dari 24 kata. Skrip yang
+// kependekan dibiarkan apa adanya (bisa diedit manual & ditandai di UI).
+// Sanitizer frasa terlarang + potong batas atas (lokal, tanpa API) TETAP jalan.
+// Set true kalau suatu saat mau menyalakan lagi.
+const VB_AUTO_SHORTFIX_ENABLED=false;
 async function _vbApplyShortFix(arr,batch,range,onWait){
   for(let si=0;si<arr.length;si++){
     const sp=arr[si];if(!sp)continue;
@@ -18146,7 +18164,7 @@ async function _vbApplyShortFix(arr,batch,range,onWait){
     if(sp.story)sp.story=_vbSanitizeForbiddenPhrases(sp.story);
     if(sp.cta)sp.cta=_vbSanitizeForbiddenPhrases(sp.cta);
   }
-  try{await _vbExtendShortScriptsOnce(arr,batch,range,onWait);}
+  try{if(VB_AUTO_SHORTFIX_ENABLED)await _vbExtendShortScriptsOnce(arr,batch,range,onWait);}
   catch(eShort){console.warn('[_vbApplyShortFix] perbaikan skrip kependekan dilewati:',eShort);}
   for(let ei=0;ei<arr.length;ei++){
     const ep=arr[ei];if(!ep)continue;
