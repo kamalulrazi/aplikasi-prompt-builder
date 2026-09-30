@@ -5935,7 +5935,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   <div class="sec-title">Cara Pakai</div>
   <p class="sec-desc">Baca sekali, pakai berkali-kali.</p>
   <button id="pb-tour-replay-btn" onclick="pbReplayTour()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Lihat Tur Panduan Lagi</button>
-  <!-- PILIHAN MODEL AI (permintaan user): Sonnet / Haiku — lihat PB_AI_MODELS -->
+  <!-- PILIHAN MODEL AI (permintaan user): Sonnet / Haiku / Groq / Gemini — lihat PB_AI_MODELS -->
   <div id="pb-model-picker" style="margin-top:18px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:14px;">
     <div style="font-size:var(--fs-sm);font-weight:700;color:var(--text);">Model AI</div>
     <div style="font-size:var(--fs-xs2);color:var(--muted);margin:2px 0 10px;">Pilih model yang dipakai untuk generate script &amp; perbaikan kata. Prompt-nya sama, cuma modelnya yang beda.</div>
@@ -5943,6 +5943,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <button type="button" class="chip pb-model-btn" data-model="sonnet" onclick="pbSetAiModel('sonnet')" style="flex:1;">Sonnet</button>
       <button type="button" class="chip pb-model-btn" data-model="haiku" onclick="pbSetAiModel('haiku')" style="flex:1;">Haiku</button>
       <button type="button" class="chip pb-model-btn" data-model="groq" onclick="pbSetAiModel('groq')" style="flex:1;">Groq</button>
+      <button type="button" class="chip pb-model-btn" data-model="gemini" onclick="pbSetAiModel('gemini')" style="flex:1;">Gemini</button>
     </div>
   </div>
   <div class="rule"></div>
@@ -11733,16 +11734,31 @@ var PB_AI_MODELS={
   // per request), tarif $0.80/juta input & $4.00/juta output, maks output 16384.
   // Lewat Worker proxy yang sama (format OpenAI-compatible, lihat _pbBuildGroqBody).
   // Mode 'instruct' (reasoning_effort:none) dipakai supaya cepat & hemat token.
-  groq:{id:'qwen/qwen3.8-27b',label:'Groq',provider:'groq',thinking:undefined,priceIn:0.80,priceOut:4.00}
+  groq:{id:'qwen/qwen3.8-27b',label:'Groq',provider:'groq',thinking:undefined,priceIn:0.80,priceOut:4.00},
+  // GEMINI (permintaan user, 1 Okt 2026): model Gemini TERMURAH yang masih bisa
+  // baca foto = Gemini 2.5 Flash-Lite, lewat endpoint OpenAI-compatible Google
+  // (Worker yang sama, key di secret GEMINI_API_KEY). Tarif paid tier
+  // $0.10/juta input & $0.40/juta output. reasoning_effort:'none' mematikan
+  // thinking (hanya valid untuk seri 2.5). CATATAN: model 2.5 adalah generasi
+  // lama; kalau nanti diberi 404/pensiun, ganti ke 'gemini-3.5-flash-lite'
+  // (sekitar $0.15/$1.25) DAN ubah reasoning gemini di PB_OAI_PROVIDERS jadi
+  // 'minimal' (seri 3.x tidak menerima 'none').
+  gemini:{id:'gemini-2.5-flash-lite',label:'Gemini',provider:'gemini',thinking:undefined,priceIn:0.10,priceOut:0.40}
 };
-var PB_GROQ_MAX_OUT=16384;
-var PB_GROQ_MAX_IMAGES=3;
-function _pbIsGroqModel(id){
-  for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===id)return PB_AI_MODELS[k].provider==='groq';}
-  return false;
+// Groq & Gemini sama-sama format OpenAI-compatible: satu set fungsi dipakai
+// untuk keduanya, yang beda cuma batas output, batas foto, & reasoning_effort.
+var PB_OAI_PROVIDERS={
+  groq:{maxOut:16384,maxImages:3,reasoning:'none'},
+  gemini:{maxOut:16384,maxImages:16,reasoning:'none'}
+};
+function _pbProviderOf(id){
+  for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===id)return PB_AI_MODELS[k].provider||'';}
+  return '';
 }
+// Nama lama dipertahankan: true untuk SEMUA model non-Claude (Groq & Gemini).
+function _pbIsGroqModel(id){return !!PB_OAI_PROVIDERS[_pbProviderOf(id)];}
 // Ubah 'parts' gaya Gemini (text / inline_data) jadi messages format OpenAI/Groq.
-function _pbGroqMessages(parts,systemText){
+function _pbGroqMessages(parts,systemText,maxImages){
   var msgs=[];
   if(systemText)msgs.push({role:'system',content:systemText});
   var content=[],hasImg=false;
@@ -11750,7 +11766,7 @@ function _pbGroqMessages(parts,systemText){
   (parts||[]).forEach(function(p){
     var d=p&&(p.inline_data||p.inlineData);
     if(d){
-      if(imgCount>=PB_GROQ_MAX_IMAGES)return;
+      if(imgCount>=(maxImages||3))return;
       imgCount++;
       hasImg=true;
       var mime=d.mime_type||d.mimeType||'image/jpeg';
@@ -11764,7 +11780,8 @@ function _pbGroqMessages(parts,systemText){
   return msgs;
 }
 function _pbBuildGroqBody(model,parts,systemText,maxTokens,stream){
-  var b={model:model,max_completion_tokens:Math.min(PB_GROQ_MAX_OUT,maxTokens||2048),messages:_pbGroqMessages(parts,systemText),reasoning_effort:'none'};
+  var pv=PB_OAI_PROVIDERS[_pbProviderOf(model)]||PB_OAI_PROVIDERS.groq;
+  var b={model:model,max_completion_tokens:Math.min(pv.maxOut,maxTokens||2048),messages:_pbGroqMessages(parts,systemText,pv.maxImages),reasoning_effort:pv.reasoning};
   if(stream){b.stream=true;b.stream_options={include_usage:true};}
   return b;
 }
