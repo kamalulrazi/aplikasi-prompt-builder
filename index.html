@@ -18118,16 +18118,15 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // Data yang berubah tiap generate (karakter, sapaan, nada, motion, aksen,
   // target audience, daftar produk, catatan revisi) DISATUKAN ke system di
   // _vbCallBulkBatch (blok "=== DATA ==="), pesan user cuma pemicu pendek + foto.
-  return 'Kamu kreator profesional. Detail karakter, target audience, dan produk ada di bagian DATA di bawah.\n\n'
-    +'Tulis TEPAT 3 bagian: HOOK, STORY, CTA. Ketiganya harus nyambung jadi SATU monolog utuh, bukan 3 topik lepas.\n'
-    +'- HOOK: kalimat pembuka kuat (pertanyaan kocak, fakta mengejutkan, masalah sehari-hari, atau cerita singkat). Jangan template.\n'
-    +'- STORY: skenario audiens memakai produk untuk menyelesaikan masalah sehari-hari (bukan pengalaman pribadi).\n'
-    +'- CTA: ajak klik "keranjang bawah" saja (bukan "keranjang kuning" atau "checkout"). Jangan klaim urgensi atau stok terbatas.\n\n'
-    +'ATURAN:\n'
-    +'- Tiap bagian WAJIB 24-30 kata (minimal 24, maksimal 30). CTA paling sering kependekan, jadi panjangkan sampai masuk rentang. Hitung kata satu per satu sebelum menjawab, kalau meleset revisi dulu (proses hitung jangan ikut tertulis). Kurang dari 24 kata dianggap GAGAL, hitung ulang.\n'
-    +'- Bahasa Indonesia, tanpa emoji dan tanda kutip. Kalimat pendek-sedang, diakhiri titik.\n'
-    +'- DILARANG: menyebut bahan/material/tekstur produk (kecuali user sudah menyebutnya di keunggulan), dan menyebut promo/diskon/limited/urgensi.\n\n'
-    +'Balas HANYA JSON array berisi TEPAT '+count+' object (satu per produk, urutan sama seperti daftar, jangan ada yang dilewati atau digabung), tanpa teks lain dan tanpa markdown. Format: [{"produk":"...","hook":"...","story":"...","cta":"..."}]';
+  // DIPADATKAN LAGI (30 Sep 2026, target input ~separuh): isi aturan sama, kata-kata dipangkas.
+  // Yang tetap: 3 bagian, 24-30 kata (ikut range), larangan bahan/promo/urgensi, "keranjang bawah",
+  // Bahasa Indonesia tanpa emoji/kutip, dan format JSON (nama kolom WAJIB sama dgn parser).
+  return 'Kamu kreator profesional. Tulis TEPAT 3 bagian yang nyambung jadi SATU monolog utuh:\n'
+    +'- HOOK: pembuka kuat (pertanyaan kocak, fakta mengejutkan, masalah sehari-hari, atau cerita singkat), bukan template.\n'
+    +'- STORY: skenario audiens memakai produk untuk menyelesaikan masalah sehari-hari, bukan pengalaman pribadi.\n'
+    +'- CTA: ajak klik keranjang bawah saja (bukan keranjang kuning/checkout), tanpa urgensi atau stok terbatas.\n'
+    +'ATURAN: tiap bagian '+range.min+'-'+range.max+' kata (target '+(range.target||Math.round((range.min+range.max)/2))+', CTA sering kependekan). Bahasa Indonesia, tanpa emoji dan tanda kutip, akhiri titik. DILARANG menyebut bahan/material/tekstur (kecuali ada di keunggulan) dan promo/diskon/limited. Nama produk ditulis ulang natural.\n'
+    +'Balas HANYA JSON array berisi TEPAT '+count+' object, satu per produk sesuai urutan daftar, tanpa teks lain/markdown: [{"produk":"...","hook":"...","story":"...","cta":"..."}]';
 }
 // ── PERBAIKAN SKRIP KEPENDEKAN — 1 PANGGILAN SAJA (permintaan user, 29 Sep 2026)
 // Setelah generate bulk selesai, semua bagian (hook/story/cta) yang jumlah
@@ -18291,16 +18290,16 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // mana punya produk yang mana waktu beberapa gambar dikirim sekaligus.
   let _imgCounter=0;
   let produkListText=batch.map((p,i)=>{
-    let line=(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')+(p.topik?' — arah pembahasan: '+p.topik+' (WAJIB jadi fokus utama STORY produk ini, boleh disinggung juga di HOOK, tapi tetap 100% soal produk ini, jangan melenceng ke luar arah ini)':'');
+    let line=(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')+(p.topik?' — fokus utama STORY (boleh disinggung di HOOK): '+p.topik:'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
     // form Bulk. HANYA gaya Hook yang dikirim ke AI — kolom "Isi" (teks
     // overlay) sengaja TIDAK disertakan di sini, itu cuma ditempel di akhir
     // prompt video (lihat _vbOverlaySentence).
     let _hookDir=_vbHookDirectiveInline(p.hookType,p.hookCustom);
-    if(_hookDir)line+=' — gaya HOOK khusus produk ini (WAJIB dipakai HANYA untuk HOOK produk ini, jangan dipakai untuk produk lain di daftar): '+_hookDir;
+    if(_hookDir)line+=' — gaya HOOK produk ini saja: '+_hookDir;
     if(p.fotoBase64){
       _imgCounter++;
-      line+=' (ADA FOTO REFERENSI PRODUK ASLI — lihat Gambar '+_imgCounter+' yang dilampirkan di bawah, ini HANYA supaya kamu tahu persis jenis produknya, BUKAN untuk dideskripsikan di script)';
+      line+=' [Gambar '+_imgCounter+': hanya untuk mengenali jenis produk, jangan dideskripsikan]';
     }
     return line;
   }).join('\n');
@@ -18317,36 +18316,21 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // catatan revisi/hook yang sudah dipakai) — dikirim sebagai pesan user.
   let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
   let _motionVal=(typeof VB.motion==='string'?VB.motion.replace(/[\r\n"]+/g,' ').trim():'');
-  let prompt='Karakter: '+VB.genderLabel+', usia '+(VB.age||VB.ageLabel)+'.\n'
-    +'Sesuaikan gaya bicara dengan gender dan usia karakter ini.\n'
-    +(_sapaanVal?'Sapaan: '+_sapaanVal+'. Pakai sapaan ini secara konsisten di HOOK, STORY, dan CTA (sebut secara natural, tidak perlu di setiap kalimat).\n':'')
-    +'Nada bicara: '+(VB.pitchLabel||VB.pitch)+'\n'
-    +(_motionVal?'Gerakan pembawaan: '+_motionVal+'\n':'')
-    +'Aksen karakter: '+(VB.accentLabel||VB.accent)+'.\n'
-    +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n'
-    +'Rentang jumlah kata WAJIB tiap script: '+range.min+'-'+range.max+' kata — berlaku PENUH & TERPISAH untuk HOOK, STORY, DAN CTA.\n\n'
-    +'Daftar produk ('+batch.length+' produk) — nama produk cuma referensi konteks, BUKAN teks wajib salin (tulis ulang natural, jangan tempel apa adanya kalau nama produknya panjang).\n'+produkListText+'\n\n'
-    +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
-    // FIX (permintaan user: hook antar produk masih kedengaran "tempelan"
-    // kalau jumlah produk bulk lebih dari BATCH_SIZE=3, karena tiap panggilan
-    // batch cuma tahu HOOK di batch-nya sendiri — batch ke-2/3/4 dst tidak
-    // tahu HOOK apa saja yang sudah dipakai di batch SEBELUMNYA, jadi pola
-    // pembukanya gampang balik lagi mirip. Sekarang daftar HOOK yang sudah
-    // dipakai di batch-batch sebelumnya (dalam sesi bulk generate yang sama)
-    // dikirim ke tiap panggilan berikutnya sebagai larangan eksplisit, supaya
-    // variasi hook terjaga LINTAS BATCH, bukan cuma di dalam 1 batch.
-    +(usedHooks&&usedHooks.length?'HOOK YANG SUDAH DIPAKAI DI PRODUK-PRODUK SEBELUMNYA (batch lain, dalam sesi generate yang sama) — WAJIB DIHINDARI, jangan pakai kalimat yang sama/mirip maupun pola/struktur pembuka yang sama (misal sama-sama pertanyaan retoris dengan bentuk kalimat serupa, atau sama-sama mulai dengan gambaran situasi sehari-hari yang mirip):\n'+usedHooks.map(function(h,i){return'- "'+h+'"';}).join('\n')+'\n\nHOOK produk-produk di batch ini WAJIB pakai sudut masuk & pola kalimat yang BEDA dari semua contoh di atas, supaya kalau semua produk bulk ini dibaca berurutan dari awal, tidak ada 2 hook pun yang kedengaran seperti rumus yang sama ditempel ulang.\n\n':'')
-    +(_imgCounter>0?'Foto-foto yang dilampirkan supaya kamu tahu PERSIS jenis/tipe tiap produk (urutan sesuai "Gambar N" di daftar produk di atas).\n\n':'')
-    // FIX (audit — wording ambigu): kalimat lama "TEPAT N object per produk"
-    // bisa disalahbaca "N object UNTUK TIAP produk" (padahal maksudnya "N
-    // object TOTAL, satu per produk, mewakili N produk"). Aturan 12/13/16 di
-    // atas sudah jelas soal ini, tapi baris penutup ini sekarang diselaraskan
-    // biar tidak dobel makna dengan bagian lain.
-    +'Ingat: WAJIB balikin TEPAT '+batch.length+' object TOTAL (satu object per produk, urutan sama seperti daftar) — BUKAN '+batch.length+' object untuk tiap produk.';
+  // DIPADATKAN (30 Sep 2026): buang baris yang dobel dgn system prompt (rentang kata, "TEPAT N object",
+  // catatan foto) & perpendek kalimat. Isi data yang dikirim ke AI tetap sama.
+  let prompt='Karakter: '+VB.genderLabel+', usia '+(VB.age||VB.ageLabel)+' (sesuaikan gaya bicara).\n'
+    +(_sapaanVal?'Sapaan: '+_sapaanVal+' (dipakai konsisten di HOOK/STORY/CTA, natural).\n':'')
+    +'Nada: '+(VB.pitchLabel||VB.pitch)+'\n'
+    +(_motionVal?'Gerakan: '+_motionVal+'\n':'')
+    +'Aksen: '+(VB.accentLabel||VB.accent)+'\n'
+    +'Target audience: '+targetAudience+'\n\n'
+    +'Produk ('+batch.length+'):\n'+produkListText+'\n'
+    +(extraNote?'\nCATATAN REVISI (prioritas tertinggi, menang atas aturan lain yang bentrok): '+extraNote+'\n':'')
+    +(usedHooks&&usedHooks.length?'\nHOOK sudah dipakai di produk lain (hindari kalimat, pola, dan pembuka yang sama/mirip; pakai sudut masuk BEDA):\n'+usedHooks.map(function(h){return'- '+h;}).join('\n')+'\n':'');
 
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
   // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
-  let _promptParts=[{text:'Tulis skripnya sekarang sesuai data di atas.'}];
+  let _promptParts=[{text:'Tulis skripnya.'}];
   batch.forEach(function(p){
     if(p.fotoBase64)_promptParts.push({inline_data:{mime_type:p.fotoMime||'image/jpeg',data:p.fotoBase64}});
   });
