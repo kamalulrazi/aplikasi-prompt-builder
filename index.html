@@ -6095,10 +6095,23 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
        ditap. Rendernya tetap lewat _vbRenderUsageBadge() (lihat script di
        bawah), cuma targetnya sekarang #pb-usage-panel, bukan bikin elemen
        baru di <body>. -->
+  <div id="pb-stats-admin-only" style="display:none;">
   <div class="sec-title sec-title-sub">Statistik Biaya &amp; Cache</div>
   <p class="sec-desc" style="margin-bottom:12px;">Cek jumlah cache hit, token, dan estimasi biaya real dari pemakaian generate kamu.</p>
   <button id="pb-usage-toggle-btn" type="button" onclick="_vbToggleUsagePanel()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Lihat Statistik Biaya &amp; Cache</button>
   <div id="pb-usage-panel" class="hidden"></div>
+
+  <!-- PANEL ADMIN: statistik biaya & cache SEMUA user (hanya muncul untuk email di PB_ADMIN_EMAILS) -->
+  <div id="pb-admin-usage-wrap" style="margin-top:18px;padding-top:16px;border-top:1px dashed var(--border);">
+    <div class="sec-title sec-title-sub">Statistik Semua User (Admin)</div>
+    <p class="sec-desc" style="margin-bottom:12px;">Gabungan biaya &amp; cache dari semua akun yang pernah login dan generate.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="pb-admin-load-btn" type="button" onclick="pbAdminLoadUsage()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Muat Data Semua User</button>
+      <button id="pb-admin-csv-btn" type="button" onclick="pbAdminExportCsv()" style="display:none;">Unduh CSV</button>
+    </div>
+    <div id="pb-admin-usage-result" style="margin-top:12px;"></div>
+  </div>
+  </div><!-- /pb-stats-admin-only -->
 
   <div style="text-align:center;padding:24px 20px 4px;margin-top:28px;border-top:1px solid var(--border);">
     <!-- ATURAN WAJIB UNTUK SIAPAPUN (AI/developer) YANG MENGEDIT FILE INI:
@@ -25944,5 +25957,150 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
      pembuka, tepat di bawah tulisan "Prompt Builder" (cari string
      "splash-version"). Jangan lewati baris ini.
      ══════════════════════════════════════════════════════════════════ -->
+<script>
+/* ── PANEL ADMIN: STATISTIK BIAYA & CACHE SEMUA USER ──────────────────────
+   Membaca dokumen users/{uid} milik SEMUA user (field pb_usage_stats_v1 &
+   pb_wordfix_stats_v1 yang sudah disinkron aplikasi) lalu menjumlahkannya.
+   KEAMANAN ASLI ada di Firestore Rules (cek fungsi isAdmin() di firestore.rules).
+   Daftar email di bawah hanya menentukan apakah panelnya DITAMPILKAN.
+   Panel ini tidak membaca sub-koleksi /blobs (riwayat/halaman tersimpan user). */
+(function(){
+  var PB_ADMIN_EMAILS = ['GANTI_DENGAN_EMAIL_ADMIN@gmail.com']; // GANTI: email Google admin (harus sama dengan di firestore.rules)
+  var _rows = [];
+  var _tot = null;
+
+  function _esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function _isAdminEmail(em){
+    em = String(em||'').toLowerCase();
+    return PB_ADMIN_EMAILS.some(function(a){ return String(a).toLowerCase() === em; });
+  }
+  function _n(v){ return Number(v)||0; }
+  function _usd(st){
+    st = st || {};
+    return _vbCalcUsd(_n(st.noCacheInTok), _n(st.cacheWriteInTok), _n(st.cacheReadInTok), _n(st.outTok));
+  }
+  function _idr(usd){ return 'Rp' + Math.round(usd * _vbCurrentIdrRate()).toLocaleString('id-ID'); }
+  function _pct(a, b){ return b > 0 ? (a / b * 100).toFixed(1) + '%' : '-'; }
+
+  function _checkAdmin(){
+    var wrap = document.getElementById('pb-stats-admin-only');
+    if(!wrap) return;
+    var em = '';
+    try{ em = (firebase.auth().currentUser && firebase.auth().currentUser.email) || ''; }catch(e){}
+    if(!em){ try{ var au = JSON.parse(localStorage.getItem('pb_auth_user') || 'null'); em = (au && au.email) || ''; }catch(e){} }
+    var ok = _isAdminEmail(em);
+    wrap.style.display = ok ? 'block' : 'none';
+    if(!ok){ // jaga-jaga: tutup panel statistik kalau sebelumnya terbuka (mis. ganti akun)
+      var pnl = document.getElementById('pb-usage-panel');
+      if(pnl) pnl.classList.add('hidden');
+    }
+  }
+  try{
+    if(window.firebase && firebase.apps && firebase.apps.length){
+      firebase.auth().onAuthStateChanged(_checkAdmin);
+    }
+  }catch(e){}
+  window.pbCheckAdminStats = _checkAdmin;
+  document.addEventListener('DOMContentLoaded', _checkAdmin);
+  setInterval(_checkAdmin, 3000); // murah (cuma baca email); menangkap login/logout/ganti akun
+  _checkAdmin();
+
+  window.pbAdminLoadUsage = async function(){
+    var box = document.getElementById('pb-admin-usage-result');
+    var btn = document.getElementById('pb-admin-load-btn');
+    var csvBtn = document.getElementById('pb-admin-csv-btn');
+    if(!box) return;
+    if(btn) btn.disabled = true;
+    box.textContent = 'Memuat data semua user...';
+    try{
+      var snap = await firebase.firestore().collection('users').get({source:'server'});
+      _rows = [];
+      snap.forEach(function(d){
+        var x = d.data() || {};
+        var g = x.pb_usage_stats_v1 || {};
+        var f = x.pb_wordfix_stats_v1 || {};
+        var calls = _n(g.hit) + _n(g.miss) + _n(g.noCache);
+        _rows.push({
+          uid: d.id,
+          email: x.pb_email || '(tanpa email)',
+          tier: x.pb_tier || 'free',
+          calls: calls,
+          hit: _n(g.hit), miss: _n(g.miss), noCache: _n(g.noCache),
+          fixCalls: _n(f.calls),
+          usdGen: _usd(g),
+          usdFix: _usd(f),
+          cacheRead: _n(g.cacheReadInTok) + _n(f.cacheReadInTok),
+          cacheWrite: _n(g.cacheWriteInTok) + _n(f.cacheWriteInTok),
+          noCacheTok: _n(g.noCacheInTok) + _n(f.noCacheInTok),
+          outTok: _n(g.outTok) + _n(f.outTok)
+        });
+      });
+      _rows.forEach(function(r){ r.usdTotal = r.usdGen + r.usdFix; });
+      _rows.sort(function(a,b){ return b.usdTotal - a.usdTotal; });
+      _tot = _rows.reduce(function(t,r){
+        t.calls += r.calls; t.hit += r.hit; t.miss += r.miss; t.noCache += r.noCache;
+        t.fixCalls += r.fixCalls; t.usd += r.usdTotal;
+        if(r.calls + r.fixCalls > 0) t.active++;
+        return t;
+      }, {calls:0, hit:0, miss:0, noCache:0, fixCalls:0, usd:0, active:0});
+      _render(box);
+      if(csvBtn) csvBtn.style.display = _rows.length ? '' : 'none';
+    }catch(e){
+      var denied = e && (e.code === 'permission-denied' || /permission/i.test(e.message||''));
+      box.innerHTML = '<div style="color:#ff8a8a;">Gagal memuat: ' + _esc(denied
+        ? 'akses ditolak. Pastikan Firestore Rules sudah diperbarui dengan fungsi isAdmin() dan email admin sama persis.'
+        : (e && e.message || e)) + '</div>';
+    }
+    if(btn) btn.disabled = false;
+  };
+
+  function _card(label, val){
+    return '<div style="flex:1 1 140px;min-width:130px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;">'
+      + '<div style="font-size:11px;color:var(--muted);">' + label + '</div>'
+      + '<div style="font-size:17px;font-weight:700;margin-top:2px;">' + val + '</div></div>';
+  }
+  function _render(box){
+    var h = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+      + _card('User terdaftar', _rows.length)
+      + _card('User yang sudah generate', _tot.active)
+      + _card('Total biaya', _idr(_tot.usd) + '<div style="font-size:11px;font-weight:400;color:var(--muted);">$' + _tot.usd.toFixed(4) + ' · ' + _esc(_vbIdrRateLabel()) + '</div>')
+      + _card('Cache hit (semua user)', _pct(_tot.hit, _tot.calls) + '<div style="font-size:11px;font-weight:400;color:var(--muted);">' + _tot.hit + ' hit · ' + _tot.miss + ' miss · ' + _tot.noCache + ' tanpa cache</div>')
+      + _card('Panggilan generate', _tot.calls + '<div style="font-size:11px;font-weight:400;color:var(--muted);">+ ' + _tot.fixCalls + ' perbaikan kata</div>')
+      + '</div>';
+    h += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:12px;">'
+      + '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px;">'
+      + '<thead><tr style="text-align:left;color:var(--muted);">'
+      + '<th style="padding:8px 10px;">Email</th><th style="padding:8px 6px;">Paket</th>'
+      + '<th style="padding:8px 6px;text-align:right;">Generate</th><th style="padding:8px 6px;text-align:right;">Cache hit</th>'
+      + '<th style="padding:8px 10px;text-align:right;">Biaya</th></tr></thead><tbody>';
+    _rows.forEach(function(r){
+      h += '<tr style="border-top:1px solid var(--border);">'
+        + '<td style="padding:8px 10px;word-break:break-all;">' + _esc(r.email) + '</td>'
+        + '<td style="padding:8px 6px;">' + _esc(r.tier) + '</td>'
+        + '<td style="padding:8px 6px;text-align:right;">' + r.calls + (r.fixCalls ? ' <span style="color:var(--muted);">(+' + r.fixCalls + ')</span>' : '') + '</td>'
+        + '<td style="padding:8px 6px;text-align:right;">' + _pct(r.hit, r.calls) + '</td>'
+        + '<td style="padding:8px 10px;text-align:right;white-space:nowrap;">' + _idr(r.usdTotal) + '</td></tr>';
+    });
+    h += '</tbody></table></div>'
+      + '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak ikut terhitung.</p>';
+    box.innerHTML = h;
+  }
+
+  window.pbAdminExportCsv = function(){
+    if(!_rows.length) return;
+    function q(v){ return '"' + String(v==null?'':v).replace(/"/g,'""') + '"'; }
+    var lines = [['Email','UID','Paket','PanggilanGenerate','CacheHit','CacheMiss','TanpaCache','PanggilanFix','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaGenerateUSD','BiayaFixUSD','BiayaTotalUSD','BiayaTotalIDR'].join(',')];
+    _rows.forEach(function(r){
+      lines.push([q(r.email),q(r.uid),q(r.tier),r.calls,r.hit,r.miss,r.noCache,r.fixCalls,r.noCacheTok,r.cacheWrite,r.cacheRead,r.outTok,r.usdGen.toFixed(6),r.usdFix.toFixed(6),r.usdTotal.toFixed(6),Math.round(r.usdTotal*_vbCurrentIdrRate())].join(','));
+    });
+    var blob = new Blob(['\ufeff' + lines.join('\n')], {type:'text/csv;charset=utf-8'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'statistik-semua-user-' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  };
+})();
+</script>
 </body>
 </html>
