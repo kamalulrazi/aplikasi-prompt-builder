@@ -5942,6 +5942,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     <div style="display:flex;gap:8px;">
       <button type="button" class="chip pb-model-btn" data-model="sonnet" onclick="pbSetAiModel('sonnet')" style="flex:1;">Sonnet</button>
       <button type="button" class="chip pb-model-btn" data-model="haiku" onclick="pbSetAiModel('haiku')" style="flex:1;">Haiku</button>
+      <button type="button" class="chip pb-model-btn" data-model="groq" onclick="pbSetAiModel('groq')" style="flex:1;">Groq</button>
     </div>
   </div>
   <div class="rule"></div>
@@ -11726,8 +11727,44 @@ async function _pbGetFirebaseIdToken(){
 // PENTING: Worker proxy harus mengizinkan kedua ID model ini kalau ada whitelist.
 var PB_AI_MODELS={
   sonnet:{id:'claude-sonnet-5-5',label:'Sonnet',thinking:{type:'between_tools'},priceIn:2.0,priceOut:10.0},
-  haiku:{id:'claude-haiku-4-5-20251001',label:'Haiku',thinking:undefined,priceIn:1.0,priceOut:5.0}
+  haiku:{id:'claude-haiku-4-5-20251001',label:'Haiku',thinking:undefined,priceIn:1.0,priceOut:5.0},
+  // GROQ (permintaan user, 30 Sep 2026): model Llama 4 Scout di Groq — bisa baca
+  // foto (vision), tarif $0.11/juta input & $0.34/juta output, maks output 8192
+  // token. Lewat Worker proxy yang sama (header X-AI-Provider:groq), format
+  // request/response OpenAI-compatible (lihat _pbBuildGroqBody). GANTI 'id' di
+  // bawah kalau mau model Groq lain (mis. 'llama-3.3-70b-versatile' — tapi
+  // model itu TIDAK bisa baca foto, jadi fitur yang melampirkan foto akan gagal).
+  groq:{id:'meta-llama/llama-4-scout-17b-16e-instruct',label:'Groq',provider:'groq',thinking:undefined,priceIn:0.11,priceOut:0.34}
 };
+var PB_GROQ_MAX_OUT=8192;
+function _pbIsGroqModel(id){
+  for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===id)return PB_AI_MODELS[k].provider==='groq';}
+  return false;
+}
+// Ubah 'parts' gaya Gemini (text / inline_data) jadi messages format OpenAI/Groq.
+function _pbGroqMessages(parts,systemText){
+  var msgs=[];
+  if(systemText)msgs.push({role:'system',content:systemText});
+  var content=[],hasImg=false;
+  (parts||[]).forEach(function(p){
+    var d=p&&(p.inline_data||p.inlineData);
+    if(d){
+      hasImg=true;
+      var mime=d.mime_type||d.mimeType||'image/jpeg';
+      content.push({type:'image_url',image_url:{url:'data:'+mime+';base64,'+d.data}});
+    }else{
+      content.push({type:'text',text:(p&&p.text)||''});
+    }
+  });
+  if(!hasImg)content=content.map(function(c){return c.text;}).join('\n\n');
+  msgs.push({role:'user',content:content});
+  return msgs;
+}
+function _pbBuildGroqBody(model,parts,systemText,maxTokens,stream){
+  var b={model:model,max_completion_tokens:Math.min(PB_GROQ_MAX_OUT,maxTokens||2048),messages:_pbGroqMessages(parts,systemText)};
+  if(stream){b.stream=true;b.stream_options={include_usage:true};}
+  return b;
+}
 var PB_AI_MODEL_KEY='pb_ai_model_v1';
 var _pbAiModelKey='sonnet';
 try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
@@ -17191,6 +17228,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
   let blocked403Retries=0;
   for(let attempt=0;;attempt++){
     let isFirstAttempt=(attempt===0);
+    const _isGroq=_pbIsGroqModel(model);
     // CATATAN MIGRASI CLAUDE: dulu di sini ada logic paksa "reasoning_effort:
     // none" karena model Groq (qwen3) diam-diam mikir panjang (extended
     // reasoning) sebelum jawab, ikut makan jatah max_tokens sampai jawaban
@@ -17318,8 +17356,8 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       var _fbTok=await _pbGetFirebaseIdToken();
       resp=await fetch(url,{
         method:'POST',
-        headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
-        body:JSON.stringify(Object.assign(
+        headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':'groq'}:{}),
+        body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,promptParts,systemText,maxTokensWithThinking,true)):JSON.stringify(Object.assign(
           {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(cfg.maxOutputTokens),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
           // ditempel kalau cacheSystem true. System prompt generate pertama
@@ -17352,6 +17390,26 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
             if(!js)continue;
             try{
               let evt=JSON.parse(js);
+              if(_isGroq){
+                // Bentuk SSE Groq (OpenAI-compatible): choices[0].delta.content,
+                // finish_reason, dan usage di chunk terakhir.
+                if(evt.error){streamErrType=(evt.error.code==='rate_limit_exceeded')?'rate_limit_error':(evt.error.type||'error');streamErrMsg=evt.error.message||'';continue;}
+                let ch0=evt.choices&&evt.choices[0];
+                if(ch0){
+                  let gd=(ch0.delta&&ch0.delta.content)||'';
+                  if(gd){
+                    textBuf+=gd;
+                    if(typeof onPartial==='function'){
+                      let arr=_vbTryParsePartialJsonArray(textBuf);
+                      if(arr)try{onPartial(arr);}catch(e){}
+                    }
+                  }
+                  if(ch0.finish_reason)finishReason=ch0.finish_reason==='stop'?'end_turn':ch0.finish_reason;
+                }
+                let gu=evt.usage||(evt.x_groq&&evt.x_groq.usage);
+                if(gu){usageInfo.input_tokens=gu.prompt_tokens||0;usageInfo.output_tokens=gu.completion_tokens||0;}
+                continue;
+              }
               // Bentuk SSE Claude (Anthropic Messages API) beda dari
               // Gemini/Groq: bukan satu event "delta" datar, tapi rangkaian
               // event bertipe (message_start/content_block_start/
@@ -17791,15 +17849,23 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
   // sebagai nama variabel tapi sekarang sama dengan maxTokens biasa.
   const maxTokensWithThinking=maxTokens;
   async function callClaude(model){
+    const _isGroq=_pbIsGroqModel(model);
     let _fbTok=await _pbGetFirebaseIdToken();
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
-      headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
-      body:JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(maxTokens),messages:claudeMessages})
+      headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':'groq'}:{}),
+      body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,parts,'',maxTokensWithThinking,false)):JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(maxTokens),messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
       try{
         let g=JSON.parse(r.rawText);
+        if(_isGroq){
+          let c0=g.choices&&g.choices[0];
+          let gu=g.usage||{};
+          r.usage={input_tokens:gu.prompt_tokens||0,output_tokens:gu.completion_tokens||0,cache_creation_input_tokens:0,cache_read_input_tokens:0};
+          r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(c0&&c0.message&&c0.message.content)||''}]},finishReason:(c0&&c0.finish_reason==='length')?'length':((c0&&c0.finish_reason)||'')}]});
+          return r;
+        }
         // Bentuk balasan non-streaming Claude: {content:[{type:'text',text}],
         // stop_reason:'end_turn'|'max_tokens'|...} — beda dari Groq/OpenAI
         // yang punya choices[0].message.content. 'max_tokens' disamakan
