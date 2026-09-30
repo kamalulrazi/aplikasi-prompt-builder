@@ -4153,7 +4153,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v8.5</div>
+  <div class="splash-version" id="splash-version">v8.6</div>
 </div>
 <script>
   (function(){
@@ -6126,7 +6126,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.5 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.6 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11733,25 +11733,10 @@ var _pbAiModelKey='sonnet';
 try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
 function pbGetAiModelKey(){return _pbAiModelKey;}
 function _pbModelId(){return PB_AI_MODELS[_pbAiModelKey].id;}
-// THINKING KHUSUS HAIKU (permintaan user, 30 Sep 2026): Haiku 4.5 memakai
-// extended thinking {type:'enabled',budget_tokens:N}. Aturan API: N minimal
-// 1.024 dan max_tokens WAJIB > N, jadi budget DITAMBAHKAN di atas jatah
-// jawaban (jatah JSON tidak berkurang). Budget dikunci 1.024 token (lihat PB_HAIKU_THINKING_BUDGET). Token thinking ditagih sbg
-// output ($5/juta di Haiku). Sonnet TIDAK berubah (tetap between_tools).
-// Matikan cepat: ubah PB_HAIKU_THINKING_ON jadi false.
-var PB_HAIKU_THINKING_ON=true;
-// HEMAT (permintaan user, 30 Sep 2026): thinking cuma dipakai buat menghitung
-// kata skrip (rentang 22-26 kata), jadi budget dikunci di MINIMUM resmi
-// Anthropic (1.024 token) — tidak ikut membesar walau batch besar. Angka ini
-// batas atas; Haiku biasanya memakai lebih sedikit.
-var PB_HAIKU_THINKING_BUDGET=1024;
-function _pbThinkingBudget(answerMaxTokens){
-  if(!PB_HAIKU_THINKING_ON||_pbAiModelKey!=='haiku')return 0;
-  return PB_HAIKU_THINKING_BUDGET;
-}
+// THINKING HAIKU DIHAPUS (permintaan user, 30 Sep 2026): Haiku tidak lagi
+// mengirim parameter 'thinking' sama sekali (field-nya undefined sehingga
+// dibuang JSON.stringify). Sonnet TIDAK berubah (tetap between_tools).
 function _pbThinkingParam(answerMaxTokens){
-  var b=_pbThinkingBudget(answerMaxTokens);
-  if(b>0)return {type:'enabled',budget_tokens:b};
   return PB_AI_MODELS[_pbAiModelKey].thinking;
 }
 function pbRenderAiModelPicker(){
@@ -17257,8 +17242,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // body request) tapi sekarang cuma sama dengan cfg.maxOutputTokens biasa
     // (tanpa tambahan budget thinking), dan field thinking TIDAK dikirim lagi
     // di body fetch (lihat di bawah).
-    let thinkingBudget=_pbThinkingBudget(cfg.maxOutputTokens);
-    let maxTokensWithThinking=cfg.maxOutputTokens+thinkingBudget;
+    let maxTokensWithThinking=cfg.maxOutputTokens;
     const url=ANTHROPIC_ENDPOINT;
     let controller=new AbortController();
     let timedOut=false;
@@ -17805,8 +17789,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
   // THINKING DIMATIKAN (permintaan user, Sept 2026) — lihat catatan di
   // _vbStreamClaudeJSONWithRetryModel. maxTokensWithThinking dipertahankan
   // sebagai nama variabel tapi sekarang sama dengan maxTokens biasa.
-  const thinkingBudget=_pbThinkingBudget(maxTokens);
-  const maxTokensWithThinking=maxTokens+thinkingBudget;
+  const maxTokensWithThinking=maxTokens;
   async function callClaude(model){
     let _fbTok=await _pbGetFirebaseIdToken();
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
