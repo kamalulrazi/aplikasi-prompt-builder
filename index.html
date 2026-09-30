@@ -4153,7 +4153,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v8.3</div>
+  <div class="splash-version" id="splash-version">v8.5</div>
 </div>
 <script>
   (function(){
@@ -6084,7 +6084,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Step produk</strong> otomatis muncul jika kamu tidak pilih foto produk<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Nama produk spesifik</strong> = hasil AI lebih akurat dan konsisten<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Compact JSON</strong> kadang lebih baik jika foto referensi banyak<br>
-      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Tab Video</strong> — script AI otomatis dibatasi 25-27 kata, tapi tetap bisa diedit manual di kartu hasil
+      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Tab Video</strong> — script AI otomatis dibatasi 22-26 kata, tapi tetap bisa diedit manual di kartu hasil
     </p>
   </div>
 
@@ -6117,7 +6117,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.3 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.5 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -14566,7 +14566,10 @@ document.addEventListener('click',function(e){
 // _vbFixWordCountIfNeeded/_vbHardEnforceMaxWords bisa mengoreksi hasil AI
 // ke rentang yang BEDA dari yang diminta prompt-nya sendiri — jadi dua
 // angka ini WAJIB selalu diubah BERSAMAAN.
-const VB_FIXED_WORD_RANGE={min:24,max:30,target:27};
+// 30 Sep 2026 (permintaan user, hemat output token): rentang 24-30 (target 27) -> 22-28 (target 26) -> 22-26 (target 24).
+// Prompt (_vbBuildSingleModeSystemPrompt), penghitung kata UI, pemotong batas atas & sanitizer semua
+// membaca konstanta ini, jadi cukup diubah di sini.
+const VB_FIXED_WORD_RANGE={min:22,max:26,target:24};
 function vbGetWordRange(){
   return VB_FIXED_WORD_RANGE;
 }
@@ -17180,7 +17183,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // FIX BIAYA (audit lanjutan, Sept 2026 — "thinking bikin biaya per
     // panggilan naik sampai 50%"): rasio semula 1/2 dari cfg.maxOutputTokens
     // kebesaran untuk tugas ini — tugas AI di sini cuma menghitung kata di
-    // 3 bagian pendek (24-30 kata/bagian), bukan reasoning kompleks yang
+    // 3 bagian pendek (22-26 kata/bagian), bukan reasoning kompleks yang
     // butuh ribuan token mikir. Diturunkan ke 1/4 (tetap dijamin minimum
     // 1.024 sesuai syarat Anthropic) supaya worst-case token yang ditagih
     // (dan worst-case durasi, lihat timeoutMs di bawah) tidak naik sebesar
@@ -18100,7 +18103,7 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // atas seperti draf sebelumnya — user klarifikasi ulang: minimal 24,
   // maksimal 30, berlaku SAMA untuk KETIGA bagian HOOK/STORY/CTA). Ini
   // WAJIB disamakan dengan VB_FIXED_WORD_RANGE (lihat vbGetWordRange(),
-  // sekarang {min:24,max:30,target:27}) yang dipakai _vbFixWordCountIfNeeded/
+  // sekarang {min:22,max:26,target:24}) yang dipakai _vbFixWordCountIfNeeded/
   // _vbHardEnforceMaxWords buat validasi & potong paksa hasil generate —
   // kalau prompt di sini tidak kasih batas atas, AI sering kelebihan kata
   // lalu kena potong paksa/panggilan perbaikan tambahan berbayar. Parameter
@@ -18109,7 +18112,7 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // tidak perlu diubah).
   // DIPERSINGKAT LAGI (permintaan user, Sept 2026): versi ringkas ~separuh
   // panjang sebelumnya. Yang SENGAJA dipertahankan: 3 bagian + peran, rentang
-  // 24-30 kata (sinkron VB_FIXED_WORD_RANGE), larangan bahan/promo/urgensi,
+  // 22-26 kata (sinkron VB_FIXED_WORD_RANGE), larangan bahan/promo/urgensi,
   // aturan "keranjang bawah", bahasa Indonesia tanpa emoji/kutip, "proses hitung
   // jangan ikut tertulis", dan format JSON (nama kolom WAJIB sama dgn parser
   // _vbCallBulkBatch). Versi panjang sebelumnya: lihat prompt-ke-claude-v2.md.
@@ -18120,26 +18123,27 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // target audience, daftar produk, catatan revisi) DISATUKAN ke system di
   // _vbCallBulkBatch (blok "=== DATA ==="), pesan user cuma pemicu pendek + foto.
   // DIPADATKAN LAGI (30 Sep 2026): instruksi tetap ditulis Inggris (lebih hemat token dari Indonesia),
-  // OUTPUT tetap Bahasa Indonesia. Field "produk" DIHAPUS dari format balasan (hemat output token; nama
-  // produk diisi ulang dari input user di _vbCallBulkBatch lewat arr[bi].produk=batch[bi].nama).
+  // OUTPUT tetap Bahasa Indonesia. Field "produk" HANYA diminta kalau count>1 (jaring pengaman kalau AI
+  // men-drop produk: nama dipakai pencocokan foto/Lanjutkan); untuk 1 produk dihapus (hemat output token,
+  // nama diisi ulang dari input user di _vbCallBulkBatch lewat arr[bi].produk=batch[bi].nama).
   // Kunci JSON hook/story/cta WAJIB sama dgn parser.
   return 'You are a professional content creator. Write EXACTLY 3 parts that flow into ONE continuous monologue:\n'
     +'- HOOK: strong opener (funny question, surprising fact, everyday problem, or short story), not a template.\n'
     +'- STORY: a scenario of the audience using the product to solve an everyday problem, not a personal experience.\n'
     +'- CTA: tell viewers to tap the keranjang bawah only (never keranjang kuning or checkout), no urgency or limited-stock claims.\n'
     +'RULES: write in Indonesian, no emoji, no quotation marks, end sentences with a period. Each part must be '+range.min+'-'+range.max+' Indonesian words (target '+(range.target||Math.round((range.min+range.max)/2))+'; CTA is often too short). NEVER mention product material or texture (bahan/material/tekstur) unless it is in the stated advantages, and NEVER mention promo/diskon/limited. Rewrite product names naturally.\n'
-    +'Reply ONLY with a JSON array of EXACTLY '+count+' object(s), one per product in list order, no other text or markdown: [{"hook":"...","story":"...","cta":"..."}]';
+    +'Reply ONLY with a JSON array of EXACTLY '+count+' object(s), one per product in list order, no other text or markdown: [{'+(count>1?'"produk":"...",':'')+'"hook":"...","story":"...","cta":"..."}]';
 }
 // ── PERBAIKAN SKRIP KEPENDEKAN — 1 PANGGILAN SAJA (permintaan user, 29 Sep 2026)
 // Setelah generate bulk selesai, semua bagian (hook/story/cta) yang jumlah
-// katanya di bawah range.min (24) dikumpulkan dari SEMUA produk di batch,
+// katanya di bawah range.min (22) dikumpulkan dari SEMUA produk di batch,
 // lalu dikirim ke Claude dalam SATU panggilan untuk diperpanjang. Tidak ada
 // pengulangan: kalau hasilnya masih kependekan, dibiarkan (kartu sudah
 // menandainya oranye lewat _wasStillShort & bisa diedit manual). Batas atas
 // tetap dijaga _vbHardEnforceMaxWords di pemanggil. Kalau panggilan ini
 // gagal/error apa pun, teks asli dipakai apa adanya (tidak melempar error).
 const VB_SHORTFIX_SYSTEM=
-  'Kamu kreator profesional. Tambahkan beberapa kata dalam skrip sampai total 24-30 kata. Jangan menyebut bahan atau material produk.\n\n'
+  'Kamu kreator profesional. Tambahkan beberapa kata dalam skrip sampai total 22-26 kata. Jangan menyebut bahan atau material produk.\n\n'
  +'Balas HANYA JSON array, "id" disalin persis:\n'
  +'[{"id":"...","teks":"kalimat tambahan"}]';
 function _vbSalvageIdTeks(text){
@@ -18153,7 +18157,7 @@ function _vbSalvageIdTeks(text){
 }
 // Pembungkus: sanitasi -> 1 panggilan perbaikan -> potong batas atas. Tidak pernah melempar error.
 // SAKELAR (permintaan user, 30 Sep 2026): false = TIDAK ADA lagi panggilan AI
-// otomatis untuk menambah kata saat skrip kurang dari 24 kata. Skrip yang
+// otomatis untuk menambah kata saat skrip kurang dari 22 kata. Skrip yang
 // kependekan dibiarkan apa adanya (bisa diedit manual & ditandai di UI).
 // Sanitizer frasa terlarang + potong batas atas (lokal, tanpa API) TETAP jalan.
 // Set true kalau suatu saat mau menyalakan lagi.
