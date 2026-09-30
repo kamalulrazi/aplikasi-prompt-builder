@@ -36,6 +36,16 @@
   .empty{color:var(--muted2);font-size:13px;text-align:center;padding:24px 0;}
   .hidden{display:none!important;}
   #login-screen{text-align:center;padding:60px 20px;}
+  .stat-grid{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;}
+  .stat-card{flex:1 1 140px;min-width:130px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);}
+  .stat-card .k{font-size:11px;color:var(--muted);}
+  .stat-card .v{font-size:17px;font-weight:700;margin-top:2px;}
+  .stat-card .s{font-size:11px;color:var(--muted);margin-top:2px;}
+  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:12px;}
+  table.st{width:100%;border-collapse:collapse;font-size:12px;min-width:560px;}
+  table.st th{text-align:left;color:var(--muted);padding:8px 8px;font-weight:600;}
+  table.st td{padding:8px 8px;border-top:1px solid var(--border);}
+  table.st .r{text-align:right;white-space:nowrap;}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:92vw;text-align:center;background:var(--surface2);border:1px solid var(--border-hi);padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
   .toast.show{opacity:1;}
 </style>
@@ -86,6 +96,16 @@
       <div style="margin-top:14px;">
         <button class="btn btn-small" onclick="manualSetTier()">Terapkan</button>
       </div>
+    </div>
+
+    <div class="card" style="margin-top:24px;">
+      <div style="font-weight:700;margin-bottom:2px;">Statistik Biaya &amp; Cache Semua User</div>
+      <div class="sub" style="margin-bottom:0;">Gabungan biaya AI dan cache hit dari semua akun yang pernah login dan generate.</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-small" id="usage-load-btn" onclick="loadUsageAll()">📊 Muat Statistik</button>
+        <button class="btn btn-outline btn-small hidden" id="usage-csv-btn" onclick="exportUsageCsv()">Unduh CSV</button>
+      </div>
+      <div id="usage-result"></div>
     </div>
   </div>
 
@@ -278,6 +298,94 @@ async function manualSetTier(){
     }
     showToast('Berhasil ('+snap.docs.length+' dokumen): '+email+' → '+tier+(tier!=='free' ? (' sampai '+fmtDate(expiry)) : '')+'. Di app: buka ulang / tombol Muat ulang paket.');
   }catch(e){ showToast('Gagal: '+errMsg(e)); }
+}
+
+// ── STATISTIK BIAYA & CACHE SEMUA USER ───────────────────────────────────
+// Membaca field pb_usage_stats_v1 (generate) & pb_wordfix_stats_v1 (perbaikan
+// jumlah kata) di dokumen users/{uid}. Tarif & rumus SAMA dengan index.html
+// (_vbCalcUsd, Claude Haiku 4.5). Kalau tarif di index.html berubah, ubah juga di sini.
+var PRICE_IN=1.0, PRICE_OUT=5.0, CACHE_WRITE_MULT=1.25, CACHE_READ_MULT=0.1;
+var IDR_RATE=16400, IDR_LIVE=false;
+fetch('https://open.er-api.com/v6/latest/USD').then(function(r){return r.json();}).then(function(d){
+  var x=d&&d.rates&&d.rates.IDR; if(x>1000&&x<100000){ IDR_RATE=x; IDR_LIVE=true; }
+}).catch(function(){});
+
+var _usageRows=[];
+function _n(v){ return Number(v)||0; }
+function _esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function calcUsd(st){
+  st=st||{};
+  return (_n(st.noCacheInTok)/1e6*PRICE_IN)
+    +(_n(st.cacheWriteInTok)/1e6*PRICE_IN*CACHE_WRITE_MULT)
+    +(_n(st.cacheReadInTok)/1e6*PRICE_IN*CACHE_READ_MULT)
+    +(_n(st.outTok)/1e6*PRICE_OUT);
+}
+function idr(usd){ return 'Rp'+Math.round(usd*IDR_RATE).toLocaleString('id-ID'); }
+function pct(a,b){ return b>0 ? (a/b*100).toFixed(1)+'%' : '-'; }
+
+async function loadUsageAll(){
+  var box=document.getElementById('usage-result');
+  var btn=document.getElementById('usage-load-btn');
+  var csv=document.getElementById('usage-csv-btn');
+  btn.disabled=true; box.innerHTML='<div class="empty">Memuat...</div>';
+  try{
+    var snap=await db.collection('users').get({source:'server'});
+    _usageRows=[];
+    snap.forEach(function(doc){
+      var x=doc.data()||{}, g=x.pb_usage_stats_v1||{}, f=x.pb_wordfix_stats_v1||{};
+      var r={
+        uid:doc.id, email:x.pb_email||'(tanpa email)', tier:x.pb_tier||'free',
+        calls:_n(g.hit)+_n(g.miss)+_n(g.noCache),
+        hit:_n(g.hit), miss:_n(g.miss), noCache:_n(g.noCache), fixCalls:_n(f.calls),
+        usdGen:calcUsd(g), usdFix:calcUsd(f),
+        noCacheTok:_n(g.noCacheInTok)+_n(f.noCacheInTok),
+        cacheWrite:_n(g.cacheWriteInTok)+_n(f.cacheWriteInTok),
+        cacheRead:_n(g.cacheReadInTok)+_n(f.cacheReadInTok),
+        outTok:_n(g.outTok)+_n(f.outTok)
+      };
+      r.usd=r.usdGen+r.usdFix;
+      _usageRows.push(r);
+    });
+    _usageRows.sort(function(a,b){return b.usd-a.usd;});
+    var t={calls:0,hit:0,miss:0,noCache:0,fix:0,usd:0,active:0};
+    _usageRows.forEach(function(r){
+      t.calls+=r.calls; t.hit+=r.hit; t.miss+=r.miss; t.noCache+=r.noCache; t.fix+=r.fixCalls; t.usd+=r.usd;
+      if(r.calls+r.fixCalls>0) t.active++;
+    });
+    var h='<div class="stat-grid">'
+      +'<div class="stat-card"><div class="k">User terdaftar</div><div class="v">'+_usageRows.length+'</div></div>'
+      +'<div class="stat-card"><div class="k">Sudah generate</div><div class="v">'+t.active+'</div></div>'
+      +'<div class="stat-card"><div class="k">Total biaya</div><div class="v">'+idr(t.usd)+'</div><div class="s">$'+t.usd.toFixed(4)+' · '+(IDR_LIVE?'kurs real-time':'kurs perkiraan')+'</div></div>'
+      +'<div class="stat-card"><div class="k">Cache hit</div><div class="v">'+pct(t.hit,t.calls)+'</div><div class="s">'+t.hit+' hit · '+t.miss+' miss · '+t.noCache+' tanpa cache</div></div>'
+      +'<div class="stat-card"><div class="k">Panggilan generate</div><div class="v">'+t.calls+'</div><div class="s">+ '+t.fix+' perbaikan kata</div></div>'
+      +'</div>'
+      +'<div class="tbl-wrap"><table class="st"><thead><tr><th>Email</th><th>Paket</th><th class="r">Generate</th><th class="r">Cache hit</th><th class="r">Biaya</th></tr></thead><tbody>';
+    _usageRows.forEach(function(r){
+      h+='<tr><td style="word-break:break-all;">'+_esc(r.email)+'</td><td>'+_esc(r.tier)+'</td>'
+        +'<td class="r">'+r.calls+(r.fixCalls?' <span style="color:var(--muted);">(+'+r.fixCalls+')</span>':'')+'</td>'
+        +'<td class="r">'+pct(r.hit,r.calls)+'</td><td class="r">'+idr(r.usd)+'</td></tr>';
+    });
+    h+='</tbody></table></div><div class="sub" style="margin:8px 0 0;font-size:11px;">Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak terhitung.</div>';
+    box.innerHTML=h;
+    csv.classList.toggle('hidden', !_usageRows.length);
+  }catch(e){
+    box.innerHTML='<div class="empty" style="color:var(--red);">Gagal muat: '+_esc(errMsg(e))+'</div>';
+  }
+  btn.disabled=false;
+}
+function exportUsageCsv(){
+  if(!_usageRows.length) return;
+  function q(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
+  var lines=[['Email','UID','Paket','PanggilanGenerate','CacheHit','CacheMiss','TanpaCache','PanggilanFix','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaGenerateUSD','BiayaFixUSD','BiayaTotalUSD','BiayaTotalIDR'].join(',')];
+  _usageRows.forEach(function(r){
+    lines.push([q(r.email),q(r.uid),q(r.tier),r.calls,r.hit,r.miss,r.noCache,r.fixCalls,r.noCacheTok,r.cacheWrite,r.cacheRead,r.outTok,r.usdGen.toFixed(6),r.usdFix.toFixed(6),r.usd.toFixed(6),Math.round(r.usd*IDR_RATE)].join(','));
+  });
+  var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var el=document.createElement('a');
+  el.href=URL.createObjectURL(blob);
+  el.download='statistik-semua-user-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(el); el.click();
+  setTimeout(function(){ URL.revokeObjectURL(el.href); el.remove(); },500);
 }
 </script>
 </body>
