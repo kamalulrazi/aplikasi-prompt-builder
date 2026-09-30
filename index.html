@@ -11733,7 +11733,27 @@ var _pbAiModelKey='sonnet';
 try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
 function pbGetAiModelKey(){return _pbAiModelKey;}
 function _pbModelId(){return PB_AI_MODELS[_pbAiModelKey].id;}
-function _pbThinkingParam(){return PB_AI_MODELS[_pbAiModelKey].thinking;}
+// THINKING KHUSUS HAIKU (permintaan user, 30 Sep 2026): Haiku 4.5 memakai
+// extended thinking {type:'enabled',budget_tokens:N}. Aturan API: N minimal
+// 1.024 dan max_tokens WAJIB > N, jadi budget DITAMBAHKAN di atas jatah
+// jawaban (jatah JSON tidak berkurang). Budget dikunci 1.024 token (lihat PB_HAIKU_THINKING_BUDGET). Token thinking ditagih sbg
+// output ($5/juta di Haiku). Sonnet TIDAK berubah (tetap between_tools).
+// Matikan cepat: ubah PB_HAIKU_THINKING_ON jadi false.
+var PB_HAIKU_THINKING_ON=true;
+// HEMAT (permintaan user, 30 Sep 2026): thinking cuma dipakai buat menghitung
+// kata skrip (rentang 22-26 kata), jadi budget dikunci di MINIMUM resmi
+// Anthropic (1.024 token) — tidak ikut membesar walau batch besar. Angka ini
+// batas atas; Haiku biasanya memakai lebih sedikit.
+var PB_HAIKU_THINKING_BUDGET=1024;
+function _pbThinkingBudget(answerMaxTokens){
+  if(!PB_HAIKU_THINKING_ON||_pbAiModelKey!=='haiku')return 0;
+  return PB_HAIKU_THINKING_BUDGET;
+}
+function _pbThinkingParam(answerMaxTokens){
+  var b=_pbThinkingBudget(answerMaxTokens);
+  if(b>0)return {type:'enabled',budget_tokens:b};
+  return PB_AI_MODELS[_pbAiModelKey].thinking;
+}
 function pbRenderAiModelPicker(){
   try{
     document.querySelectorAll('#pb-model-picker .pb-model-btn').forEach(function(b){
@@ -17237,8 +17257,8 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // body request) tapi sekarang cuma sama dengan cfg.maxOutputTokens biasa
     // (tanpa tambahan budget thinking), dan field thinking TIDAK dikirim lagi
     // di body fetch (lihat di bawah).
-    let thinkingBudget=0;
-    let maxTokensWithThinking=cfg.maxOutputTokens;
+    let thinkingBudget=_pbThinkingBudget(cfg.maxOutputTokens);
+    let maxTokensWithThinking=cfg.maxOutputTokens+thinkingBudget;
     const url=ANTHROPIC_ENDPOINT;
     let controller=new AbortController();
     let timedOut=false;
@@ -17316,7 +17336,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         method:'POST',
         headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
         body:JSON.stringify(Object.assign(
-          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
+          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(cfg.maxOutputTokens),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
           // ditempel kalau cacheSystem true. System prompt generate pertama
           // mode single (_vbScript3SystemPrompt) TIDAK PERNAH tembus syarat
@@ -17785,14 +17805,14 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
   // THINKING DIMATIKAN (permintaan user, Sept 2026) — lihat catatan di
   // _vbStreamClaudeJSONWithRetryModel. maxTokensWithThinking dipertahankan
   // sebagai nama variabel tapi sekarang sama dengan maxTokens biasa.
-  const thinkingBudget=0;
-  const maxTokensWithThinking=maxTokens;
+  const thinkingBudget=_pbThinkingBudget(maxTokens);
+  const maxTokensWithThinking=maxTokens+thinkingBudget;
   async function callClaude(model){
     let _fbTok=await _pbGetFirebaseIdToken();
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
       headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
-      body:JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(),messages:claudeMessages})
+      body:JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(maxTokens),messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
       try{
