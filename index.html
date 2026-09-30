@@ -4153,7 +4153,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v8.2</div>
+  <div class="splash-version" id="splash-version">v8.3</div>
 </div>
 <script>
   (function(){
@@ -6117,7 +6117,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.2 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.3 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -14628,7 +14628,8 @@ function _vbCompressImageFile(file){
         // untuk kenali jenis/warna/motif produk, tapi jauh lebih hemat
         // token per foto — mengurangi risiko 1 request nembus limit
         // token/menit Groq waktu ada foto ikut dilampirkan.
-        let MAX=512;
+        // HEMAT TOKEN (30 Sep 2026): 512 -> 384 -> 320px (~137 token/foto maks). Foto hanya untuk mengenali jenis produk.
+        let MAX=320;
         let w=img.width,h=img.height;
         if(w>MAX||h>MAX){
           if(w>h){h=Math.round(h*(MAX/w));w=MAX;}
@@ -16481,14 +16482,14 @@ function _vbStartUsageSession(label,total){
   _vbCurrentSessionTotal=total||1;
 }
 // Estimasi token per foto referensi (dikirim ke AI dalam resolusi maks
-// 512px, lihat _vbCompressImageFile) — dipakai HANYA untuk pecah kasar
+// 320px, lihat _vbCompressImageFile) — dipakai HANYA untuk pecah kasar
 // "biaya foto" dari total biaya 1 panggilan di panel statistik, BUKAN
 // angka yang benar-benar ditagih terpisah oleh Anthropic (mereka gabung
 // jadi satu angka input_tokens/cache token, tidak dipisah per-bagian).
 // 512x512 penuh ≈ (512*512)/750 ≈ 349 token; rata-rata produk foto HP asli
 // (rasio bukan persegi) biasanya sedikit di bawah itu, jadi dipakai 300
 // sebagai estimasi tengah yang wajar.
-var VB_EST_TOKEN_PER_FOTO=300;
+var VB_EST_TOKEN_PER_FOTO=120; // 320px (sebelumnya 512px ~300); 320x320/750 = 137 maks, rata-rata foto non-persegi lebih kecil
 function _vbLoadUsageLog(){
   try{
     var l=JSON.parse(localStorage.getItem(PB_USAGE_LOG_KEY)||'null');
@@ -18118,15 +18119,16 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // Data yang berubah tiap generate (karakter, sapaan, nada, motion, aksen,
   // target audience, daftar produk, catatan revisi) DISATUKAN ke system di
   // _vbCallBulkBatch (blok "=== DATA ==="), pesan user cuma pemicu pendek + foto.
-  // DIPADATKAN LAGI (30 Sep 2026, target input ~separuh): isi aturan sama, kata-kata dipangkas.
-  // Yang tetap: 3 bagian, 24-30 kata (ikut range), larangan bahan/promo/urgensi, "keranjang bawah",
-  // Bahasa Indonesia tanpa emoji/kutip, dan format JSON (nama kolom WAJIB sama dgn parser).
-  return 'Kamu kreator profesional. Tulis TEPAT 3 bagian yang nyambung jadi SATU monolog utuh:\n'
-    +'- HOOK: pembuka kuat (pertanyaan kocak, fakta mengejutkan, masalah sehari-hari, atau cerita singkat), bukan template.\n'
-    +'- STORY: skenario audiens memakai produk untuk menyelesaikan masalah sehari-hari, bukan pengalaman pribadi.\n'
-    +'- CTA: ajak klik keranjang bawah saja (bukan keranjang kuning/checkout), tanpa urgensi atau stok terbatas.\n'
-    +'ATURAN: tiap bagian '+range.min+'-'+range.max+' kata (target '+(range.target||Math.round((range.min+range.max)/2))+', CTA sering kependekan). Bahasa Indonesia, tanpa emoji dan tanda kutip, akhiri titik. DILARANG menyebut bahan/material/tekstur (kecuali ada di keunggulan) dan promo/diskon/limited. Nama produk ditulis ulang natural.\n'
-    +'Balas HANYA JSON array berisi TEPAT '+count+' object, satu per produk sesuai urutan daftar, tanpa teks lain/markdown: [{"produk":"...","hook":"...","story":"...","cta":"..."}]';
+  // DIPADATKAN LAGI (30 Sep 2026): instruksi tetap ditulis Inggris (lebih hemat token dari Indonesia),
+  // OUTPUT tetap Bahasa Indonesia. Field "produk" DIHAPUS dari format balasan (hemat output token; nama
+  // produk diisi ulang dari input user di _vbCallBulkBatch lewat arr[bi].produk=batch[bi].nama).
+  // Kunci JSON hook/story/cta WAJIB sama dgn parser.
+  return 'You are a professional content creator. Write EXACTLY 3 parts that flow into ONE continuous monologue:\n'
+    +'- HOOK: strong opener (funny question, surprising fact, everyday problem, or short story), not a template.\n'
+    +'- STORY: a scenario of the audience using the product to solve an everyday problem, not a personal experience.\n'
+    +'- CTA: tell viewers to tap the keranjang bawah only (never keranjang kuning or checkout), no urgency or limited-stock claims.\n'
+    +'RULES: write in Indonesian, no emoji, no quotation marks, end sentences with a period. Each part must be '+range.min+'-'+range.max+' Indonesian words (target '+(range.target||Math.round((range.min+range.max)/2))+'; CTA is often too short). NEVER mention product material or texture (bahan/material/tekstur) unless it is in the stated advantages, and NEVER mention promo/diskon/limited. Rewrite product names naturally.\n'
+    +'Reply ONLY with a JSON array of EXACTLY '+count+' object(s), one per product in list order, no other text or markdown: [{"hook":"...","story":"...","cta":"..."}]';
 }
 // ── PERBAIKAN SKRIP KEPENDEKAN — 1 PANGGILAN SAJA (permintaan user, 29 Sep 2026)
 // Setelah generate bulk selesai, semua bagian (hook/story/cta) yang jumlah
@@ -18290,16 +18292,16 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // mana punya produk yang mana waktu beberapa gambar dikirim sekaligus.
   let _imgCounter=0;
   let produkListText=batch.map((p,i)=>{
-    let line=(i+1)+'. '+p.nama+(p.keunggulan?' — keunggulan: '+p.keunggulan:'')+(p.topik?' — fokus utama STORY (boleh disinggung di HOOK): '+p.topik:'');
+    let line=(i+1)+'. '+p.nama+(p.keunggulan?' — advantages: '+p.keunggulan:'')+(p.topik?' — main STORY focus (may touch HOOK): '+p.topik:'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
     // form Bulk. HANYA gaya Hook yang dikirim ke AI — kolom "Isi" (teks
     // overlay) sengaja TIDAK disertakan di sini, itu cuma ditempel di akhir
     // prompt video (lihat _vbOverlaySentence).
     let _hookDir=_vbHookDirectiveInline(p.hookType,p.hookCustom);
-    if(_hookDir)line+=' — gaya HOOK produk ini saja: '+_hookDir;
+    if(_hookDir)line+=' — HOOK style for this product only: '+_hookDir;
     if(p.fotoBase64){
       _imgCounter++;
-      line+=' [Gambar '+_imgCounter+': hanya untuk mengenali jenis produk, jangan dideskripsikan]';
+      line+=' [Image '+_imgCounter+', attached in order: only to identify product type, do not describe]';
     }
     return line;
   }).join('\n');
@@ -18316,21 +18318,20 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // catatan revisi/hook yang sudah dipakai) — dikirim sebagai pesan user.
   let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
   let _motionVal=(typeof VB.motion==='string'?VB.motion.replace(/[\r\n"]+/g,' ').trim():'');
-  // DIPADATKAN (30 Sep 2026): buang baris yang dobel dgn system prompt (rentang kata, "TEPAT N object",
-  // catatan foto) & perpendek kalimat. Isi data yang dikirim ke AI tetap sama.
-  let prompt='Karakter: '+VB.genderLabel+', usia '+(VB.age||VB.ageLabel)+' (sesuaikan gaya bicara).\n'
-    +(_sapaanVal?'Sapaan: '+_sapaanVal+' (dipakai konsisten di HOOK/STORY/CTA, natural).\n':'')
-    +'Nada: '+(VB.pitchLabel||VB.pitch)+'\n'
-    +(_motionVal?'Gerakan: '+_motionVal+'\n':'')
-    +'Aksen: '+(VB.accentLabel||VB.accent)+'\n'
+  // DIPADATKAN (30 Sep 2026): label ditulis Inggris (lebih hemat token); isi data user tetap apa adanya.
+  let prompt='Character: '+VB.genderLabel+', age '+(VB.age||VB.ageLabel)+' (adapt speaking style).\n'
+    +(_sapaanVal?'Greeting: '+_sapaanVal+' (use consistently in HOOK/STORY/CTA, naturally).\n':'')
+    +'Tone: '+(VB.pitchLabel||VB.pitch)+'\n'
+    +(_motionVal?'Movement: '+_motionVal+'\n':'')
+    +'Accent: '+(VB.accentLabel||VB.accent)+'\n'
     +'Target audience: '+targetAudience+'\n\n'
-    +'Produk ('+batch.length+'):\n'+produkListText+'\n'
-    +(extraNote?'\nCATATAN REVISI (prioritas tertinggi, menang atas aturan lain yang bentrok): '+extraNote+'\n':'')
-    +(usedHooks&&usedHooks.length?'\nHOOK sudah dipakai di produk lain (hindari kalimat, pola, dan pembuka yang sama/mirip; pakai sudut masuk BEDA):\n'+usedHooks.map(function(h){return'- '+h;}).join('\n')+'\n':'');
+    +'Products ('+batch.length+'):\n'+produkListText+'\n'
+    +(extraNote?'\nREVISION NOTE (top priority, overrides any conflicting rule): '+extraNote+'\n':'')
+    +(usedHooks&&usedHooks.length?'\nHOOKs already used in other products (avoid the same or similar sentences, patterns, and openers; use a DIFFERENT angle):\n'+usedHooks.map(function(h){return'- '+h;}).join('\n')+'\n':'');
 
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
   // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
-  let _promptParts=[{text:'Tulis skripnya.'}];
+  let _promptParts=[{text:'Write the scripts.'}];
   batch.forEach(function(p){
     if(p.fotoBase64)_promptParts.push({inline_data:{mime_type:p.fotoMime||'image/jpeg',data:p.fotoBase64}});
   });
