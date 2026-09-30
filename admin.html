@@ -220,18 +220,18 @@ async function loadPending(){
       card.innerHTML =
         '<div class="row">'+
           '<div>'+
-            '<div class="req-email">'+(d.pb_email||req.email||'(email tidak ada)')+'</div>'+
-            '<div class="req-meta">Minta <span class="pill '+(req.tier||'')+'">'+(req.tier||'-')+'</span> · Rp'+(Number(req.price||0)).toLocaleString('id-ID')+' · '+fmtDate(req.requestedAt)+'</div>'+
+            '<div class="req-email">'+_esc(d.pb_email||req.email||'(email tidak ada)')+'</div>'+
+            '<div class="req-meta">Minta <span class="pill '+(safeTier(req.tier)||'')+'">'+_esc(req.tier||'-')+'</span> · Rp'+(Number(req.price||0)).toLocaleString('id-ID')+' · '+fmtDate(req.requestedAt)+'</div>'+
           '</div>'+
         '</div>'+
         '<div class="row" style="margin-top:12px;">'+
-          '<button class="btn btn-small" onclick="approveRequest(\''+doc.id+'\',\''+(req.tier||'standar')+'\')">✓ Setujui</button>'+
-          '<button class="btn btn-reject btn-small" onclick="rejectRequest(\''+doc.id+'\')">✕ Tolak</button>'+
+          '<button class="btn btn-small" data-uid="'+_esc(doc.id)+'" data-tier="'+_esc(safeTier(req.tier)||'standar')+'" onclick="approveRequest(this.dataset.uid,this.dataset.tier)">✓ Setujui</button>'+
+          '<button class="btn btn-reject btn-small" data-uid="'+_esc(doc.id)+'" onclick="rejectRequest(this.dataset.uid)">✕ Tolak</button>'+
         '</div>';
       list.appendChild(card);
     });
   }catch(e){
-    list.innerHTML='<div class="empty" style="color:var(--red);">Gagal muat: '+(e.message||e)+'<br><br>Kemungkinan Firestore Security Rules belum diupdate — lihat komentar di bagian atas script halaman ini.</div>';
+    list.innerHTML='<div class="empty" style="color:var(--red);">Gagal muat: '+_esc(e.message||e)+'<br><br>Kemungkinan Firestore Security Rules belum diupdate — lihat komentar di bagian atas script halaman ini.</div>';
   }
 }
 
@@ -247,13 +247,16 @@ async function verifyTier(ref, tier){
   if(d.pb_tier!==tier) throw new Error('Tulis terlihat sukses tapi pb_tier di server = '+(d.pb_tier||'(kosong)'));
   return d;
 }
+function safeTier(t){ return (t==='standar'||t==='premium') ? t : ''; }
 async function approveRequest(uid, tier){
   try{
+    tier = safeTier(tier);
+    if(!tier){ showToast('Tier di permintaan tidak valid. Tolak permintaan ini.'); return; }
     var ref=db.collection('users').doc(uid);
     var cur=await ref.get();
     var d=cur.data()||{};
     var req=d.pb_upgrade_request||{};
-    var days=Number(req.days)||30;
+    var days=Math.min(Math.max(Number(req.days)||30,1),365); // batas 1-365 hari; nilai dari client tidak dipercaya
     var old=Number(d.pb_tier_expiry)||0;
     var expiry=Math.max(Date.now(), old)+days*86400000; // perpanjang tidak memotong sisa hari
     await ref.set({
