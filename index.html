@@ -5935,6 +5935,15 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   <div class="sec-title">Cara Pakai</div>
   <p class="sec-desc">Baca sekali, pakai berkali-kali.</p>
   <button id="pb-tour-replay-btn" onclick="pbReplayTour()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Lihat Tur Panduan Lagi</button>
+  <!-- PILIHAN MODEL AI (permintaan user): Sonnet / Haiku — lihat PB_AI_MODELS -->
+  <div id="pb-model-picker" style="margin-top:18px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:14px;">
+    <div style="font-size:var(--fs-sm);font-weight:700;color:var(--text);">Model AI</div>
+    <div style="font-size:var(--fs-xs2);color:var(--muted);margin:2px 0 10px;">Pilih model yang dipakai untuk generate script &amp; perbaikan kata. Prompt-nya sama, cuma modelnya yang beda.</div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="chip pb-model-btn" data-model="sonnet" onclick="pbSetAiModel('sonnet')" style="flex:1;">Sonnet</button>
+      <button type="button" class="chip pb-model-btn" data-model="haiku" onclick="pbSetAiModel('haiku')" style="flex:1;">Haiku</button>
+    </div>
+  </div>
   <div class="rule"></div>
   <div class="sec-title sec-title-sub">Karakter Sheet &amp; Prompt Lama</div>
   <p class="sec-desc" style="margin-bottom:12px;">Dipindahkan ke sini dari Tab Foto — pakai kalau perlu.</p>
@@ -11706,14 +11715,47 @@ async function _pbGetFirebaseIdToken(){
 // diubah sama sekali, cuma ID model + parameter thinking di bawah.
 // PENTING: Worker proxy (ANTHROPIC_ENDPOINT) harus mengizinkan ID model ini
 // kalau di sisi Worker ada whitelist model.
-const CLAUDE_MODEL_PRIMARY='claude-sonnet-5-5';
-const CLAUDE_MODEL_FALLBACK='claude-sonnet-5-5';
+// PILIHAN MODEL (permintaan user, 30 Sep 2026): tombol Sonnet / Haiku di tab
+// Panduan (#pb-model-picker). Pilihan disimpan di localStorage dan dibaca
+// SETIAP panggilan AI lewat _pbModelId() — system prompt & pesan user
+// SAMA PERSIS untuk kedua model, yang beda cuma ID model. 'thinking' dan
+// tarif harga ikut model karena aturan API-nya memang berbeda: Sonnet 5.5
+// wajib {type:'between_tools'} (menolak 'disabled'), sedangkan Haiku 4.5
+// tidak menyalakan thinking kalau field itu tidak dikirim (undefined otomatis
+// dibuang JSON.stringify). Tarif Haiku 4.5 = $1/juta input & $5/juta output.
+// PENTING: Worker proxy harus mengizinkan kedua ID model ini kalau ada whitelist.
+var PB_AI_MODELS={
+  sonnet:{id:'claude-sonnet-5-5',label:'Sonnet',thinking:{type:'between_tools'},priceIn:2.0,priceOut:10.0},
+  haiku:{id:'claude-haiku-4-5-20251001',label:'Haiku',thinking:undefined,priceIn:1.0,priceOut:5.0}
+};
+var PB_AI_MODEL_KEY='pb_ai_model_v1';
+var _pbAiModelKey='sonnet';
+try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
+function pbGetAiModelKey(){return _pbAiModelKey;}
+function _pbModelId(){return PB_AI_MODELS[_pbAiModelKey].id;}
+function _pbThinkingParam(){return PB_AI_MODELS[_pbAiModelKey].thinking;}
+function pbRenderAiModelPicker(){
+  try{
+    document.querySelectorAll('#pb-model-picker .pb-model-btn').forEach(function(b){
+      b.classList.toggle('sel',b.getAttribute('data-model')===_pbAiModelKey);
+    });
+  }catch(e){}
+}
+function pbSetAiModel(k){
+  if(!PB_AI_MODELS[k])return;
+  _pbAiModelKey=k;
+  try{localStorage.setItem(PB_AI_MODEL_KEY,k);}catch(e){}
+  pbRenderAiModelPicker();
+  try{if(typeof _vbRenderUsageBadge==='function'&&typeof _vbLoadUsageStats==='function')_vbRenderUsageBadge(_vbLoadUsageStats());}catch(e){}
+  try{if(typeof showToast==='function')showToast('Model AI: '+PB_AI_MODELS[k].label);}catch(e){}
+}
+document.addEventListener('DOMContentLoaded',pbRenderAiModelPicker);
+try{pbRenderAiModelPicker();}catch(e){}
 // Sonnet 5.5 menyalakan adaptive thinking secara DEFAULT (effort 'high', token
 // thinking ditagih sebagai output) kalau field 'thinking' tidak dikirim, dan
 // MENOLAK thinking:{type:'disabled'} (400). Cara resmi mematikan thinking di
 // awal di Sonnet 5.5 adalah {type:'between_tools'} — tanpa tools, balasan
 // cuma teks biasa seperti 'disabled'. Tanpa ini tagihan & latency naik.
-const CLAUDE_THINKING_PARAM={type:'between_tools'};
 // apiKey diisi placeholder tetap ('via-proxy') — bukan API key asli lagi.
 // Cukup supaya semua pengecekan "if(!VAI.apiKey)" di bawah otomatis lolos,
 // karena kunci Claude yang sesungguhnya sekarang disimpan aman di server
@@ -17274,7 +17316,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         method:'POST',
         headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
         body:JSON.stringify(Object.assign(
-          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:CLAUDE_THINKING_PARAM,messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
+          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
           // ditempel kalau cacheSystem true. System prompt generate pertama
           // mode single (_vbScript3SystemPrompt) TIDAK PERNAH tembus syarat
@@ -17564,7 +17606,7 @@ function _vbSanitizeJsonText(s){
 // perlu diubah — otomatis tetap true seperti sebelumnya.
 async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs){
   if(cacheSystem===undefined)cacheSystem=true;
-  return await _vbStreamClaudeJSONWithRetryModel(CLAUDE_MODEL_PRIMARY,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs);
+  return await _vbStreamClaudeJSONWithRetryModel(_pbModelId(),promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs);
 }
 
 function _vbFetchWithTimeout(url,options,timeoutMs){
@@ -17750,7 +17792,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
       headers:{'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},
-      body:JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:CLAUDE_THINKING_PARAM,messages:claudeMessages})
+      body:JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(),messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
       try{
@@ -17774,7 +17816,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
     }
     return r;
   }
-  return await callClaude(CLAUDE_MODEL_PRIMARY);
+  return await callClaude(_pbModelId());
 }
 
 // ── STAT REAL PEMAKAIAN "PERBAIKAN JUMLAH KATA" (permintaan user, Sept 2026)
@@ -17796,11 +17838,15 @@ var HAIKU_PRICE_OUT_PER_MTOK=10.0; // USD per 1,000,000 token output (Sonnet 5.5
 // sekarang dihitung terpisah lewat _vbCalcUsd di bawah.
 var HAIKU_PRICE_CACHE_WRITE_MULT=1.25;
 var HAIKU_PRICE_CACHE_READ_MULT=0.1;
+// Tarif ikut model yang sedang dipilih di tab Panduan (Sonnet/Haiku) —
+// angka HAIKU_PRICE_IN/OUT di atas jadi cadangan saja.
 function _vbCalcUsd(noCacheTok,cacheWriteTok,cacheReadTok,outTok){
-  return((noCacheTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK)
-    +((cacheWriteTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK*HAIKU_PRICE_CACHE_WRITE_MULT)
-    +((cacheReadTok||0)/1e6*HAIKU_PRICE_IN_PER_MTOK*HAIKU_PRICE_CACHE_READ_MULT)
-    +((outTok||0)/1e6*HAIKU_PRICE_OUT_PER_MTOK);
+  var _m=PB_AI_MODELS[_pbAiModelKey]||{};
+  var pin=_m.priceIn||HAIKU_PRICE_IN_PER_MTOK, pout=_m.priceOut||HAIKU_PRICE_OUT_PER_MTOK;
+  return((noCacheTok||0)/1e6*pin)
+    +((cacheWriteTok||0)/1e6*pin*HAIKU_PRICE_CACHE_WRITE_MULT)
+    +((cacheReadTok||0)/1e6*pin*HAIKU_PRICE_CACHE_READ_MULT)
+    +((outTok||0)/1e6*pout);
 }
 var USD_TO_IDR=16400; // kurs perkiraan, cuma buat tampilan kasar di badge
 function _vbLoadFixStats(){
