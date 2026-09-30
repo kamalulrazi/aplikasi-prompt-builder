@@ -4152,7 +4152,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v7.8</div>
+  <div class="splash-version" id="splash-version">v7.9</div>
 </div>
 <script>
   (function(){
@@ -6113,7 +6113,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v7.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v7.9 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18122,8 +18122,8 @@ function _vbBuildSingleModeSystemPrompt(range,count){
 // tetap dijaga _vbHardEnforceMaxWords di pemanggil. Kalau panggilan ini
 // gagal/error apa pun, teks asli dipakai apa adanya (tidak melempar error).
 const VB_SHORTFIX_SYSTEM=
-  'Kamu kreator profesional. Perpanjang kata dalam skrip sampai masuk rentang 24-30 kata (minimal 24 kata, maksimal 30 kata). Pertahankan makna dan gaya aslinya, tambah detail situasi atau manfaat, jangan menyebut bahan atau material produk.\n\n'
- +'Balas HANYA JSON array, jumlah dan urutan sama, "id" disalin persis:\n'
+  'Kamu kreator profesional. Lanjutkan skrip berikut dengan menambah kalimat lanjutan saja, sampai total kata skrip masuk rentang 24-30 kata (minimal 24 kata, maksimal 30 kata). JANGAN menulis ulang atau mengubah teks asli, tulis HANYA kalimat tambahan yang menyambung setelah teks asli. Tambahkan detail situasi atau manfaat, jangan menyebut bahan atau material produk.\n\n'
+ +'Balas HANYA JSON array, jumlah dan urutan sama, "id" disalin persis. Kolom "teks" berisi HANYA kalimat tambahan, bukan teks asli:\n'
  +'[{"id":"...","teks":"..."}]';
 function _vbSalvageIdTeks(text){
   const out=[];
@@ -18170,7 +18170,7 @@ async function _vbExtendShortScriptsOnce(arr,batch,range,onWait){
   }
   if(!items.length)return;
   let msg=items.map(function(it){
-    return '[id: '+it.id+']\nProduk: '+it.nama+'\n'+it.t;
+    return '[id: '+it.id+']\nProduk: '+it.nama+'\nTeks: '+it.t+'\nTambahkan: '+(range.min-it.n)+'-'+(range.max-it.n)+' kata';
   }).join('\n\n');
   // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
   const maxTok=Math.min(8192,600+items.length*130);
@@ -18197,9 +18197,17 @@ async function _vbExtendShortScriptsOnce(arr,batch,range,onWait){
   items.forEach(function(it){
     let nt=byId[it.id];
     if(!nt)return;
-    nt=_vbSanitizeForbiddenPhrases(nt.trim());
-    // Terima hanya kalau benar-benar lebih panjang dari teks asli.
-    if(nt&&wc(nt)>it.n)arr[it.pi][it.k]=nt;
+    nt=nt.trim().replace(/^["\u201C\u201D]+|["\u201C\u201D]+$/g,'').trim();
+    // Kalau AI ternyata mengulang teks asli di awal balasan, buang bagian itu (yang dipakai HANYA tambahannya).
+    if(nt.indexOf(it.t.trim())===0)nt=nt.slice(it.t.trim().length).trim();
+    nt=_vbSanitizeForbiddenPhrases(nt);
+    if(!nt)return;
+    // DISAMBUNG (bukan ditimpa): teks asli dipertahankan utuh, tambahan ditempel di belakangnya.
+    let base=it.t.trim();
+    if(!/[.!?]$/.test(base))base+='.';
+    const merged=base+' '+nt;
+    // Terima hanya kalau benar-benar lebih panjang dari teks asli (batas atas dijaga _vbHardEnforceMaxWords di pemanggil).
+    if(wc(merged)>it.n)arr[it.pi][it.k]=merged;
   });
   // Catat hasil ke statistik perbaikan kata: 1 percobaan per teks, dan apakah masih kependekan.
   try{
