@@ -11728,15 +11728,15 @@ async function _pbGetFirebaseIdToken(){
 var PB_AI_MODELS={
   sonnet:{id:'claude-sonnet-5-5',label:'Sonnet',thinking:{type:'between_tools'},priceIn:2.0,priceOut:10.0},
   haiku:{id:'claude-haiku-4-5-20251001',label:'Haiku',thinking:undefined,priceIn:1.0,priceOut:5.0},
-  // GROQ (permintaan user, 30 Sep 2026): model Llama 4 Scout di Groq — bisa baca
-  // foto (vision), tarif $0.11/juta input & $0.34/juta output, maks output 8192
-  // token. Lewat Worker proxy yang sama (header X-AI-Provider:groq), format
-  // request/response OpenAI-compatible (lihat _pbBuildGroqBody). GANTI 'id' di
-  // bawah kalau mau model Groq lain (mis. 'llama-3.3-70b-versatile' — tapi
-  // model itu TIDAK bisa baca foto, jadi fitur yang melampirkan foto akan gagal).
-  groq:{id:'meta-llama/llama-4-scout-17b-16e-instruct',label:'Groq',provider:'groq',thinking:undefined,priceIn:0.11,priceOut:0.34}
+  // GROQ (permintaan user, Sep-Okt 2026): Qwen 3.8 27B — model vision Groq yang
+  // aktif (Llama 4 Scout sudah dipensiunkan Groq). Bisa baca foto (maks 3 foto
+  // per request), tarif $0.80/juta input & $4.00/juta output, maks output 16384.
+  // Lewat Worker proxy yang sama (format OpenAI-compatible, lihat _pbBuildGroqBody).
+  // Mode 'instruct' (reasoning_effort:none) dipakai supaya cepat & hemat token.
+  groq:{id:'qwen/qwen3.8-27b',label:'Groq',provider:'groq',thinking:undefined,priceIn:0.80,priceOut:4.00}
 };
-var PB_GROQ_MAX_OUT=8192;
+var PB_GROQ_MAX_OUT=16384;
+var PB_GROQ_MAX_IMAGES=3;
 function _pbIsGroqModel(id){
   for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===id)return PB_AI_MODELS[k].provider==='groq';}
   return false;
@@ -11746,9 +11746,12 @@ function _pbGroqMessages(parts,systemText){
   var msgs=[];
   if(systemText)msgs.push({role:'system',content:systemText});
   var content=[],hasImg=false;
+  var imgCount=0;
   (parts||[]).forEach(function(p){
     var d=p&&(p.inline_data||p.inlineData);
     if(d){
+      if(imgCount>=PB_GROQ_MAX_IMAGES)return;
+      imgCount++;
       hasImg=true;
       var mime=d.mime_type||d.mimeType||'image/jpeg';
       content.push({type:'image_url',image_url:{url:'data:'+mime+';base64,'+d.data}});
@@ -11761,7 +11764,7 @@ function _pbGroqMessages(parts,systemText){
   return msgs;
 }
 function _pbBuildGroqBody(model,parts,systemText,maxTokens,stream){
-  var b={model:model,max_completion_tokens:Math.min(PB_GROQ_MAX_OUT,maxTokens||2048),messages:_pbGroqMessages(parts,systemText)};
+  var b={model:model,max_completion_tokens:Math.min(PB_GROQ_MAX_OUT,maxTokens||2048),messages:_pbGroqMessages(parts,systemText),reasoning_effort:'none'};
   if(stream){b.stream=true;b.stream_options={include_usage:true};}
   return b;
 }
