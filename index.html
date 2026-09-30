@@ -2194,7 +2194,8 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vstyle-card.sel+.vstyle-preview{display:block;}
 
 /* TOAST */
-#toast{position:fixed;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);padding:var(--space-3) var(--space-7);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:500;font-family:'Geist',sans-serif;z-index:9999;transition:transform 0.25s,opacity 0.25s;opacity:0;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+/* FIX (laporan user: setelah error 403, klik Panduan lalu Video tidak bisa): toast dulu TIDAK punya pointer-events:none. Toast error yang panjang & sudah hilang (opacity:0) tetap menutupi tab nav bawah dan mencegat klik, jadi tab Video/Riwayat tidak bisa ditekan. */
+#toast{pointer-events:none;position:fixed;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);padding:var(--space-3) var(--space-7);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:500;font-family:'Geist',sans-serif;z-index:9999;transition:transform 0.25s,opacity 0.25s;opacity:0;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
 /* PROGRESS INDICATOR */
 .progress-wrap{padding:9px var(--space-7);background:var(--surface2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:99;}
 /* v6.83: Opsi 2 — titik glow di ujung fill. overflow:hidden di track
@@ -4152,7 +4153,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v8.0</div>
+  <div class="splash-version" id="splash-version">v8.2</div>
 </div>
 <script>
   (function(){
@@ -6113,7 +6114,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.0 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.2 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -19025,6 +19026,8 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     showToast('Gagal generate: '+err.message,'error');
   }finally{
     stopGenLogoBtn(btn,genLogoState);
+    // FIX (laporan user: setelah error 403 tombol utama tetap "Generate Prompt", padahal ada sesi yang bisa dilanjutkan): _vbSyncBulkMainButton() yang dipanggil di dalam catch selalu kena early-return karena tombol MASIH berstatus btn-loading saat itu, lalu stopGenLogoBtn() mengembalikan label lama. Dipanggil ULANG di sini, setelah loading benar-benar dilepas, supaya tombol jadi "Lanjutkan N Produk yang Belum".
+    _vbSyncBulkMainButton();
     VAI._isGenerating=false;
     _vbReleaseWakeLock();
   }
