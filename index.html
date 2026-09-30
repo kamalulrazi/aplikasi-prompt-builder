@@ -4152,7 +4152,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v7.5</div>
+  <div class="splash-version" id="splash-version">v7.8</div>
 </div>
 <script>
   (function(){
@@ -5679,8 +5679,11 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
        id="vmotion" (bukan v4) supaya id lama v4 (Aksen) & v5 (Script) TIDAK
        perlu diganti — cuma nomor tampilan (wnum) & total progress yang digeser
        jadi 6. Cuma 1 chip preset "Lebay Banget" + kolom isi sendiri + tombol
-       Lewati. TIDAK dikirim ke AI — hanya ditempel ke prompt akhir sebagai
-       "motion karakter: ..." (lihat _vbBuildFlowText). -->
+       Lewati. Sejak v7.6 nilainya (VB.motion) JUGA dikirim ke AI penulis skrip
+       lewat blok DATA di _vbCallBulkBatch (baris "Gerakan pembawaan: ...",
+       hanya kalau diisi), selain ditempel ke prompt akhir sebagai
+       "motion karakter: ..." (lihat _vbBuildFlowText). Yang dikirim cuma
+       nilai global VB.motion, bukan override per kartu. -->
   <div class="wcard pending" id="vmotion">
     <div class="whead"><div class="wnum">4</div><div class="wtitle">Motion Karakter</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vamotion"></div></div>
     <div class="wbody">
@@ -6110,7 +6113,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v7.5 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v7.8 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18095,7 +18098,11 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // _vbCallBulkBatch). Versi panjang sebelumnya: lihat prompt-ke-claude-v2.md.
   // Kalau setelah ini AI sering lolos nyebut bahan/promo atau meleset jumlah
   // kata (memicu _vbFixWordCountIfNeeded berbayar), balikin ke versi panjang.
-  return 'Kamu penulis skrip iklan video pendek. Detail produk, karakter, dan target audience ada di pesan berikutnya.\n\n'
+  // PROMPT BARU (Sept 2026, v7.6): system prompt cuma berisi ATURAN TETAP.
+  // Data yang berubah tiap generate (karakter, sapaan, nada, motion, aksen,
+  // target audience, daftar produk, catatan revisi) DISATUKAN ke system di
+  // _vbCallBulkBatch (blok "=== DATA ==="), pesan user cuma pemicu pendek + foto.
+  return 'Kamu kreator profesional. Detail karakter, target audience, dan produk ada di bagian DATA di bawah.\n\n'
     +'Tulis TEPAT 3 bagian: HOOK, STORY, CTA. Ketiganya harus nyambung jadi SATU monolog utuh, bukan 3 topik lepas.\n'
     +'- HOOK: kalimat pembuka kuat (pertanyaan kocak, fakta mengejutkan, masalah sehari-hari, atau cerita singkat). Jangan template.\n'
     +'- STORY: skenario audiens memakai produk untuk menyelesaikan masalah sehari-hari (bukan pengalaman pribadi).\n'
@@ -18115,12 +18122,7 @@ function _vbBuildSingleModeSystemPrompt(range,count){
 // tetap dijaga _vbHardEnforceMaxWords di pemanggil. Kalau panggilan ini
 // gagal/error apa pun, teks asli dipakai apa adanya (tidak melempar error).
 const VB_SHORTFIX_SYSTEM=
-  'Kamu ahli dalam menulis skrip. Tugasmu hanya menambahkan kata dalam teks.\n\n'
- +'- Setiap teks kurang dari 24 kata. Perpanjang hingga di atas 24 kata, maksimal 30 kata.\n'
- +'- Pertahankan makna, gaya, dan kalimat aslinya. Tambah detail situasi atau manfaat, bukan pengulangan.\n'
- +'- CTA mengajak klik "keranjang bawah". Jangan sebut bahan, promo, diskon, limited, atau urgensi.\n'
- +'- Bahasa Indonesia, tanpa emoji dan tanda kutip, akhiri dengan titik.\n'
- +'- Bagian "konteks" hanya untuk menjaga kenyambungan, jangan ditulis ulang.\n\n'
+  'Kamu kreator profesional. Perpanjang kata dalam skrip sampai masuk rentang 24-30 kata (minimal 24 kata, maksimal 30 kata). Pertahankan makna dan gaya aslinya, tambah detail situasi atau manfaat, jangan menyebut bahan atau material produk.\n\n'
  +'Balas HANYA JSON array, jumlah dan urutan sama, "id" disalin persis:\n'
  +'[{"id":"...","teks":"..."}]';
 function _vbSalvageIdTeks(text){
@@ -18167,8 +18169,8 @@ async function _vbExtendShortScriptsOnce(arr,batch,range,onWait){
     }
   }
   if(!items.length)return;
-  let msg='Perpanjang teks-teks berikut.\n\n'+items.map(function(it){
-    return '[id: '+it.id+']\nProduk: '+it.nama+'\nTeks ('+it.n+' kata): '+it.t+(it.ctx?'\nKonteks: '+it.ctx:'');
+  let msg=items.map(function(it){
+    return '[id: '+it.id+']\nProduk: '+it.nama+'\n'+it.t;
   }).join('\n\n');
   // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
   const maxTok=Math.min(8192,600+items.length*130);
@@ -18284,15 +18286,15 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // Bagian yang beda-beda tiap generate (produk/karakter/target audience/
   // catatan revisi/hook yang sudah dipakai) — dikirim sebagai pesan user.
   let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
-  let prompt='Karakter: '+VB.genderLabel+', usia '+(VB.age||VB.ageLabel)+'. '
-    +(_sapaanVal
-      ?'Sesuaikan sudut pandang dan pilihan kata dengan gender DAN usia karakter ini — gaya bicara harus terdengar natural untuk usia tersebut.\n'
-        +'Sapaan ke penonton WAJIB: '+_sapaanVal+'. Pakai sapaan ini secara konsisten di HOOK, STORY, dan CTA (sebut secara natural, tidak perlu di setiap kalimat), jangan diganti dengan sapaan lain.\n'
-      :'Sesuaikan sudut pandang, sapaan ke target audience (misal \"kak\", \"guys\", \"kalian\"), dan pilihan kata dengan gender DAN usia karakter ini — gaya bicara harus terdengar natural untuk usia tersebut.\n')
-    +'Nada bicara karakter: '+(VB.pitchLabel||VB.pitch)+'(Skrip harus sesuai dengan nada bicara).\n'
+  let _motionVal=(typeof VB.motion==='string'?VB.motion.replace(/[\r\n"]+/g,' ').trim():'');
+  let prompt='Karakter: '+VB.genderLabel+', usia '+(VB.age||VB.ageLabel)+'.\n'
+    +'Sesuaikan gaya bicara dengan gender dan usia karakter ini.\n'
+    +(_sapaanVal?'Sapaan: '+_sapaanVal+'. Pakai sapaan ini secara konsisten di HOOK, STORY, dan CTA (sebut secara natural, tidak perlu di setiap kalimat).\n':'')
+    +'Nada bicara: '+(VB.pitchLabel||VB.pitch)+'\n'
+    +(_motionVal?'Gerakan pembawaan: '+_motionVal+'\n':'')
     +'Aksen karakter: '+(VB.accentLabel||VB.accent)+'.\n'
     +'Target audience (sama untuk semua produk di bawah): '+targetAudience+'\n'
-    +'Rentang jumlah kata WAJIB tiap script: '+range.min+'-'+range.max+' kata — berlaku PENUH & TERPISAH untuk HOOK, STORY, DAN CTA (bukan dibagi rata ke ketiganya).\n\n'
+    +'Rentang jumlah kata WAJIB tiap script: '+range.min+'-'+range.max+' kata — berlaku PENUH & TERPISAH untuk HOOK, STORY, DAN CTA.\n\n'
     +'Daftar produk ('+batch.length+' produk) — nama produk cuma referensi konteks, BUKAN teks wajib salin (tulis ulang natural, jangan tempel apa adanya kalau nama produknya panjang).\n'+produkListText+'\n\n'
     +(extraNote?'CATATAN REVISI dari user (WAJIB diikuti, ini prioritas utama di atas aturan lain manapun yang bentrok):\n'+extraNote+'\n\n':'')
     // FIX (permintaan user: hook antar produk masih kedengaran "tempelan"
@@ -18314,7 +18316,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
 
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
   // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
-  let _promptParts=[{text:prompt}];
+  let _promptParts=[{text:'Tulis skripnya sekarang sesuai data di atas.'}];
   batch.forEach(function(p){
     if(p.fotoBase64)_promptParts.push({inline_data:{mime_type:p.fotoMime||'image/jpeg',data:p.fotoBase64}});
   });
@@ -18324,7 +18326,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // (kalau disediakan pemanggil) — sama seperti mode single, hasil
   // streaming ini cuma PREVIEW. Retry/fallback thinkingConfig tetap sama
   // persis seperti sebelumnya, dibungkus di _vbStreamClaudeJSONWithRetry.
-  let _vbEffectiveSystemPrompt=_vbBuildSingleModeSystemPrompt(range,batch.length);
+  let _vbEffectiveSystemPrompt=_vbBuildSingleModeSystemPrompt(range,batch.length)+'\n\n=== DATA ===\n'+prompt;
   // BUG FIX KRITIS (audit Sept 2026, lihat catatan lengkap di deklarasi
   // cfg.maxOutputTokens di _vbStreamClaudeJSONWithRetryModel): batch
   // sekarang bisa berisi sampai 30 produk dalam 1 panggilan API — jatah
