@@ -11757,6 +11757,12 @@ function _pbProviderOf(id){
 }
 // Nama lama dipertahankan: true untuk SEMUA model non-Claude (Groq & Gemini).
 function _pbIsGroqModel(id){return !!PB_OAI_PROVIDERS[_pbProviderOf(id)];}
+// Batas foto per request untuk model yang sedang dipilih (Groq 3, Gemini 16).
+// Claude tidak dibatasi di sini (API-nya menerima sampai 100 gambar).
+function _pbMaxImages(){
+  var pv=PB_OAI_PROVIDERS[_pbProviderOf(_pbModelId())];
+  return pv?pv.maxImages:100;
+}
 // Ubah 'parts' gaya Gemini (text / inline_data) jadi messages format OpenAI/Groq.
 function _pbGroqMessages(parts,systemText,maxImages){
   var msgs=[];
@@ -18430,6 +18436,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // punya foto, urut sesuai posisinya di batch ini) supaya AI tahu foto
   // mana punya produk yang mana waktu beberapa gambar dikirim sekaligus.
   let _imgCounter=0;
+  const _maxImgThisCall=_pbMaxImages(); // FIX: label [Image N] & lampiran foto dibatasi sesuai batas model (Groq 3 / Gemini 16)
   let produkListText=batch.map((p,i)=>{
     let line=(i+1)+'. '+p.nama+(p.keunggulan?' — advantages: '+p.keunggulan:'')+(p.topik?' — main STORY focus (may touch HOOK): '+p.topik:'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
@@ -18438,7 +18445,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // prompt video (lihat _vbOverlaySentence).
     let _hookDir=_vbHookDirectiveInline(p.hookType,p.hookCustom);
     if(_hookDir)line+=' — HOOK style for this product only: '+_hookDir;
-    if(p.fotoBase64){
+    if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
       line+=' [Image '+_imgCounter+', attached in order: only to identify product type, do not describe]';
     }
@@ -18471,8 +18478,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
   // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
   let _promptParts=[{text:'Write the scripts.'}];
+  let _imgAttached=0;
   batch.forEach(function(p){
-    if(p.fotoBase64)_promptParts.push({inline_data:{mime_type:p.fotoMime||'image/jpeg',data:p.fotoBase64}});
+    if(p.fotoBase64&&_imgAttached<_maxImgThisCall){
+      _imgAttached++;
+      _promptParts.push({inline_data:{mime_type:p.fotoMime||'image/jpeg',data:p.fotoBase64}});
+    }
   });
 
   // REAL-TIME: pakai streamGenerateContent supaya hook/story/cta tiap
