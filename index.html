@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v9.3</div>
+  <div class="splash-version" id="splash-version">v9.4</div>
 </div>
 <script>
   (function(){
@@ -6130,7 +6130,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.3 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.4 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11971,6 +11971,24 @@ function _vbIsRegionBlock403(status,rawText){
   var t=String(rawText||'');
   if(/quota_exceeded|login_required|invalid_token/i.test(t))return false;
   return /request not allowed/i.test(t);
+}
+// FIX (1 Okt 2026 — akar masalah 403 "Request not allowed" yang terus berulang):
+// pesan ini BUKAN acak murni, melainkan blokir WILAYAH dari Anthropic. Worker
+// proxy jalan di data center Cloudflare terdekat dari user; kalau jalur
+// internet user (mis. data seluler di Indonesia) kebetulan diarahkan ke data
+// center Hong Kong (HKG), request keluar Worker ke api.anthropic.com terlihat
+// berasal dari Hong Kong -> ditolak 403 dalam hitungan milidetik. Koneksi yang
+// sama biasanya terus kena data center yang sama, jadi retry otomatis di sisi
+// app sering SIA-SIA (ini sebabnya 3x retry singkat tetap gagal).
+// PERBAIKAN PERMANEN ADA DI WORKER (bukan di file ini): di wrangler.toml
+// Worker "promptbuilder" tambahkan
+//   [placement]
+//   region = "aws:us-east-1"
+// lalu deploy ulang, supaya Worker selalu jalan dekat server Anthropic (AS)
+// dan tidak pernah di HKG. Fungsi ini cuma memberi pesan yang akurat & bisa
+// ditindaklanjuti user (pesan lama "tunggu beberapa detik" menyesatkan).
+function _vbRegionBlockMsg(){
+  return 'Server AI menolak request (403) — bukan karena kuota atau tools kamu. Kemungkinan jalur internet HP kamu sedang lewat server Cloudflare di wilayah yang diblokir Claude (mis. Hong Kong), jadi menunggu saja belum tentu membantu. Coba ganti jaringan (WiFi ↔ data seluler) atau nyalakan-matikan mode pesawat, lalu tekan Lanjutkan (produk yang sudah jadi tidak hilang).';
 }
 function vaiDoneCard(id,ansId,text){var c=document.getElementById(id);if(c)c.classList.add('done');var a=document.getElementById(ansId);if(a)a.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> '+esc(text);}
 
@@ -18981,7 +18999,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(resp.status===503||resp.status===529)throw new Error('Server AI '+_pbProviderLabel()+' masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server '+_pbProviderLabel()+' lagi padat, bukan masalah dari tools.');
     if(resp.status===429)throw new Error('Masih kena rate limit dari '+_pbProviderLabel()+' walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
     if(resp.status===0)throw new Error('Gagal terhubung ke server AI '+_pbProviderLabel()+''+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
-    if(_vbIsRegionBlock403(resp.status,rawText))throw new Error('Server AI menolak request (403) beberapa kali berturut-turut. Ini biasanya sementara dan bukan salah tools atau kuota kamu — tunggu beberapa detik lalu coba lagi (produk yang sudah jadi tidak hilang).');
+    if(_vbIsRegionBlock403(resp.status,rawText)){var _e403=new Error(_vbRegionBlockMsg());_e403.toastMsg='Server AI menolak request (403). Ganti jaringan (WiFi ↔ data seluler), lalu tekan Lanjutkan.';throw _e403;}
     var _authQuotaMsg=_pbWorkerAuthQuotaMsg(resp.status,errJson);
     if(_authQuotaMsg)throw new Error(_authQuotaMsg);
     throw new Error('Status '+resp.status+': '+(errJson?.error?.message||rawText.substring(0,150)||'API error'));
@@ -19692,7 +19710,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       errBox.classList.remove('hidden');
     }
     if(typeof window.pbForceSaveDraftNow==='function')window.pbForceSaveDraftNow();
-    showToast('Gagal generate: '+err.message,'error');
+    showToast('Gagal generate: '+(err.toastMsg||err.message),'error');
   }finally{
     stopGenLogoBtn(btn,genLogoState);
     // FIX (laporan user: setelah error 403 tombol utama tetap "Generate Prompt", padahal ada sesi yang bisa dilanjutkan): _vbSyncBulkMainButton() yang dipanggil di dalam catch selalu kena early-return karena tombol MASIH berstatus btn-loading saat itu, lalu stopGenLogoBtn() mengembalikan label lama. Dipanggil ULANG di sini, setelah loading benar-benar dilepas, supaya tombol jadi "Lanjutkan N Produk yang Belum".
