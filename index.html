@@ -18686,7 +18686,7 @@ const VB_TARGETED_FIX_SKIP_MODELS=['sonnet'];       // kunci PB_AI_MODELS yang T
 const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian
 const VB_TARGETED_FIX_INCLUDE_LONG=false;            // true = bagian KEPANJANGAN juga ditulis ulang ("kurangi N"); false = hanya kependekan
 const VB_TARGETED_FIX_SYSTEM=
-  'Kamu kreator profesional. Lanjutkan skrip yang kuberikan.\n\n'
+  'Kamu kreator profesional. Lanjutkan skrip yang kuberikan. Pertahankan konteks, suasana dan gaya skrip. Dilarang sebut bahan, stok terbatas, keranjang kuning.\n\n'
  +'Balas HANYA JSON array, "id" disalin persis, "teks" berisi teks LENGKAP hasil tulis ulang:\n'
  +'[{"id":"...","teks":"..."}]';
 function _vbTargetedFixActive(){
@@ -18694,15 +18694,22 @@ function _vbTargetedFixActive(){
 }
 // ── RANTAI MODEL PERBAIKAN KATA (permintaan user, 1 Okt 2026, v9.7) ──────────
 // HANYA berlaku kalau model UTAMA yang dipilih = Haiku (VB_FIX_CHAIN_FOR_MAIN_MODEL).
-// Perbaikan kata dicoba ke Gemini (tier gratis) maksimal 2x; kalau gagal 2x dicoba ke
-// Groq (tier gratis) 1x. "Gagal" = error API / limit / timeout, ATAU balasan yang tidak
-// bisa dibaca jadi daftar {id,teks}. Kalau Gemini kena limit (HTTP 429) langsung pindah
-// ke Groq tanpa mengulang. Kalau semuanya gagal, teks asli dipakai apa adanya (sama
-// seperti perilaku lama). Model utama lain (Sonnet/Groq/Gemini) TIDAK berubah: tetap
-// memakai model yang dipilih, 1 panggilan seperti biasa. Biaya tercatat per model asli.
+// UPDATE (permintaan user, 1 Okt 2026): urutan DIBALIK. Perbaikan kata sekarang dicoba
+// ke Groq GPT-OSS 120B (openai/gpt-oss-120b) dulu, maksimal 2x; kalau gagal baru pindah
+// ke Gemini 1x. "Gagal" = error API / limit / timeout, ATAU balasan yang tidak bisa
+// dibaca jadi daftar {id,teks}. Kalau GPT-OSS kena limit (HTTP 429) langsung pindah ke
+// Gemini tanpa mengulang. Selain itu, kalau GPT-OSS membalas dengan benar TAPI jumlah
+// kata masih meleset dari range, percobaan ke-2 di _vbRepairOutOfRange langsung dimulai
+// dari Gemini (bukan GPT-OSS lagi) -> itulah arti "gagal memperbaiki kata".
+// Kalau semuanya gagal, teks asli dipakai apa adanya (sama seperti perilaku lama).
+// Model utama lain (Sonnet/Groq/Gemini) TIDAK berubah: tetap memakai model yang dipilih,
+// 1 panggilan seperti biasa. Biaya tercatat per model asli.
+// extraTok = tambahan jatah token output per percobaan. GPT-OSS adalah model reasoning:
+// token "mikir"-nya ikut makan jatah max_completion_tokens, jadi tanpa tambahan ini
+// JSON balasan bisa terpotong. Batas akhir tetap 8192 (lihat _vbFixCallWithChain).
 const VB_FIX_CHAIN_ENABLED=true;                       // sakelar: false = perilaku lama untuk semua model
 const VB_FIX_CHAIN_FOR_MAIN_MODEL='haiku';             // rantai hanya aktif kalau model utama = ini
-const VB_FIX_CHAIN=[{key:'gemini',tries:2},{key:'groq',tries:1}]; // urutan model + jumlah percobaan
+const VB_FIX_CHAIN=[{key:'gptoss',tries:2,extraTok:1500},{key:'gemini',tries:1,extraTok:0}]; // urutan model + jumlah percobaan
 function _vbParseFixJson(rawText){
   let res=null;
   try{
@@ -18721,7 +18728,7 @@ function _vbParseFixJson(rawText){
 }
 // Mengembalikan {apiFail:true} kalau SEMUA panggilan gagal di level API (pemanggil berhenti
 // mencoba), atau {apiFail:false,res:array|null} (res null = balasan tidak terbaca).
-async function _vbFixCallWithChain(msg,maxTok,onWait){
+async function _vbFixCallWithChain(msg,maxTok,onWait,startStep){
   const useChain=VB_FIX_CHAIN_ENABLED&&_pbAiModelKey===VB_FIX_CHAIN_FOR_MAIN_MODEL;
   if(!useChain){
     // Perilaku lama: 1 panggilan ke model yang sedang dipilih (batas tunggu retry 30 dtk).
@@ -18730,14 +18737,17 @@ async function _vbFixCallWithChain(msg,maxTok,onWait){
     return{apiFail:false,res:_vbParseFixJson(out.rawText)};
   }
   let lastApiFail=true;
-  for(let si=0;si<VB_FIX_CHAIN.length;si++){
+  // startStep: indeks awal di VB_FIX_CHAIN (0 = mulai dari model pertama; 1 = lewati model pertama).
+  const firstStep=Math.min(Math.max(startStep|0,0),VB_FIX_CHAIN.length-1);
+  for(let si=firstStep;si<VB_FIX_CHAIN.length;si++){
     const step=VB_FIX_CHAIN[si];
     const m=PB_AI_MODELS[step.key];
     if(!m)continue;
+    const stepMaxTok=Math.min(8192,maxTok+(step.extraTok||0));
     for(let t=0;t<step.tries;t++){
       let out=null;
       // failFast=true: tidak ada retry/tunggu di dalam fungsi pemanggil; percobaan ulang & pindah model diatur di sini.
-      try{out=await _vbStreamClaudeJSONWithRetryModel(m.id,[{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,15000,true);}
+      try{out=await _vbStreamClaudeJSONWithRetryModel(m.id,[{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,stepMaxTok,15000,true);}
       catch(eCall){if(eCall&&eCall.pbAuthSession)throw eCall;out=null;}
       if(!out||!out.resp||!out.resp.ok){
         lastApiFail=true;
@@ -18787,8 +18797,9 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
     const maxTok=Math.min(8192,600+pending.length*130);
     let fixOut;
     _vbUsageKindOverride='fix';
-    // v9.7: model utama Haiku -> rantai Gemini(2x) lalu Groq; model lain -> 1 panggilan lama (lihat _vbFixCallWithChain).
-    try{fixOut=await _vbFixCallWithChain(msg,maxTok,onWait);}
+    // Model utama Haiku -> rantai GPT-OSS(2x) lalu Gemini(1x); model lain -> 1 panggilan lama (lihat _vbFixCallWithChain).
+    // Percobaan ke-2 (artinya hasil percobaan ke-1 masih meleset dari range) mulai dari model cadangan (Gemini).
+    try{fixOut=await _vbFixCallWithChain(msg,maxTok,onWait,attempt>1?1:0);}
     finally{_vbUsageKindOverride='';}
     if(!fixOut||fixOut.apiFail)break; // semua panggilan gagal: jangan buang percobaan lagi, pakai teks yang ada
     let res=fixOut.res;
