@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v9.6</div>
+  <div class="splash-version" id="splash-version">v9.8</div>
 </div>
 <script>
   (function(){
@@ -6130,7 +6130,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.6 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.8 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11798,13 +11798,16 @@ var PB_AI_MODELS={
   // lama; kalau nanti diberi 404/pensiun, ganti ke 'gemini-3.5-flash-lite'
   // (sekitar $0.15/$1.25) DAN ubah reasoning gemini di PB_OAI_PROVIDERS jadi
   // 'minimal' (seri 3.x tidak menerima 'none').
-  gemini:{id:'gemini-2.5-flash-lite',label:'Gemini',provider:'gemini',thinking:undefined,priceIn:0.10,priceOut:0.40}
+  // FIX 404 (1 Okt 2026, v9.8): gemini-2.5-flash-lite 'no longer available to new users' (Google, 18 Sep 2026).
+  // Diganti gemini-3.5-flash-lite (GA, tarif $0.30 input / $2.50 output per juta token, cache baca $0.03).
+  // Alternatif lebih murah kalau suatu saat perlu: 'gemini-3.1-flash-lite' ($0.25/$1.50).
+  gemini:{id:'gemini-3.5-flash-lite',label:'Gemini',provider:'gemini',thinking:undefined,priceIn:0.30,priceOut:2.50}
 };
 // Groq & Gemini sama-sama format OpenAI-compatible: satu set fungsi dipakai
 // untuk keduanya, yang beda cuma batas output, batas foto, & reasoning_effort.
 var PB_OAI_PROVIDERS={
   groq:{maxOut:16384,maxImages:3,reasoning:'none'},
-  gemini:{maxOut:16384,maxImages:16,reasoning:'none'}
+  gemini:{maxOut:16384,maxImages:16,reasoning:''} // '' = reasoning_effort TIDAK dikirim (seri 3.x menolak 'none'; default 3.5 Flash-Lite sudah thinking 'minimal')
 };
 function _pbProviderOf(id){
   for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===id)return PB_AI_MODELS[k].provider||'';}
@@ -11847,7 +11850,8 @@ function _pbGroqMessages(parts,systemText,maxImages){
 }
 function _pbBuildGroqBody(model,parts,systemText,maxTokens,stream){
   var pv=PB_OAI_PROVIDERS[_pbProviderOf(model)]||PB_OAI_PROVIDERS.groq;
-  var b={model:model,max_completion_tokens:Math.min(pv.maxOut,maxTokens||2048),messages:_pbGroqMessages(parts,systemText,pv.maxImages),reasoning_effort:pv.reasoning};
+  var b={model:model,max_completion_tokens:Math.min(pv.maxOut,maxTokens||2048),messages:_pbGroqMessages(parts,systemText,pv.maxImages)};
+  if(pv.reasoning)b.reasoning_effort=pv.reasoning;
   if(stream){b.stream=true;b.stream_options={include_usage:true};}
   return b;
 }
@@ -17503,7 +17507,7 @@ function _vbResetUsageStats(){
   }
   _vbRenderUsageBadge(_vbLoadUsageStats());
 }
-async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs){
+async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs,failFast){
   if(cacheSystem===undefined)cacheSystem=true;
   const MAX_TOTAL_WAIT_MS=maxTotalWaitMs||3*60*1000; // opsional: panggilan tambahan (perbaikan skrip) pakai batas lebih pendek
   let totalWaited=0;
@@ -17900,7 +17904,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     let isServerErr=(status===500||status===502||status===504)&&serverErrRetries<2; // audit Okt 2026: 5xx Worker/Cloudflare ikut di-retry (maks 2x)
     if(isServerErr)serverErrRetries++;
     let isTransient=status===503||status===429||status===529||status===0||isBlocked403||isServerErr;
-    if(!isTransient||totalWaited>=MAX_TOTAL_WAIT_MS||(Date.now()-_loopStart)>=MAX_TOTAL_ELAPSED_MS){
+    if(!isTransient||failFast||totalWaited>=MAX_TOTAL_WAIT_MS||(Date.now()-_loopStart)>=MAX_TOTAL_ELAPSED_MS){
       // Kalau fetch gagal total (status 0, resp null) dan belum ada rawText,
       // selipkan pesan error jaringan asli (netErrMsg) supaya pemanggil bisa
       // menampilkannya, bukan cuma "Status 0: API error" yang tidak jelas.
@@ -18661,6 +18665,65 @@ const VB_TARGETED_FIX_SYSTEM=
 function _vbTargetedFixActive(){
   return VB_TARGETED_FIX_ENABLED&&VB_TARGETED_FIX_SKIP_MODELS.indexOf(_pbAiModelKey)===-1;
 }
+// ── RANTAI MODEL PERBAIKAN KATA (permintaan user, 1 Okt 2026, v9.7) ──────────
+// HANYA berlaku kalau model UTAMA yang dipilih = Haiku (VB_FIX_CHAIN_FOR_MAIN_MODEL).
+// Perbaikan kata dicoba ke Gemini (tier gratis) maksimal 2x; kalau gagal 2x dicoba ke
+// Groq (tier gratis) 1x. "Gagal" = error API / limit / timeout, ATAU balasan yang tidak
+// bisa dibaca jadi daftar {id,teks}. Kalau Gemini kena limit (HTTP 429) langsung pindah
+// ke Groq tanpa mengulang. Kalau semuanya gagal, teks asli dipakai apa adanya (sama
+// seperti perilaku lama). Model utama lain (Sonnet/Groq/Gemini) TIDAK berubah: tetap
+// memakai model yang dipilih, 1 panggilan seperti biasa. Biaya tercatat per model asli.
+const VB_FIX_CHAIN_ENABLED=true;                       // sakelar: false = perilaku lama untuk semua model
+const VB_FIX_CHAIN_FOR_MAIN_MODEL='haiku';             // rantai hanya aktif kalau model utama = ini
+const VB_FIX_CHAIN=[{key:'gemini',tries:2},{key:'groq',tries:1}]; // urutan model + jumlah percobaan
+function _vbParseFixJson(rawText){
+  let res=null;
+  try{
+    const data=JSON.parse(rawText);
+    let text=((data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text)||'').trim();
+    text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+    text=_vbSanitizeJsonText(text);
+    try{res=JSON.parse(text);}catch(e1){
+      const a=text.indexOf('['),b=text.lastIndexOf(']');
+      if(a!==-1&&b>a){try{res=JSON.parse(text.substring(a,b+1));}catch(e2){res=null;}}
+    }
+    // Jaring pengaman: kalau JSON terpotong/rusak, selamatkan object {id,teks} yang lengkap.
+    if(!Array.isArray(res))res=_vbSalvageIdTeks(text);
+  }catch(eParse){res=null;}
+  return res;
+}
+// Mengembalikan {apiFail:true} kalau SEMUA panggilan gagal di level API (pemanggil berhenti
+// mencoba), atau {apiFail:false,res:array|null} (res null = balasan tidak terbaca).
+async function _vbFixCallWithChain(msg,maxTok,onWait){
+  const useChain=VB_FIX_CHAIN_ENABLED&&_pbAiModelKey===VB_FIX_CHAIN_FOR_MAIN_MODEL;
+  if(!useChain){
+    // Perilaku lama: 1 panggilan ke model yang sedang dipilih (batas tunggu retry 30 dtk).
+    const out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,30000);
+    if(!out||!out.resp||!out.resp.ok)return{apiFail:true,res:null};
+    return{apiFail:false,res:_vbParseFixJson(out.rawText)};
+  }
+  let lastApiFail=true;
+  for(let si=0;si<VB_FIX_CHAIN.length;si++){
+    const step=VB_FIX_CHAIN[si];
+    const m=PB_AI_MODELS[step.key];
+    if(!m)continue;
+    for(let t=0;t<step.tries;t++){
+      let out=null;
+      // failFast=true: tidak ada retry/tunggu di dalam fungsi pemanggil; percobaan ulang & pindah model diatur di sini.
+      try{out=await _vbStreamClaudeJSONWithRetryModel(m.id,[{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,15000,true);}
+      catch(eCall){if(eCall&&eCall.pbAuthSession)throw eCall;out=null;}
+      if(!out||!out.resp||!out.resp.ok){
+        lastApiFail=true;
+        if(out&&out.resp&&out.resp.status===429)break; // limit: percuma diulang, langsung model berikutnya
+        continue;
+      }
+      const res=_vbParseFixJson(out.rawText);
+      if(Array.isArray(res)&&res.length)return{apiFail:false,res:res};
+      lastApiFail=false; // API sukses tapi balasan tidak terbaca: hitung sebagai 1 percobaan gagal
+    }
+  }
+  return{apiFail:lastApiFail,res:null};
+}
 async function _vbRepairOutOfRange(arr,batch,range,onWait){
   const KEYS=['hook','story','cta'];
   const wc=function(t){return String(t||'').trim().split(/\s+/).filter(Boolean).length;};
@@ -18695,25 +18758,13 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
     }).join('\n\n');
     // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
     const maxTok=Math.min(8192,600+pending.length*130);
-    let out;
+    let fixOut;
     _vbUsageKindOverride='fix';
-    // batas tunggu retry cuma 30 dtk: ini panggilan tambahan, bukan inti.
-    try{out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,30000);}
+    // v9.7: model utama Haiku -> rantai Gemini(2x) lalu Groq; model lain -> 1 panggilan lama (lihat _vbFixCallWithChain).
+    try{fixOut=await _vbFixCallWithChain(msg,maxTok,onWait);}
     finally{_vbUsageKindOverride='';}
-    if(!out||!out.resp||!out.resp.ok)break; // API error: jangan buang percobaan lagi, pakai teks yang ada
-    let res=null;
-    try{
-      const data=JSON.parse(out.rawText);
-      let text=((data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text)||'').trim();
-      text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
-      text=_vbSanitizeJsonText(text);
-      try{res=JSON.parse(text);}catch(e1){
-        const a=text.indexOf('['),b=text.lastIndexOf(']');
-        if(a!==-1&&b>a){try{res=JSON.parse(text.substring(a,b+1));}catch(e2){res=null;}}
-      }
-      // Jaring pengaman: kalau JSON terpotong/rusak, selamatkan object {id,teks} yang lengkap.
-      if(!Array.isArray(res))res=_vbSalvageIdTeks(text);
-    }catch(eParse){res=null;}
+    if(!fixOut||fixOut.apiFail)break; // semua panggilan gagal: jangan buang percobaan lagi, pakai teks yang ada
+    let res=fixOut.res;
     if(Array.isArray(res)&&res.length){
       const byId={};
       res.forEach(function(r){if(r&&typeof r.id==='string'&&typeof r.teks==='string')byId[r.id]=r.teks;});
