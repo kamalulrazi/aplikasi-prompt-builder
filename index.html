@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v9.2</div>
+  <div class="splash-version" id="splash-version">v9.3</div>
 </div>
 <script>
   (function(){
@@ -6130,7 +6130,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.2 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.3 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18620,6 +18620,105 @@ function _vbSalvageIdTeks(text){
 // Sanitizer frasa terlarang + potong batas atas (lokal, tanpa API) TETAP jalan.
 // Set true kalau suatu saat mau menyalakan lagi.
 const VB_AUTO_SHORTFIX_ENABLED=false;
+// ── PERBAIKAN JUMLAH KATA TERARAH — "KODE MENGHITUNG, AI HANYA MENULIS ULANG YANG MELESET"
+// (permintaan user, 1 Okt 2026, v9.3 — opsi 1 dari diskusi LLM lemah menghitung kata)
+// Alur: setelah AI selesai menulis, KODE menghitung kata tiap bagian (hook/story/cta).
+// Bagian yang di luar range (22-26) dikumpulkan dari SEMUA produk di batch, lalu dikirim
+// ke AI dalam SATU panggilan kecil per percobaan (tanpa foto, tanpa prompt utama) dengan
+// selisih PASTI dari kode, mis. "sekarang 19 kata, tambah 5" (target = range.target = 24).
+// Maksimal 2 percobaan; yang masih meleset sesudahnya ditangani seperti biasa
+// (potong lokal untuk yang kepanjangan, yang kependekan dibiarkan & ditandai di kartu).
+// Model yang dipakai = model yang sedang dipilih user (Haiku / Groq / Gemini), jadi
+// otomatis model termurah di jalurnya masing-masing. SONNET DILEWATI (permintaan user).
+// Hasil tulis ulang hanya diterima kalau LEBIH DEKAT ke range daripada teks sebelumnya.
+// Tidak pernah melempar error — kalau panggilan gagal, teks asli dipakai apa adanya.
+const VB_TARGETED_FIX_ENABLED=true;                 // sakelar utama
+const VB_TARGETED_FIX_SKIP_MODELS=['sonnet'];       // kunci PB_AI_MODELS yang TIDAK dikenai perbaikan ini
+const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian
+const VB_TARGETED_FIX_INCLUDE_LONG=true;            // true = bagian KEPANJANGAN juga ditulis ulang ("kurangi N"); false = hanya kependekan
+const VB_TARGETED_FIX_SYSTEM=
+  'Kamu penulis naskah iklan. Tiap item berisi teks dan selisih jumlah katanya. Tulis ulang teks itu sampai jumlah katanya PAS sesuai selisih (tambah atau kurangi). Makna dan gaya tetap, Bahasa Indonesia, tanpa emoji, tanpa tanda kutip, akhiri dengan titik. Jangan menyebut bahan atau material produk, jangan klaim promo, urgensi, atau stok terbatas. Kalau teks itu ajakan beli, tetap ajak tap keranjang bawah (jangan sebut keranjang kuning atau checkout).\n\n'
+ +'Balas HANYA JSON array, "id" disalin persis, "teks" berisi teks LENGKAP hasil tulis ulang:\n'
+ +'[{"id":"...","teks":"..."}]';
+function _vbTargetedFixActive(){
+  return VB_TARGETED_FIX_ENABLED&&VB_TARGETED_FIX_SKIP_MODELS.indexOf(_pbAiModelKey)===-1;
+}
+async function _vbRepairOutOfRange(arr,batch,range,onWait){
+  const KEYS=['hook','story','cta'];
+  const wc=function(t){return String(t||'').trim().split(/\s+/).filter(Boolean).length;};
+  // jarak ke range: 0 = sudah pas di 22-26
+  const dist=function(n){return n<range.min?range.min-n:(n>range.max?n-range.max:0);};
+  const target=range.target||Math.round((range.min+range.max)/2);
+  const aligned=(arr.length===batch.length);
+  let items=[];
+  for(let pi=0;pi<arr.length;pi++){
+    const prod=arr[pi];
+    if(!prod)continue;
+    for(const k of KEYS){
+      const t=prod[k];
+      if(!t)continue;
+      const n=wc(t);
+      if(n<range.min||(VB_TARGETED_FIX_INCLUDE_LONG&&n>range.max)){
+        const nama=(aligned&&batch[pi]&&batch[pi].nama)||prod.produk||('Produk '+(pi+1));
+        items.push({id:pi+'-'+k,pi:pi,k:k,nama:nama,attempts:0});
+      }
+    }
+  }
+  if(!items.length)return;
+  const all=items.slice();
+  let pending=items;
+  for(let attempt=1;attempt<=VB_TARGETED_FIX_MAX_ATTEMPTS&&pending.length;attempt++){
+    pending.forEach(function(it){it.attempts=attempt;});
+    const msg=pending.map(function(it){
+      const cur=arr[it.pi][it.k];
+      const n=wc(cur);
+      const diff=target-n;
+      return '[id: '+it.id+']\nProduk: '+it.nama+'\nTeks: '+cur+'\nsekarang '+n+' kata, '+(diff>0?'tambah '+diff:'kurangi '+(-diff));
+    }).join('\n\n');
+    // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
+    const maxTok=Math.min(8192,600+pending.length*130);
+    let out;
+    _vbUsageKindOverride='fix';
+    // batas tunggu retry cuma 30 dtk: ini panggilan tambahan, bukan inti.
+    try{out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,30000);}
+    finally{_vbUsageKindOverride='';}
+    if(!out||!out.resp||!out.resp.ok)break; // API error: jangan buang percobaan lagi, pakai teks yang ada
+    let res=null;
+    try{
+      const data=JSON.parse(out.rawText);
+      let text=((data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text)||'').trim();
+      text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+      text=_vbSanitizeJsonText(text);
+      try{res=JSON.parse(text);}catch(e1){
+        const a=text.indexOf('['),b=text.lastIndexOf(']');
+        if(a!==-1&&b>a){try{res=JSON.parse(text.substring(a,b+1));}catch(e2){res=null;}}
+      }
+      // Jaring pengaman: kalau JSON terpotong/rusak, selamatkan object {id,teks} yang lengkap.
+      if(!Array.isArray(res))res=_vbSalvageIdTeks(text);
+    }catch(eParse){res=null;}
+    if(Array.isArray(res)&&res.length){
+      const byId={};
+      res.forEach(function(r){if(r&&typeof r.id==='string'&&typeof r.teks==='string')byId[r.id]=r.teks;});
+      pending.forEach(function(it){
+        let nt=byId[it.id];
+        if(!nt)return;
+        nt=nt.trim().replace(/^["\u201C\u201D]+|["\u201C\u201D]+$/g,'').trim();
+        nt=_vbSanitizeForbiddenPhrases(nt);
+        if(!nt)return;
+        const cur=arr[it.pi][it.k];
+        // Terima hanya kalau benar-benar lebih dekat ke range daripada teks sebelumnya.
+        if(dist(wc(nt))<dist(wc(cur)))arr[it.pi][it.k]=nt;
+      });
+    }
+    pending=pending.filter(function(it){return dist(wc(arr[it.pi][it.k]))>0;});
+  }
+  // Catat hasil ke statistik perbaikan kata: jumlah percobaan per teks + apakah masih kependekan.
+  try{
+    all.forEach(function(it){
+      if(it.attempts>0)_vbTrackFixOutcome(it.attempts,wc(arr[it.pi][it.k])<range.min);
+    });
+  }catch(eOut){console.warn('[_vbRepairOutOfRange] catat hasil gagal:',eOut);}
+}
 async function _vbApplyShortFix(arr,batch,range,onWait){
   for(let si=0;si<arr.length;si++){
     const sp=arr[si];if(!sp)continue;
@@ -18629,6 +18728,9 @@ async function _vbApplyShortFix(arr,batch,range,onWait){
   }
   try{if(VB_AUTO_SHORTFIX_ENABLED)await _vbExtendShortScriptsOnce(arr,batch,range,onWait);}
   catch(eShort){console.warn('[_vbApplyShortFix] perbaikan skrip kependekan dilewati:',eShort);}
+  // PERBAIKAN TERARAH (v9.3): kode hitung kata, AI tulis ulang hanya yang meleset (maks 2 percobaan). Sonnet dilewati.
+  try{if(_vbTargetedFixActive())await _vbRepairOutOfRange(arr,batch,range,onWait);}
+  catch(eTgt){console.warn('[_vbApplyShortFix] perbaikan terarah dilewati:',eTgt);}
   for(let ei=0;ei<arr.length;ei++){
     const ep=arr[ei];if(!ep)continue;
     if(ep.hook)ep.hook=_vbHardEnforceMaxWords(ep.hook,range.max,range.min);
