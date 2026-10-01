@@ -16374,27 +16374,6 @@ function vbRemoveBulkFoto(i){
 // supaya SEMUA pemanggilan fetch ke Gemini (single script, bulk, revisi,
 // perbaikan jumlah kata) otomatis terlindungi tanpa perlu diulang manual
 // di tiap tempat.
-// ── FIX RATE LIMIT (429) — throttle GLOBAL antar-semua-panggilan Gemini ──
-// Sebelumnya jeda cuma dipasang ANTAR BATCH (1.5 detik di vbGenerateBulkAI)
-// dan ANTAR PERBAIKAN KATA (400ms di _vbFixWordCountBatchIfNeeded), tapi
-// TIDAK ada jeda global yang menghitung SEMUA panggilan ke Gemini sebagai
-// satu jendela waktu. Akibatnya 1 batch bulk bisa menembak 1 request utama
-// + sampai 3 request perbaikan-kata (1 per produk) dalam hitungan detik,
-// dan kalau ditambah retry internal, gampang nabrak limit RPM (request per
-// menit) akun free-tier Gemini yang biasanya cuma ~10-15 RPM. Gate di
-// bawah ini memaksa jeda minimum SEBELUM setiap request keluar, dihitung
-// dari waktu request TERAKHIR (apa pun jenisnya: batch utama, retry,
-// ataupun perbaikan kata) — jadi total laju request ke Gemini selalu di
-// bawah limit, bukan cuma "kelihatan" dijeda per-batch doang.
-let _vbLastGeminiCallTs=0;
-const _VB_MIN_GEMINI_GAP_MS=6500; // ~9 request/menit maksimum — diperlebar dari 4500ms (~13 RPM) atas permintaan user (Sept 2026) supaya lebih jarang kena limit 429, terutama saat pakai model primary gemini-3.6-flash yang jatah RPM free tier-nya cenderung lebih ketat dari Flash-Lite.
-async function _vbThrottleGeminiGate(){
-  let now=Date.now();
-  let wait=_vbLastGeminiCallTs+_VB_MIN_GEMINI_GAP_MS-now;
-  if(wait>0)await new Promise(r=>setTimeout(r,wait));
-  _vbLastGeminiCallTs=Date.now();
-}
-
 // ── Baca saran "tunggu sekian detik" — dari header HTTP 'retry-after'
 // (paling akurat, ini yang benar-benar dikirim Anthropic) atau dari body
 // error 429 (format lama Gemini/Groq, jaga-jaga kalau providernya beda).
@@ -17378,7 +17357,6 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // status==='thinking' buat nampilkan pesan tanpa embel countdown detik.
     if(typeof onWait==='function'){try{onWait(0,attempt,'thinking');}catch(e){}}
     try{
-      await _vbThrottleGeminiGate();
       var _fbTok=await _pbGetFirebaseIdToken();
       resp=await fetch(url,{
         method:'POST',
@@ -17701,9 +17679,7 @@ function _vbFetchWithTimeout(url,options,timeoutMs){
   let controller=new AbortController();
   let timedOut=false;
   let timer=setTimeout(function(){timedOut=true;controller.abort();},timeoutMs);
-  return _vbThrottleGeminiGate().then(function(){
-    return fetch(url,Object.assign({},options,{signal:controller.signal}))
-  })
+  return fetch(url,Object.assign({},options,{signal:controller.signal}))
     .catch(function(err){
       if(timedOut||err.name==='AbortError'){
         throw new Error('Koneksi ke server AI tidak merespons dalam '+(timeoutMs/1000)+' detik (timeout). Cek koneksi internet, lalu coba lagi.');
@@ -19087,11 +19063,10 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
           _vbUpdateProductCardsLive(batchItems[j].idx,batchArr[j]);
         }
       }
-      // Jeda antar batch — di atas gate global (_VB_MIN_GEMINI_GAP_MS) yang
-      // sudah otomatis menjaga jarak tiap request Gemini, ini jeda EKSTRA
-      // supaya tiap batch (yang isinya beberapa request: 1 utama + sampai
-      // 3 perbaikan-kata) tidak numpuk jadi satu ledakan request di ujung
-      // batch sebelumnya.
+      // Jeda antar batch — supaya tiap batch (yang isinya beberapa request:
+      // 1 utama + sampai 3 perbaikan-kata) tidak numpuk jadi satu ledakan
+      // request di ujung batch sebelumnya. (Gate global 6,5 detik per
+      // request sudah dihapus.)
       if(b<batches.length-1)await new Promise(r=>setTimeout(r,3000));
     }
 
