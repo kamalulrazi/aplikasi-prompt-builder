@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v9.0</div>
+  <div class="splash-version" id="splash-version">v9.2</div>
 </div>
 <script>
   (function(){
@@ -6130,7 +6130,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.0 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.2 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18584,10 +18584,11 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // men-drop produk: nama dipakai pencocokan foto/Lanjutkan); untuk 1 produk dihapus (hemat output token,
   // nama diisi ulang dari input user di _vbCallBulkBatch lewat arr[bi].produk=batch[bi].nama).
   // Kunci JSON hook/story/cta WAJIB sama dgn parser.
+  // PROMPT BAHASA INGGRIS (permintaan user, 1 Okt 2026, v9.2): instruksi Inggris (hemat token), OUTPUT tetap Indonesia. Berlaku untuk SEMUA model.
   return 'You are a professional content creator. Write EXACTLY 3 parts that flow into ONE continuous monologue:\n'
-    +'- HOOK: strong opener (funny question, surprising fact, everyday problem, or short story), not a template.\n'
-    +'- STORY: a scenario of the audience using the product to solve an everyday problem, not a personal experience.\n'
-    +'- CTA: tell viewers to tap the keranjang bawah only (never keranjang kuning or checkout), no urgency or limited-stock claims.\n'
+    +'- HOOK: engaging opener (funny question, surprising fact, everyday problem, or short story), not a template.\n'
+    +'- STORY: a scenario of the audience using the product to solve an everyday problem, not a personal experience. (Do not always start with "bayangkan".)\n'
+    +'- CTA: tell viewers to tap the keranjang bawah (never keranjang kuning or checkout), no urgency or limited-stock claims.\n'
     +'RULES: write in Indonesian, no emoji, no quotation marks, end sentences with a period. Each part must be '+range.min+'-'+range.max+' Indonesian words (target '+(range.target||Math.round((range.min+range.max)/2))+'; CTA is often too short). NEVER mention product material or texture (bahan/material/tekstur) unless it is in the stated advantages, and NEVER mention promo/diskon/limited. Rewrite product names naturally.\n'
     +'Reply ONLY with a JSON array of EXACTLY '+count+' object(s), one per product in list order, no other text or markdown: [{'+(count>1?'"no":1,"produk":"...",':'')+'"hook":"...","story":"...","cta":"..."}]'+(count>1?' "no" is the product number from the list (1 to '+count+'), copied exactly; never skip, merge or reorder products.':'');
 }
@@ -18781,12 +18782,12 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
   let _motionVal=(typeof VB.motion==='string'?VB.motion.replace(/[\r\n"]+/g,' ').trim():'');
   // DIPADATKAN (30 Sep 2026): label ditulis Inggris (lebih hemat token); isi data user tetap apa adanya.
-  let prompt='Character: '+VB.genderLabel+', age '+(VB.age||VB.ageLabel)+' (adapt speaking style).\n'
-    +(_sapaanVal?'Greeting: '+_sapaanVal+' (use consistently in HOOK/STORY/CTA, naturally).\n':'')
+  let prompt='Character: '+VB.genderLabel+', age '+(VB.age||VB.ageLabel)+' (adapt speaking style to the target audience).\n'
+    +(_sapaanVal?'Greeting: '+_sapaanVal+' (use in HOOK/STORY/CTA, not at the very beginning).\n':'')
     +'Tone: '+(VB.pitchLabel||VB.pitch)+'\n'
     +(_motionVal?'Movement: '+_motionVal+'\n':'')
     +'Accent: '+(VB.accentLabel||VB.accent)+'\n'
-    +'Target audience: '+targetAudience+'\n\n'
+    +'Target audience: '+targetAudience+' (all of the above affects the script)\n\n'
     +'Products ('+batch.length+'):\n'+produkListText+'\n'
     +(extraNote?'\nREVISION NOTE (top priority, overrides any conflicting rule): '+String(extraNote).slice(0,2500)+'\n':'')
     +(usedHooks&&usedHooks.length?'\nHOOKs already used in other products (avoid the same or similar sentences, patterns, and openers; use a DIFFERENT angle):\n'+usedHooks.map(function(h){return'- '+h;}).join('\n')+'\n':'');
