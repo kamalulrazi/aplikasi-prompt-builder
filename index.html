@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v9.8</div>
+  <div class="splash-version" id="splash-version">v10.0</div>
 </div>
 <script>
   (function(){
@@ -5938,7 +5938,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   <p class="sec-desc">Baca sekali, pakai berkali-kali.</p>
   <button id="pb-tour-replay-btn" onclick="pbReplayTour()"><svg class="icon"><use href="#ic-sparkle"></use></svg> Lihat Tur Panduan Lagi</button>
   <!-- PILIHAN MODEL AI (permintaan user): Sonnet / Haiku / Groq / Gemini — lihat PB_AI_MODELS -->
-  <div id="pb-model-picker" style="margin-top:18px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:14px;">
+  <div id="pb-model-picker" style="display:none;margin-top:18px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:14px;">
     <div style="font-size:var(--fs-sm);font-weight:700;color:var(--text);">Model AI</div>
     <div style="font-size:var(--fs-xs2);color:var(--muted);margin:2px 0 10px;">Pilih model yang dipakai untuk generate script &amp; perbaikan kata. Prompt-nya sama, cuma modelnya yang beda.</div>
     <div style="display:flex;gap:8px;">
@@ -6131,7 +6131,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.0 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11914,22 +11914,42 @@ function _vbHasInterruptedUsage(u,isOai,textChars){
 var PB_AI_MODEL_KEY='pb_ai_model_v1';
 var _pbAiModelKey='sonnet';
 try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
-function pbGetAiModelKey(){return _pbAiModelKey;}
-function _pbModelId(){return PB_AI_MODELS[_pbAiModelKey].id;}
+// ── MODEL AI KHUSUS ADMIN (permintaan user, 1 Okt 2026) ─────────────────
+// Picker model HANYA tampil untuk admin. SEMUA user lain dikunci ke Haiku
+// dan tidak bisa menggantinya. Daftar email admin harus sama dengan
+// OWNER_EMAILS di admin.html. Ini penyaring sisi tampilan/klien; penegakan
+// sungguhan (anti-utak-atik devtools) harus ada di Worker proxy.
+var PB_ADMIN_EMAILS=['vid1hihu@gmail.com'];
+var PB_DEFAULT_USER_MODEL='haiku';
+function pbIsAdmin(){
+  var em='';
+  try{em=(firebase.auth().currentUser&&firebase.auth().currentUser.email)||'';}catch(e){}
+  if(!em){try{var au=JSON.parse(localStorage.getItem('pb_auth_user')||'null');em=(au&&au.email)||'';}catch(e){}}
+  em=String(em).toLowerCase();
+  return PB_ADMIN_EMAILS.some(function(x){return String(x).toLowerCase()===em;});
+}
+// Model yang BENAR-BENAR dipakai: admin = pilihannya, user lain = Haiku.
+function pbGetAiModelKey(){return pbIsAdmin()?_pbAiModelKey:PB_DEFAULT_USER_MODEL;}
+function _pbModelId(){return PB_AI_MODELS[pbGetAiModelKey()].id;}
 // THINKING HAIKU DIHAPUS (permintaan user, 30 Sep 2026): Haiku tidak lagi
 // mengirim parameter 'thinking' sama sekali (field-nya undefined sehingga
 // dibuang JSON.stringify). Sonnet TIDAK berubah (tetap between_tools).
 function _pbThinkingParam(answerMaxTokens){
-  return PB_AI_MODELS[_pbAiModelKey].thinking;
+  return PB_AI_MODELS[pbGetAiModelKey()].thinking;
 }
 function pbRenderAiModelPicker(){
   try{
+    var admin=pbIsAdmin();
+    var box=document.getElementById('pb-model-picker');
+    if(box)box.style.display=admin?'':'none';
+    var cur=pbGetAiModelKey();
     document.querySelectorAll('#pb-model-picker .pb-model-btn').forEach(function(b){
-      b.classList.toggle('sel',b.getAttribute('data-model')===_pbAiModelKey);
+      b.classList.toggle('sel',b.getAttribute('data-model')===cur);
     });
   }catch(e){}
 }
 function pbSetAiModel(k){
+  if(!pbIsAdmin())return; // user biasa tidak boleh ganti model
   if(!PB_AI_MODELS[k])return;
   _pbAiModelKey=k;
   try{localStorage.setItem(PB_AI_MODEL_KEY,k);}catch(e){}
@@ -12293,6 +12313,11 @@ function _pbWorkerAuthQuotaMsg(status,errJson){
   if(status===403&&(t==='quota_exceeded'||t==='login_required')){
     try{ if(typeof pbOpenUpgradeModal==='function') pbOpenUpgradeModal(); }catch(e){}
     return m||'Jatah generate hari ini sudah habis.';
+  }
+  // Model khusus admin (Worker menolak model selain Haiku untuk non-admin).
+  // Tidak membuka modal upgrade — ini bukan soal kuota.
+  if(status===403&&t==='model_not_allowed'){
+    return m||'Model ini khusus admin. Muat ulang aplikasi lalu coba lagi.';
   }
   return null;
 }
@@ -17010,7 +17035,7 @@ function _vbTrackUsage(usageInfo,meta){
   // dipilih saat panel dibuka). meta.model = ID model API; pemanggil lama yang
   // tidak mengirim info model dianggap memakai model yang sedang dipilih.
   var mKey=_vbValidModelKey(meta.modelKey)||_vbValidModelKey(_pbModelKeyOfId(meta.model));
-  if(!mKey&&!meta.model&&!meta.modelKey)mKey=_vbValidModelKey(_pbAiModelKey);
+  if(!mKey&&!meta.model&&!meta.modelKey)mKey=_vbValidModelKey(pbGetAiModelKey());
   var estOut=(meta.outEstTok>0)?meta.outEstTok:0;
   var interrupted=!!meta.interrupted;
   // Panggilan perbaikan skrip kependekan: catat ke statistik 'Perbaikan jumlah kata' (kind 'fix'),
@@ -18690,7 +18715,7 @@ const VB_TARGETED_FIX_SYSTEM=
  +'Balas HANYA JSON array, "id" disalin persis, "teks" berisi teks LENGKAP hasil tulis ulang:\n'
  +'[{"id":"...","teks":"..."}]';
 function _vbTargetedFixActive(){
-  return VB_TARGETED_FIX_ENABLED&&VB_TARGETED_FIX_SKIP_MODELS.indexOf(_pbAiModelKey)===-1;
+  return VB_TARGETED_FIX_ENABLED&&VB_TARGETED_FIX_SKIP_MODELS.indexOf(pbGetAiModelKey())===-1;
 }
 // ── RANTAI MODEL PERBAIKAN KATA (permintaan user, 1 Okt 2026, v9.7) ──────────
 // HANYA berlaku kalau model UTAMA yang dipilih = Haiku (VB_FIX_CHAIN_FOR_MAIN_MODEL).
@@ -18729,7 +18754,7 @@ function _vbParseFixJson(rawText){
 // Mengembalikan {apiFail:true} kalau SEMUA panggilan gagal di level API (pemanggil berhenti
 // mencoba), atau {apiFail:false,res:array|null} (res null = balasan tidak terbaca).
 async function _vbFixCallWithChain(msg,maxTok,onWait,startStep){
-  const useChain=VB_FIX_CHAIN_ENABLED&&_pbAiModelKey===VB_FIX_CHAIN_FOR_MAIN_MODEL;
+  const useChain=VB_FIX_CHAIN_ENABLED&&pbGetAiModelKey()===VB_FIX_CHAIN_FOR_MAIN_MODEL;
   if(!useChain){
     // Perilaku lama: 1 panggilan ke model yang sedang dipilih (batas tunggu retry 30 dtk).
     const out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,30000);
@@ -26729,12 +26754,9 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
   function _check(){
     var wrap = document.getElementById('pb-stats-admin-only');
     if(!wrap) return;
-    var em = '';
-    try{ em = (firebase.auth().currentUser && firebase.auth().currentUser.email) || ''; }catch(e){}
-    if(!em){ try{ var au = JSON.parse(localStorage.getItem('pb_auth_user') || 'null'); em = (au && au.email) || ''; }catch(e){} }
-    em = String(em).toLowerCase();
-    var ok = PB_ADMIN_EMAILS.some(function(x){ return String(x).toLowerCase() === em; });
+    var ok = (typeof pbIsAdmin === 'function') ? pbIsAdmin() : false;
     wrap.style.display = ok ? 'block' : 'none';
+    try{ if(typeof pbRenderAiModelPicker === 'function') pbRenderAiModelPicker(); }catch(e){}
     if(!ok){ var pnl = document.getElementById('pb-usage-panel'); if(pnl) pnl.classList.add('hidden'); }
   }
   document.addEventListener('DOMContentLoaded', _check);
