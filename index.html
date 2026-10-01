@@ -18675,8 +18675,8 @@ function _vbBuildSingleModeSystemPrompt(range,count){
 // tetap dijaga _vbHardEnforceMaxWords di pemanggil. Kalau panggilan ini
 // gagal/error apa pun, teks asli dipakai apa adanya (tidak melempar error).
 const VB_SHORTFIX_SYSTEM=
-  'Kamu kreator profesional. Tambahkan beberapa kata dalam skrip sampai total 22-26 kata. Jangan menyebut bahan atau material produk.\n\n'
- +'Balas HANYA JSON array, "id" disalin persis:\n'
+  'You are a professional content creator. Add a few words to the script until the total is 22-26 words. Write in Indonesian. Do not mention product material.\n\n'
+ +'Reply ONLY with a JSON array, copy "id" exactly:\n'
  +'[{"id":"...","teks":"kalimat tambahan"}]';
 function _vbSalvageIdTeks(text){
   const out=[];
@@ -18711,8 +18711,8 @@ const VB_TARGETED_FIX_SKIP_MODELS=['sonnet'];       // kunci PB_AI_MODELS yang T
 const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian
 const VB_TARGETED_FIX_INCLUDE_LONG=false;            // true = bagian KEPANJANGAN juga ditulis ulang ("kurangi N"); false = hanya kependekan
 const VB_TARGETED_FIX_SYSTEM=
-  'Kamu kreator profesional. Lanjutkan skrip yang kuberikan. Pertahankan konteks, suasana dan gaya skrip. Dilarang sebut bahan, stok terbatas, keranjang kuning.\n\n'
- +'Balas HANYA JSON array, "id" disalin persis, "teks" berisi teks LENGKAP hasil tulis ulang:\n'
+  'You are a professional content creator. Continue the script I give you. Keep the context, mood and style of the script. Write in Indonesian. NEVER mention product material, limited stock, or keranjang kuning.\n\n'
+ +'Reply ONLY with a JSON array, copy "id" exactly, "teks" contains the FULL rewritten text:\n'
  +'[{"id":"...","teks":"..."}]';
 function _vbTargetedFixActive(){
   return VB_TARGETED_FIX_ENABLED&&VB_TARGETED_FIX_SKIP_MODELS.indexOf(pbGetAiModelKey())===-1;
@@ -18816,7 +18816,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
       const cur=arr[it.pi][it.k];
       const n=wc(cur);
       const diff=target-n;
-      return '[id: '+it.id+']\nProduk: '+it.nama+'\nTeks: '+cur+'\nsekarang '+n+' kata, '+(diff>0?'tambah '+diff:'kurangi '+(-diff));
+      return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+cur+'\nCurrently '+n+' words, '+(diff>0?'add '+diff:'remove '+(-diff));
     }).join('\n\n');
     // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
     const maxTok=Math.min(8192,600+pending.length*130);
@@ -18889,7 +18889,7 @@ async function _vbExtendShortScriptsOnce(arr,batch,range,onWait){
   }
   if(!items.length)return;
   let msg=items.map(function(it){
-    return '[id: '+it.id+']\nProduk: '+it.nama+'\nTeks: '+it.t+'\nTambahkan: '+(range.min-it.n)+'-'+(range.max-it.n)+' kata';
+    return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+it.t+'\nAdd: '+(range.min-it.n)+'-'+(range.max-it.n)+' words';
   }).join('\n\n');
   // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
   const maxTok=Math.min(8192,600+items.length*130);
