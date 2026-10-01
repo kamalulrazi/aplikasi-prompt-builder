@@ -1067,6 +1067,7 @@
           try{ localStorage.removeItem(k+'__base'); }catch(e){}
         });
         try{ localStorage.removeItem('pb_vai_k'); }catch(e){}
+        try{ localStorage.removeItem('pb_ai_model_v1'); if(typeof pbResetAiModelToDefault==='function') pbResetAiModelToDefault(); }catch(e){}
         _tlog('uid-berubah', '…' + String(_lastUid).slice(-6) + ' → …' + _uidTail() + ' (tier lokal dibersihkan)');
         try{
           var _emR = (firebase.auth().currentUser && firebase.auth().currentUser.email) || (user && user.email) || '';
@@ -4153,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v8.9</div>
+  <div class="splash-version" id="splash-version">v9.0</div>
 </div>
 <script>
   (function(){
@@ -4449,6 +4450,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     try{ localStorage.removeItem('pb_tier_v1'); localStorage.removeItem('pb_tier_expiry_v1'); }catch(e){}
     // FIX (audit auth #1): kuota harian akun ini tidak boleh terwariskan ke akun berikutnya di perangkat ini.
     try{ localStorage.removeItem('pb_quota_v1'); }catch(e){}
+    try{ localStorage.removeItem('pb_ai_model_v1'); }catch(e){}
     // FIX (audit auth #4): dorong dulu perubahan lokal yang belum ke-push (maks 4 dtk), baru signOut.
     var _pbSo = null;
     try{
@@ -6128,7 +6130,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.9 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v9.0 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11903,6 +11905,15 @@ function pbSetAiModel(k){
   pbRenderAiModelPicker();
   try{if(typeof _vbRenderUsageBadge==='function'&&typeof _vbLoadUsageStats==='function')_vbRenderUsageBadge(_vbLoadUsageStats());}catch(e){}
   try{if(typeof showToast==='function')showToast('Model AI: '+PB_AI_MODELS[k].label);}catch(e){}
+}
+// DEFAULT MODEL = SONNET (permintaan user, 1 Okt 2026): pilihan model disimpan
+// per-perangkat (localStorage), jadi akun BARU di perangkat yang pernah dipakai
+// akun lain bisa ikut kebawa Haiku/Groq/Gemini. Fungsi ini mengembalikan ke Sonnet.
+function pbResetAiModelToDefault(){
+  _pbAiModelKey='sonnet';
+  try{localStorage.removeItem(PB_AI_MODEL_KEY);}catch(e){}
+  pbRenderAiModelPicker();
+  try{if(typeof _vbRenderUsageBadge==='function'&&typeof _vbLoadUsageStats==='function')_vbRenderUsageBadge(_vbLoadUsageStats());}catch(e){}
 }
 document.addEventListener('DOMContentLoaded',pbRenderAiModelPicker);
 try{pbRenderAiModelPicker();}catch(e){}
