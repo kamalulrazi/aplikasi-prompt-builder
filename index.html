@@ -16610,14 +16610,85 @@ function _vbSaveUsageArchive(a){
   // yang sama (increment per-field, aman dipakai bersamaan dari 2+ perangkat).
   if(typeof pbCloudQueueCounter==='function')pbCloudQueueCounter(PB_USAGE_ARCHIVE_KEY); // SINKRON ANTAR PERANGKAT
 }
-function _vbEmptyKindBucket(){return{calls:0,single:0,bulk:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,outTok:0};}
+// ── BIAYA PER MODEL (audit statistik biaya & cache, 1 Okt 2026) ──────────
+// DULU: riwayat/arsip/total selamanya TIDAK menyimpan nama model, dan semua
+// biaya dihitung ulang dengan tarif model yang SEDANG dipilih di tab Panduan.
+// Akibatnya tiap ganti model, seluruh riwayat + "TOTAL SEMUA BIAYA" ikut
+// berubah harga (mis. pemakaian Gemini $0,14 bisa tampil $3,00 saat Sonnet
+// terpilih). SEKARANG: tiap panggilan dicatat bersama KUNCI modelnya
+// (sonnet/haiku/groq/gemini — kunci PB_AI_MODELS, tanpa titik/spasi supaya
+// aman jadi path field counter cloud) dan biayanya dihitung dengan tarif
+// modelnya sendiri. Token dari catatan LAMA (sebelum update ini) tidak punya
+// nama model: dihitung sebagai "model tidak diketahui" pakai tarif asumsi
+// VB_LEGACY_MODEL_KEY (lihat _vbCalcUsd) — sisa = total datar − jumlah
+// byModel, jadi perangkat yang masih memakai versi lama pun tidak merusak
+// hitungan (tokennya otomatis masuk "tidak diketahui").
+// outEstTok = PERKIRAAN output dari percobaan yang terputus (timeout/error
+// di tengah stream, event akhir berisi output_tokens tidak pernah datang).
+// Sengaja DIPISAH dari outTok (angka asli API) supaya tidak tercampur.
+var VB_TOK_FIELDS=['noCacheInTok','cacheWriteInTok','cacheReadInTok','outTok','outEstTok'];
+function _vbEmptyTok(){return{noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,outTok:0,outEstTok:0};}
+function _vbEmptyKindBucket(){return{calls:0,single:0,bulk:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,outTok:0,byModel:{}};}
+function _vbValidModelKey(k){return(k&&typeof k==='string'&&Object.prototype.hasOwnProperty.call(PB_AI_MODELS,k))?k:'';}
+// Tambahkan token 1 panggilan (objek e: noCacheInTok/cacheWriteInTok/
+// cacheReadInTok/outTok/outEstTok/model) ke bucket b (bucket arsip, objek
+// statistik selamanya, atau statistik perbaikan kata): field datar = total
+// semua model (dipakai tampilan lama), byModel[kunci] = rincian per model.
+function _vbBucketAddTokens(b,e){
+  b.noCacheInTok=(b.noCacheInTok||0)+(e.noCacheInTok||0);
+  b.cacheWriteInTok=(b.cacheWriteInTok||0)+(e.cacheWriteInTok||0);
+  b.cacheReadInTok=(b.cacheReadInTok||0)+(e.cacheReadInTok||0);
+  b.outTok=(b.outTok||0)+(e.outTok||0);
+  var mk=_vbValidModelKey(e.model);
+  if(mk){
+    if(!b.byModel||typeof b.byModel!=='object')b.byModel={};
+    var bm=b.byModel[mk]||(b.byModel[mk]=_vbEmptyTok());
+    VB_TOK_FIELDS.forEach(function(f){bm[f]=(bm[f]||0)+(e[f]||0);});
+  }
+}
 function _vbMergeBucket(dst,src){
   if(!src)return;
   dst.calls+=src.calls||0; dst.single+=src.single||0; dst.bulk+=src.bulk||0;
   dst.noCacheInTok+=src.noCacheInTok||0; dst.cacheWriteInTok+=src.cacheWriteInTok||0;
   dst.cacheReadInTok+=src.cacheReadInTok||0; dst.outTok+=src.outTok||0;
+  if(src.byModel&&typeof src.byModel==='object'){
+    if(!dst.byModel)dst.byModel={};
+    Object.keys(src.byModel).forEach(function(k){
+      var d=dst.byModel[k]||(dst.byModel[k]=_vbEmptyTok());
+      VB_TOK_FIELDS.forEach(function(f){d[f]=(d[f]||0)+((src.byModel[k]&&src.byModel[k][f])||0);});
+    });
+  }
 }
-function _vbBucketUsd(b){return _vbCalcUsd(b.noCacheInTok,b.cacheWriteInTok,b.cacheReadInTok,b.outTok);}
+// Pecah sebuah bucket jadi {kunciModel: token}. Token yang tidak punya nama
+// model (catatan lama) dikumpulkan di kunci 'unknown'.
+function _vbSplitByModel(b){
+  var res={},known=_vbEmptyTok(),bm=(b&&b.byModel)||{};
+  Object.keys(bm).forEach(function(k){
+    var t=_vbEmptyTok();
+    VB_TOK_FIELDS.forEach(function(f){t[f]=(bm[k]&&bm[k][f])||0;known[f]+=t[f];});
+    res[k]=t;
+  });
+  var rest=_vbEmptyTok(),any=false;
+  ['noCacheInTok','cacheWriteInTok','cacheReadInTok','outTok'].forEach(function(f){
+    var r=((b&&b[f])||0)-known[f];
+    if(r>0){rest[f]=r;any=true;}
+  });
+  if(any)res.unknown=rest;
+  return res;
+}
+// Biaya ASLI (dari token yang dilaporkan API) sebuah bucket, tiap model
+// dihitung dengan tarifnya sendiri. Perkiraan output terputus TIDAK ikut.
+function _vbBucketUsd(b){
+  var sp=_vbSplitByModel(b),u=0;
+  Object.keys(sp).forEach(function(k){var t=sp[k];u+=_vbCalcUsd(t.noCacheInTok,t.cacheWriteInTok,t.cacheReadInTok,t.outTok,k);});
+  return u;
+}
+// Perkiraan output percobaan terputus: {tok, usd} (terpisah dari biaya asli).
+function _vbBucketEstOut(b){
+  var sp=_vbSplitByModel(b),tok=0,usd=0;
+  Object.keys(sp).forEach(function(k){var t=sp[k];if(t.outEstTok>0){tok+=t.outEstTok;usd+=_vbCalcUsd(0,0,0,t.outEstTok,k);}});
+  return{tok:tok,usd:usd};
+}
 // 'YYYY-MM-DD' berdasarkan tanggal LOKAL perangkat (bukan UTC), dipakai
 // sebagai kunci arsip harian.
 function _vbDayKey(ts){
@@ -16635,10 +16706,7 @@ function _vbArchiveAdd(arc,e){
   var b=arc[day][kind];
   b.calls++;
   if(e.mode==='bulk')b.bulk++; else if(e.mode==='single')b.single++;
-  b.noCacheInTok+=(e.noCacheInTok||0);
-  b.cacheWriteInTok+=(e.cacheWriteInTok||0);
-  b.cacheReadInTok+=(e.cacheReadInTok||0);
-  b.outTok+=(e.outTok||0);
+  _vbBucketAddTokens(b,e); // token datar + rincian per model (lihat _vbBucketAddTokens)
 }
 // Pindahkan entri mentah yang sudah lebih tua dari PB_USAGE_LOG_RAW_DAYS ke
 // arsip harian (agregat, TIDAK PERNAH dihapus) — dipanggil tiap kali ada
@@ -16685,8 +16753,7 @@ function _vbPeriodTotals(startTs,endTs,archiveData,logData){
       var t=totals[k];
       t.calls++;
       if(e.mode==='bulk')t.bulk++; else if(e.mode==='single')t.single++;
-      t.noCacheInTok+=(e.noCacheInTok||0); t.cacheWriteInTok+=(e.cacheWriteInTok||0);
-      t.cacheReadInTok+=(e.cacheReadInTok||0); t.outTok+=(e.outTok||0);
+      _vbBucketAddTokens(t,e);
     }
   });
   return totals;
@@ -16702,15 +16769,14 @@ function _vbDayTotalUsd(dayKey,archiveData,logData){
   var log=logData||_vbLoadUsageLog();
   log.forEach(function(e){
     if(_vbDayKey(e.ts)===dayKey){
-      b.noCacheInTok+=(e.noCacheInTok||0); b.cacheWriteInTok+=(e.cacheWriteInTok||0);
-      b.cacheReadInTok+=(e.cacheReadInTok||0); b.outTok+=(e.outTok||0);
+      _vbBucketAddTokens(b,e);
     }
   });
   return _vbBucketUsd(b);
 }
 function _vbStartOfToday(){var d=new Date();d.setHours(0,0,0,0);return d.getTime();}
 function _vbStartOfMonth(){var d=new Date();d.setDate(1);d.setHours(0,0,0,0);return d.getTime();}
-function _vbLogUsageEvent(kind,mode,tok,outTok){
+function _vbLogUsageEvent(kind,mode,tok,outTok,extra){ // extra: {model,outEstTok,interrupted}
   var l=_vbLoadUsageLog();
   // Jaga-jaga: kalau ada jalur yang belum sempat panggil
   // _vbStartUsageSession sebelum sampai sini, buat sesi baru otomatis di
@@ -16725,7 +16791,10 @@ function _vbLogUsageEvent(kind,mode,tok,outTok){
     ts:Date.now(),kind:kind||'generate',mode:mode||'unknown',
     sesiId:_vbCurrentSessionId,sesiLabel:_vbCurrentSessionLabel,sesiTotal:_vbCurrentSessionTotal,
     produkCount:_vbCurrentCallProdukCount||1,fotoCount:_vbCurrentCallFotoCount||0,
-    noCacheInTok:(tok&&tok.noCacheInTok)||0,cacheWriteInTok:(tok&&tok.cacheWriteInTok)||0,cacheReadInTok:(tok&&tok.cacheReadInTok)||0,outTok:outTok||0});
+    noCacheInTok:(tok&&tok.noCacheInTok)||0,cacheWriteInTok:(tok&&tok.cacheWriteInTok)||0,cacheReadInTok:(tok&&tok.cacheReadInTok)||0,outTok:outTok||0,
+    model:_vbValidModelKey(extra&&extra.model)||undefined,
+    outEstTok:(extra&&extra.outEstTok>0)?extra.outEstTok:undefined,
+    interrupted:(extra&&extra.interrupted)?true:undefined});
   l=_vbCompactUsageLog(l);
   _vbSaveUsageLog(l);
 }
@@ -16741,9 +16810,15 @@ function _vbFormatLogTime(ts){
 function _vbLoadUsageStats(){
   try{
     var s=JSON.parse(localStorage.getItem(PB_USAGE_KEY)||'null');
-    if(s&&typeof s.hit==='number')return s;
+    if(s&&typeof s.hit==='number'){
+      if(!s.byModel||typeof s.byModel!=='object')s.byModel={};
+      return s;
+    }
   }catch(e){}
-  return{hit:0,miss:0,noCache:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0};
+  // nonClaude = jumlah panggilan Groq/Gemini (tidak punya prompt caching, jadi
+  // TIDAK dihitung ke hit/miss/noCache); interrupted = jumlah percobaan
+  // terputus yang tetap tertagih; byModel = rincian token per model.
+  return{hit:0,miss:0,noCache:0,nonClaude:0,interrupted:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,byModel:{}};
 }
 function _vbSaveUsageStats(s){
   try{localStorage.setItem(PB_USAGE_KEY,JSON.stringify(s));}catch(e){}
@@ -16753,30 +16828,39 @@ function _vbSaveUsageStats(s){
   // lihat definisinya + catatan panjang di dekat PB_COUNTER_SYNC_KEYS.
   if(typeof pbCloudQueueCounter==='function')pbCloudQueueCounter(PB_USAGE_KEY);
 }
-function _vbTrackUsage(usageInfo){
+function _vbTrackUsage(usageInfo,meta){
+  meta=meta||{};
+  // FIX BIAYA PER MODEL (audit, 1 Okt 2026): model yang BENAR-BENAR dipakai
+  // panggilan ini dicatat bersama tokennya (bukan model yang kebetulan sedang
+  // dipilih saat panel dibuka). meta.model = ID model API; pemanggil lama yang
+  // tidak mengirim info model dianggap memakai model yang sedang dipilih.
+  var mKey=_vbValidModelKey(meta.modelKey)||_vbValidModelKey(_pbModelKeyOfId(meta.model));
+  if(!mKey&&!meta.model&&!meta.modelKey)mKey=_vbValidModelKey(_pbAiModelKey);
+  var estOut=(meta.outEstTok>0)?meta.outEstTok:0;
+  var interrupted=!!meta.interrupted;
   // Panggilan perbaikan skrip kependekan: catat ke statistik 'Perbaikan jumlah kata' (kind 'fix'),
   // JANGAN campur ke statistik generate/cache utama supaya hit-rate cache tidak terganggu.
   if(_vbUsageKindOverride==='fix'){
-    try{_vbTrackFixCall(usageInfo);}catch(eFix){console.warn('[_vbTrackUsage] catat fix gagal:',eFix);}
+    try{_vbTrackFixCall(usageInfo,{modelKey:mKey,outEstTok:estOut,interrupted:interrupted});}catch(eFix){console.warn('[_vbTrackUsage] catat fix gagal:',eFix);}
     return;
   }
   var s=_vbLoadUsageStats();
-  if(usageInfo.cache_read_input_tokens>0)s.hit++;
+  // Rasio cache HIT hanya bermakna untuk Claude (Groq/Gemini tidak dikirimi
+  // cache_control), jadi panggilan non-Claude dihitung terpisah (nonClaude),
+  // tidak ikut menurunkan rasio HIT.
+  var prov=mKey?(PB_AI_MODELS[mKey].provider||''):'';
+  if(prov)s.nonClaude=(s.nonClaude||0)+1;
+  else if(usageInfo.cache_read_input_tokens>0)s.hit++;
   else if(usageInfo.cache_creation_input_tokens>0)s.miss++;
   else s.noCache++;
-  // FIX AKURASI BIAYA (permintaan user, Sept 2026): dulu 3 jenis token input
-  // (biasa, cache_creation, cache_read) digabung jadi 1 angka lalu dihitung
-  // pakai tarif input FLAT — padahal Anthropic sebenarnya kasih diskon ~90%
-  // untuk cache_read dan markup +25% untuk cache_creation (lihat cacheStatus
-  // di bawah). Sekarang disimpan TERPISAH per jenis supaya biayanya bisa
-  // dihitung pakai tarif yang benar (lihat _vbCalcUsd).
-  s.noCacheInTok=(s.noCacheInTok||0)+(usageInfo.input_tokens||0);
-  s.cacheWriteInTok=(s.cacheWriteInTok||0)+(usageInfo.cache_creation_input_tokens||0);
-  s.cacheReadInTok=(s.cacheReadInTok||0)+(usageInfo.cache_read_input_tokens||0);
-  s.inTok+=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0); // tetap dijumlah kasar buat tampilan "Input total", TIDAK dipakai lagi buat hitung biaya
-  s.outTok+=(usageInfo.output_tokens||0);
+  if(interrupted)s.interrupted=(s.interrupted||0)+1;
+  // Token disimpan TERPISAH per jenis (biasa / tulis-cache +25% / baca-cache
+  // diskon ~90%) DAN per model, supaya biayanya bisa dihitung dengan tarif
+  // yang benar (lihat _vbCalcUsd). Field datar = total semua model.
+  _vbBucketAddTokens(s,{noCacheInTok:usageInfo.input_tokens||0,cacheWriteInTok:usageInfo.cache_creation_input_tokens||0,cacheReadInTok:usageInfo.cache_read_input_tokens||0,outTok:usageInfo.output_tokens||0,outEstTok:estOut,model:mKey});
+  s.inTok+=(usageInfo.input_tokens||0)+(usageInfo.cache_creation_input_tokens||0)+(usageInfo.cache_read_input_tokens||0); // tetap dijumlah kasar buat tampilan "Input total", TIDAK dipakai buat hitung biaya
   _vbSaveUsageStats(s);
-  _vbLogUsageEvent('generate',_vbCurrentCallMode,{noCacheInTok:usageInfo.input_tokens||0,cacheWriteInTok:usageInfo.cache_creation_input_tokens||0,cacheReadInTok:usageInfo.cache_read_input_tokens||0},usageInfo.output_tokens||0); // RIWAYAT: catat jam + jenis + mode + token asli per-jenis panggilan ini
+  _vbLogUsageEvent('generate',_vbCurrentCallMode,{noCacheInTok:usageInfo.input_tokens||0,cacheWriteInTok:usageInfo.cache_creation_input_tokens||0,cacheReadInTok:usageInfo.cache_read_input_tokens||0},usageInfo.output_tokens||0,{model:mKey,outEstTok:estOut,interrupted:interrupted}); // RIWAYAT: catat jam + jenis + mode + model + token asli per-jenis panggilan ini
   _vbRenderUsageBadge(s);
   _vbEnsureLiveIdrRate(); // prefetch kurs di background, gratis & bukan panggilan AI
 }
@@ -16884,20 +16968,29 @@ function _vbBuildUsageChartSvg(archiveData,logData){
 // EstBiayaFotoUSD supaya 1 aksi generate (mis. bulk 8 produk) tetap bisa
 // dikelompokkan di Excel/Sheets walau di sini tetap 1 baris per-panggilan.
 async function _vbExportUsageCsv(){
-  var rows=[['Tanggal','Jam','Sesi','LabelSesi','JumlahProdukSesi','Jenis','Mode','JumlahProdukPanggilan','JumlahFoto','EstBiayaFotoUSD','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaUSD']];
+  var rows=[['Tanggal','Jam','Sesi','LabelSesi','JumlahProdukSesi','Jenis','Mode','JumlahProdukPanggilan','JumlahFoto','EstBiayaFotoUSD','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','Model','TokenOutputPerkiraanTerputus','BiayaPerkiraanTerputusUSD','BiayaUSD']];
   _vbLoadUsageLog().slice().sort(function(a,b){return a.ts-b.ts;}).forEach(function(e){
     var d=new Date(e.ts);
-    var usd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
-    var fotoUsd=_vbEstFotoUsd(e.fotoCount||0);
-    rows.push([_vbDayKey(e.ts),String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),e.sesiId||'-',e.sesiLabel||'-',e.sesiTotal||1,e.kind==='fix'?'Perbaikan Kata':'Generate',e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'-'),e.produkCount||1,e.fotoCount||0,fotoUsd.toFixed(6),e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,usd.toFixed(6)]);
+    var usd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,e.model);
+    var estTokE=e.outEstTok||0,estUsdE=_vbCalcUsd(0,0,0,estTokE,e.model);
+    var fotoUsd=_vbEstFotoUsd(e.fotoCount||0,e.model);
+    rows.push([_vbDayKey(e.ts),String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),e.sesiId||'-',e.sesiLabel||'-',e.sesiTotal||1,e.kind==='fix'?'Perbaikan Kata':'Generate',e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'-'),e.produkCount||1,e.fotoCount||0,fotoUsd.toFixed(6),e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,_vbModelLabel(e.model||''),estTokE,estUsdE.toFixed(6),usd.toFixed(6)]);
   });
   var arc=_vbLoadUsageArchive();
   Object.keys(arc).sort().forEach(function(day){
     ['generate','fix'].forEach(function(kind){
       var b=arc[day][kind];
       if(!b||!b.calls)return;
-      var usd=_vbBucketUsd(b);
-      rows.push([day,'(ringkasan harian)','-','-','-',kind==='fix'?'Perbaikan Kata':'Generate','Single:'+b.single+' Bulk:'+b.bulk,'-','-','-',b.noCacheInTok,b.cacheWriteInTok,b.cacheReadInTok,b.outTok,usd.toFixed(6)]);
+      // 1 baris per model (token lama tanpa nama model → 'Model tidak diketahui').
+      var sp=_vbSplitByModel(b);
+      var ks=Object.keys(sp);
+      if(!ks.length)ks=['unknown'];
+      ks.forEach(function(k,ki){
+        var tk=sp[k]||_vbEmptyTok();
+        var u=_vbCalcUsd(tk.noCacheInTok,tk.cacheWriteInTok,tk.cacheReadInTok,tk.outTok,k);
+        var eu=_vbCalcUsd(0,0,0,tk.outEstTok,k);
+        rows.push([day,'(ringkasan harian)','-','-','-',kind==='fix'?'Perbaikan Kata':'Generate',ki===0?('Single:'+b.single+' Bulk:'+b.bulk):'(lanjutan)','-','-','-',tk.noCacheInTok,tk.cacheWriteInTok,tk.cacheReadInTok,tk.outTok,_vbModelLabel(k==='unknown'?'':k),tk.outEstTok,eu.toFixed(6),u.toFixed(6)]);
+      });
     });
   });
   var csv=rows.map(function(r){return r.map(function(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(',');}).join('\r\n');
@@ -16988,9 +17081,9 @@ async function _vbExportUsageCsv(){
 // TANPA cache (foto ada di pesan user, bukan blok system yang di-cache),
 // jadi ini estimasi kasar bagian biaya panggilan yang "disumbang" foto,
 // BUKAN biaya terpisah yang benar-benar ditagih sendiri oleh Anthropic.
-function _vbEstFotoUsd(fotoCount){
+function _vbEstFotoUsd(fotoCount,modelKey){
   if(!fotoCount)return 0;
-  return _vbCalcUsd(fotoCount*VB_EST_TOKEN_PER_FOTO,0,0,0);
+  return _vbCalcUsd(fotoCount*VB_EST_TOKEN_PER_FOTO,0,0,0,modelKey);
 }
 // ── KELOMPOKKAN RIWAYAT PER-SESI (permintaan user, Sept 2026, "statistik
 // dipisah per generate") ──────────────────────────────────────────────────
@@ -17020,15 +17113,17 @@ function _vbGroupLogBySession(logEntries){
   var sessions=order.map(function(sid){return bySesi[sid];});
   sessions.forEach(function(g){
     g.entries.sort(function(a,b){return a.ts-b.ts;});
-    var totalUsd=0,totalFoto=0,totalCalls=0,hasFix=false;
+    var totalUsd=0,totalFoto=0,totalCalls=0,hasFix=false,fotoUsd=0,estUsd=0,estTok=0;
     g.entries.forEach(function(e){
-      totalUsd+=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
+      totalUsd+=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,e.model);
+      if(e.outEstTok>0){estTok+=e.outEstTok;estUsd+=_vbCalcUsd(0,0,0,e.outEstTok,e.model);}
       totalFoto+=e.fotoCount||0;
+      fotoUsd+=_vbEstFotoUsd(e.fotoCount||0,e.model);
       totalCalls++;
       if(e.kind==='fix')hasFix=true;
     });
     g.totalUsd=totalUsd;g.totalFotoCount=totalFoto;g.totalCalls=totalCalls;g.hasFix=hasFix;
-    g.fotoUsd=_vbEstFotoUsd(totalFoto);
+    g.fotoUsd=fotoUsd;g.estUsd=estUsd;g.estTok=estTok;
   });
   sessions.sort(function(a,b){return b.lastTs-a.lastTs;});
   return sessions;
@@ -17064,25 +17159,53 @@ function _vbRenderUsageBadge(s){
   var fs=_vbLoadFixStats();
   var idr=_vbCurrentIdrRate();
   var idrLabel=_vbIdrRateLabel();
-  var fixUsd=_vbCalcUsd(fs.noCacheInTok,fs.cacheWriteInTok,fs.cacheReadInTok,fs.outTok);
+  var fixUsd=_vbBucketUsd(fs); // tarif tiap model sendiri (bukan model yang sedang dipilih)
   var fixIdr=Math.round(fixUsd*idr);
   var totalFinished=fs.attemptHist[1]+fs.attemptHist[2]+fs.attemptHist[3];
   // BIAYA GENERATE UTAMA (permintaan user, Sept 2026): s.inTok/s.outTok di
   // atas sudah mencakup SEMUA panggilan generate utama (Cerita Produk,
   // Foto Referensi, dst) — termasuk token dari foto yang diupload user,
   // karena foto ikut terhitung sebagai input_tokens oleh API Anthropic
-  // persis seperti teks. Model generate utama (CLAUDE_MODEL_PRIMARY/
-  // FALLBACK) sama-sama Sonnet 5.5, jadi tarif HAIKU_PRICE_* di bawah berlaku
-  // sama untuk bagian ini.
-  var mainUsd=_vbCalcUsd(s.noCacheInTok,s.cacheWriteInTok,s.cacheReadInTok,s.outTok);
+  // persis seperti teks. UPDATE (audit biaya, 1 Okt 2026): ada 4 model
+  // (Sonnet/Haiku/Groq/Gemini) dengan tarif beda, jadi biaya TIDAK lagi
+  // dihitung dengan tarif satu model — tiap panggilan memakai tarif model
+  // yang benar-benar dipakainya (lihat _vbBucketUsd/_vbSplitByModel).
+  var mainUsd=_vbBucketUsd(s);
   var mainIdr=Math.round(mainUsd*idr);
   var grandUsd=mainUsd+fixUsd;
   var grandIdr=Math.round(grandUsd*idr);
+  // PERKIRAAN output percobaan terputus (terpisah dari biaya asli di atas).
+  var estS=_vbBucketEstOut(s),estF=_vbBucketEstOut(fs);
+  var estTokAll=estS.tok+estF.tok,estUsdAll=estS.usd+estF.usd;
+  var grandEstUsd=grandUsd+estUsdAll;
+  // RINCIAN PER MODEL (generate utama + perbaikan kata digabung).
+  var modelAgg={};
+  [s,fs].forEach(function(src){
+    var sp=_vbSplitByModel(src);
+    Object.keys(sp).forEach(function(k){
+      var a=modelAgg[k]||(modelAgg[k]=_vbEmptyTok());
+      VB_TOK_FIELDS.forEach(function(f){a[f]+=sp[k][f]||0;});
+    });
+  });
+  var modelOrder=Object.keys(PB_AI_MODELS).concat(['unknown']);
+  var modelHtml=modelOrder.filter(function(k){return modelAgg[k];}).map(function(k){
+    var m=modelAgg[k];
+    var u=_vbCalcUsd(m.noCacheInTok,m.cacheWriteInTok,m.cacheReadInTok,m.outTok,k);
+    var inAll=m.noCacheInTok+m.cacheWriteInTok+m.cacheReadInTok;
+    var eu=_vbCalcUsd(0,0,0,m.outEstTok,k);
+    return '<b>'+esc(_vbModelLabel(k==='unknown'?'':k))+'</b>: '+inAll.toLocaleString('id-ID')+' in / '+m.outTok.toLocaleString('id-ID')+' out — $'+u.toFixed(4)+' (≈Rp'+Math.round(u*idr).toLocaleString('id-ID')+')'
+      +(m.outEstTok>0?'<br>&nbsp;&nbsp;<span style="opacity:0.8">+ perkiraan output terputus ~'+m.outEstTok.toLocaleString('id-ID')+' token (~$'+eu.toFixed(4)+')</span>':'');
+  }).join('<br>')||'(belum ada)';
+  var unknownNote=modelAgg.unknown?'<br><span style="opacity:0.65">Catatan lama (sebelum nama model dicatat) tidak diketahui modelnya, jadi dihitung dengan tarif '+esc(PB_AI_MODELS[VB_LEGACY_MODEL_KEY].label)+' sebagai asumsi.</span>':'';
   // RASIO CACHE HIT (permintaan user, Sept 2026): dulu cuma angka mentah
   // (HIT: 12, MISS: 3) tanpa persentase — sekarang dihitung langsung dari
   // total panggilan generate utama.
-  var totalCalls=s.hit+s.miss+s.noCache;
-  var hitRatePct=totalCalls>0?((s.hit/totalCalls)*100).toFixed(1):'0.0';
+  // UPDATE (audit biaya, 1 Okt 2026): rasio dihitung hanya dari panggilan
+  // Claude yang MEMAKAI cache (HIT / (HIT + nulis baru)). Dulu penyebutnya
+  // ikut menghitung mode single yang memang sengaja tanpa cache dan panggilan
+  // Groq/Gemini, sehingga bukan ukuran efektivitas cache Claude.
+  var cacheTried=s.hit+s.miss;
+  var hitRatePct=cacheTried>0?((s.hit/cacheTried)*100).toFixed(1):null;
   // BREAKDOWN PER PERIODE WAKTU (permintaan user, Sept 2026): gabungan
   // riwayat mentah (60 hari terakhir) + arsip harian (lebih lama, tidak
   // pernah hilang) — lihat _vbPeriodTotals. "Semua waktu" di sini HANYA
@@ -17133,11 +17256,12 @@ function _vbRenderUsageBadge(s){
       var kindNote=g.hasFix?' <span style="opacity:0.65">(termasuk perbaikan kata)</span>':'';
       var fotoNote=g.totalFotoCount>0?' · <span style="opacity:0.8">📷 '+g.totalFotoCount+' foto (~$'+g.fotoUsd.toFixed(4)+')</span>':'';
       var callsNote=g.totalCalls>1?' · '+g.totalCalls+' panggilan':'';
+      var estNote=g.estTok>0?' · <span style="opacity:0.8">+perkiraan output terputus ~'+g.estTok.toLocaleString('id-ID')+' token (~$'+g.estUsd.toFixed(4)+')</span>':'';
       var head='<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">'
         +'<span><b>'+_vbFormatLogTime(g.firstTs)+'</b> — '+esc(g.label)+'</span>'
         +'<span>'+(isOpen?'▲':'▼')+'</span>'
         +'</div>'
-        +'<div style="opacity:0.85;font-size:var(--fs-2xs,12px);">$'+g.totalUsd.toFixed(4)+' (≈Rp'+gIdr.toLocaleString('id-ID')+')'+callsNote+fotoNote+kindNote+'</div>';
+        +'<div style="opacity:0.85;font-size:var(--fs-2xs,12px);">$'+g.totalUsd.toFixed(4)+' (≈Rp'+gIdr.toLocaleString('id-ID')+')'+callsNote+fotoNote+estNote+kindNote+'</div>';
       var detailHtml='';
       if(isOpen){
         detailHtml='<div style="margin-top:8px;padding:8px 10px;border-radius:var(--radius-xs,8px);background:var(--bg-subtle,rgba(127,127,127,0.08));">'
@@ -17145,14 +17269,17 @@ function _vbRenderUsageBadge(s){
             var modeLabel=e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'?');
             var kindLabel=e.kind==='fix'?'Perbaikan Kata':'Generate';
             var cacheLabel=e.cacheReadInTok>0?'cache HIT (diskon ~90%)':(e.cacheWriteInTok>0?'nulis cache baru (+25%)':'tanpa cache');
-            var evUsd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok);
+            var evUsd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,e.model);
+            var modelLbl=esc(_vbModelLabel(e.model||''));
+            var estEvLine=(e.outEstTok||0)>0?'<br>&nbsp;&nbsp;<span style="opacity:0.8">Percobaan terputus: perkiraan output ~'+e.outEstTok.toLocaleString('id-ID')+' token (~$'+_vbCalcUsd(0,0,0,e.outEstTok,e.model).toFixed(4)+', belum termasuk di biaya di bawah)</span>':'';
             var evIdr=Math.round(evUsd*idr);
             var produkNote=(e.produkCount||1)>1?' · '+e.produkCount+' produk sekaligus':'';
-            var fotoLine=(e.fotoCount||0)>0?'<br>&nbsp;&nbsp;📷 '+e.fotoCount+' foto terlampir (~$'+_vbEstFotoUsd(e.fotoCount).toFixed(4)+' dari total panggilan ini)':'';
+            var fotoLine=(e.fotoCount||0)>0?'<br>&nbsp;&nbsp;📷 '+e.fotoCount+' foto terlampir (~$'+_vbEstFotoUsd(e.fotoCount,e.model).toFixed(4)+' dari total panggilan ini)':'';
             return '<div style="padding:5px 0;border-top:1px solid var(--border,rgba(127,127,127,0.15));">'
-              +_vbFormatLogTime(e.ts)+' — '+kindLabel+' ('+modeLabel+')'+produkNote
+              +_vbFormatLogTime(e.ts)+' — '+kindLabel+' ('+modeLabel+') · '+modelLbl+produkNote
               +'<br>&nbsp;&nbsp;Token: '+e.noCacheInTok.toLocaleString('id-ID')+' baru / '+e.cacheWriteInTok.toLocaleString('id-ID')+' tulis-cache / '+e.cacheReadInTok.toLocaleString('id-ID')+' baca-cache / '+e.outTok.toLocaleString('id-ID')+' output ('+cacheLabel+')'
               +fotoLine
+              +estEvLine
               +'<br>&nbsp;&nbsp;Biaya panggilan ini: $'+evUsd.toFixed(4)+' (≈Rp'+evIdr.toLocaleString('id-ID')+')'
               +'</div>';
           }).join('')
@@ -17165,8 +17292,8 @@ function _vbRenderUsageBadge(s){
   var logMoreNote=allSessions.length>SESSION_SHOW_MAX?'<br><span style="opacity:0.6">+'+(allSessions.length-SESSION_SHOW_MAX)+' sesi lebih lama tersimpan (60 hari terakhir, tidak semua ditampilkan)</span>':'';
   var archiveNote=arcDays>0?'<br><span style="opacity:0.6">+ ringkasan harian dari '+arcDays+' hari lebih lama tersimpan di arsip (lihat CSV untuk detail lengkap)</span>':'';
   el.innerHTML='<b>Ringkasan Cache</b>'
-    +'<br>Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Tanpa cache: '+s.noCache
-    +'<br>Rasio cache HIT: '+hitRatePct+'%'
+    +'<br>Cache HIT: '+s.hit+'<br>Nulis baru: '+s.miss+'<br>Claude tanpa cache: '+s.noCache+'<br>Groq/Gemini (tidak ada cache): '+(s.nonClaude||0)
+    +'<br>Rasio cache HIT (hanya panggilan Claude yang memakai cache): '+(hitRatePct===null?'belum ada data':hitRatePct+'%')
     +'<br>Input total: '+s.inTok.toLocaleString('id-ID')
     +'<br>Output total: '+s.outTok.toLocaleString('id-ID')
     +'<br>Biaya real (generate, termasuk foto): $'+mainUsd.toFixed(4)+' (≈Rp'+mainIdr.toLocaleString('id-ID')+', '+idrLabel+')'
@@ -17177,7 +17304,10 @@ function _vbRenderUsageBadge(s){
     +'<br>Masih kurang kata walau sudah 3x: '+fs.stillShort
     +'<br>Token: '+fs.inTok.toLocaleString('id-ID')+' in / '+fs.outTok.toLocaleString('id-ID')+' out'
     +'<br>Biaya real: $'+fixUsd.toFixed(4)+' (≈Rp'+fixIdr.toLocaleString('id-ID')+', '+idrLabel+')'
-    +'<br><br><b>TOTAL SEMUA BIAYA (selamanya):</b> $'+grandUsd.toFixed(4)+' (≈Rp'+grandIdr.toLocaleString('id-ID')+', '+idrLabel+')'
+    +'<br><br><b>TOTAL SEMUA BIAYA (selamanya, angka asli dari API):</b> $'+grandUsd.toFixed(4)+' (≈Rp'+grandIdr.toLocaleString('id-ID')+', '+idrLabel+')'
+    +(estTokAll>0?'<br>Perkiraan tambahan output percobaan terputus (BUKAN angka resmi, terpisah dari total di atas): ~'+estTokAll.toLocaleString('id-ID')+' token ≈ $'+estUsdAll.toFixed(4)+'<br>Total termasuk perkiraan: $'+grandEstUsd.toFixed(4)+' (≈Rp'+Math.round(grandEstUsd*idr).toLocaleString('id-ID')+')':'')
+    +((s.interrupted||0)>0?'<br><span style="opacity:0.65">'+s.interrupted+' percobaan generate terputus di tengah stream (input tetap tercatat).</span>':'')
+    +'<br><br><b>Biaya per model (tarif tiap model, bukan model yang sedang dipilih):</b><br>'+modelHtml+unknownNote
     +'<br><br><b>Biaya per periode (dari riwayat):</b><br>'+periodHtml
     +'<br><br><b>Breakdown per jenis &amp; mode (dari riwayat):</b><br>'+modeHtml
     +'<br><br><b>Grafik biaya 14 hari terakhir:</b><div style="margin-top:6px;">'+_vbBuildUsageChartSvg(archiveData,logAll)+'</div>'
@@ -17207,8 +17337,8 @@ function _vbToggleUsagePanel(){
 // Reset juga mengosongkan arsip harian (permintaan user: "Reset Hitungan"
 // artinya benar-benar nol lagi, bukan cuma riwayat mentahnya).
 function _vbResetUsageStats(){
-  _vbSaveUsageStats({hit:0,miss:0,noCache:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0});
-  _vbSaveFixStats({calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0});
+  _vbSaveUsageStats({hit:0,miss:0,noCache:0,nonClaude:0,interrupted:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,byModel:{}});
+  _vbSaveFixStats({calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0,byModel:{}});
   _vbSaveUsageLog([]); // ikut kosongkan riwayat mentah saat reset
   _vbSaveUsageArchive({}); // ikut kosongkan arsip harian saat reset
   // FIX BUG SINKRON: hapus field counter di CLOUD langsung (bukan increment
@@ -17337,6 +17467,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // dikirim kumulatif tiap event). Dilog ke console setelah stream
     // selesai supaya bisa dicek biaya real per generate, lihat di bawah.
     let usageInfo={input_tokens:0,cache_creation_input_tokens:0,cache_read_input_tokens:0,output_tokens:0};
+    let thinkChars=0; // panjang teks 'thinking' yang sudah mengalir (ikut ditagih sbg output) — dipakai utk PERKIRAAN output percobaan terputus
     // FIX "Status 0: API error" TANPA KETERANGAN: sebelumnya kalau fetch()
     // sendiri gagal (bukan server yang balas error, tapi koneksi browser
     // gagal total — offline, diblokir firewall/DNS, ekstensi/ad-blocker,
@@ -17434,6 +17565,8 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
                     if(arr)try{onPartial(arr);}catch(e){}
                   }
                 }
+              }else if(evt.type==='content_block_delta'&&evt.delta&&evt.delta.type==='thinking_delta'){
+                thinkChars+=(evt.delta.thinking||'').length;
               }else if(evt.type==='message_start'&&evt.message&&evt.message.usage){
                 // usage awal: input_tokens (bagian yang TIDAK di-cache),
                 // cache_creation_input_tokens (baru ditulis ke cache kali
@@ -17510,8 +17643,14 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       // _vbTrackUsage SEBELUM streamOk direset, supaya baik kasus timeout
       // MAUPUN error di tengah stream, dua-duanya konsisten tidak pernah
       // kehilangan catatan biaya yang sudah benar-benar tertagih.
+      // UPDATE (audit biaya, 1 Okt 2026): yang tercatat di sini hanya token INPUT
+      // (angka asli). Output attempt yang terputus tidak diketahui pasti, jadi
+      // dicatat sebagai PERKIRAAN terpisah (outEstTok) — bukan angka resmi.
       if(streamOk&&(usageInfo.input_tokens>0||usageInfo.cache_creation_input_tokens>0||usageInfo.cache_read_input_tokens>0)){
-        try{_vbTrackUsage(usageInfo);}catch(e2){}
+        // UPDATE (audit biaya, 1 Okt 2026): output_tokens baru terbaca di event akhir
+        // yang tidak pernah datang di sini, jadi output dicatat sebagai PERKIRAAN
+        // terpisah (outEstTok) dari panjang teks yang sempat mengalir. Model yang dipakai ikut dicatat.
+        try{_vbTrackUsage(usageInfo,{model:model,interrupted:true,outEstTok:_vbEstInterruptedOutTok(usageInfo,textBuf.length,thinkChars,maxTokensWithThinking)});}catch(e2){}
       }
       streamOk=false;
       resp=null;
@@ -17549,7 +17688,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       // sebagai baris terpisah — memang dua-duanya kena biaya beneran kalau
       // attempt pertama sempat mulai diproses server).
       if(usageInfo.input_tokens>0||usageInfo.cache_creation_input_tokens>0||usageInfo.cache_read_input_tokens>0){
-        try{_vbTrackUsage(usageInfo);}catch(e){}
+        try{_vbTrackUsage(usageInfo,{model:model,interrupted:true,outEstTok:_vbEstInterruptedOutTok(usageInfo,textBuf.length,thinkChars,maxTokensWithThinking)});}catch(e){}
       }
       resp={ok:false,status:streamErrType==='overloaded_error'?529:(streamErrType==='rate_limit_error'?429:500)};
       rawText=JSON.stringify({error:{type:streamErrType,message:streamErrMsg}});
@@ -17570,7 +17709,9 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         +' cache_read='+usageInfo.cache_read_input_tokens
         +' output='+usageInfo.output_tokens
         +' | cache: '+cacheStatus);
-      try{_vbTrackUsage(usageInfo);}catch(e){}
+      // Kalau stream berakhir tanpa event usage akhir (output_tokens masih 0 padahal
+      // teks sudah mengalir), output dicatat sebagai perkiraan terpisah.
+      try{_vbTrackUsage(usageInfo,{model:model,outEstTok:_vbEstInterruptedOutTok(usageInfo,textBuf.length,thinkChars,maxTokensWithThinking)});}catch(e){}
       return{resp:{ok:true,status:200},rawText:JSON.stringify({candidates:[{content:{parts:[{text:textBuf}]},finishReason:finishReason}]}),usage:usageInfo};
     }
     // Stream gagal start (error jaringan/HTTP) — jatuh ke logika retry
@@ -17909,28 +18050,65 @@ var HAIKU_PRICE_OUT_PER_MTOK=10.0; // USD per 1,000,000 token output (Sonnet 5.5
 // sekarang dihitung terpisah lewat _vbCalcUsd di bawah.
 var HAIKU_PRICE_CACHE_WRITE_MULT=1.25;
 var HAIKU_PRICE_CACHE_READ_MULT=0.1;
-// Tarif ikut model yang sedang dipilih di tab Panduan (Sonnet/Haiku) —
-// angka HAIKU_PRICE_IN/OUT di atas jadi cadangan saja.
-function _vbCalcUsd(noCacheTok,cacheWriteTok,cacheReadTok,outTok){
-  var _m=PB_AI_MODELS[_pbAiModelKey]||{};
+// TARIF PER MODEL (audit biaya, 1 Okt 2026): _vbCalcUsd sekarang menerima
+// KUNCI MODEL (sonnet/haiku/groq/gemini) sebagai argumen ke-5 dan memakai
+// tarif model itu — TIDAK lagi memakai model yang sedang dipilih. Kalau kunci
+// kosong/tidak dikenal (catatan lama sebelum nama model dicatat), dipakai
+// tarif asumsi VB_LEGACY_MODEL_KEY. Ubah konstanta ini kalau riwayat lamamu
+// sebenarnya dari model lain (mis. 'haiku').
+var VB_LEGACY_MODEL_KEY='sonnet';
+function _pbModelKeyOfId(id){
+  for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===id)return k;}
+  return '';
+}
+function _vbPriceModelKey(modelKey){
+  return(modelKey&&PB_AI_MODELS[modelKey])?modelKey:VB_LEGACY_MODEL_KEY;
+}
+function _vbModelLabel(modelKey){
+  if(modelKey&&PB_AI_MODELS[modelKey])return PB_AI_MODELS[modelKey].label;
+  return 'Model tidak diketahui (dihitung tarif '+PB_AI_MODELS[VB_LEGACY_MODEL_KEY].label+')';
+}
+function _vbCalcUsd(noCacheTok,cacheWriteTok,cacheReadTok,outTok,modelKey){
+  var _m=PB_AI_MODELS[_vbPriceModelKey(modelKey)]||{};
   var pin=_m.priceIn||HAIKU_PRICE_IN_PER_MTOK, pout=_m.priceOut||HAIKU_PRICE_OUT_PER_MTOK;
   return((noCacheTok||0)/1e6*pin)
     +((cacheWriteTok||0)/1e6*pin*HAIKU_PRICE_CACHE_WRITE_MULT)
     +((cacheReadTok||0)/1e6*pin*HAIKU_PRICE_CACHE_READ_MULT)
     +((outTok||0)/1e6*pout);
 }
+// PERKIRAAN OUTPUT PERCOBAAN TERPUTUS (audit biaya, 1 Okt 2026): kalau stream
+// putus/timeout/error di tengah jalan, event akhir yang membawa output_tokens
+// tidak pernah datang (output_tokens tercatat 0) padahal output adalah bagian
+// termahal. Sebagai perkiraan KASAR dipakai panjang teks (+ teks thinking)
+// yang sudah sempat mengalir ÷ VB_EST_CHARS_PER_TOKEN, dibatasi max_tokens.
+// Ini batas-bawah (token yang sedang dibuat server tapi belum terkirim tidak
+// terlihat) dan HANYA perkiraan — dicatat di field TERPISAH (outEstTok),
+// tidak pernah dicampur ke angka asli. Cara Anthropic menagih stream yang
+// terputus belum diverifikasi; cek tagihan resmi untuk angka pastinya.
+var VB_EST_CHARS_PER_TOKEN=3.5;
+function _vbEstInterruptedOutTok(usageInfo,textChars,thinkChars,maxTok){
+  if(usageInfo&&usageInfo.output_tokens>0)return 0; // angka asli sudah ada, tidak perlu perkiraan
+  var chars=(textChars||0)+(thinkChars||0);
+  if(chars<=0)return 0;
+  var est=Math.ceil(chars/VB_EST_CHARS_PER_TOKEN);
+  if(maxTok>0)est=Math.min(est,maxTok);
+  return est;
+}
 var USD_TO_IDR=16400; // kurs perkiraan, cuma buat tampilan kasar di badge
 function _vbLoadFixStats(){
   try{
     var s=JSON.parse(localStorage.getItem(PB_FIXSTATS_KEY)||'null');
-    if(s&&typeof s.calls==='number')return s;
+    if(s&&typeof s.calls==='number'){
+      if(!s.byModel||typeof s.byModel!=='object')s.byModel={};
+      return s;
+    }
   }catch(e){}
   // calls = total panggilan AI perbaikan (semua attempt, semua produk/script)
   // attemptHist = distribusi berapa kali attempt dipakai sampai berhenti/pasrah
   // stillShort = berapa KALI berhenti masih di bawah rentang minimum walau
   //              sudah habis semua attempt (batas atas selalu 100% dijamin
   //              di luar ini oleh _vbHardEnforceMaxWords, jadi tidak dicatat)
-  return{calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0};
+  return{calls:0,inTok:0,outTok:0,noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,attemptHist:{1:0,2:0,3:0},stillShort:0,byModel:{}};
 }
 function _vbSaveFixStats(s){
   try{localStorage.setItem(PB_FIXSTATS_KEY,JSON.stringify(s));}catch(e){}
@@ -17940,7 +18118,10 @@ function _vbSaveFixStats(s){
 }
 // Dipanggil sekali per PANGGILAN AI (bukan per attempt-loop selesai) dari
 // dalam _vbFixWordCountIfNeeded/_vbFixWordCountBatchIfNeeded.
-function _vbTrackFixCall(usage){
+function _vbTrackFixCall(usage,meta){
+  meta=meta||{};
+  var mKey=_vbValidModelKey(meta.modelKey);
+  var estOut=(meta.outEstTok>0)?meta.outEstTok:0;
   var s=_vbLoadFixStats();
   s.calls++;
   var tok={noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0};
@@ -17950,19 +18131,17 @@ function _vbTrackFixCall(usage){
     tok.cacheWriteInTok=usage.cache_creation_input_tokens||0;
     tok.cacheReadInTok=usage.cache_read_input_tokens||0;
     outTok=usage.output_tokens||0;
-    s.noCacheInTok=(s.noCacheInTok||0)+tok.noCacheInTok;
-    s.cacheWriteInTok=(s.cacheWriteInTok||0)+tok.cacheWriteInTok;
-    s.cacheReadInTok=(s.cacheReadInTok||0)+tok.cacheReadInTok;
     s.inTok+=tok.noCacheInTok+tok.cacheWriteInTok+tok.cacheReadInTok;
-    s.outTok+=outTok;
   }
+  // Token datar (total semua model) + rincian per model + perkiraan output terputus.
+  _vbBucketAddTokens(s,{noCacheInTok:tok.noCacheInTok,cacheWriteInTok:tok.cacheWriteInTok,cacheReadInTok:tok.cacheReadInTok,outTok:outTok,outEstTok:estOut,model:mKey});
   _vbSaveFixStats(s);
   // RIWAYAT (permintaan user, Sept 2026, "statistik sangat lengkap"): dulu
   // panggilan perbaikan kata TIDAK tercatat di riwayat per-panggilan (cuma
   // di total lifetime di atas) — sekarang ikut tercatat, jadi breakdown
   // per-tanggal/grafik/CSV juga mencakup biaya perbaikan kata, bukan cuma
   // biaya generate utama.
-  _vbLogUsageEvent('fix',_vbCurrentCallMode,tok,outTok);
+  _vbLogUsageEvent('fix',_vbCurrentCallMode,tok,outTok,{model:mKey,outEstTok:estOut,interrupted:!!meta.interrupted});
   _vbRenderFixBadgeIfExpanded();
 }
 // Dipanggil sekali per SCRIPT/PRODUK setelah loop attempt berhenti (baik
