@@ -4153,7 +4153,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v8.6</div>
+  <div class="splash-version" id="splash-version">v8.8</div>
 </div>
 <script>
   (function(){
@@ -6128,7 +6128,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.6 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.8 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -12815,6 +12815,8 @@ function _pbRestorePreOpenSnapshot(){
     if(typeof VB_HOOK_OVERLAY!=='undefined')VB_HOOK_OVERLAY=vbObj.VB_HOOK_OVERLAY||{};
     if(typeof VB_CHAR_OVR!=='undefined')VB_CHAR_OVR=vbObj.VB_CHAR_OVR||{};
     if('M4_OVERLAY' in vbObj && typeof VB_MODE4_OVERLAY_TEXT!=='undefined')VB_MODE4_OVERLAY_TEXT=vbObj.M4_OVERLAY||'';
+    // AUDIT Okt 2026: snapshot membuang fotoBase64/fotoMime dari context (lihat _vbPackLastContext) -> pasang lagi
+    if(typeof _vbUnpackAttachLastContextFoto==='function')_vbUnpackAttachLastContextFoto();
   }catch(e){/* snapshot video korup — biarkan VB apa adanya daripada error */}
   // Sinkronkan ulang tampilan chip Mode Referensi Foto (V1) di wizard Video
   // supaya yang KELIHATAN tersorot juga balik cocok dengan VB.refMode yang
@@ -14547,7 +14549,11 @@ function _vbRestoreLiveBulkOutput(){
     if(errBox)_vbShowBulkResumeUI(errBox,VB_BULK_LAST_CONTEXT.produkList.length-VB_BULK_LAST_CONTEXT.allResults.length);
     _vbSyncBulkMainButton();
     return true;
-  }catch(e){ return false; }
+  }catch(e){
+    // AUDIT Okt 2026: render gagal di tengah -> kembalikan override yang sudah di-reset ke {} oleh _vbRenderBulkOutput
+    VB_CARD_TAMPIL=keepTampil;VB_CARD_LOKASI=keepLokasi;VB_PRODUCT_FOTOCOUNT=keepFotoCount;VB_HOOK_OVERLAY=keepOverlay;
+    return false;
+  }
 }
 function _pbRenderBuilderInto(type,target,frozenHtml,frozenText,isPrimary){
   if(!target)return false;
@@ -16342,7 +16348,7 @@ function vbBulkSetCount(){
       +'<div id="vb-bulk-foto-empty-'+i+'" onclick="document.getElementById(\'vb-bulk-foto-input-'+i+'\').click()" style="width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;'+(hasFoto?'display:none;':'')+'">'
       +'<svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg></div>'
       +'<div id="vb-bulk-foto-preview-'+i+'" style="'+(hasFoto?'':'display:none;')+'position:relative;width:44px;height:44px;">'
-      +'<img id="vb-bulk-foto-img-'+i+'" class="vbfoto-img" src="'+(hasFoto?'data:'+cached.fotoMime+';base64,'+cached.fotoBase64:'')+'" style="width:44px;height:44px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
+      +'<img id="vb-bulk-foto-img-'+i+'" class="vbfoto-img" src="'+(hasFoto?'data:'+(cached.fotoMime||'image/jpeg')+';base64,'+cached.fotoBase64:'')+'" style="width:44px;height:44px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
       +'<button type="button" onclick="vbRemoveBulkFoto('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg class="icon"><use href="#ic-close"></use></svg></button>'
       +'</div>'
       +'</div>'
@@ -16486,28 +16492,47 @@ function _vbWaitReasonLabel(status){
 // thinkingConfig) — jadi generate tetap bisa berhasil walau efek
 // real-time-nya kebetulan tidak muncul di kondisi jaringan tertentu.
 // ══════════════════════════════════════════════════════════════════
-function _vbTryParsePartialJsonArray(buf){
+function _vbTryParsePartialJsonArray(buf,strict){
   if(!buf)return null;
   try{let r=JSON.parse(buf);return Array.isArray(r)?r:null;}catch(e){}
-  let s=buf;
-  if(s.endsWith('\\'))s=s.slice(0,-1); // backslash nyangkut di tengah escape
-  let inStr=false,esc=false,stack=[];
-  for(let ch of s){
+  // AUDIT Okt 2026: dulu cuma "tutup string + tutup kurung" -> null kalau terpotong di tengah nama kunci,
+  // setelah ':', di tengah \uXXXX, atau di tengah true/null/angka. Sekarang pindai sekali sambil mencatat
+  // titik potong AMAN (setelah kurung tutup / sebelum koma). Coba perbaikan optimis dulu (teks terakhir
+  // tetap tampil live); kalau gagal, mundur ke titik aman terakhir. strict=true -> hanya elemen array
+  // tingkat-atas yang SUDAH LENGKAP (dipakai penyelamat output terpotong).
+  const s=buf;let inStr=false,esc=false,uLeft=0,escAt=-1;const stack=[],cuts=[];
+  for(let i=0;i<s.length;i++){
+    const ch=s[i];
     if(inStr){
-      if(esc)esc=false;
-      else if(ch==='\\')esc=true;
-      else if(ch==='"')inStr=false;
-    }else{
-      if(ch==='"')inStr=true;
-      else if(ch==='{'||ch==='[')stack.push(ch);
-      else if(ch==='}'){if(stack[stack.length-1]==='{')stack.pop();}
-      else if(ch===']'){if(stack[stack.length-1]==='[')stack.pop();}
-    }
+      if(uLeft>0){uLeft--;continue;}
+      if(esc){esc=false;if(ch==='u')uLeft=4;continue;}
+      if(ch==='\\'){esc=true;escAt=i;continue;}
+      if(ch==='"')inStr=false;
+    }else if(ch==='"')inStr=true;
+    else if(ch==='{'||ch==='[')stack.push(ch);
+    else if(ch==='}'||ch===']'){
+      if(stack[stack.length-1]===(ch==='}'?'{':'['))stack.pop();
+      cuts.push([i+1,stack.join('')]);
+    }else if(ch===',')cuts.push([i,stack.join('')]);
   }
-  if(inStr)s+='"'; // tutup string yang masih terbuka
-  s=s.replace(/,\s*$/,''); // buang koma nyangkut sebelum ditutup
-  while(stack.length){s+=(stack.pop()==='{')?'}':']';}
-  try{let r=JSON.parse(s);return Array.isArray(r)?r:null;}catch(e){return null;}
+  const close=function(st){let o='';for(let k=st.length-1;k>=0;k--)o+=(st[k]==='{'?'}':']');return o;};
+  const parse=function(t){try{const r=JSON.parse(t);return Array.isArray(r)?r:null;}catch(e){return null;}};
+  if(!strict){
+    let t=s;
+    if(inStr&&(esc||uLeft>0))t=t.slice(0,escAt); // buang escape yang belum lengkap
+    if(inStr)t+='"'; // tutup string yang masih terbuka
+    t=t.replace(/,\s*$/,''); // buang koma nyangkut sebelum ditutup
+    const r=parse(t+close(stack.join('')));
+    if(r)return r;
+  }
+  for(let k=cuts.length-1,tries=0;k>=0&&tries<6;k--){
+    const c=cuts[k];
+    if(strict&&c[1]!=='[')continue;
+    const r=parse(s.slice(0,c[0])+close(c[1]));
+    if(r)return r;
+    tries++;
+  }
+  return strict?[]:null;
 }
 
 // Panggil Claude lewat Messages API (SSE, stream:true), lapor progres tiap
@@ -17489,6 +17514,11 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // supaya tidak abort duluan gara-gara cuma ngitung jatah jawaban saja.)
     let timeoutMs=Math.min(120000,Math.max(isFirstAttempt?30000:45000,TTFB_BUFFER_MS+maxTokensWithThinking*MS_PER_TOKEN));
     let timer=null; // audit Okt 2026: dimulai SETELAH token Firebase didapat
+    // AUDIT Okt 2026: timer = IDLE-timeout, direset tiap chunk SSE masuk. Stream yang sehat tapi lambat
+    // (Sonnet, batch banyak produk) tidak lagi di-abort sendiri; timeoutMs awal hanya jatah menunggu chunk
+    // pertama. Batas mutlak per percobaan (_HARD_CAP_MS) tetap ada sebagai jaring pengaman.
+    const _IDLE_MS=isFirstAttempt?30000:45000,_HARD_CAP_MS=180000;
+    const _armTimer=function(ms){timeoutMs=ms;clearTimeout(timer);timer=setTimeout(function(){timedOut=true;controller.abort();},ms);};
     let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
     let streamErrType='',streamErrMsg='';
     // FIX (audit — retry-after header Anthropic tidak pernah dibaca): diisi
@@ -17524,7 +17554,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     if(typeof onWait==='function'){try{onWait(0,attempt,'thinking');}catch(e){}}
     try{
       var _fbTok=await _pbGetFirebaseIdToken();
-      timer=setTimeout(function(){timedOut=true;controller.abort();},timeoutMs);
+      var _attemptStart=Date.now();_armTimer(timeoutMs);
       resp=await fetch(url,{
         method:'POST',
         headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':'groq'}:{}),
@@ -17551,6 +17581,8 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         while(true){
           let{done,value}=await reader.read();
           if(done)break;
+          _armTimer(_IDLE_MS); // ada data masuk -> reset batas diam
+          if(Date.now()-_attemptStart>_HARD_CAP_MS){timeoutMs=_HARD_CAP_MS;timedOut=true;controller.abort();}
           sseBuf+=decoder.decode(value,{stream:true});
           let lines=sseBuf.split('\n');
           sseBuf=lines.pop();
@@ -18253,20 +18285,29 @@ const _VB_FORBIDDEN_PATTERNS=[
   {re:/\bterbatas\b/gi, to:''},
   {re:/\blimited(\s+edition)?\b/gi, to:''}
 ];
+// AUDIT Okt 2026: idiom urgensi dihapus UTUH (termasuk kata pengantarnya) supaya tidak menyisakan
+// "Jangan sampai abaya ..." yang maknanya berubah; kata penguat di sekitar 'terbatas' ikut dibuang.
+var _VB_FORBIDDEN_IDIOMS=[
+  /\b(?:jangan\s+sampai|biar(?:\s+(?:ga|gak|nggak|tidak))?|sebelum)\s+(?:(?:kamu|kalian|kak)\s+)?kehabisan\s+stok\b/gi,
+  /\bstok\s+(?:(?:sangat|banget|sekali|amat|super)\s+)?terbatas\b/gi,
+  /\b(?:(?:sangat|amat|super|cuma|hanya)\s+)?terbatas(?:\s+(?:banget|sekali))?\b/gi
+];
 function _vbSanitizeForbiddenPhrases(text){
   if(!text)return text;
   let out=text;
+  for(let re of _VB_FORBIDDEN_IDIOMS)out=out.replace(re,'');
   for(let p of _VB_FORBIDDEN_PATTERNS){
     out=out.replace(p.re,p.to);
   }
-  // FIX: kalau kalimat aslinya sudah punya "di bawah" sendiri (di luar
-  // frasa "keranjang kuning" yang baru diganti), hasilnya bisa jadi dobel
-  // "keranjang bawah di bawah". Gabungkan jadi satu biar tidak janggal.
+  // kalau kalimat aslinya sudah punya "di bawah" sendiri, gabungkan biar tidak dobel
   out=out.replace(/\bkeranjang\s+bawah\s+di\s+bawah\b/gi,'keranjang bawah');
   out=out.replace(/\bdi\s+bawah\s+keranjang\s+bawah\b/gi,'keranjang bawah');
-  // Rapikan bekas penghapusan frasa: spasi ganda & spasi nyangkut sebelum
-  // tanda baca (mis. "yuk  ." jadi "yuk.")
   out=out.replace(/\s{2,}/g,' ').replace(/\s+([,.!?])/g,'$1').trim();
+  if(out!==text.trim()){
+    // AUDIT Okt 2026: rapikan sisa penghapusan — tanda baca yatim & awal kalimat berhuruf kecil
+    out=out.replace(/([,;:])\s*([.!?])/g,'$2').replace(/^[\s,;:.\-–—]+/,'');
+    out=out.replace(/(^|[.!?]\s+)([a-z])/g,function(_,a,b){return a+b.toUpperCase();});
+  }
   return out;
 }
 
@@ -18296,7 +18337,7 @@ function _vbSanitizeForbiddenPhrases(text){
 //      radius), hindari berhenti tepat sesudah kata sambung/depan (mis.
 //      "...yang.", "...untuk.") yang bikin kalimat kerasa menggantung —
 //      mundur beberapa kata sampai ketemu kata yang bukan kata sambung.
-function _vbHardEnforceMaxWords(text,max){
+function _vbHardEnforceMaxWords(text,max,min){
   text=(text||'').trim();
   if(!text)return text;
   let words=text.split(/\s+/).filter(Boolean);
@@ -18309,12 +18350,14 @@ function _vbHardEnforceMaxWords(text,max){
     return t;
   }
   const RADIUS=10;
+  // AUDIT Okt 2026: titik potong tidak boleh jatuh di bawah min (range.min) kalau diberikan
+  const LO=(min&&min>0&&min<max)?min:Math.max(1,max-RADIUS);
   // (A) Cari titik/tanya/seru alami dalam radius.
-  for(let i=max;i>=Math.max(1,max-RADIUS);i--){
+  for(let i=max;i>=LO;i--){
     if(/[.!?]$/.test(words[i-1]))return _tidy(words.slice(0,i).join(' '));
   }
   // (B) Tidak ketemu titik/tanya/seru — coba cari KOMA terdekat, ganti jadi titik.
-  for(let i=max;i>=Math.max(1,max-RADIUS);i--){
+  for(let i=max;i>=LO;i--){
     if(/,$/.test(words[i-1]))return _tidy(words.slice(0,i).join(' ').replace(/,$/,''))+'.';
   }
   // (C) Tetap tidak ketemu — potong paksa di kata ke-`max`, tapi hindari
@@ -18325,7 +18368,7 @@ function _vbHardEnforceMaxWords(text,max){
     return CONNECTOR_WORDS.indexOf(clean)!==-1;
   }
   let cutAt=max;
-  for(let i=max;i>=Math.max(1,max-6);i--){
+  for(let i=max;i>=Math.max(LO,max-6);i--){
     if(!_isConnector(words[i-1])){cutAt=i;break;}
   }
   return _tidy(words.slice(0,cutAt).join(' ').replace(/[,;:\-–—\s]+$/,''))+'.';
@@ -18515,9 +18558,9 @@ async function _vbApplyShortFix(arr,batch,range,onWait){
   catch(eShort){console.warn('[_vbApplyShortFix] perbaikan skrip kependekan dilewati:',eShort);}
   for(let ei=0;ei<arr.length;ei++){
     const ep=arr[ei];if(!ep)continue;
-    if(ep.hook)ep.hook=_vbHardEnforceMaxWords(ep.hook,range.max);
-    if(ep.story)ep.story=_vbHardEnforceMaxWords(ep.story,range.max);
-    if(ep.cta)ep.cta=_vbHardEnforceMaxWords(ep.cta,range.max);
+    if(ep.hook)ep.hook=_vbHardEnforceMaxWords(ep.hook,range.max,range.min);
+    if(ep.story)ep.story=_vbHardEnforceMaxWords(ep.story,range.max,range.min);
+    if(ep.cta)ep.cta=_vbHardEnforceMaxWords(ep.cta,range.max,range.min);
   }
 }
 async function _vbExtendShortScriptsOnce(arr,batch,range,onWait){
@@ -18807,9 +18850,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       // membalas 'length' untuk kasus kehabisan token, jadi cek lama TIDAK PERNAH match sejak
       // pindah provider dan pesan spesifik ini gak pernah muncul (jatuh ke pesan generik di bawah).
       if(finishReason==='length'||finishReason==='MAX_TOKENS'){
-        // audit Okt 2026: selamatkan produk yang sudah lengkap (objek terakhir dibuang karena kemungkinan terpotong)
-        let _salv=_vbTryParsePartialJsonArray(text);
-        _salv=Array.isArray(_salv)?_salv.slice(0,-1).filter(function(o){return o&&o.hook&&o.story&&o.cta;}):[];
+        // audit Okt 2026: selamatkan produk yang sudah lengkap (mode strict: objek terakhir ikut selamat kalau memang utuh)
+        let _salv=_vbTryParsePartialJsonArray(text,true);
+        _salv=Array.isArray(_salv)?_salv.filter(function(o){return o&&o.hook&&o.story&&o.cta;}):[];
         if(_salv.length){arr=_salv;console.warn('[_vbCallBulkBatch] terpotong — diselamatkan '+_salv.length+' produk lengkap.');}
       }
       if(!arr&&(finishReason==='length'||finishReason==='MAX_TOKENS'))throw new Error('Respons AI terpotong sebelum selesai (kehabisan token) — coba tap ulang.');
@@ -18905,9 +18948,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // Fungsi _vbFixWordCountBatchIfNeeded SENGAJA tidak dihapus (lihat
     // definisinya) — dibiarkan sebagai referensi kalau suatu saat perlu
     // diaktifkan lagi, sama seperti pola *_FULL_DISABLED lain di file ini.
-    if(prod.hook)prod.hook=_vbHardEnforceMaxWords(prod.hook,range.max);
-    if(prod.story)prod.story=_vbHardEnforceMaxWords(prod.story,range.max);
-    if(prod.cta)prod.cta=_vbHardEnforceCta(prod.cta,range.max);
+    if(prod.hook)prod.hook=_vbHardEnforceMaxWords(prod.hook,range.max,range.min);
+    if(prod.story)prod.story=_vbHardEnforceMaxWords(prod.story,range.max,range.min);
+    if(prod.cta)prod.cta=_vbHardEnforceCta(prod.cta,range.max,range.min);
   }
   return arr;
 }
@@ -18960,17 +19003,35 @@ function _vbOtherHooks(idx){
   }
   return out.slice(-8);
 }
-function _vbHardEnforceCta(text,max){
+function _vbHardEnforceCta(text,max,min){
   text=(text||'').trim();
   if(!text)return text;
-  if(text.split(/\s+/).filter(Boolean).length<=max)return text;
+  const W=function(t){return t.split(/\s+/).filter(Boolean);};
+  const cap=function(t){return t?t.charAt(0).toUpperCase()+t.slice(1):t;};
+  if(W(text).length<=max)return text;
   const m=text.match(/([^.!?]*keranjang[^.!?]*[.!?]?)\s*$/i);
-  if(m){
-    const tail=m[1].trim(),tw=tail.split(/\s+/).filter(Boolean).length;
-    const head=text.slice(0,text.length-m[0].length).trim();
-    if(head&&tw<max-4)return (_vbHardEnforceMaxWords(head,max-tw)+' '+tail).trim();
+  if(!m)return _vbHardEnforceMaxWords(text,max,min);
+  let head=text.slice(0,text.length-m[0].length).trim(),tail=m[1].trim();
+  // AUDIT Okt 2026: kalau CTA satu kalimat panjang (ekor = hampir seluruh teks), dulu 'keranjang bawah'
+  // ikut terpotong. Sekarang ekor dipersempit: anak kalimat terakhir yang memuat 'keranjang', lalu (kalau
+  // tanpa koma) jendela ±4 kata di sekitar kata 'keranjang' — ekor ini SELALU dipertahankan.
+  if(W(tail).length>max-4){
+    const parts=tail.split(/,\s*/);let k=parts.length-1;
+    while(k>0&&!/keranjang/i.test(parts[k]))k--;
+    if(k>0){head=(head+' '+parts.slice(0,k).join(', ')).trim();tail=cap(parts.slice(k).join(', '));}
   }
-  return _vbHardEnforceMaxWords(text,max);
+  if(W(tail).length>max-4){
+    const w=W(tail);let ix=w.length-1;while(ix>0&&!/keranjang/i.test(w[ix]))ix--;
+    const a=Math.max(0,ix-4),b=Math.min(w.length,ix+7);
+    head=(head+' '+w.slice(0,a).join(' ')).trim();
+    tail=cap(w.slice(a,b).join(' ').replace(/[,;:\s]+$/,''));
+    if(!/[.!?]$/.test(tail))tail+='.';
+  }
+  const tw=W(tail).length;
+  if(!head)return tail;
+  let h=_vbHardEnforceMaxWords(head,max-tw,min?Math.max(1,min-tw):undefined);
+  if(!/[.!?]$/.test(h))h=h.replace(/[,;:\s]+$/,'')+'.';
+  return (h+' '+tail).trim();
 }
 function _vbAssignIdx(arr,items){
   if(arr.length&&arr.every(function(o){return o&&o._bi!=null&&items[o._bi];})){
@@ -19812,7 +19873,7 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
       +'<div id="vb-revisi-foto-empty-'+prodIdx+'" onclick="document.getElementById(\'vb-revisi-foto-input-'+prodIdx+'\').click()" style="'+(hasRevFoto?'display:none;':'')+'border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);padding:8px;text-align:center;color:var(--muted);font-size:var(--fs-2xs);cursor:pointer;">'
       +'<svg class="icon" style="width:14px;height:14px;"><use href="#ic-camera"></use></svg> Tap buat upload/ganti foto</div>'
       +'<div id="vb-revisi-foto-preview-'+prodIdx+'" style="'+(hasRevFoto?'':'display:none;')+'position:relative;display:inline-block;">'
-      +'<img id="vb-revisi-foto-img-'+prodIdx+'" class="vbfoto-img" src="'+(hasRevFoto?'data:'+_revFoto.fotoMime+';base64,'+_revFoto.fotoBase64:'')+'" style="max-width:70px;max-height:70px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
+      +'<img id="vb-revisi-foto-img-'+prodIdx+'" class="vbfoto-img" src="'+(hasRevFoto?'data:'+(_revFoto.fotoMime||'image/jpeg')+';base64,'+_revFoto.fotoBase64:'')+'" style="max-width:70px;max-height:70px;border-radius:var(--radius-xs);display:block;object-fit:cover;border:1px solid var(--border-hi);" />'
       +'<button type="button" onclick="vbRemoveRevisiFoto('+prodIdx+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg class="icon"><use href="#ic-close"></use></svg></button>'
       +'</div>'
       +'</div>'
