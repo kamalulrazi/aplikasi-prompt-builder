@@ -4153,7 +4153,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v8.8</div>
+  <div class="splash-version" id="splash-version">v8.9</div>
 </div>
 <script>
   (function(){
@@ -4762,7 +4762,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   <!-- F1: FOTO REFERENSI -->
   <div class="wcard pending" id="f1">
     <div class="whead">
-      <div class="wnum">1</div>
+      <div class="wnum" id="f1-num">2</div>
       <div class="wtitle">Foto Referensi</div>
       <span class="wedit-pill">ubah</span>
       <div class="wanswer" id="fa1"></div>
@@ -4794,7 +4794,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           <span id="f1-import-notice-text"></span>
         </div>
 
-        <!-- CHIP SELECTOR — tap untuk toggle -->
+        <!-- CHIP SELECTOR — tap untuk tambah (tiap tipe maks. 1; hapus lewat kartu fotonya) -->
         <div id="f1-cekhp-banner" style="display:none;align-items:center;gap:8px;padding:8px 10px;margin-bottom:12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.25);border-left:3px solid var(--warning);border-radius:var(--radius-xs);">
           <span style="font-size:var(--fs-sm);font-weight:700;color:var(--warning);letter-spacing:-0.2px;">Cek HP dulu</span>
           <span style="font-size:var(--fs-xs2);color:var(--text);line-height:1.4;">Tap sesuai foto yang kamu punya — jangan asal pilih</span>
@@ -4875,7 +4875,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;max-width:420px;box-shadow:0 16px 48px rgba(0,0,0,0.6);">
           <div style="font-size:var(--fs-md);font-weight:600;margin-bottom:4px;">Isi Outfit Karakter</div>
           <p id="outfit-random-desc" style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;line-height:1.6;">Deskripsikan outfit yang kamu inginkan — AI yang generate.</p>
-          <textarea id="outfit-random-input" rows="3" class="inp textarea-base"  placeholder="Contoh: dress midi floral sage green, casual elegant..."></textarea>
+          <textarea id="outfit-random-input" rows="3" maxlength="300" class="inp textarea-base"  placeholder="Contoh: dress midi floral sage green, casual elegant..."></textarea>
           <p id="outfit-random-footnote" style="font-size:var(--fs-xs);color:var(--muted2);margin-top:4px;margin-bottom:14px;">Semakin detail, hasil AI semakin akurat.</p>
           <div style="display:flex;gap:8px;">
             <button onclick="fCloseOutfitRandom()" style="flex:1;background:none;border:1px solid var(--border);color:var(--muted);padding:10px;border-radius:var(--radius-md);font-size:var(--fs-sm);cursor:pointer;font-family:'Geist',sans-serif;">Batal</button>
@@ -4939,7 +4939,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   <!-- F3: CARA MEMEGANG (hanya jika produk dipegang) -->
   <div class="wcard pending" id="f3">
     <div class="whead">
-      <div class="wnum">3</div>
+      <div class="wnum" id="f3-num">3</div>
       <div class="wtitle">Cara Tampil Produk</div>
       <span class="wedit-pill">ubah</span>
       <div class="wanswer" id="fa3"></div>
@@ -4978,7 +4978,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <div class="wanswer" id="fa4"></div>
     </div>
     <div class="wbody">
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.6;">Kaka ingin pose karakter seperti apa?</p>
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.6;">Kakak ingin pose karakter seperti apa?</p>
       <div class="chips" id="f4-chips"></div>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
@@ -6128,7 +6128,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v8.9 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -7166,9 +7166,21 @@ function fConfirmOutfitRandom(){
   fRenderList();
   fRenderPreview();
 
+  // FIX (mode impor): menambah Outfit Random setelah impor TIDAK boleh memicu reset Step 2-8
+  // (fResetFrom(2) mengosongkan seluruh hasil impor). Cukup tambah ref + segarkan Ringkasan, sama seperti fAddRef().
+  if(FS.importActive){
+    _fSyncImportProdukState();
+    _fSyncImportSubjekState();
+    if(typeof fRenderSummary==='function') fRenderSummary();
+    if(typeof fSyncMultiShotVisibility==='function') fSyncMultiShotVisibility();
+    showToast('Outfit random ditambahkan!','success');
+    setTimeout(()=>{let el=document.getElementById('pc-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
+    return;
+  }
+
   let f1=document.getElementById('f1');
   if(f1&&f1.classList.contains('done')){
-    showConfirm('Menambah foto akan mereset semua pilihan Step 2–8. Lanjutkan?', function(){
+    showConfirm('Menambah foto akan mereset semua pilihan setelah Foto Referensi. Lanjutkan?', function(){
       f1.classList.remove('done','hidden');
       let fa1=document.getElementById('fa1');if(fa1)fa1.textContent='';
       fResetFrom(2);
@@ -7275,7 +7287,7 @@ function fAddRef(typeKey){
   // FIX: kalau step 1 sudah done, tampilkan konfirmasi dulu sebelum reset progress
   let f1=document.getElementById('f1');
   if(f1&&f1.classList.contains('done')){
-    showConfirm('Menambah foto akan mereset semua pilihan Step 2–8. Lanjutkan?', function(){
+    showConfirm('Menambah foto akan mereset semua pilihan setelah Foto Referensi. Lanjutkan?', function(){
       f1.classList.remove('done','hidden');
       let fa1=document.getElementById('fa1');if(fa1)fa1.textContent='';
       fResetFrom(2);
@@ -7284,6 +7296,7 @@ function fAddRef(typeKey){
     }, function(){
       // User cancel — hapus ref yang baru saja ditambah
       FS.refs=FS.refs.filter(r=>r.id!==id);
+      fSyncWajahOutfitDefault();
       FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
       fUpdateCounters();fRenderList();fRenderPreview();
     });
@@ -7452,7 +7465,7 @@ function fRemoveRef(id){
   // FIX: kalau step 1 sudah done, tampilkan konfirmasi dulu sebelum hapus dan reset
   let f1=document.getElementById('f1');
   if(f1&&f1.classList.contains('done')){
-    showConfirm('Menghapus foto akan mereset semua pilihan Step 2–8. Lanjutkan?', function(){
+    showConfirm('Menghapus foto akan mereset semua pilihan setelah Foto Referensi. Lanjutkan?', function(){
       FS.refs=FS.refs.filter(r=>r.id!==id);
       FS.hasProdukFoto=FS.refs.some(r=>r.type==='produk');
       fSyncWajahOutfitDefault();
@@ -7826,7 +7839,7 @@ function fResetFrom(fromCard){
 
   if(fromCard<=4){
     // Step 4: pose
-    fSetState({pose:'',poseLabel:''});
+    fSetState({pose:'',poseLabel:'',poseDesc:''});
     document.querySelectorAll('#f4-chips .pose-card, #f4-chips .chip').forEach(c=>c.classList.remove('sel'));
     let f4c=document.getElementById('f4-custom');if(f4c)f4c.value='';
     let cnt=document.getElementById('f4-counter');if(cnt){cnt.textContent='0 / 300';cnt.className='inp-counter';}
@@ -7834,10 +7847,10 @@ function fResetFrom(fromCard){
 
   if(fromCard<=5){
     // Step 5: lokasi
-    fSetState({lokasi:'',lokasiLabel:'',kamera:''});
+    fSetState({lokasi:'',lokasiLabel:'',lokasiDesc:'',kamera:''});
     document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));
     let f5c=document.getElementById('f5-custom');if(f5c)f5c.value='';
-    let f5ck=document.getElementById('f5-custom-karakter');if(f5ck)f5ck.value='';
+    let f5ck=document.getElementById('f5-custom-karakter');if(f5ck)f5ck.value='';{let _ckc=document.getElementById('f5-counter-karakter');if(_ckc){_ckc.textContent='0 / 300';_ckc.className='inp-counter';}}
     let cnt=document.getElementById('f5-counter');if(cnt){cnt.textContent='0 / 300';cnt.className='inp-counter';}
   }
 
@@ -7848,7 +7861,7 @@ function fResetFrom(fromCard){
 
   if(fromCard<=7){
     // Step 7: pencahayaan
-    fSetState({cahaya:'',cahayaLabel:''});_fCahaya=null;
+    fSetState({cahaya:'',cahayaLabel:'',cahayaDesc:''});_fCahaya=null;
     document.querySelectorAll('#f7-cahaya-chips .chip, #f7-cahaya-chips-karakter .chip').forEach(c=>c.classList.remove('sel'));
     let f7c=document.getElementById('f7-custom');if(f7c)f7c.value='';
     let cnt=document.getElementById('f7-counter');if(cnt){cnt.textContent='0 / 300';cnt.className='inp-counter';}
@@ -7856,7 +7869,7 @@ function fResetFrom(fromCard){
 
   if(fromCard<=8){
     // Step 8: camera angle
-    fSetState({angle:'',angleLabel:''});_fAngle=null;
+    fSetState({angle:'',angleLabel:'',angleDesc:''});_fAngle=null;
     document.querySelectorAll('#f8 .chip').forEach(c=>c.classList.remove('sel'));
     let f8c=document.getElementById('f8-custom');if(f8c)f8c.value='';
     let cnt8=document.getElementById('f8-counter');if(cnt8){cnt8.textContent='0 / 300';cnt8.className='inp-counter';}
@@ -7999,9 +8012,19 @@ function fProdukSajaTambah(){
 }
 function fProdukSajaKonfirmJumlah(){
   let n=_fProdukSajaCount;
-  // Reset refs, tambah n slot produk
-  fSetState({refs:[],refCounter:0,hasProdukFoto:true});
-  for(let i=0;i<n;i++) fAddRefSilent('produk');
+  // FIX: konfirmasi ulang TIDAK lagi mereset foto & nama produk yang sudah diisi -
+  // cukup sesuaikan jumlah slot (tambah di akhir / pangkas dari akhir).
+  let _exist=FS.refs.filter(function(r){return r.type==='produk';});
+  if(_exist.length===0){
+    fSetState({refs:[],refCounter:0,hasProdukFoto:true});
+    for(let i=0;i<n;i++) fAddRefSilent('produk');
+  } else if(_exist.length>n){
+    let _keepIds=_exist.slice(0,n).map(function(r){return r.id;});
+    FS.refs=FS.refs.filter(function(r){return r.type!=='produk'||_keepIds.indexOf(r.id)!==-1;});
+  } else {
+    for(let i=_exist.length;i<n;i++) fAddRefSilent('produk');
+  }
+  FS.hasProdukFoto=true;
   // Render slot upload
   fRenderList();fRenderPreview();fUpdateCounters();
   // Tampilkan slots dan tombol konfirmasi
@@ -8072,8 +8095,7 @@ function fPickLokasiCustomKarakter(){
   if(!inp)return;
   let val=inp.value.trim();
   if(!val){showToast('Isi lokasi dulu!','error');return;}
-  FS.lokasiLabel=val.substring(0,30)+(val.length>30?"…":"");
-  fPickLokasiCustomHandler(val);
+  fPickLokasiCustomHandler(val); // label 'Custom' di-set oleh handler
 }
 // Handler bersama untuk custom lokasi
 function fPickLokasiCustomHandler(val){
@@ -8162,7 +8184,7 @@ function fKonfirmRef(){
       return;
     }
     let allNames=produkRefs.map(r=>r.focus?r.focus.trim():'').filter(n=>n);
-    if(!allNames.length){
+    if(produkRefs.some(function(r){return !r.focus||!r.focus.trim();})){
       // Highlight input nama produk yang kosong
       let emptyRefs=produkRefs.filter(r=>!r.focus||!r.focus.trim());
       let firstScrollTarget=null;
@@ -8224,7 +8246,7 @@ function fKonfirmRef(){
     let produkRefs=FS.refs.filter(r=>r.type==='produk');
     let allNames=produkRefs.map(r=>r.focus?r.focus.trim():'').filter(n=>n);
     let produkNama=allNames.join(', ');
-    if(!produkNama){
+    if(produkRefs.some(function(r){return !r.focus||!r.focus.trim();})){
       let emptyRefs=produkRefs.filter(r=>!r.focus||!r.focus.trim());
       let firstScrollTarget=null;
       emptyRefs.forEach(function(ref){
@@ -8489,9 +8511,18 @@ const F3_KEYWORDS_SOFT=[
   'totebag','wristlet','wallet','purse','sachet','case','holder','strap','chain bag','hobo bag'
 ];
 
+// FIX: deteksi "dipakai" yang tidak salah kena "tidak dipakai" / "pakaian" / "footwear".
+function _fImpliesWorn(text){
+  let t=String(text||'').toLowerCase();
+  if(/\b(?:tidak|nggak|enggak|gak|ga|bukan|jangan|tanpa)\s+(?:di)?pakai(?:kan)?\b/.test(t)) return false;
+  if(/\b(?:not|never|no)\s+(?:be\s+)?(?:worn|wear|wearing)\b/.test(t)) return false;
+  return /\b(?:di)?pakai(?:kan)?\b/.test(t)||/\bworn\b/.test(t)||/\bwear(?:s|ing)?\b/.test(t);
+}
 function fDetectConflictLevel(produkNama){
   if(!produkNama) return 0;
   let lower=produkNama.toLowerCase();
+  // FIX: buang kata umum yang cuma kebetulan memuat kata kunci (dinner->inner, address/dressing->dress, wheels->heels, sandalwood->sandal, router->outer)
+  lower=lower.replace(/(?:^|[^a-z0-9])(?:dinner|address|dressing|wheels|sandalwood|router)[a-z]*/g,' ');
   // FIX A4: whole-word matching untuk keyword ≤4 karakter agar tidak false-positive pada nama brand
   // Contoh: "top" dalam "MRDIA-WHIP top" → match, tapi "topling" → tidak match
   function matchKeyword(text,kw){
@@ -8581,7 +8612,7 @@ function fPickHoldConfirmed(key,label){
       // Inject instruksi ignore ke foto outfit
       FS.refs.forEach(function(r){
         if(r.type==='outfit'){
-          r.ignoreCustom='wajah model — ambil HANYA outfit dan semua yang dikenakan di tubuh. PENGECUALIAN: abaikan '+esc(FS.produkNama)+' yang ada di foto ini — item tersebut akan diambil dari foto referensi produk yang khusus.';
+          r.ignoreCustom='wajah model — ambil HANYA outfit dan semua yang dikenakan di tubuh. PENGECUALIAN: abaikan '+FS.produkNama+' yang ada di foto ini — item tersebut akan diambil dari foto referensi produk yang khusus.';
         }
       });
       FS.conflictLevel=1;
@@ -8637,7 +8668,7 @@ function fPickHoldCustom(){
   let banner=document.getElementById('f3-conflict-banner');
   let hasOutfitFoto=FS.refs.some(r=>r.type==='outfit');
   let customLower=val.toLowerCase();
-  let impliesWorn=(customLower.includes('dipakai')||customLower.includes('worn')||customLower.includes('wear')||customLower.includes('pakai'));
+  let impliesWorn=_fImpliesWorn(customLower);
   if(impliesWorn && hasOutfitFoto && FS.produkNama){
     let level=fDetectConflictLevel(FS.produkNama);
     if(level===1){
@@ -8649,7 +8680,7 @@ function fPickHoldCustom(){
         +'<div style="margin-top:8px;font-size:var(--fs-xs2);color:var(--muted);">Tips: Pastikan foto produk menampilkan item dengan jelas dan tanpa gangguan visual lain.</div>';
       FS.refs.forEach(function(r){
         if(r.type==='outfit'){
-          r.ignoreCustom='wajah model — ambil HANYA outfit dan semua yang dikenakan di tubuh. PENGECUALIAN: abaikan '+esc(FS.produkNama)+' yang ada di foto ini — item tersebut akan diambil dari foto referensi produk yang khusus.';
+          r.ignoreCustom='wajah model — ambil HANYA outfit dan semua yang dikenakan di tubuh. PENGECUALIAN: abaikan '+FS.produkNama+' yang ada di foto ini — item tersebut akan diambil dari foto referensi produk yang khusus.';
         }
       });
       FS.conflictLevel=1;
@@ -8719,7 +8750,7 @@ function fRefreshOutfitConflict(){
   function injectIgnore(){
     FS.refs.forEach(function(r){
       if(r.type==='outfit'){
-        r.ignoreCustom='wajah model — ambil HANYA outfit dan semua yang dikenakan di tubuh. PENGECUALIAN: abaikan '+esc(FS.produkNama)+' yang ada di foto ini — item tersebut akan diambil dari foto referensi produk yang khusus.';
+        r.ignoreCustom='wajah model — ambil HANYA outfit dan semua yang dikenakan di tubuh. PENGECUALIAN: abaikan '+FS.produkNama+' yang ada di foto ini — item tersebut akan diambil dari foto referensi produk yang khusus.';
       }
     });
   }
@@ -8735,7 +8766,7 @@ function fRefreshOutfitConflict(){
   if(FS.holdKey==='custom'){
     // Sama seperti fPickHoldCustom: cek FS.hold (teks custom) mengandung kata "dipakai/worn/wear/pakai"
     let customLower=(FS.hold||'').toLowerCase();
-    let impliesWorn=(customLower.includes('dipakai')||customLower.includes('worn')||customLower.includes('wear')||customLower.includes('pakai'));
+    let impliesWorn=_fImpliesWorn(customLower);
     if(impliesWorn && hasOutfitFoto && FS.produkNama){
       let level=fDetectConflictLevel(FS.produkNama);
       if(level===1){
@@ -8996,7 +9027,7 @@ function fPickPose(el){
       FS.lokasi='';FS.lokasiLabel='';FS.kamera='';
       document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));
       let f5inp=document.getElementById('f5-custom');if(f5inp)f5inp.value='';
-      let f5kp=document.getElementById('f5-custom-karakter');if(f5kp)f5kp.value='';
+      let f5kp=document.getElementById('f5-custom-karakter');if(f5kp)f5kp.value='';{let _ckc=document.getElementById('f5-counter-karakter');if(_ckc){_ckc.textContent='0 / 300';_ckc.className='inp-counter';}}
       fUpdateProgress(5,'Lokasi');
       showCard('f5');
     }
@@ -9007,7 +9038,6 @@ function fPickPoseCustom(){
   let val=document.getElementById('f4-custom').value.trim();
   if(!val){showToast('Isi pose dulu!','error');return;}
   FS.pose=val;
-  FS.poseLabel=val.substring(0,30)+(val.length>30?'…':'');
   FS.poseLabel='Custom';
   FS.poseDesc=val;
   doneCard('f4','fa4',val.substring(0,35)+(val.length>35?'…':''));
@@ -9021,7 +9051,7 @@ function fPickPoseCustom(){
     FS.lokasi='';FS.lokasiLabel='';FS.kamera='';
     document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));
     let f5cinp=document.getElementById('f5-custom');if(f5cinp)f5cinp.value='';
-    let f5ck=document.getElementById('f5-custom-karakter');if(f5ck)f5ck.value='';
+    let f5ck=document.getElementById('f5-custom-karakter');if(f5ck)f5ck.value='';{let _ckc=document.getElementById('f5-counter-karakter');if(_ckc){_ckc.textContent='0 / 300';_ckc.className='inp-counter';}}
     fUpdateProgress(5,'Lokasi');
     showCard('f5');
   }
@@ -9135,7 +9165,7 @@ function fBack5(){
   FS.lokasi='';FS.lokasiLabel='';FS.kamera='';
   document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));
   let f5c=document.getElementById('f5-custom');if(f5c)f5c.value='';
-  let f5ck2=document.getElementById('f5-custom-karakter');if(f5ck2)f5ck2.value='';
+  let f5ck2=document.getElementById('f5-custom-karakter');if(f5ck2)f5ck2.value='';{let _ckc=document.getElementById('f5-counter-karakter');if(_ckc){_ckc.textContent='0 / 300';_ckc.className='inp-counter';}}
   let cnt=document.getElementById('f5-counter');if(cnt){cnt.textContent='0 / 300';cnt.className='inp-counter';}
   let ga=document.getElementById('f-gen-area');if(ga)ga.classList.add('hidden');
 }
@@ -9184,7 +9214,6 @@ function fPickCahayaCustom(){
   document.querySelectorAll('#f7-cahaya-chips .chip, #f7-cahaya-chips-karakter .chip').forEach(c=>c.classList.remove('sel'));
   _fCahaya={val,label:'Custom'};
   FS.cahaya=val;
-  FS.cahayaLabel='Custom';
   FS.cahayaLabel='Custom';
   FS.cahayaDesc=val;
   doneCard('f7','fa7',val.substring(0,35)+(val.length>35?'…':''));
@@ -9258,7 +9287,6 @@ function fPickAngleCustom(){
   FS.angle=val;
   FS.angleLabel='Custom';
   FS.angleDesc=val;
-  FS.angleLabel='Custom';
   doneCard('f8','fa8',val.substring(0,35)+(val.length>35?'…':''));
   fSyncStepNums();
   // FIX EDIT MODE
@@ -9324,7 +9352,7 @@ function fSyncMultiShotVisibility(){
           note = document.createElement('div');
           note.className = 'f-shot-note';
           note.style.cssText = 'font-size:var(--fs-xs);color:var(--muted);margin:2px 0 0 25px;';
-          note.textContent = '— butuh foto produk, upload dulu di Step 1';
+          note.textContent = '— butuh foto produk, upload dulu di Foto Referensi';
           item.appendChild(note);
         }
         note.style.display = 'block';
@@ -9370,12 +9398,12 @@ function fPickMoodCustom(){
   document.querySelectorAll('#f9 .chip').forEach(c=>c.classList.remove('sel'));
   FS.mood=val;
   FS.moodLabel='Custom';
-  FS.moodLabel='Custom';
   doneCard('f9','fa9',val.substring(0,35)+(val.length>35?'…':''));
   fSyncStepNums();
   fUpdateProgress(9,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
   document.getElementById('f-gen-area').classList.remove('hidden');
   
+  fSyncMultiShotVisibility();
   fRunAIConflictCheck(_aiConflictCache!==null);
   setTimeout(()=>document.getElementById('f-gen-area').scrollIntoView({behavior:'smooth',block:'nearest'}),200);
   if(typeof pbTourExtActive!=='undefined' && pbTourExtActive) pbTourFinishExt();
@@ -9430,6 +9458,10 @@ function fCardToStep(cardNum){
 // Sekarang badge diturunkan LANGSUNG dari fCardToStep() supaya satu-satunya sumber
 // kebenaran dan tidak bisa desync lagi.
 function fSyncStepNums(){
+  let f1num=document.getElementById('f1-num');
+  let f3num=document.getElementById('f3-num');
+  if(f1num)f1num.textContent=fCardToStep(1);
+  if(f3num)f3num.textContent=fCardToStep(3);
   let f4num=document.getElementById('f4-num');
   let f5num=document.getElementById('f5-num');
   let f7num=document.getElementById('f7-num');
@@ -9590,6 +9622,9 @@ function fUpdateProgress(cardNum,stepName){
 }
 
 // GENERATE FOTO
+function _fGenSig(){
+  try{return [FS.subjek,FS.refs.map(function(r){return r.id+':'+(r.focus||'');}).join(','),FS.produkNama,FS.lokasi,FS.cahaya,FS.angle,FS.mood,FS.pose].join('|');}catch(e){return '';}
+}
 function fGenerate(){
   // FITUR BARU (permintaan user): lepas blur akhir tur (pbTourFinishExt())
   // begitu tombol Generate benar-benar ditekan. DULU ini langsung membuka
@@ -9599,14 +9634,6 @@ function fGenerate(){
   // Lama/Generate Variasi malah disembunyikan TOTAL (pb-tour-result-simple)
   // supaya user pemula cuma lihat hasil prompt-nya saja, tidak dibuat
   // bingung — lihat pbTourAfterGenActive & pbShowSaveJsonNotif() di bawah.
-  let pbWasTourFinalBlur=document.body.classList.contains('pb-tour-final-blur');
-  document.body.classList.remove('pb-tour-final-blur');
-  let pbSummaryCardEl=document.getElementById('summary-card');
-  if(pbSummaryCardEl) pbSummaryCardEl.classList.remove('pb-tour-opened');
-  if(pbWasTourFinalBlur){
-    document.body.classList.add('pb-tour-result-simple');
-    if(typeof pbTourAfterGenActive!=='undefined') pbTourAfterGenActive=true;
-  }
   if(FS.subjek==='produk'){
     if(!FS.lokasi||!FS.cahaya||!FS.angle||!FS.mood){showToast('Lengkapi semua step dulu!','error');return;}
   } else {
@@ -9644,7 +9671,7 @@ function fGenerate(){
     // FIX: Cek apakah ada foto produk tapi nama belum diisi — arahkan ke Step 1 (foto ref), bukan Step 2
     let emptyProdukRefs=produkRefs.filter(r=>!r.focus||!r.focus.trim());
     if(emptyProdukRefs.length>0){
-      showToast('Nama produk di foto '+emptyProdukRefs.map((_,i)=>produkRefs.indexOf(emptyProdukRefs[i])+1).join(', ')+' belum diisi — kembali ke Step 1!','error');
+      showToast('Nama produk di foto '+emptyProdukRefs.map(function(r){let _o=fSortRefsForOrder(FS.refs).filter(function(x){return x.type!=='outfit_random';});return 'F'+(_o.findIndex(function(x){return x.id===r.id;})+1);}).join(', ')+' belum diisi — kembali ke Foto Referensi!','error');
       let genBtn=document.getElementById('f-gen-btn');
       if(genBtn){genBtn.disabled=false;genBtn.innerHTML='<svg class="icon"><use href="#ic-sparkle"></use></svg> Generate Prompt Foto';}
       return;
@@ -9664,8 +9691,17 @@ function fGenerate(){
   if(FS.produkMode!=='tidak'&&FS.produkMode!==''&&!FS.produkNama){
     // FIX: Pesan disesuaikan — jika produkMode='foto' masalahnya di Step 1, selainnya di Step 2
     // Step 2 (Produk) sudah dihapus — nama produk diisi di kartu foto produk pada Step 1.
-    let errStep='Step 1 (isi nama di kartu foto produk)';
+    let errStep='Foto Referensi (isi nama di kartu foto produk)';
     showToast('Nama produk belum diisi — ulangi dari '+errStep+'!','error');return;
+  }
+  // FIX: state tur baru diubah di sini, SETELAH semua validasi lolos.
+  let pbWasTourFinalBlur=document.body.classList.contains('pb-tour-final-blur');
+  document.body.classList.remove('pb-tour-final-blur');
+  let pbSummaryCardEl=document.getElementById('summary-card');
+  if(pbSummaryCardEl) pbSummaryCardEl.classList.remove('pb-tour-opened');
+  if(pbWasTourFinalBlur){
+    document.body.classList.add('pb-tour-result-simple');
+    if(typeof pbTourAfterGenActive!=='undefined') pbTourAfterGenActive=true;
   }
   // Loading state pada tombol generate — animasi brand: logo "P" (dua layer
   // gold, meniru logo app) mulai terpisah, lalu menyatu jadi utuh persis
@@ -9700,8 +9736,10 @@ function fGenerate(){
       if(w)w.classList.add('merged');
     }, 650);
   }
+  let _genSig=_fGenSig();
   setTimeout(function(){
     try{
+      if(_fGenSig()!==_genSig){showToast('Pilihan berubah saat menunggu — tekan Generate lagi.','error');return;}
       _fDoGenerate();
     }catch(err){
       console.error('fGenerate error:',err);
@@ -10236,7 +10274,8 @@ function fImportPrompt(){
       id:idRP, type:keyRP,
       focus:p.detail||'',
       extractCustom:(p.extract_only!==undefined&&p.extract_only!==null&&p.extract_only!=='')?p.extract_only:defRP.extract,
-      ignoreCustom:(p.ignore_completely!==undefined&&p.ignore_completely!==null&&p.ignore_completely!=='')?p.ignore_completely:defRP.ignore
+      ignoreCustom:(p.ignore_completely!==undefined&&p.ignore_completely!==null&&p.ignore_completely!=='')?p.ignore_completely:defRP.ignore,
+      autoSyncOutfit:false // FIX: teks Ambil/Abaikan hasil impor jangan ditimpa fSyncWajahOutfitDefault()
     });
     if(keyRP==='produk') FS.hasProdukFoto=true;
   });
@@ -10517,6 +10556,19 @@ function _fBuildPromptJSON(ov){
   let effLokasi = ov.lokasiOverride || FS.lokasiDesc || FS.lokasi;
   let effCahaya = ov.cahayaOverride || FS.cahayaDesc || FS.cahaya;
   let effMood = ov.moodOverride || FS.mood;
+  // FIX: output_quality dulu SELALU menulis "foto HP, bukan studio", "hindari cahaya rata" dan menyebut "wajah" —
+  // bentrok dengan Softbox/Studio rata/Dark Moody, mood Clean/Luxury/Editorial, dan mode Produk Saja (tanpa wajah).
+  (function(){
+    let _c=String(effCahaya||'').toLowerCase(), _m=String(effMood||'').toLowerCase();
+    let _phone=/phone camera|candid/.test(_m);
+    let _ctrl=/studio|softbox|e-commerce|dark moody|low key|dramatic|directional/.test(_c)||/clean, bright|luxury premium|editorial fashion|dark moody|soft pastel|high-key/.test(_m);
+    if(_ctrl){
+      quality.lighting='Follow the selected lighting setup exactly and keep it controlled and consistent across the frame; do not add random uneven light or phone-style exposure flaws that contradict it.';
+      if(!_phone) quality.camera='High-quality, sharp, well-exposed photo with accurate colors and clean detail, matching the selected lighting and mood; realistic and natural-looking, not over-processed or artificially smoothed.';
+    } else if(isProdukSaja){
+      quality.lighting=quality.lighting.replace('on one side of the face and slightly brighter highlights on the other','on one side of the product and slightly brighter highlights on the other');
+    }
+  })();
 
   // Tambahkan keterangan outfit random ke intro jika ada
   let outfitRandomIntro = '';
@@ -10573,7 +10625,7 @@ function _fBuildPromptJSON(ov){
     output_quality: quality
   };
 
-  let subjekLabel = ov.label || (FS.subjek==='hijab'?'Hijab':FS.subjek==='pria'?'Pria':FS.subjek==='anak'?'Anak':'Produk');
+  let subjekLabel = ov.label || (FS.subjek==='hijab'?'Hijab':FS.subjek==='pria'?'Pria':'Produk');
   return {fullJson, realRefs, randomRefs, subjekLabel};
 } // end _fBuildPromptJSON
 
@@ -10944,8 +10996,9 @@ function _fDoGenerateMultiShot(checkedEls){
     } else {
       FS.refs = originalRefs;
     }
-    let built = _fBuildPromptJSON(ov);
-    FS.refs = originalRefs;
+    let built;
+    // FIX: FS.refs selalu dikembalikan walau build error
+    try { built = _fBuildPromptJSON(ov); } finally { FS.refs = originalRefs; }
     results.push({label: ov.label, json: built.fullJson, realRefs: built.realRefs, randomRefs: built.randomRefs});
   });
   if(results.length===0)return;
@@ -11574,7 +11627,7 @@ function fResetNow(){
     // Reset progress bar ke tampilan awal (sebelum user pilih subjek)
     let fill=document.getElementById('f-progress-fill');if(fill)fill.style.width='0%';
     let label=document.getElementById('f-progress-label');
-    if(label)label.innerHTML='Step <span>1</span> dari <span>8</span>';
+    if(label)label.innerHTML='Step <span>1</span> dari <span>7</span>'; // total awal 7 = sama dengan HTML awal (subjek belum dipilih)
     let title=document.getElementById('f-progress-title');if(title)title.textContent='Subjek Foto';
     fSyncStepNums();
 
@@ -11754,6 +11807,11 @@ var PB_OAI_PROVIDERS={
 function _pbProviderOf(id){
   for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===id)return PB_AI_MODELS[k].provider||'';}
   return '';
+}
+// Nama provider untuk pesan error ke user (Claude/Groq/Gemini) sesuai model terpilih.
+function _pbProviderLabel(){
+  var pv=_pbProviderOf(_pbModelId());
+  return pv==='groq'?'Groq':(pv==='gemini'?'Gemini':'Claude');
 }
 // Nama lama dipertahankan: true untuk SEMUA model non-Claude (Groq & Gemini).
 function _pbIsGroqModel(id){return !!PB_OAI_PROVIDERS[_pbProviderOf(id)];}
@@ -16551,12 +16609,15 @@ function _vbTryParsePartialJsonArray(buf,strict){
 // disusun di tempat lain TIDAK perlu diubah — cuma diterjemahkan di
 // titik paling akhir sebelum benar-benar dikirim ke Claude.
 function _vbGeminiPartsToClaudeContent(parts){
-  if(!parts||!parts.length)return[{type:'text',text:''}];
-  return parts.map(function(p){
+  if(!parts||!parts.length)return[{type:'text',text:'(kosong)'}];
+  var _out=parts.map(function(p){
     if(p&&p.inline_data)return{type:'image',source:{type:'base64',media_type:(p.inline_data.mime_type||'image/jpeg'),data:p.inline_data.data}};
     if(p&&p.inlineData)return{type:'image',source:{type:'base64',media_type:(p.inlineData.mimeType||'image/jpeg'),data:p.inlineData.data}};
     return{type:'text',text:(p&&p.text)||''};
   });
+  // Claude API menolak blok teks kosong (400): buang yang kosong, sisakan minimal 1 blok.
+  _out=_out.filter(function(c){return c.type!=='text'||(c.text&&c.text.trim());});
+  return _out.length?_out:[{type:'text',text:'(kosong)'}];
 }
 // FIX HEMAT BIAYA (permintaan user, Sept 2026): parameter systemText baru —
 // opsional, dipakai buat naruh instruksi yang SAMA PERSIS di setiap generate
@@ -17557,7 +17618,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       var _attemptStart=Date.now();_armTimer(timeoutMs);
       resp=await fetch(url,{
         method:'POST',
-        headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':'groq'}:{}),
+        headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':(_pbProviderOf(model)||'groq')}:{}),
         body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,promptParts,systemText,maxTokensWithThinking,true)):JSON.stringify(Object.assign(
           {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(cfg.maxOutputTokens),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
@@ -18074,7 +18135,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
     let _fbTok=await _pbGetFirebaseIdToken();
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
-      headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':'groq'}:{}),
+      headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':(_pbProviderOf(model)||'groq')}:{}),
       body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,parts,'',maxTokensWithThinking,false)):JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(maxTokens),messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
@@ -18803,9 +18864,9 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       }
       throw new Error('Request ke AI kebesaran (413) walau cuma 1 produk yang dikirim — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
     }
-    if(resp.status===503||resp.status===529)throw new Error('Server AI Claude masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server Claude lagi padat, bukan masalah dari tools.');
-    if(resp.status===429)throw new Error('Masih kena rate limit dari Claude walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
-    if(resp.status===0)throw new Error('Gagal terhubung ke server AI Claude'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+    if(resp.status===503||resp.status===529)throw new Error('Server AI '+_pbProviderLabel()+' masih sibuk/overload walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat ya — murni server '+_pbProviderLabel()+' lagi padat, bukan masalah dari tools.');
+    if(resp.status===429)throw new Error('Masih kena rate limit dari '+_pbProviderLabel()+' walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar ini limit HARIAN yang baru reset besok, bukan cuma limit per-menit. Coba lagi nanti.');
+    if(resp.status===0)throw new Error('Gagal terhubung ke server AI '+_pbProviderLabel()+''+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server Claude yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
     if(_vbIsRegionBlock403(resp.status,rawText))throw new Error('Server AI menolak request (403) beberapa kali berturut-turut. Ini biasanya sementara dan bukan salah tools atau kuota kamu — tunggu beberapa detik lalu coba lagi (produk yang sudah jadi tidak hilang).');
     var _authQuotaMsg=_pbWorkerAuthQuotaMsg(resp.status,errJson);
     if(_authQuotaMsg)throw new Error(_authQuotaMsg);
@@ -18822,7 +18883,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // pesan yang konsisten dengan gaya error lain di bawah.
   let data;
   try{data=JSON.parse(rawText);}catch(eParse){
-    throw new Error('Respons dari server AI Claude tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+    throw new Error('Respons dari server AI '+_pbProviderLabel()+' tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
   }
   if(data.error)throw new Error(data.error.message||'Claude API error');
   let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
@@ -19204,7 +19265,6 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   for(let _ci=0;_ci<toProcess.length;_ci+=VB_MAX_PRODUK_PER_CALL)batches.push(toProcess.slice(_ci,_ci+VB_MAX_PRODUK_PER_CALL));
   if(!batches.length)batches=[toProcess];
 
-  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   _vbAcquireWakeLock();
   let btn=document.getElementById('vb-bulk-btn');
   let genLogoState=startGenLogoBtn(btn,isResume?'Melanjutkan Sisa Produk...':'Membuat Prompt...');
@@ -19242,6 +19302,9 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   // berisi foto dipaksa jadi ukuran 1 (lihat _vbBuildPhotoAwareBatches),
   // batch-batch bisa punya ukuran campuran, jadi dihitung kumulatif beneran.
   let doneCount=0;
+  // AUDIT Okt 2026: flag dikunci tepat sebelum try utama (bukan lebih awal) supaya
+  // error di persiapan UI tidak membuat tombol terkunci sampai guard 8 menit.
+  VAI._isGenerating=true;VAI._lastGenTime=Date.now();
   try{
     for(let b=0;b<batches.length;b++){
       VAI._lastGenTime=Date.now(); // progres per batch: guard 'macet' mengukur waktu tanpa progres
@@ -22293,7 +22356,7 @@ function fRenderSummary() {
   // fRemoveRef) — supaya user tetap dikasih tahu, bukan diam-diam dapat JSON
   // yang kontradiksi.
   if (FS.importActive && FS.importIsProdukSaja && FS.refs && FS.refs.some(function(r){return r.type==='wajah'||r.type==='outfit'||r.type==='atasan'||r.type==='bawahan'||r.type==='aksesori'||r.type==='outfit_random';})) {
-    warnings.push('Ada foto karakter tapi prompt ini masih tercatat "Produk Saja" — buka lagi Step 1 (hapus lalu tambah ulang salah satu foto) supaya mode-nya ikut disinkronkan.');
+    warnings.push('Ada foto karakter tapi prompt ini masih tercatat "Produk Saja" — buka lagi Foto Referensi (hapus lalu tambah ulang salah satu foto) supaya mode-nya ikut disinkronkan.');
   }
   items.push({ key: 'Foto Ref', val: refLabel, editCard: 1, isHtml: true });
 
@@ -22333,7 +22396,7 @@ function fRenderSummary() {
     // pernah tampil. Sekarang dicek langsung dari kartu foto produk yang
     // benar-benar ada di FS.refs — tidak peduli produkMode-nya apa.
     if (FS.importActive && FS.refs && FS.refs.some(function(r){return r.type==='produk' && (!r.focus || !r.focus.trim());})) {
-      warnings.push('Ada foto produk yang namanya belum diisi — buka kartu fotonya di Step 1.');
+      warnings.push('Ada foto produk yang namanya belum diisi — buka kartu fotonya di Foto Referensi.');
     }
 
     // Cara hold — hanya jika dipegang
