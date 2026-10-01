@@ -11791,6 +11791,35 @@ function _pbBuildGroqBody(model,parts,systemText,maxTokens,stream){
   if(stream){b.stream=true;b.stream_options={include_usage:true};}
   return b;
 }
+// FIX BIAYA (audit, 1 Okt 2026): ubah blok 'usage' format OpenAI-compatible
+// (Groq & Gemini) jadi bentuk usageInfo yang dipakai pencatat biaya. Untuk
+// GEMINI, token yang kena cache implisit (prompt_tokens_details.cached_tokens)
+// dipisah dari input biasa dan dicatat sebagai cache_read — tarif resmi Google
+// untuk Gemini 2.5 Flash-Lite: input $0.10/juta, cache $0.01/juta (= 10%, sama
+// dengan pengali cache_read di _vbCalcUsd). Kalau API tidak mengirim rincian
+// ini, nilainya 0 dan hitungan sama persis seperti sebelumnya. Groq sengaja
+// TIDAK dipisah (diskon cache Groq beda dari 10%, jadi dihitung input biasa).
+function _vbOaiUsageToInfo(gu,model){
+  gu=gu||{};
+  var pt=gu.prompt_tokens||0,ct=gu.completion_tokens||0,cached=0;
+  if(_pbProviderOf(model)==='gemini'){
+    var d=gu.prompt_tokens_details;
+    cached=Math.min(pt,Math.max(0,(d&&d.cached_tokens)||0));
+  }
+  return{input_tokens:pt-cached,output_tokens:ct,cache_creation_input_tokens:0,cache_read_input_tokens:cached};
+}
+// FIX BIAYA TERPUTUS (audit, 1 Okt 2026): Claude melaporkan token input di
+// event awal stream, jadi percobaan yang putus tetap punya angka input. Groq/
+// Gemini baru melaporkan usage di chunk TERAKHIR — kalau stream putus, semua
+// angka masih 0 dan percobaan itu dulu TIDAK tercatat sama sekali. Untuk
+// provider OpenAI-compatible, percobaan terputus dianggap tertagih kalau
+// sudah ada teks yang mengalir; outputnya dicatat sebagai PERKIRAAN terpisah
+// (outEstTok, dari panjang teks). Input percobaan ini tidak diketahui, jadi
+// tidak ikut dihitung (batas-bawah).
+function _vbHasInterruptedUsage(u,isOai,textChars){
+  if(u.input_tokens>0||u.cache_creation_input_tokens>0||u.cache_read_input_tokens>0)return true;
+  return !!isOai&&(u.output_tokens>0||textChars>0);
+}
 var PB_AI_MODEL_KEY='pb_ai_model_v1';
 var _pbAiModelKey='sonnet';
 try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
@@ -16882,6 +16911,7 @@ var PB_IDR_RATE_KEY='pb_idr_rate_cache_v1';
 var _vbLiveIdrRate=null;      // angka kurs terakhir yang berhasil didapat (live atau cache lama)
 var _vbLiveIdrIsFresh=false;  // true kalau umurnya masih di bawah 24 jam
 var _vbIdrFetchInFlight=false;
+var _vbIdrLastTry=0; // jeda >=1 jam antar percobaan fetch (dok. open.er-api.com: rate limit -> HTTP 429 selama 20 menit)
 function _vbLoadIdrCache(){
   try{
     var c=JSON.parse(localStorage.getItem(PB_IDR_RATE_KEY)||'null');
@@ -16898,6 +16928,8 @@ function _vbEnsureLiveIdrRate(){
     if(_vbLiveIdrIsFresh)return; // masih segar, tidak perlu fetch lagi
   }
   if(_vbIdrFetchInFlight)return;
+  if(Date.now()-_vbIdrLastTry<60*60*1000)return;
+  _vbIdrLastTry=Date.now();
   _vbIdrFetchInFlight=true;
   // open.er-api.com: API kurs publik gratis, tanpa key, CORS diizinkan,
   // update kursnya sekali sehari (sesuai kebutuhan kita — tidak perlu
@@ -17542,7 +17574,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
                   if(ch0.finish_reason)finishReason=ch0.finish_reason==='stop'?'end_turn':ch0.finish_reason;
                 }
                 let gu=evt.usage||(evt.x_groq&&evt.x_groq.usage);
-                if(gu){usageInfo.input_tokens=gu.prompt_tokens||0;usageInfo.output_tokens=gu.completion_tokens||0;}
+                if(gu){let _ui=_vbOaiUsageToInfo(gu,model);usageInfo.input_tokens=_ui.input_tokens;usageInfo.output_tokens=_ui.output_tokens;usageInfo.cache_read_input_tokens=_ui.cache_read_input_tokens;}
                 continue;
               }
               // Bentuk SSE Claude (Anthropic Messages API) beda dari
@@ -17646,7 +17678,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       // UPDATE (audit biaya, 1 Okt 2026): yang tercatat di sini hanya token INPUT
       // (angka asli). Output attempt yang terputus tidak diketahui pasti, jadi
       // dicatat sebagai PERKIRAAN terpisah (outEstTok) — bukan angka resmi.
-      if(streamOk&&(usageInfo.input_tokens>0||usageInfo.cache_creation_input_tokens>0||usageInfo.cache_read_input_tokens>0)){
+      if(streamOk&&_vbHasInterruptedUsage(usageInfo,_isGroq,textBuf.length)){
         // UPDATE (audit biaya, 1 Okt 2026): output_tokens baru terbaca di event akhir
         // yang tidak pernah datang di sini, jadi output dicatat sebagai PERKIRAAN
         // terpisah (outEstTok) dari panjang teks yang sempat mengalir. Model yang dipakai ikut dicatat.
@@ -17687,7 +17719,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       // retry (kalau retry berikutnya sukses, itu tetap tercatat lagi
       // sebagai baris terpisah — memang dua-duanya kena biaya beneran kalau
       // attempt pertama sempat mulai diproses server).
-      if(usageInfo.input_tokens>0||usageInfo.cache_creation_input_tokens>0||usageInfo.cache_read_input_tokens>0){
+      if(_vbHasInterruptedUsage(usageInfo,_isGroq,textBuf.length)){
         try{_vbTrackUsage(usageInfo,{model:model,interrupted:true,outEstTok:_vbEstInterruptedOutTok(usageInfo,textBuf.length,thinkChars,maxTokensWithThinking)});}catch(e){}
       }
       resp={ok:false,status:streamErrType==='overloaded_error'?529:(streamErrType==='rate_limit_error'?429:500)};
@@ -18005,7 +18037,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
         if(_isGroq){
           let c0=g.choices&&g.choices[0];
           let gu=g.usage||{};
-          r.usage={input_tokens:gu.prompt_tokens||0,output_tokens:gu.completion_tokens||0,cache_creation_input_tokens:0,cache_read_input_tokens:0};
+          r.usage=_vbOaiUsageToInfo(gu,model);
           r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(c0&&c0.message&&c0.message.content)||''}]},finishReason:(c0&&c0.finish_reason==='length')?'length':((c0&&c0.finish_reason)||'')}]});
           return r;
         }
