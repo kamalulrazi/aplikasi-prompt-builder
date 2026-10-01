@@ -5945,6 +5945,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <button type="button" class="chip pb-model-btn" data-model="sonnet" onclick="pbSetAiModel('sonnet')" style="flex:1;">Sonnet</button>
       <button type="button" class="chip pb-model-btn" data-model="haiku" onclick="pbSetAiModel('haiku')" style="flex:1;">Haiku</button>
       <button type="button" class="chip pb-model-btn" data-model="groq" onclick="pbSetAiModel('groq')" style="flex:1;">Groq</button>
+      <button type="button" class="chip pb-model-btn" data-model="gptoss" onclick="pbSetAiModel('gptoss')" style="flex:1;">GPT-OSS</button>
       <button type="button" class="chip pb-model-btn" data-model="gemini" onclick="pbSetAiModel('gemini')" style="flex:1;">Gemini</button>
     </div>
   </div>
@@ -11790,6 +11791,16 @@ var PB_AI_MODELS={
   // Lewat Worker proxy yang sama (format OpenAI-compatible, lihat _pbBuildGroqBody).
   // Mode 'instruct' (reasoning_effort:none) dipakai supaya cepat & hemat token.
   groq:{id:'qwen/qwen3.8-27b',label:'Groq',provider:'groq',thinking:undefined,priceIn:0.80,priceOut:4.00},
+  // GROQ GPT-OSS (permintaan user, 1 Okt 2026): OpenAI gpt-oss-120b lewat Groq.
+  // Jalur, system prompt, & format pesan SAMA PERSIS dengan 'groq' di atas
+  // (provider:'groq' -> _pbBuildGroqBody). Beda kecil yang wajib:
+  //  - reasoning:'low'  -> model ini TIDAK menerima reasoning_effort 'none'
+  //    (hanya low/medium/high). 'low' = paling cepat & hemat token.
+  //  - maxImages:0      -> model ini teks saja (tidak bisa baca foto), jadi foto
+  //    tidak dikirim & label [Image N] tidak dipasang.
+  // Tarif Groq: $0.15/juta input & $0.60/juta output.
+  // PENTING: id ini juga harus ada di GROQ_MODELS pada Worker proxy.
+  gptoss:{id:'openai/gpt-oss-120b',label:'GPT-OSS',provider:'groq',thinking:undefined,priceIn:0.15,priceOut:0.60,reasoning:'low',maxImages:0},
   // GEMINI (permintaan user, 1 Okt 2026): model Gemini TERMURAH yang masih bisa
   // baca foto = Gemini 2.5 Flash-Lite, lewat endpoint OpenAI-compatible Google
   // (Worker yang sama, key di secret GEMINI_API_KEY). Tarif paid tier
@@ -11823,8 +11834,24 @@ function _pbIsGroqModel(id){return !!PB_OAI_PROVIDERS[_pbProviderOf(id)];}
 // Batas foto per request untuk model yang sedang dipilih (Groq 3, Gemini 16).
 // Claude tidak dibatasi di sini (API-nya menerima sampai 100 gambar).
 function _pbMaxImages(){
-  var pv=PB_OAI_PROVIDERS[_pbProviderOf(_pbModelId())];
-  return pv?pv.maxImages:100;
+  var mid=_pbModelId();
+  if(!PB_OAI_PROVIDERS[_pbProviderOf(mid)])return 100;
+  return _pbOaiCfg(mid).maxImages;
+}
+// Konfigurasi OpenAI-compatible untuk 1 model: default dari provider-nya,
+// bisa ditimpa per-model lewat field reasoning / maxImages di PB_AI_MODELS.
+function _pbOaiCfg(model){
+  var pv=PB_OAI_PROVIDERS[_pbProviderOf(model)]||PB_OAI_PROVIDERS.groq;
+  var cfg={maxOut:pv.maxOut,maxImages:pv.maxImages,reasoning:pv.reasoning};
+  for(var k in PB_AI_MODELS){
+    var m=PB_AI_MODELS[k];
+    if(m.id===model){
+      if(m.reasoning!==undefined)cfg.reasoning=m.reasoning;
+      if(m.maxImages!==undefined)cfg.maxImages=m.maxImages;
+      break;
+    }
+  }
+  return cfg;
 }
 // Ubah 'parts' gaya Gemini (text / inline_data) jadi messages format OpenAI/Groq.
 function _pbGroqMessages(parts,systemText,maxImages){
@@ -11835,7 +11862,7 @@ function _pbGroqMessages(parts,systemText,maxImages){
   (parts||[]).forEach(function(p){
     var d=p&&(p.inline_data||p.inlineData);
     if(d){
-      if(imgCount>=(maxImages||3))return;
+      if(imgCount>=(maxImages==null?3:maxImages))return;
       imgCount++;
       hasImg=true;
       var mime=d.mime_type||d.mimeType||'image/jpeg';
@@ -11849,7 +11876,7 @@ function _pbGroqMessages(parts,systemText,maxImages){
   return msgs;
 }
 function _pbBuildGroqBody(model,parts,systemText,maxTokens,stream){
-  var pv=PB_OAI_PROVIDERS[_pbProviderOf(model)]||PB_OAI_PROVIDERS.groq;
+  var pv=_pbOaiCfg(model);
   var b={model:model,max_completion_tokens:Math.min(pv.maxOut,maxTokens||2048),messages:_pbGroqMessages(parts,systemText,pv.maxImages)};
   if(pv.reasoning)b.reasoning_effort=pv.reasoning;
   if(stream){b.stream=true;b.stream_options={include_usage:true};}
