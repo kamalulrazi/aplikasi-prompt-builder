@@ -16,7 +16,7 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:20px 14px 60px;}
-  .wrap{max-width:640px;margin:0 auto;}
+  .wrap{max-width:960px;margin:0 auto;}
   h1{font-size:20px;margin:8px 0 4px;}
   .sub{color:var(--muted);font-size:13px;margin-bottom:24px;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
@@ -46,6 +46,9 @@
   table.st th{text-align:left;color:var(--muted);padding:8px 8px;font-weight:600;}
   table.st td{padding:8px 8px;border-top:1px solid var(--border);}
   table.st .r{text-align:right;white-space:nowrap;}
+  .sm{font-size:10.5px;color:var(--muted);margin-top:2px;white-space:normal;font-weight:400;}
+  tr.clk{cursor:pointer;}
+  tr.clk:hover td{background:var(--surface2);}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:92vw;text-align:center;background:var(--surface2);border:1px solid var(--border-hi);padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
   .toast.show{opacity:1;}
 </style>
@@ -100,13 +103,14 @@
 
     <div class="card" style="margin-top:24px;">
       <div style="font-weight:700;margin-bottom:2px;">Statistik Biaya &amp; Cache Semua User</div>
-      <div class="sub" style="margin-bottom:0;">Gabungan biaya AI dan cache hit dari semua akun yang pernah login dan generate.</div>
+      <div class="sub" style="margin-bottom:0;">Biaya AI per model dan cache hit dari semua akun yang pernah login dan generate. Ketuk baris user untuk melihat detail lengkapnya.</div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-small" id="usage-load-btn" onclick="loadUsageAll()">📊 Muat Statistik</button>
         <button class="btn btn-outline btn-small hidden" id="usage-csv-btn" onclick="exportUsageCsv()">Unduh CSV</button>
       </div>
       <div id="usage-result"></div>
     </div>
+    <div id="user-detail"></div>
   </div>
 
 </div>
@@ -158,7 +162,8 @@ service cloud.firestore {
         && quotaTidakBolehTurun(request.resource.data, resource.data));
       allow delete: if isOwner();
       match /blobs/{doc} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read: if request.auth != null && (request.auth.uid == uid || isOwner());
+        allow write: if request.auth != null && request.auth.uid == uid;
       }
     }
   }
@@ -303,11 +308,20 @@ async function manualSetTier(){
   }catch(e){ showToast('Gagal: '+errMsg(e)); }
 }
 
-// ── STATISTIK BIAYA & CACHE SEMUA USER ───────────────────────────────────
-// Membaca field pb_usage_stats_v1 (generate) & pb_wordfix_stats_v1 (perbaikan
-// jumlah kata) di dokumen users/{uid}. Tarif & rumus SAMA dengan index.html
-// (_vbCalcUsd, Claude Haiku 4.5). Kalau tarif di index.html berubah, ubah juga di sini.
-var PRICE_IN=1.0, PRICE_OUT=5.0, CACHE_WRITE_MULT=1.25, CACHE_READ_MULT=0.1;
+// ── STATISTIK BIAYA & DETAIL PER USER ────────────────────────────────────
+// Membaca users/{uid}: pb_usage_stats_v1 (generate), pb_wordfix_stats_v1 (perbaikan kata),
+// pb_usage_archive_v1 (arsip harian) + sub-koleksi blobs/pb_usage_log_v1 (riwayat per panggilan, 60 hari).
+// Tarif per model SAMA dengan PB_AI_MODELS di index.html — kalau tarif di sana berubah, ubah juga di sini.
+// Token lama yang tidak punya nama model dihitung pakai tarif LEGACY_KEY (sama seperti VB_LEGACY_MODEL_KEY di index.html).
+var MODELS={
+  sonnet:{s:'Sonnet',label:'Claude Sonnet 5.5',id:'claude-sonnet-5-5',pin:2.0,pout:10.0},
+  haiku:{s:'Haiku',label:'Claude Haiku 4.5',id:'claude-haiku-4-5-20251001',pin:1.0,pout:5.0},
+  groq:{s:'Groq',label:'Groq Qwen 3.8 27B',id:'qwen/qwen3.8-27b',pin:0.8,pout:4.0},
+  gptoss:{s:'GPT-OSS',label:'Groq GPT-OSS 120B',id:'openai/gpt-oss-120b',pin:0.15,pout:0.6},
+  gemini:{s:'Gemini',label:'Gemini 3.5 Flash-Lite',id:'gemini-3.5-flash-lite',pin:0.3,pout:2.5}
+};
+var LEGACY_KEY='sonnet', CACHE_WRITE_MULT=1.25, CACHE_READ_MULT=0.1;
+var TOKF=['noCacheInTok','cacheWriteInTok','cacheReadInTok','outTok','outEstTok'];
 var IDR_RATE=16400, IDR_LIVE=false;
 fetch('https://open.er-api.com/v6/latest/USD').then(function(r){return r.json();}).then(function(d){
   var x=d&&d.rates&&d.rates.IDR; if(x>1000&&x<100000){ IDR_RATE=x; IDR_LIVE=true; }
@@ -316,57 +330,96 @@ fetch('https://open.er-api.com/v6/latest/USD').then(function(r){return r.json();
 var _usageRows=[];
 function _n(v){ return Number(v)||0; }
 function _esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-function calcUsd(st){
-  st=st||{};
-  return (_n(st.noCacheInTok)/1e6*PRICE_IN)
-    +(_n(st.cacheWriteInTok)/1e6*PRICE_IN*CACHE_WRITE_MULT)
-    +(_n(st.cacheReadInTok)/1e6*PRICE_IN*CACHE_READ_MULT)
-    +(_n(st.outTok)/1e6*PRICE_OUT);
-}
 function idr(usd){ return 'Rp'+Math.round(usd*IDR_RATE).toLocaleString('id-ID'); }
 function pct(a,b){ return b>0 ? (a/b*100).toFixed(1)+'%' : '-'; }
+function num(v){ return _n(v).toLocaleString('id-ID'); }
+function money(usd){ return idr(usd)+'<div class="sm">$'+usd.toFixed(4)+'</div>'; }
+function sc(k,v,s){ return '<div class="stat-card"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'; }
+
+function mdl(k){ return MODELS[k]||MODELS[LEGACY_KEY]; }
+function mlabel(k){ return MODELS[k] ? MODELS[k].label : 'Tanpa nama model (tarif '+MODELS[LEGACY_KEY].s+')'; }
+function mshort(k){ return MODELS[k] ? MODELS[k].s : 'Lama'; }
+function usdTok(t,k,est){
+  t=t||{}; var m=mdl(k);
+  if(est) return _n(t.outEstTok)/1e6*m.pout;
+  return _n(t.noCacheInTok)/1e6*m.pin+_n(t.cacheWriteInTok)/1e6*m.pin*CACHE_WRITE_MULT
+    +_n(t.cacheReadInTok)/1e6*m.pin*CACHE_READ_MULT+_n(t.outTok)/1e6*m.pout;
+}
+function emptyTok(){ return {noCacheInTok:0,cacheWriteInTok:0,cacheReadInTok:0,outTok:0,outEstTok:0}; }
+function addTok(d,s){ TOKF.forEach(function(f){ d[f]=_n(d[f])+_n(s&&s[f]); }); return d; }
+// Pecah bucket {byModel, token datar} jadi {kunciModel: token}; sisa tanpa nama model → 'unknown'.
+function splitModel(b){
+  b=b||{}; var res={}, known=emptyTok(), bm=b.byModel||{};
+  Object.keys(bm).forEach(function(k){ res[k]=addTok(emptyTok(),bm[k]); addTok(known,bm[k]); });
+  var rest=emptyTok(), any=false;
+  TOKF.slice(0,4).forEach(function(f){ var r=_n(b[f])-known[f]; if(r>0){ rest[f]=r; any=true; } });
+  if(any) res.unknown=rest;
+  return res;
+}
+function sumModels(m){ var u=0; Object.keys(m).forEach(function(k){ u+=usdTok(m[k],k); }); return u; }
+
+function buildRow(doc){
+  var x=doc.data()||{}, g=x.pb_usage_stats_v1||{}, f=x.pb_wordfix_stats_v1||{}, all={};
+  [splitModel(g),splitModel(f)].forEach(function(s){
+    Object.keys(s).forEach(function(k){ addTok(all[k]||(all[k]=emptyTok()),s[k]); });
+  });
+  var r={
+    uid:doc.id, email:x.pb_email||'(tanpa email)', tier:x.pb_tier||'free', expiry:_n(x.pb_tier_expiry), updated:_n(x._updatedAt),
+    hit:_n(g.hit), miss:_n(g.miss), noCache:_n(g.noCache), nonClaude:_n(g.nonClaude), interrupted:_n(g.interrupted),
+    fix:_n(f.calls), usdGen:sumModels(splitModel(g)), usdFix:sumModels(splitModel(f)), models:all, raw:x
+  };
+  r.gen=r.hit+r.miss+r.noCache+r.nonClaude;
+  r.usd=r.usdGen+r.usdFix;
+  r.estUsd=Object.keys(all).reduce(function(a,k){ return a+usdTok(all[k],k,true); },0);
+  TOKF.slice(0,4).forEach(function(k){ r[k]=_n(g[k])+_n(f[k]); });
+  return r;
+}
+
+function modelTable(models,total){
+  var mk=Object.keys(models).sort(function(a,b){ return usdTok(models[b],b)-usdTok(models[a],a); });
+  if(!mk.length) return '<div class="empty">Belum ada data per model.</div>';
+  var h='<div class="tbl-wrap"><table class="st"><thead><tr><th>Model</th><th class="r">Input biasa</th><th class="r">Cache tulis</th><th class="r">Cache baca</th><th class="r">Output</th><th class="r">Biaya</th><th class="r">Porsi</th></tr></thead><tbody>';
+  mk.forEach(function(k){
+    var t=models[k], u=usdTok(t,k);
+    h+='<tr><td>'+_esc(mlabel(k))+(MODELS[k]?'<div class="sm">'+_esc(MODELS[k].id)+' · $'+MODELS[k].pin+' in / $'+MODELS[k].pout+' out per 1 jt token</div>':'')+'</td>'
+      +'<td class="r">'+num(t.noCacheInTok)+'</td><td class="r">'+num(t.cacheWriteInTok)+'</td><td class="r">'+num(t.cacheReadInTok)+'</td><td class="r">'+num(t.outTok)+'</td>'
+      +'<td class="r">'+money(u)+'</td><td class="r">'+pct(u,total)+'</td></tr>';
+  });
+  return h+'</tbody></table></div>';
+}
 
 async function loadUsageAll(){
   var box=document.getElementById('usage-result');
   var btn=document.getElementById('usage-load-btn');
   var csv=document.getElementById('usage-csv-btn');
   btn.disabled=true; box.innerHTML='<div class="empty">Memuat...</div>';
+  document.getElementById('user-detail').innerHTML='';
   try{
     var snap=await db.collection('users').get({source:'server'});
     _usageRows=[];
-    snap.forEach(function(doc){
-      var x=doc.data()||{}, g=x.pb_usage_stats_v1||{}, f=x.pb_wordfix_stats_v1||{};
-      var r={
-        uid:doc.id, email:x.pb_email||'(tanpa email)', tier:x.pb_tier||'free',
-        calls:_n(g.hit)+_n(g.miss)+_n(g.noCache),
-        hit:_n(g.hit), miss:_n(g.miss), noCache:_n(g.noCache), fixCalls:_n(f.calls),
-        usdGen:calcUsd(g), usdFix:calcUsd(f),
-        noCacheTok:_n(g.noCacheInTok)+_n(f.noCacheInTok),
-        cacheWrite:_n(g.cacheWriteInTok)+_n(f.cacheWriteInTok),
-        cacheRead:_n(g.cacheReadInTok)+_n(f.cacheReadInTok),
-        outTok:_n(g.outTok)+_n(f.outTok)
-      };
-      r.usd=r.usdGen+r.usdFix;
-      _usageRows.push(r);
-    });
-    _usageRows.sort(function(a,b){return b.usd-a.usd;});
-    var t={calls:0,hit:0,miss:0,noCache:0,fix:0,usd:0,active:0};
+    snap.forEach(function(doc){ _usageRows.push(buildRow(doc)); });
+    _usageRows.sort(function(a,b){ return b.usd-a.usd; });
+    var t={calls:0,hit:0,miss:0,noCache:0,fix:0,usd:0,active:0}, tm={};
     _usageRows.forEach(function(r){
-      t.calls+=r.calls; t.hit+=r.hit; t.miss+=r.miss; t.noCache+=r.noCache; t.fix+=r.fixCalls; t.usd+=r.usd;
-      if(r.calls+r.fixCalls>0) t.active++;
+      t.calls+=r.gen; t.hit+=r.hit; t.miss+=r.miss; t.noCache+=r.noCache; t.fix+=r.fix; t.usd+=r.usd;
+      if(r.gen+r.fix>0) t.active++;
+      Object.keys(r.models).forEach(function(k){ addTok(tm[k]||(tm[k]=emptyTok()),r.models[k]); });
     });
     var h='<div class="stat-grid">'
-      +'<div class="stat-card"><div class="k">User terdaftar</div><div class="v">'+_usageRows.length+'</div></div>'
-      +'<div class="stat-card"><div class="k">Sudah generate</div><div class="v">'+t.active+'</div></div>'
-      +'<div class="stat-card"><div class="k">Total biaya</div><div class="v">'+idr(t.usd)+'</div><div class="s">$'+t.usd.toFixed(4)+' · '+(IDR_LIVE?'kurs real-time':'kurs perkiraan')+'</div></div>'
-      +'<div class="stat-card"><div class="k">Cache hit</div><div class="v">'+pct(t.hit,t.calls)+'</div><div class="s">'+t.hit+' hit · '+t.miss+' miss · '+t.noCache+' tanpa cache</div></div>'
-      +'<div class="stat-card"><div class="k">Panggilan generate</div><div class="v">'+t.calls+'</div><div class="s">+ '+t.fix+' perbaikan kata</div></div>'
+      +sc('User terdaftar',_usageRows.length)
+      +sc('Sudah generate',t.active)
+      +sc('Total biaya',idr(t.usd),'$'+t.usd.toFixed(4)+' · '+(IDR_LIVE?'kurs real-time':'kurs perkiraan'))
+      +sc('Cache hit (Claude)',pct(t.hit,t.hit+t.miss+t.noCache),t.hit+' hit · '+t.miss+' miss · '+t.noCache+' tanpa cache')
+      +sc('Panggilan generate',t.calls,'+ '+t.fix+' perbaikan kata')
       +'</div>'
-      +'<div class="tbl-wrap"><table class="st"><thead><tr><th>Email</th><th>Paket</th><th class="r">Generate</th><th class="r">Cache hit</th><th class="r">Biaya</th></tr></thead><tbody>';
+      +'<div style="font-weight:700;margin:14px 0 6px;">Biaya per model (semua user)</div>'+modelTable(tm,t.usd)
+      +'<div style="font-weight:700;margin:18px 0 2px;">Semua user</div><div class="sub" style="margin-bottom:6px;">Ketuk baris untuk melihat detail lengkap user.</div>'
+      +'<div class="tbl-wrap"><table class="st"><thead><tr><th>Email</th><th>Paket</th><th>Model</th><th class="r">Generate</th><th class="r">Cache hit</th><th class="r">Biaya</th></tr></thead><tbody>';
     _usageRows.forEach(function(r){
-      h+='<tr><td style="word-break:break-all;">'+_esc(r.email)+'</td><td>'+_esc(r.tier)+'</td>'
-        +'<td class="r">'+r.calls+(r.fixCalls?' <span style="color:var(--muted);">(+'+r.fixCalls+')</span>':'')+'</td>'
-        +'<td class="r">'+pct(r.hit,r.calls)+'</td><td class="r">'+idr(r.usd)+'</td></tr>';
+      var ms=Object.keys(r.models).map(mshort).join(', ')||'-';
+      h+='<tr class="clk" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)"><td style="word-break:break-all;">'+_esc(r.email)+'</td><td>'+_esc(r.tier)+'</td><td>'+_esc(ms)+'</td>'
+        +'<td class="r">'+r.gen+(r.fix?' <span style="color:var(--muted);">(+'+r.fix+')</span>':'')+'</td>'
+        +'<td class="r">'+pct(r.hit,r.hit+r.miss+r.noCache)+'</td><td class="r">'+money(r.usd)+'</td></tr>';
     });
     h+='</tbody></table></div><div class="sub" style="margin:8px 0 0;font-size:11px;">Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak terhitung.</div>';
     box.innerHTML=h;
@@ -376,12 +429,99 @@ async function loadUsageAll(){
   }
   btn.disabled=false;
 }
+
+// Riwayat per panggilan: users/{uid}/blobs/pb_usage_log_v1 (manifest {n}) + potongan pb_usage_log_v1__0..n-1 ({d}).
+async function loadUserLog(uid){
+  var c=db.collection('users').doc(uid).collection('blobs');
+  var m=await c.doc('pb_usage_log_v1').get({source:'server'});
+  if(!m.exists) return [];
+  var n=_n((m.data()||{}).n), reads=[];
+  for(var i=0;i<n;i++) reads.push(c.doc('pb_usage_log_v1__'+i).get({source:'server'}));
+  var snaps=await Promise.all(reads);
+  var txt=snaps.map(function(s){ var d=s.exists?s.data():null; return (d&&typeof d.d==='string')?d.d:''; }).join('');
+  var a=JSON.parse(txt||'[]');
+  return Array.isArray(a)?a:[];
+}
+
+function dayTable(r,log){
+  var m={}, arc=r.raw.pb_usage_archive_v1||{};
+  function slot(d){ return m[d]||(m[d]={calls:0,usd:0}); }
+  Object.keys(arc).forEach(function(d){
+    ['generate','fix'].forEach(function(k){
+      var b=arc[d]&&arc[d][k];
+      if(b){ var s=slot(d); s.calls+=_n(b.calls); s.usd+=sumModels(splitModel(b)); }
+    });
+  });
+  (log||[]).forEach(function(e){ var s=slot(new Date(_n(e.ts)).toLocaleDateString('sv-SE')); s.calls++; s.usd+=usdTok(e,e.model); });
+  var days=Object.keys(m).sort().reverse().slice(0,30);
+  if(!days.length) return '<div class="empty">Belum ada riwayat harian.</div>';
+  var h='<div class="tbl-wrap"><table class="st" style="min-width:320px;"><thead><tr><th>Tanggal</th><th class="r">Panggilan</th><th class="r">Biaya</th></tr></thead><tbody>';
+  days.forEach(function(d){ h+='<tr><td>'+_esc(d)+'</td><td class="r">'+m[d].calls+'</td><td class="r">'+money(m[d].usd)+'</td></tr>'; });
+  return h+'</tbody></table></div>';
+}
+
+function logTable(log){
+  var rows=log.slice().sort(function(a,b){ return _n(b.ts)-_n(a.ts); }).slice(0,100);
+  if(!rows.length) return '<div class="empty">Belum ada riwayat per panggilan.</div>';
+  var h='<div class="tbl-wrap"><table class="st" style="min-width:760px;"><thead><tr><th>Waktu</th><th>Jenis</th><th>Sesi</th><th>Model</th><th class="r">Produk/Foto</th><th class="r">Input</th><th class="r">Output</th><th class="r">Biaya</th></tr></thead><tbody>';
+  rows.forEach(function(e){
+    var inTok=_n(e.noCacheInTok)+_n(e.cacheWriteInTok)+_n(e.cacheReadInTok);
+    h+='<tr><td>'+fmtDate(e.ts)+'</td><td>'+(e.kind==='fix'?'Perbaikan kata':'Generate')+(e.mode&&e.mode!=='unknown'?' · '+_esc(e.mode):'')+(e.interrupted?' · terputus':'')+'</td>'
+      +'<td>'+_esc(e.sesiLabel||'-')+'</td><td>'+_esc(mshort(e.model))+'</td>'
+      +'<td class="r">'+num(e.produkCount)+' / '+num(e.fotoCount)+'</td><td class="r">'+num(inTok)+'</td><td class="r">'+num(e.outTok)+'</td><td class="r">'+money(usdTok(e,e.model))+'</td></tr>';
+  });
+  return h+'</tbody></table></div>'+(log.length>100?'<div class="sm" style="margin-top:6px;">Menampilkan 100 panggilan terbaru dari '+log.length+'.</div>':'');
+}
+
+function closeUser(){ document.getElementById('user-detail').innerHTML=''; }
+function renderUser(r,log,err){
+  var tt=function(t){ return '<div style="font-weight:700;margin:14px 0 6px;">'+t+'</div>'; };
+  var hist=err
+    ? '<div class="empty" style="color:var(--red);">Gagal baca riwayat per panggilan: '+_esc(err)+'<br>Pastikan rules sub-koleksi blobs sudah diganti (lihat komentar di atas script).</div>'
+    : (log===null
+      ? '<div class="empty">Memuat riwayat per panggilan...</div>'
+      : tt('Biaya per hari (30 hari terakhir)')+dayTable(r,log)+tt('Riwayat per panggilan (100 terbaru, maks 60 hari)')+logTable(log));
+  document.getElementById('user-detail').innerHTML=
+    '<div class="card" style="margin-top:14px;border-color:var(--accent);">'
+    +'<div class="row"><div><div class="req-email">'+_esc(r.email)+'</div><div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div>'
+    +'<div class="req-meta">Paket <span class="pill '+safeTier(r.tier)+'">'+_esc(r.tier)+'</span>'+(r.expiry?' sampai '+fmtDate(r.expiry):'')+' · sinkron terakhir '+fmtDate(r.updated)+'</div></div>'
+    +'<button class="btn btn-outline btn-small" onclick="closeUser()">Tutup</button></div>'
+    +'<div class="stat-grid">'
+    +sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))
+    +sc('Biaya generate',idr(r.usdGen),r.gen+' panggilan')
+    +sc('Biaya perbaikan kata',idr(r.usdFix),r.fix+' panggilan')
+    +sc('Cache hit (Claude)',pct(r.hit,r.hit+r.miss+r.noCache),r.hit+' hit · '+r.miss+' miss · '+r.noCache+' tanpa cache')
+    +sc('Token masuk',num(r.noCacheInTok+r.cacheWriteInTok+r.cacheReadInTok),'keluar '+num(r.outTok))
+    +(r.estUsd>0?sc('Output terputus','~$'+r.estUsd.toFixed(4),r.interrupted+' percobaan, belum masuk total'):'')
+    +'</div>'
+    +tt('Model AI yang dipakai')+modelTable(r.models,r.usd)
+    +hist+'</div>';
+}
+async function showUser(uid){
+  var r=_usageRows.filter(function(x){ return x.uid===uid; })[0];
+  if(!r) return;
+  var box=document.getElementById('user-detail');
+  box.dataset.uid=uid;
+  renderUser(r,null,null);
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+  try{
+    var log=await loadUserLog(uid);
+    if(box.dataset.uid===uid) renderUser(r,log,null);
+  }catch(e){
+    if(box.dataset.uid===uid) renderUser(r,null,errMsg(e));
+  }
+}
+
 function exportUsageCsv(){
   if(!_usageRows.length) return;
   function q(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
-  var lines=[['Email','UID','Paket','PanggilanGenerate','CacheHit','CacheMiss','TanpaCache','PanggilanFix','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaGenerateUSD','BiayaFixUSD','BiayaTotalUSD','BiayaTotalIDR'].join(',')];
+  var mkeys=Object.keys(MODELS).concat('unknown');
+  var head=['Email','UID','Paket','PaketSampai','PanggilanGenerate','PanggilanFix','CacheHit','CacheMiss','TanpaCache','NonClaude','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','BiayaGenerateUSD','BiayaFixUSD','BiayaTotalUSD','BiayaTotalIDR']
+    .concat(mkeys.map(function(k){ return 'Biaya_'+k+'_USD'; }));
+  var lines=[head.join(',')];
   _usageRows.forEach(function(r){
-    lines.push([q(r.email),q(r.uid),q(r.tier),r.calls,r.hit,r.miss,r.noCache,r.fixCalls,r.noCacheTok,r.cacheWrite,r.cacheRead,r.outTok,r.usdGen.toFixed(6),r.usdFix.toFixed(6),r.usd.toFixed(6),Math.round(r.usd*IDR_RATE)].join(','));
+    lines.push([q(r.email),q(r.uid),q(r.tier),q(r.expiry?new Date(r.expiry).toISOString().slice(0,10):''),r.gen,r.fix,r.hit,r.miss,r.noCache,r.nonClaude,r.noCacheInTok,r.cacheWriteInTok,r.cacheReadInTok,r.outTok,r.usdGen.toFixed(6),r.usdFix.toFixed(6),r.usd.toFixed(6),Math.round(r.usd*IDR_RATE)]
+      .concat(mkeys.map(function(k){ return r.models[k]?usdTok(r.models[k],k).toFixed(6):'0'; })).join(','));
   });
   var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
   var el=document.createElement('a');
