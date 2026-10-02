@@ -46,6 +46,22 @@
   table.st th{text-align:left;color:var(--muted);padding:8px 8px;font-weight:600;}
   table.st td{padding:8px 8px;border-top:1px solid var(--border);}
   table.st .r{text-align:right;white-space:nowrap;}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;}
+  .tab{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:10px;font-weight:700;font-size:14px;cursor:pointer;}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#1a1a1a;}
+  @media(max-width:640px){
+    .tbl-wrap{border:0;}
+    table.stack{min-width:0!important;}
+    table.stack thead{display:none;}
+    table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%;}
+    table.stack tr{border:1px solid var(--border);border-radius:12px;margin-bottom:8px;padding:6px 12px;background:var(--surface2);}
+    table.stack td{border:0!important;padding:3px 0;display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+    table.stack td::before{content:attr(data-label);color:var(--muted);flex:none;}
+    table.stack td .c{text-align:right;}
+    table.stack td.first{display:block;font-weight:700;padding:4px 0 6px;}
+    table.stack td.first::before{content:none;}
+    table.stack td.first .c{text-align:left;word-break:break-all;}
+  }
   .sm{font-size:10.5px;color:var(--muted);margin-top:2px;white-space:normal;font-weight:400;}
   tr.clk{cursor:pointer;}
   tr.clk:hover td{background:var(--surface2);}
@@ -72,6 +88,8 @@
       <button class="btn btn-outline btn-small" onclick="adminLogout()">Keluar</button>
     </div>
 
+    <div class="tabs"><button class="tab on" id="tab-b-up" onclick="showTab('up')">Upgrade Tier</button><button class="tab" id="tab-b-st" onclick="showTab('st')">Statistik &amp; User</button></div>
+    <div id="tab-up">
     <div class="card">
       <div style="font-weight:700;margin-bottom:2px;">Permintaan Upgrade Pending</div>
       <div class="sub" style="margin-bottom:0;">Cek mutasi transfer dulu di rekening kamu sebelum klik Setujui.</div>
@@ -101,7 +119,9 @@
       </div>
     </div>
 
-    <div class="card" style="margin-top:24px;">
+    </div>
+    <div id="tab-st" class="hidden">
+    <div class="card">
       <div style="font-weight:700;margin-bottom:2px;">Statistik Biaya &amp; Cache Semua User</div>
       <div class="sub" style="margin-bottom:0;">Biaya AI per model dan cache hit dari semua akun yang pernah login dan generate. Ketuk baris user untuk melihat detail lengkapnya.</div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
@@ -111,6 +131,7 @@
       <div id="usage-result"></div>
     </div>
     <div id="user-detail"></div>
+    </div>
   </div>
 
 </div>
@@ -162,7 +183,8 @@ service cloud.firestore {
         && quotaTidakBolehTurun(request.resource.data, resource.data));
       allow delete: if isOwner();
       match /blobs/{doc} {
-        allow read: if request.auth != null && (request.auth.uid == uid || isOwner());
+        allow read: if request.auth != null && (request.auth.uid == uid
+          || (isOwner() && doc.matches('pb_usage_log_v1.*')));
         allow write: if request.auth != null && request.auth.uid == uid;
       }
     }
@@ -338,7 +360,7 @@ function sc(k,v,s){ return '<div class="stat-card"><div class="k">'+k+'</div><di
 
 function mdl(k){ return MODELS[k]||MODELS[LEGACY_KEY]; }
 function mlabel(k){ return MODELS[k] ? MODELS[k].label : 'Tanpa nama model (tarif '+MODELS[LEGACY_KEY].s+')'; }
-function mshort(k){ return MODELS[k] ? MODELS[k].s : 'Lama'; }
+function mshort(k){ return MODELS[k] ? MODELS[k].s : 'Data lama'; }
 function usdTok(t,k,est){
   t=t||{}; var m=mdl(k);
   if(est) return _n(t.outEstTok)/1e6*m.pout;
@@ -375,19 +397,47 @@ function buildRow(doc){
   return r;
 }
 
+var _statsLoaded=false;
+function showTab(t){
+  document.getElementById('tab-up').classList.toggle('hidden',t!=='up');
+  document.getElementById('tab-st').classList.toggle('hidden',t!=='st');
+  document.getElementById('tab-b-up').classList.toggle('on',t==='up');
+  document.getElementById('tab-b-st').classList.toggle('on',t==='st');
+  if(t==='st'&&!_statsLoaded){ _statsLoaded=true; loadUsageAll(); }
+}
+function td(l,h,c){ return '<td data-label="'+l+'"'+(c?' class="'+c+'"':'')+'><div class="c">'+h+'</div></td>'; }
 function modelTable(models,total){
   var mk=Object.keys(models).sort(function(a,b){ return usdTok(models[b],b)-usdTok(models[a],a); });
   if(!mk.length) return '<div class="empty">Belum ada data per model.</div>';
-  var h='<div class="tbl-wrap"><table class="st"><thead><tr><th>Model</th><th class="r">Input biasa</th><th class="r">Cache tulis</th><th class="r">Cache baca</th><th class="r">Output</th><th class="r">Biaya</th><th class="r">Porsi</th></tr></thead><tbody>';
+  var h='<div class="tbl-wrap"><table class="st stack"><thead><tr><th>Model</th><th class="r">Input biasa</th><th class="r">Cache tulis</th><th class="r">Cache baca</th><th class="r">Output</th><th class="r">Biaya</th><th class="r">Porsi</th></tr></thead><tbody>';
   mk.forEach(function(k){
     var t=models[k], u=usdTok(t,k);
-    h+='<tr><td>'+_esc(mlabel(k))+(MODELS[k]?'<div class="sm">'+_esc(MODELS[k].id)+' · $'+MODELS[k].pin+' in / $'+MODELS[k].pout+' out per 1 jt token</div>':'')+'</td>'
-      +'<td class="r">'+num(t.noCacheInTok)+'</td><td class="r">'+num(t.cacheWriteInTok)+'</td><td class="r">'+num(t.cacheReadInTok)+'</td><td class="r">'+num(t.outTok)+'</td>'
-      +'<td class="r">'+money(u)+'</td><td class="r">'+pct(u,total)+'</td></tr>';
+    h+='<tr>'+td('Model',_esc(mlabel(k))+(MODELS[k]?'<div class="sm">'+_esc(MODELS[k].id)+' · $'+MODELS[k].pin+' masuk / $'+MODELS[k].pout+' keluar per 1 jt token</div>':''),'first')
+      +td('Input biasa',num(t.noCacheInTok),'r')+td('Cache tulis',num(t.cacheWriteInTok),'r')+td('Cache baca',num(t.cacheReadInTok),'r')+td('Output',num(t.outTok),'r')
+      +td('Biaya',money(u),'r')+td('Porsi',pct(u,total),'r')+'</tr>';
   });
   return h+'</tbody></table></div>';
 }
-
+function renderUsers(){
+  var q=(document.getElementById('u-q').value||'').trim().toLowerCase(), so=document.getElementById('u-sort').value;
+  var rows=_usageRows.filter(function(r){ return !q||r.email.toLowerCase().indexOf(q)>-1; });
+  rows.sort(function(a,b){
+    if(so==='gen') return (b.gen+b.fix)-(a.gen+a.fix);
+    if(so==='act') return b.updated-a.updated;
+    if(so==='email') return a.email.localeCompare(b.email);
+    return b.usd-a.usd;
+  });
+  var h='<div class="sub" style="margin:0 0 6px;font-size:11px;">'+rows.length+' dari '+_usageRows.length+' user</div>';
+  if(!rows.length){ document.getElementById('u-list').innerHTML=h+'<div class="empty">Tidak ada user yang cocok.</div>'; return; }
+  h+='<div class="tbl-wrap"><table class="st stack"><thead><tr><th>Email</th><th>Paket</th><th>Model</th><th class="r">Generate</th><th class="r">Cache hit</th><th class="r">Terakhir aktif</th><th class="r">Biaya</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var ms=Object.keys(r.models).map(mshort).join(', ')||'-';
+    h+='<tr class="clk" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)">'+td('Email',_esc(r.email),'first')+td('Paket',_esc(r.tier))+td('Model',_esc(ms))
+      +td('Generate',r.gen+(r.fix?' <span style="color:var(--muted);">(+'+r.fix+')</span>':''),'r')+td('Cache hit',pct(r.hit,r.hit+r.miss+r.noCache),'r')
+      +td('Terakhir aktif',r.updated?fmtDate(r.updated):'-','r')+td('Biaya',money(r.usd),'r')+'</tr>';
+  });
+  document.getElementById('u-list').innerHTML=h+'</tbody></table></div>';
+}
 async function loadUsageAll(){
   var box=document.getElementById('usage-result');
   var btn=document.getElementById('usage-load-btn');
@@ -413,16 +463,10 @@ async function loadUsageAll(){
       +sc('Panggilan generate',t.calls,'+ '+t.fix+' perbaikan kata')
       +'</div>'
       +'<div style="font-weight:700;margin:14px 0 6px;">Biaya per model (semua user)</div>'+modelTable(tm,t.usd)
-      +'<div style="font-weight:700;margin:18px 0 2px;">Semua user</div><div class="sub" style="margin-bottom:6px;">Ketuk baris untuk melihat detail lengkap user.</div>'
-      +'<div class="tbl-wrap"><table class="st"><thead><tr><th>Email</th><th>Paket</th><th>Model</th><th class="r">Generate</th><th class="r">Cache hit</th><th class="r">Biaya</th></tr></thead><tbody>';
-    _usageRows.forEach(function(r){
-      var ms=Object.keys(r.models).map(mshort).join(', ')||'-';
-      h+='<tr class="clk" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)"><td style="word-break:break-all;">'+_esc(r.email)+'</td><td>'+_esc(r.tier)+'</td><td>'+_esc(ms)+'</td>'
-        +'<td class="r">'+r.gen+(r.fix?' <span style="color:var(--muted);">(+'+r.fix+')</span>':'')+'</td>'
-        +'<td class="r">'+pct(r.hit,r.hit+r.miss+r.noCache)+'</td><td class="r">'+money(r.usd)+'</td></tr>';
-    });
-    h+='</tbody></table></div><div class="sub" style="margin:8px 0 0;font-size:11px;">Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak terhitung.</div>';
-    box.innerHTML=h;
+      +'<div style="font-weight:700;margin:18px 0 2px;">Semua user</div><div class="sub" style="margin-bottom:8px;">Ketuk user untuk melihat detail lengkapnya.</div>'
+      +'<div class="row" style="margin-bottom:8px;"><input id="u-q" placeholder="Cari email..." oninput="renderUsers()" style="flex:1 1 180px;width:auto;"><select id="u-sort" onchange="renderUsers()" style="flex:1 1 180px;width:auto;"><option value="usd">Urut: biaya terbesar</option><option value="gen">Urut: paling banyak generate</option><option value="act">Urut: terakhir aktif</option><option value="email">Urut: email A-Z</option></select></div>'
+      +'<div id="u-list"></div><div class="sub" style="margin:8px 0 0;font-size:11px;">Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak terhitung.</div>';
+    box.innerHTML=h; renderUsers();
     csv.classList.toggle('hidden', !_usageRows.length);
   }catch(e){
     box.innerHTML='<div class="empty" style="color:var(--red);">Gagal muat: '+_esc(errMsg(e))+'</div>';
@@ -443,56 +487,82 @@ async function loadUserLog(uid){
   return Array.isArray(a)?a:[];
 }
 
-function dayTable(r,log){
+function dayMap(r,log){
   var m={}, arc=r.raw.pb_usage_archive_v1||{};
   function slot(d){ return m[d]||(m[d]={calls:0,usd:0}); }
-  Object.keys(arc).forEach(function(d){
-    ['generate','fix'].forEach(function(k){
-      var b=arc[d]&&arc[d][k];
-      if(b){ var s=slot(d); s.calls+=_n(b.calls); s.usd+=sumModels(splitModel(b)); }
-    });
-  });
+  Object.keys(arc).forEach(function(d){ ['generate','fix'].forEach(function(k){ var b=arc[d]&&arc[d][k]; if(b){ var s=slot(d); s.calls+=_n(b.calls); s.usd+=sumModels(splitModel(b)); } }); });
   (log||[]).forEach(function(e){ var s=slot(new Date(_n(e.ts)).toLocaleDateString('sv-SE')); s.calls++; s.usd+=usdTok(e,e.model); });
+  return m;
+}
+function periodCards(m){
+  var now=new Date(), today=now.toLocaleDateString('sv-SE'), wk=new Date(now.getTime()-6*864e5).toLocaleDateString('sv-SE');
+  var p={d:{c:0,u:0},w:{c:0,u:0},m:{c:0,u:0}};
+  Object.keys(m).forEach(function(k){
+    var x=m[k];
+    if(k===today){ p.d.c+=x.calls; p.d.u+=x.usd; }
+    if(k>=wk&&k<=today){ p.w.c+=x.calls; p.w.u+=x.usd; }
+    if(k.slice(0,7)===today.slice(0,7)){ p.m.c+=x.calls; p.m.u+=x.usd; }
+  });
+  return sc('Hari ini',idr(p.d.u),p.d.c+' panggilan')+sc('7 hari terakhir',idr(p.w.u),p.w.c+' panggilan')+sc('Bulan ini',idr(p.m.u),p.m.c+' panggilan');
+}
+function dayTable(m){
   var days=Object.keys(m).sort().reverse().slice(0,30);
   if(!days.length) return '<div class="empty">Belum ada riwayat harian.</div>';
-  var h='<div class="tbl-wrap"><table class="st" style="min-width:320px;"><thead><tr><th>Tanggal</th><th class="r">Panggilan</th><th class="r">Biaya</th></tr></thead><tbody>';
-  days.forEach(function(d){ h+='<tr><td>'+_esc(d)+'</td><td class="r">'+m[d].calls+'</td><td class="r">'+money(m[d].usd)+'</td></tr>'; });
+  var h='<div class="tbl-wrap"><table class="st" style="min-width:0;"><thead><tr><th>Tanggal</th><th class="r">Panggilan</th><th class="r">Biaya</th></tr></thead><tbody>';
+  days.forEach(function(d){ h+='<tr><td>'+new Date(d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short',year:'numeric'})+'</td><td class="r">'+m[d].calls+'</td><td class="r">'+money(m[d].usd)+'</td></tr>'; });
   return h+'</tbody></table></div>';
 }
-
+function sessionTable(log){
+  var g={};
+  log.forEach(function(e){
+    var k=e.sesiId||('x'+e.id), s=g[k]||(g[k]={ts:0,label:e.sesiLabel||'-',calls:0,fix:0,usd:0,models:{}});
+    s.ts=Math.max(s.ts,_n(e.ts)); s.calls++; if(e.kind==='fix') s.fix++; s.usd+=usdTok(e,e.model); s.models[mshort(e.model)]=1;
+  });
+  var rows=Object.keys(g).map(function(k){ return g[k]; }).sort(function(a,b){ return b.ts-a.ts; }).slice(0,30);
+  if(!rows.length) return '<div class="empty">Belum ada riwayat.</div>';
+  var h='<div class="tbl-wrap"><table class="st stack" style="min-width:0;"><thead><tr><th>Waktu</th><th>Aksi</th><th class="r">Panggilan AI</th><th>Model</th><th class="r">Biaya</th></tr></thead><tbody>';
+  rows.forEach(function(s){
+    h+='<tr>'+td('Waktu',fmtDate(s.ts),'first')+td('Aksi',_esc(s.label))+td('Panggilan AI',s.calls+(s.fix?' <span style="color:var(--muted);">('+s.fix+' perbaikan kata)</span>':''),'r')
+      +td('Model',_esc(Object.keys(s.models).join(', ')))+td('Biaya',money(s.usd),'r')+'</tr>';
+  });
+  return h+'</tbody></table></div>';
+}
 function logTable(log){
   var rows=log.slice().sort(function(a,b){ return _n(b.ts)-_n(a.ts); }).slice(0,100);
   if(!rows.length) return '<div class="empty">Belum ada riwayat per panggilan.</div>';
-  var h='<div class="tbl-wrap"><table class="st" style="min-width:760px;"><thead><tr><th>Waktu</th><th>Jenis</th><th>Sesi</th><th>Model</th><th class="r">Produk/Foto</th><th class="r">Input</th><th class="r">Output</th><th class="r">Biaya</th></tr></thead><tbody>';
+  var h='<div class="tbl-wrap"><table class="st stack"><thead><tr><th>Waktu</th><th>Jenis</th><th>Aksi</th><th>Model</th><th class="r">Produk / foto</th><th class="r">Input</th><th class="r">Output</th><th class="r">Biaya</th></tr></thead><tbody>';
   rows.forEach(function(e){
     var inTok=_n(e.noCacheInTok)+_n(e.cacheWriteInTok)+_n(e.cacheReadInTok);
-    h+='<tr><td>'+fmtDate(e.ts)+'</td><td>'+(e.kind==='fix'?'Perbaikan kata':'Generate')+(e.mode&&e.mode!=='unknown'?' · '+_esc(e.mode):'')+(e.interrupted?' · terputus':'')+'</td>'
-      +'<td>'+_esc(e.sesiLabel||'-')+'</td><td>'+_esc(mshort(e.model))+'</td>'
-      +'<td class="r">'+num(e.produkCount)+' / '+num(e.fotoCount)+'</td><td class="r">'+num(inTok)+'</td><td class="r">'+num(e.outTok)+'</td><td class="r">'+money(usdTok(e,e.model))+'</td></tr>';
+    h+='<tr>'+td('Waktu',fmtDate(e.ts),'first')
+      +td('Jenis',(e.kind==='fix'?'Perbaikan kata':'Generate')+(e.mode&&e.mode!=='unknown'?' · '+_esc(e.mode):'')+(e.interrupted?' · terputus':''))
+      +td('Aksi',_esc(e.sesiLabel||'-'))+td('Model',_esc(mshort(e.model)))+td('Produk / foto',num(e.produkCount)+' / '+num(e.fotoCount),'r')
+      +td('Input',num(inTok)+((e.cacheWriteInTok||e.cacheReadInTok)?'<div class="sm" style="white-space:nowrap;">cache tulis '+num(e.cacheWriteInTok)+' · baca '+num(e.cacheReadInTok)+'</div>':''),'r')
+      +td('Output',num(e.outTok)+(e.outEstTok?'<div class="sm">~'+num(e.outEstTok)+' perkiraan</div>':''),'r')+td('Biaya',money(usdTok(e,e.model)),'r')+'</tr>';
   });
-  return h+'</tbody></table></div>'+(log.length>100?'<div class="sm" style="margin-top:6px;">Menampilkan 100 panggilan terbaru dari '+log.length+'.</div>':'');
+  return h+'</tbody></table></div>';
 }
-
-function closeUser(){ document.getElementById('user-detail').innerHTML=''; }
+function closeUser(){ document.getElementById('user-detail').innerHTML=''; var l=document.getElementById('u-list'); if(l) l.scrollIntoView({behavior:'smooth',block:'start'}); }
 function renderUser(r,log,err){
-  var tt=function(t){ return '<div style="font-weight:700;margin:14px 0 6px;">'+t+'</div>'; };
+  var tt=function(t){ return '<div style="font-weight:700;margin:16px 0 6px;">'+t+'</div>'; };
+  var m=(log===null||err)?null:dayMap(r,log);
   var hist=err
-    ? '<div class="empty" style="color:var(--red);">Gagal baca riwayat per panggilan: '+_esc(err)+'<br>Pastikan rules sub-koleksi blobs sudah diganti (lihat komentar di atas script).</div>'
+    ? '<div class="empty" style="color:var(--red);">Gagal baca riwayat per panggilan: '+_esc(err)+'<br>Pastikan Firestore Rules versi terbaru (bagian blobs) sudah di-Publish — lihat komentar di atas script halaman ini.</div>'
     : (log===null
       ? '<div class="empty">Memuat riwayat per panggilan...</div>'
-      : tt('Biaya per hari (30 hari terakhir)')+dayTable(r,log)+tt('Riwayat per panggilan (100 terbaru, maks 60 hari)')+logTable(log));
+      : tt('Biaya per hari (30 hari terakhir)')+dayTable(m)+tt('Per aksi generate (30 terbaru)')+sessionTable(log)
+        +'<details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:700;padding:6px 0;">Riwayat per panggilan ('+Math.min(log.length,100)+' terbaru, maks 60 hari) — ketuk untuk membuka</summary>'+logTable(log)+'</details>');
   document.getElementById('user-detail').innerHTML=
     '<div class="card" style="margin-top:14px;border-color:var(--accent);">'
-    +'<div class="row"><div><div class="req-email">'+_esc(r.email)+'</div><div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div>'
-    +'<div class="req-meta">Paket <span class="pill '+safeTier(r.tier)+'">'+_esc(r.tier)+'</span>'+(r.expiry?' sampai '+fmtDate(r.expiry):'')+' · sinkron terakhir '+fmtDate(r.updated)+'</div></div>'
+    +'<div class="row"><div><div class="req-email" style="word-break:break-all;">'+_esc(r.email)+'</div><div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div>'
+    +'<div class="req-meta">Paket <span class="pill '+safeTier(r.tier)+'">'+_esc(r.tier)+'</span>'+(r.expiry?' sampai '+fmtDate(r.expiry):'')+' · terakhir aktif '+(r.updated?fmtDate(r.updated):'-')+'</div></div>'
     +'<button class="btn btn-outline btn-small" onclick="closeUser()">Tutup</button></div>'
     +'<div class="stat-grid">'
-    +sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))
+    +sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))+(m?periodCards(m):'')
     +sc('Biaya generate',idr(r.usdGen),r.gen+' panggilan')
     +sc('Biaya perbaikan kata',idr(r.usdFix),r.fix+' panggilan')
     +sc('Cache hit (Claude)',pct(r.hit,r.hit+r.miss+r.noCache),r.hit+' hit · '+r.miss+' miss · '+r.noCache+' tanpa cache')
     +sc('Token masuk',num(r.noCacheInTok+r.cacheWriteInTok+r.cacheReadInTok),'keluar '+num(r.outTok))
-    +(r.estUsd>0?sc('Output terputus','~$'+r.estUsd.toFixed(4),r.interrupted+' percobaan, belum masuk total'):'')
+    +(r.estUsd>0?sc('Percobaan terputus','~$'+r.estUsd.toFixed(4),r.interrupted+' percobaan · belum masuk total'):'')
     +'</div>'
     +tt('Model AI yang dipakai')+modelTable(r.models,r.usd)
     +hist+'</div>';
