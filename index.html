@@ -18779,12 +18779,63 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   // nama diisi ulang dari input user di _vbCallBulkBatch lewat arr[bi].produk=batch[bi].nama).
   // Kunci JSON hook/story/cta WAJIB sama dgn parser.
   // PROMPT BAHASA INGGRIS (permintaan user, 1 Okt 2026, v9.2): instruksi Inggris (hemat token), OUTPUT tetap Indonesia. Berlaku untuk SEMUA model.
-  return 'You are a professional content creator. Write EXACTLY 3 parts that flow into ONE continuous monologue:\n'
-    +'- HOOK: engaging opener (funny question, surprising fact, everyday problem, or short story), not a template.\n'
-    +'- STORY: a scenario of the audience using the product to solve an everyday problem, not a personal experience. (Do not always start with "bayangkan".)\n'
-    +'- CTA: invite viewers to click the keranjang bawah without pressure (never mention keranjang kuning or checkout), no urgency or limited-stock claims.\n'
-    +'RULES: write in Indonesian, no emoji, no quotation marks. Use natural spoken-style punctuation (commas, ?, !, ...) attached to the word with no space before it; end sentences with . ? or !. Each part must be '+range.min+'-'+range.max+' Indonesian words (target '+(range.target||Math.round((range.min+range.max)/2))+'; CTA is often too short). NEVER mention product material or texture (bahan/material/tekstur) unless it is in the stated advantages, and NEVER mention promo/diskon/limited. Rewrite product names naturally.\n'
-    +'Reply ONLY with a JSON array of EXACTLY '+count+' object(s), one per product in list order, no other text or markdown: [{'+(count>1?'"no":1,"produk":"...",':'')+'"hook":"...","story":"...","cta":"..."}]'+(count>1?' "no" is the product number from the list (1 to '+count+'), copied exactly; never skip, merge or reorder products.':'');
+  // v10 (Okt 2026, permintaan user: skrip jangan terasa murahan). Perubahan utama vs versi sebelumnya:
+  // peran = KARAKTER di DATA (bukan "professional content creator"), tiap bagian punya "tugas" jelas,
+  // contoh FEEL (irama saja) + satu contoh STIFF, klaim produk dikunci, hook "surprising fact" dihapus (memancing fakta karangan).
+  // Instruksi tetap Inggris (hemat token), OUTPUT tetap Indonesia. Kunci JSON hook/story/cta, "no"/"produk",
+  // rentang kata (range.min/max/target) dan aturan keranjang bawah SAMA seperti versi sebelumnya.
+  var _tgt=(range.target||Math.round((range.min+range.max)/2));
+  return [
+    'You ghostwrite what the CHARACTER in DATA says to camera in a short vertical video ad. Write the way that character really talks, never like text meant to be read. 3 parts, ONE continuous monologue; each part is its own short clip, so each must also sound right on its own:',
+    '- HOOK: open inside one small, specific moment or annoyance the audience knows (follow the HOOK angle if given). The first 6 words must be concrete, never a generic opener like "Pernah nggak sih" or "Tau nggak". Observations are fine, but no facts, statistics or claims about "people".',
+    '- STORY: pick up the last idea of the HOOK (echo it, do not restart). One concrete moment (time, place or small action) where the product removes that annoyance. Show exactly ONE benefit from the stated advantages inside the scene, never a list. Describe a scene, not a personal experience or testimonial. Do not start with "bayangkan".',
+    '- CTA: one short payoff line (how that moment feels now), then a soft invitation to tap the keranjang bawah with a reason to look. No pressure, never mention keranjang kuning or checkout, no urgency or limited-stock claims. Give it real content, not filler.',
+    'VOICE: mix very short sentences (3-5 words) with longer ones; every sentence complete. Use casual spoken connectors (tapi, jadi, biar, udah), never formal ones (namun, sehingga, merupakan, dapat, serta). At most 2 filler particles (sih, nih, dong, loh) per part, because every word counts toward the limit. One idea per part: never stack three adjectives or three benefits. Greeting from DATA: use it sparingly, vary where it sits in the sentence, almost never as the first word of HOOK. Use daily-life references the target audience recognizes, but speak in the character\'s own voice.',
+    'FEEL (rhythm and tone only, different product; never reuse its wording, openers or sentence frames):',
+    'HOOK: Payung gede ketinggalan di rumah, padahal langit udah gelap banget. Ya udah, pasrah. Rambut yang tadi pagi dicatok setengah jam bakal bubar jalan sebelum sampai kantor.',
+    'STORY: Makanya payung lipat yang ringan ini tinggal nyempil di tas kecil. Pas gerimis mulai turun, cukup buka terus jalan santai, rambut tetap aman sampai kantor.',
+    'CTA: Jadi nggak perlu lagi deg-degan tiap lihat langit mendung. Kalau mau lihat modelnya lebih jelas, ada di keranjang bawah ya, santai aja dilihat dulu.',
+    'STIFF (never write like this): Payung ini sangat cocok digunakan karena ringan dan praktis sehingga dapat dibawa ke mana saja.',
+    'RULES: write in Indonesian, no emoji, no quotation marks. Use spoken-style punctuation (commas, ?, !, ...) attached to the word with no space before it; end sentences with . ? or !. Write numbers as words and avoid symbols or abbreviations (the AI voice misreads them). Each part must be '+range.min+'-'+range.max+' Indonesian words (target '+_tgt+'). Name each product the way a person says it out loud (two or three words, e.g. tas selempang), never the marketplace listing title, and drop SEO words like murah, premium, original, terbaru. Product facts come ONLY from the name and the stated advantages (the photo only identifies the product type); scene details may be invented but must never add features, sizes, materials, quantities or guarantees. NEVER mention material or texture (bahan/material/tekstur) unless it is in the stated advantages, NEVER mention promo/diskon/limited, and avoid superlatives, absolute claims (terbaik, paling, pasti, dijamin, seratus persen) and health claims.',
+    'If a product line has a HOOK angle or STORY moment, follow it; if it clearly does not fit the product, use the closest one that does.',
+    'Reply ONLY with a JSON array of EXACTLY '+count+' object(s), one per product in list order, no other text or markdown: [{'+(count>1?'"no":1,"produk":"...",':'')+'"hook":"...","story":"...","cta":"..."}]'+(count>1?' "no" is the product number from the list (1 to '+count+'), copied exactly; never skip, merge or reorder products.':'')
+  ].join('\n');
+}
+// ── VARIASI PER PRODUK, DIUNDI KODE (v10, Okt 2026) ─────────────────────────
+// LLM lemah dalam "bervariasi" dari dalam satu panggilan (cenderung memilih opsi paling mungkin), jadi sudut Hook &
+// momen Story dibagikan oleh KODE ke tiap produk (diacak, tidak berulang berurutan) dan ditempel di baris produk.
+// Dipakai di _vbCallBulkBatch HANYA untuk generate BARU (bukan revisi). Sudut Hook tidak dipasang kalau user sudah
+// memilih gaya di "Atur Hook"; momen Story tidak dipasang kalau user sudah mengisi "arah pembahasan" (topik).
+// Teks sengaja Inggris & tanpa tanda kutip ganda.
+var VB_HOOK_ANGLES=[
+  'start in the middle of a small action already happening',
+  'one very specific small annoyance, zero setup',
+  'call out a specific situation the viewer is in right now',
+  'open with something someone says out loud in daily life (no quotation marks)',
+  'open with something seen, heard or felt',
+  'two everyday things that do not match (no price comparison)',
+  'short confident one-liner about a daily habit (no absolute claims)',
+  'a very specific small question, not Pernah nggak sih or Tau nggak'
+];
+var VB_STORY_MOMENTS=[
+  'rushed morning','hanging out with friends or family','on the road or commuting','household chores or kids',
+  'quiet moment at home','event, invitation or going out','work or school day','shopping or errands'
+];
+function _vbDeal(list,n){
+  var out=[],prev=null;
+  while(out.length<n){
+    var bag=list.slice();
+    for(var i=bag.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=bag[i];bag[i]=bag[j];bag[j]=t;}
+    if(prev!==null&&bag.length>1&&bag[0]===prev){var k=1+Math.floor(Math.random()*(bag.length-1));var t2=bag[0];bag[0]=bag[k];bag[k]=t2;}
+    for(var m=0;m<bag.length&&out.length<n;m++)out.push(bag[m]);
+    prev=out[out.length-1];
+  }
+  return out;
+}
+function _vbPickVariation(n){
+  var h=_vbDeal(VB_HOOK_ANGLES,n),s=_vbDeal(VB_STORY_MOMENTS,n),out=[];
+  for(var i=0;i<n;i++)out.push({hook:h[i],story:s[i]});
+  return out;
 }
 // ── PERBAIKAN SKRIP KEPENDEKAN — 1 PANGGILAN SAJA (permintaan user, 29 Sep 2026)
 // Setelah generate bulk selesai, semua bagian (hook/story/cta) yang jumlah
@@ -19108,6 +19159,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // mana punya produk yang mana waktu beberapa gambar dikirim sekaligus.
   let _imgCounter=0;
   const _maxImgThisCall=_pbMaxImages(); // FIX: label [Image N] & lampiran foto dibatasi sesuai batas model (Groq 3 / Gemini 16)
+  const _vbVar=extraNote?null:_vbPickVariation(batch.length); // v10: sudut Hook & momen Story diundi kode (hanya generate baru, bukan revisi)
   let produkListText=batch.map((p,i)=>{
     let line=(i+1)+'. '+_vbCleanField(p.nama,160)+(p.keunggulan?' — advantages: '+_vbCleanField(p.keunggulan,400):'')+(p.topik?' — main STORY focus (may touch HOOK): '+_vbCleanField(p.topik,400):'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
@@ -19116,6 +19168,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // prompt video (lihat _vbOverlaySentence).
     let _hookDir=_vbHookDirectiveInline(p.hookType,p.hookCustom);
     if(_hookDir)line+=' — HOOK style for this product only: '+_hookDir;
+    if(_vbVar){if(!_hookDir)line+=' — HOOK angle: '+_vbVar[i].hook;if(!p.topik)line+=' — STORY moment: '+_vbVar[i].story;}
     if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
       line+=' [Image '+_imgCounter+', attached in order: only to identify product type, do not describe]';
@@ -19140,8 +19193,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   let _toneVal=String(VB.pitch||VB.pitchLabel||'').trim();
   if(_toneVal==='bercanda')_toneVal='joking'; // preset chip -> English (custom text tetap apa adanya)
   // DIPADATKAN (30 Sep 2026): label ditulis Inggris (lebih hemat token); isi data user tetap apa adanya.
-  let prompt='Character: '+(VB.gender||VB.genderLabel)+', age '+(VB.age||VB.ageLabel)+' (adapt speaking style to the target audience).\n'
-    +(_sapaanVal?'Greeting: '+_sapaanVal+' (use in HOOK/STORY/CTA, use sparingly).\n':'')
+  let prompt='Character: '+(VB.gender||VB.genderLabel)+', age '+(VB.age||VB.ageLabel)+' (the speaker: write how this character naturally talks).\n'
+    +(_sapaanVal?'Greeting: '+_sapaanVal+'\n':'')
     +'Speaking style: '+_toneVal+'\n'
     +(_motionVal?'Demeanor: '+_motionVal+'\n':'')
     +'Accent: '+_vbAccentScriptText(VB.accent||VB.accentLabel)+'\n'
