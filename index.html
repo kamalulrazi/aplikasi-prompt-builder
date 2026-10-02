@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v10.6</div>
+  <div class="splash-version" id="splash-version">v10.7</div>
 </div>
 <script>
   (function(){
@@ -6128,7 +6128,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.6 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.7 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -12920,6 +12920,7 @@ function _vbUnpackState(json){
     if('MIRROR_OVERLAY' in obj)_pbMirrorOvOpen=obj.MIRROR_OVERLAY||'';
     _vbUnpackAttachLastContextFoto();
   }catch(e){}
+  try{if(typeof _vbMotionDrawChips==='function')_vbMotionDrawChips();}catch(e){}
 }
 
 // Kembalikan FS/VB (+ variabel bulk terkait) PERSIS ke kondisi sebelum
@@ -12967,6 +12968,7 @@ function _pbRestorePreOpenSnapshot(){
       vbPickRefMode(VB.refMode||'satu');
     }
   }catch(e){}
+  try{if(typeof _vbMotionDrawChips==='function')_vbMotionDrawChips();}catch(e){}
 }
 
 // Dipanggil tiap kali Riwayat ditutup (lewat × / backdrop / Esc DI
@@ -15629,7 +15631,7 @@ function vbMotionOptsFor(gender){return VB_MOTION_OPTS.filter(function(o){return
 function vbMotionText(val){var o=vbMotionOpt(val);return o?o.en:String(val||'');}
 // true kalau val kosong, teks custom, atau preset yang boleh untuk gender ini.
 function vbMotionValid(val,gender){var o=vbMotionOpt(val);return !o||vbMotionAllowed(o,gender);}
-function vbRenderMotionChips(){
+function _vbMotionDrawChips(){
   var box=document.getElementById('vmotion-chips');
   if(!box)return;
   box.innerHTML='';
@@ -15637,6 +15639,7 @@ function vbRenderMotionChips(){
     var c=document.createElement('div');
     c.className='chip'+(VB.motion===o.k?' sel':'');
     c.textContent=o.label;
+    c.dataset.k=o.k;
     c.onclick=function(){vbPickMotion(o.k,c,o.label);};
     box.appendChild(c);
   });
@@ -15647,6 +15650,7 @@ function vbRenderMotionChips(){
 function vbSyncMotionGender(){
   if(!vbMotionValid(VB.motion,VB.gender)){
     VB.motion='';
+    try{showToast('Motion disesuaikan dengan gender — pilih lagi ya','info');}catch(e){}
     var mc=document.getElementById('vmotion'),ma=document.getElementById('vamotion');
     if(mc&&ma&&mc.classList.contains('done'))ma.textContent='Tanpa motion';
   }
@@ -15661,11 +15665,19 @@ function vbSyncMotionGender(){
       if(typeof _vbCharRefresh==='function')_vbCharRefresh(parseInt(pi,10));
     });
   }catch(e){}
-  vbRenderMotionChips();
+  _vbMotionDrawChips();
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',vbRenderMotionChips);
-else vbRenderMotionChips();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_vbMotionDrawChips);
+else _vbMotionDrawChips();
 function vbPickMotion(val,el,label){
+  // Guard (audit Okt 2026): Ctrl+Z (CHIP_UNDO_STACK) menyimpan referensi chip lama yang bisa sudah
+  // dilepas dari halaman (chip digambar ulang saat gender berubah) atau tidak cocok lagi dengan gender.
+  if(!vbMotionValid(val,VB.gender))return;
+  if(!el||!el.isConnected){
+    el=null;
+    document.querySelectorAll('#vmotion-chips .chip').forEach(function(c){if(c.dataset.k===val)el=c;});
+    if(!el)return;
+  }
   document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
   fShowConfirm('vmotion', el, function(){ vbPickMotionConfirmed(val,label); });
@@ -16098,8 +16110,11 @@ function _vbCharProdIdx(idx){return (typeof idx==='number'&&idx>=0)?Math.floor(i
 function _vbCharVal(idx,key){
   var pi=_vbCharProdIdx(idx);
   var o=(pi>=0&&typeof VB_CHAR_OVR!=='undefined')?VB_CHAR_OVR[pi]:null;
-  if(o&&Object.prototype.hasOwnProperty.call(o,key))return o[key];
-  return VB[key]||'';
+  var v=(o&&Object.prototype.hasOwnProperty.call(o,key))?o[key]:(VB[key]||'');
+  // Jaring pengaman: preset motion yang tidak cocok dengan gender efektif produk ini
+  // (mis. sisa dari Undo/Riwayat) tidak boleh sampai ke prompt.
+  if(key==='motion'&&v&&typeof vbMotionValid==='function'&&!vbMotionValid(v,_vbCharVal(idx,'gender')))return '';
+  return v;
 }
 function _vbCharFields(){
   return [
@@ -16287,6 +16302,7 @@ function vbToggleCharPanel(prodIdx,forceClose){
 // di kartu & warna tombol pensil masih versi lama (pengaturan pensil tidak punya input ber-id yang
 // ikut dipulihkan). Bangun ulang teks prompt semua kartu produk yang tampil & segarkan tombol/panelnya.
 function _vbCharResyncAll(){
+  try{if(typeof _vbMotionDrawChips==='function')_vbMotionDrawChips();}catch(e){}
   try{
     document.querySelectorAll('[id^="vb-char-btn-"]').forEach(function(b){
       var n=parseInt(b.id.replace('vb-char-btn-',''),10);
@@ -19119,6 +19135,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // catatan revisi/hook yang sudah dipakai) — dikirim sebagai pesan user.
   let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
   let _motionVal=(typeof VB.motion==='string'?VB.motion.replace(/[\r\n"]+/g,' ').trim():'');
+  if(!vbMotionValid(VB.motion,VB.gender))_motionVal=''; // preset tidak cocok gender (sisa Undo/Riwayat) -> jangan dikirim
   _motionVal=vbMotionText(_motionVal); // preset chip -> English (custom text tetap apa adanya)
   let _toneVal=String(VB.pitch||VB.pitchLabel||'').trim();
   if(_toneVal==='bercanda')_toneVal='joking'; // preset chip -> English (custom text tetap apa adanya)
@@ -22416,7 +22433,7 @@ function vbResetNow(){
       let ma=document.getElementById('vamotion'); if(ma)ma.textContent='';
       let mcb=document.getElementById('vmotion-confirmbar'); if(mcb)mcb.remove();
       document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
-      if(typeof vbRenderMotionChips==='function')vbRenderMotionChips();
+      if(typeof _vbMotionDrawChips==='function')_vbMotionDrawChips();
       let mi=document.getElementById('vmotion-custom'); if(mi)mi.value='';
       let mcnt=document.getElementById('vmotion-counter'); if(mcnt){mcnt.textContent='0 / 80';mcnt.className='inp-counter';}
     })();
