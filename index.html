@@ -407,6 +407,23 @@
     return firebase.firestore().collection('users').doc(window.pbCloudUid);
   }
 
+  // TERAKHIR AKTIF (permintaan user, Okt 2026): dicatat tiap app dibuka (setelah login/sesi dipulihkan
+  // dan _pullAll selesai) dan tiap kembali ke app dari background, maks 1x per 5 menit supaya tulisan
+  // Firestore tidak boros. Field pb_last_active dibaca admin.html. Tidak menyentuh pb_tier/quota, jadi
+  // lolos Firestore Rules yang ada. _lastActiveReady mencegah menulis sebelum _pullAll selesai (hindari
+  // dokumen setengah jadi tanpa pb_tier).
+  var _lastActiveAt = 0, _lastActiveReady = false;
+  function _touchLastActive(force){
+    try{
+      if(!_lastActiveReady) return;
+      if(!force && Date.now() - _lastActiveAt < 300000) return;
+      var ref = _docRef(); if(!ref) return;
+      _lastActiveAt = Date.now();
+      ref.set({pb_last_active: _lastActiveAt}, {merge:true}).catch(function(){ _lastActiveAt = 0; });
+    }catch(e){}
+  }
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) _touchLastActive(false); });
+
   // ── PEMECAH DATA BESAR (CHUNKING) ───────────────────────────────────────
   // FIX (audit sinkron, Sept 2026): dulu SEMUA key di PB_SYNC_KEYS ditulis
   // sebagai field di SATU dokumen Firestore yang sama (users/{uid}). Batas
@@ -1082,6 +1099,7 @@
       // FIX (Sept 2026): pb_email SEKARANG ditulis SETELAH _pullAll() selesai (dulu sebelum, dan tulisan
       // tertunda itulah yang memicu dokumen setengah jadi tanpa pb_tier), dan hanya kalau memang beda.
       await _pullAll();
+      _lastActiveReady = true; _touchLastActive(true); // catat "terakhir aktif" tiap app dibuka
       try{
         var _emForDoc = (firebase.auth().currentUser && firebase.auth().currentUser.email) || (user && user.email) || '';
         if(_emForDoc && (!_lastDocInfo || _lastDocInfo.email !== _emForDoc)){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(){}); }
