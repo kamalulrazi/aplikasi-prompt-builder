@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.4</div>
+  <div class="splash-version" id="splash-version">v11.5</div>
 </div>
 <script>
   (function(){
@@ -6128,7 +6128,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.4 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.5 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11931,7 +11931,13 @@ function _pbModelId(){return PB_AI_MODELS[pbGetAiModelKey()].id;}
 // THINKING HAIKU DIHAPUS (permintaan user, 30 Sep 2026): Haiku tidak lagi
 // mengirim parameter 'thinking' sama sekali (field-nya undefined sehingga
 // dibuang JSON.stringify). Sonnet TIDAK berubah (tetap between_tools).
-function _pbThinkingParam(answerMaxTokens){
+function _pbThinkingParam(answerMaxTokens,modelId){
+  // FIX #5 (audit Okt 2026): cari parameter thinking berdasarkan ID model yang SEDANG dipanggil, bukan model yang
+  // dipilih di UI — supaya model cadangan (mis. Sonnet/Haiku saat Gemini jadi utama) tidak salah memakai thinking model lain.
+  if(modelId){
+    for(var k in PB_AI_MODELS){if(PB_AI_MODELS[k].id===modelId)return PB_AI_MODELS[k].thinking;}
+    return undefined;
+  }
   return PB_AI_MODELS[pbGetAiModelKey()].thinking;
 }
 function pbRenderAiModelPicker(){
@@ -17751,45 +17757,18 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     const url=ANTHROPIC_ENDPOINT;
     let controller=new AbortController();
     let timedOut=false;
-    // BUG FIX KRITIS (audit lanjutan, laporan user Sept 2026 — "timeout
-    // generate gak nyesuain jumlah token"): timer abort di bawah ini adalah
-    // batas waktu MUTLAK untuk SELURUH durasi streaming (bukan idle-timeout
-    // per-chunk yang direset tiap ada data masuk) — tapi sebelumnya SELALU
-    // tetap 30 detik (percobaan pertama) / 45 detik (percobaan berikutnya)
-    // TIDAK PEDULI cfg.maxOutputTokens diminta berapa. Sejak bug #1/#2 di
-    // atas diperbaiki, cfg.maxOutputTokens bisa sampai 8192 untuk batch besar
-    // (lihat _vbDynamicMaxTokens di _vbCallBulkBatch, sampai 30 produk
-    // sekaligus dalam 1 panggilan) — makin banyak token yang diminta, makin
-    // lama AI-nya selesai stream, TAPI timer abort tidak ikut membesar.
-    // Akibatnya untuk batch besar, request PASTI kena abort duluan oleh kode
-    // sendiri sebelum AI selesai menjawab, walau server masih aktif
-    // mengirim & tidak ada masalah jaringan sama sekali — generate bulk
-    // besar jadi selalu gagal timeout, bukan gara-gara 429/503 atau koneksi
-    // putus beneran (retry otomatis di bawah pun percuma karena attempt
-    // berikutnya kena masalah yang sama).
-    // Sekarang timeout diskalakan proporsional ke cfg.maxOutputTokens, pakai
-    // rasio dari batas lama itu sendiri (30 detik / 45 detik dihitung utk
-    // 6144 token, jatah lama utk batch kecil BATCH_SIZE=3) supaya batch kecil
-    // (perilaku paling umum & sudah terbukti cukup) TIDAK berubah sama
-    // sekali, ditambah jatah tetap di depan (TTFB_BUFFER_MS) buat waktu
-    // koneksi awal sebelum token pertama keluar (belum ikut terhitung di
-    // rasio per-token). Batas bawah tetap 30/45 detik seperti sebelumnya
-    // (jaga-jaga kalau maxOutputTokens kecil), batas atas 120 detik sebagai
-    // jaring pengaman supaya kalau koneksi memang benar-benar macet total,
-    // tidak nunggu tanpa batas — retry otomatis (MAX_TOTAL_WAIT_MS ~3 menit
-    // di bawah) tetap jalan seperti biasa kalau attempt ini akhirnya timeout.
-    const TTFB_BUFFER_MS=8000;
-    const MS_PER_TOKEN=(isFirstAttempt?30000:45000)/6144;
-    // (dipakai maxTokensWithThinking, bukan cfg.maxOutputTokens lagi — sejak
-    // parameter thinking aktif, total token yang mungkin di-stream server
-    // bisa sampai maxTokensWithThinking, jadi timer abort ikut disesuaikan
-    // supaya tidak abort duluan gara-gara cuma ngitung jatah jawaban saja.)
-    let timeoutMs=Math.min(120000,Math.max(isFirstAttempt?30000:45000,TTFB_BUFFER_MS+maxTokensWithThinking*MS_PER_TOKEN));
+    // TIMEOUT (v11.5, 2 Okt 2026): timer ini IDLE-timeout — direset tiap chunk SSE masuk (lihat _armTimer),
+    // jadi stream sehat yang lambat/besar TIDAK terpotong dan besar max_tokens tidak mempengaruhinya.
+    // Angka di bawah hanya jatah menunggu chunk PERTAMA (termasuk waktu upload foto base64 di jaringan HP lambat)
+    // dan jeda diam antar-chunk: 45 dtk percobaan pertama, 60 dtk percobaan ulang. Jangan dikaitkan ke max_tokens.
+    // Batas mutlak per percobaan = _HARD_CAP_MS (180 dtk). Anggaran waktu terburuk (3 model fallback x ~137 dtk,
+    // lihat _vbGenerateWithFallback) tetap di bawah _VB_GEN_STALE_MS (8 menit); kalau angka ini dinaikkan lagi, hitung ulang.
+    let timeoutMs=isFirstAttempt?45000:60000;
     let timer=null; // audit Okt 2026: dimulai SETELAH token Firebase didapat
     // AUDIT Okt 2026: timer = IDLE-timeout, direset tiap chunk SSE masuk. Stream yang sehat tapi lambat
     // (Sonnet, batch banyak produk) tidak lagi di-abort sendiri; timeoutMs awal hanya jatah menunggu chunk
     // pertama. Batas mutlak per percobaan (_HARD_CAP_MS) tetap ada sebagai jaring pengaman.
-    const _IDLE_MS=isFirstAttempt?30000:45000,_HARD_CAP_MS=180000;
+    const _IDLE_MS=isFirstAttempt?45000:60000,_HARD_CAP_MS=180000;
     const _armTimer=function(ms){timeoutMs=ms;clearTimeout(timer);timer=setTimeout(function(){timedOut=true;controller.abort();},ms);};
     let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
     let streamErrType='',streamErrMsg='';
@@ -17815,6 +17794,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // disimpan ke netErrMsg supaya bisa ditampilkan ke user di pesan error
     // final (lihat pemanggil _vbStreamClaudeJSONWithRetry).
     let netErrMsg='';
+    let netDown=false; // FIX #2: true hanya kalau fetch() ke Worker gagal total (belum ada respons HTTP sama sekali & bukan timeout)
     // FIX UX (audit lanjutan, Sept 2026 — "delay diam sebelum teks muncul"):
     // sejak parameter thinking aktif, ada jeda nyata di awal tiap percobaan
     // sebelum event text_delta pertama keluar (server 'mikir' dulu sebelum
@@ -17831,7 +17811,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         method:'POST',
         headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':(_pbProviderOf(model)||'groq')}:{}),
         body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,promptParts,systemText,maxTokensWithThinking,true)):JSON.stringify(Object.assign(
-          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(cfg.maxOutputTokens),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
+          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(cfg.maxOutputTokens,model),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
           // ditempel kalau cacheSystem true. System prompt generate pertama
           // mode single (_vbScript3SystemPrompt) TIDAK PERNAH tembus syarat
@@ -17992,6 +17972,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         // terpisah (outEstTok) dari panjang teks yang sempat mengalir. Model yang dipakai ikut dicatat.
         try{_vbTrackUsage(usageInfo,{model:model,interrupted:true,outEstTok:_vbEstInterruptedOutTok(usageInfo,textBuf.length,thinkChars,maxTokensWithThinking)});}catch(e2){}
       }
+      netDown=!resp&&!timedOut&&!!e&&e.name==='TypeError';
       streamOk=false;
       resp=null;
       // Simpan pesan error asli (nama + pesan) sebelum hilang. Kalau abort
@@ -18087,7 +18068,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       // selipkan pesan error jaringan asli (netErrMsg) supaya pemanggil bisa
       // menampilkannya, bukan cuma "Status 0: API error" yang tidak jelas.
       if(!resp&&netErrMsg&&!rawText)rawText=netErrMsg;
-      return{resp:resp||{ok:false,status:0},rawText};
+      return{resp:resp||{ok:false,status:0},rawText,netDown:netDown};
     }
     let waitMs;
     if(isBlocked403){
@@ -18173,7 +18154,7 @@ async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemT
 // Groq 2x lalu GPT-OSS 1x (VB_GEN_FALLBACK_FIX_CHAIN, dibaca _vbFixPlan lewat _vbFixChainOverride).
 // TIDAK dialihkan untuk: 413 (kebesaran, ditangani pemecahan batch di pemanggil), 401, dan 403 kuota/login/model_not_allowed
 // (bukan salah model; model lain pasti ikut ditolak). Batas tunggu retry per model 45 detik (bukan 3 menit) supaya total
-// 3 model tetap di bawah _VB_GEN_STALE_MS (5 menit). Error sesi login (pbAuthSession) tetap dilempar ke pemanggil.
+// 3 model tetap di bawah _VB_GEN_STALE_MS (8 menit; terburuk ~7 menit dgn timeout 45/60 dtk, v11.5). Error sesi login (pbAuthSession) tetap dilempar ke pemanggil.
 const VB_GEN_FALLBACK_ENABLED=true;
 const VB_GEN_FALLBACK_FOR_MAIN_MODEL='gemini';          // fallback hanya aktif kalau model utama = ini
 const VB_GEN_FALLBACK_MODELS=['haiku','groq'];           // urutan cadangan (kunci PB_AI_MODELS)
@@ -18182,12 +18163,33 @@ const VB_GEN_FALLBACK_FIX_CHAIN=[{key:'groq',tries:2,extraTok:0},{key:'gptoss',t
 var _vbFixChainOverride=null; // diisi _vbGenerateWithFallback kalau hasil generate datang dari model cadangan
 function _vbGenNoFallback(out){
   var st=out&&out.resp?out.resp.status:0;
+  if(out&&out.netDown)return true; // FIX #2: Worker tidak terjangkau -> Haiku/Groq (URL Worker sama) pasti ikut gagal; timeout/stream putus tetap boleh fallback
   if(st===413||st===401)return true;
   if(st===403){
     var t='';try{var j=JSON.parse((out&&out.rawText)||'{}');t=(j&&j.error&&j.error.type)||'';}catch(e){}
     if(t==='quota_exceeded'||t==='login_required'||t==='model_not_allowed')return true;
   }
   return false;
+}
+// FIX #1 (audit Okt 2026): sesuaikan foto & label [Image N] dengan batas model yang SEDANG dipanggil.
+// Prompt dilabeli sesuai batas model utama (Gemini 16); saat jatuh ke Groq (3 foto) / GPT-OSS (0 foto), foto di atas batas
+// dibuang diam-diam tapi labelnya tetap ada -> AI bisa salah mencocokkan / mengarang isi foto. Di sini foto di atas batas
+// dibuang DAN label [Image k] (k > batas) dihapus dari teks. Claude tidak dibatasi (100), jadi parts dikembalikan apa adanya.
+function _pbFitPartsToModel(parts,modelId){
+  var cap=_pbIsGroqModel(modelId)?_pbOaiCfg(modelId).maxImages:100;
+  var total=0;
+  (parts||[]).forEach(function(p){if(p&&(p.inline_data||p.inlineData))total++;});
+  if(total<=cap)return parts;
+  var seen=0;
+  return (parts||[]).filter(function(p){
+    if(p&&(p.inline_data||p.inlineData)){seen++;return seen<=cap;}
+    return true;
+  }).map(function(p){
+    if(p&&typeof p.text==='string'&&p.text.indexOf('[Image ')>=0){
+      return Object.assign({},p,{text:p.text.replace(/\s?\[Image (\d+)\]/g,function(m,n){return parseInt(n,10)>cap?'':m;})});
+    }
+    return p;
+  });
 }
 async function _vbGenerateWithFallback(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokens){
   _vbFixChainOverride=null;
@@ -18200,7 +18202,7 @@ async function _vbGenerateWithFallback(promptParts,onPartial,onWait,systemText,c
   for(let i=0;i<keys.length;i++){
     const m=PB_AI_MODELS[keys[i]];
     if(!m)continue;
-    out=await _vbStreamClaudeJSONWithRetryModel(m.id,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokens,VB_GEN_FALLBACK_STEP_WAIT_MS);
+    out=await _vbStreamClaudeJSONWithRetryModel(m.id,_pbFitPartsToModel(promptParts,m.id),onPartial,onWait,systemText,cacheSystem,maxOutputTokens,VB_GEN_FALLBACK_STEP_WAIT_MS);
     if(out&&out.resp&&out.resp.ok){
       if(i>0)_vbFixChainOverride=VB_GEN_FALLBACK_FIX_CHAIN;
       return out;
@@ -18394,7 +18396,7 @@ async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
     let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
       method:'POST',
       headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':(_pbProviderOf(model)||'groq')}:{}),
-      body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,parts,'',maxTokensWithThinking,false)):JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(maxTokens),messages:claudeMessages})
+      body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,parts,'',maxTokensWithThinking,false)):JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(maxTokens,model),messages:claudeMessages})
     },timeoutMs),maxRetries);
     if(r.resp.ok){
       try{
@@ -19044,6 +19046,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
   // masih di luar rentang -> lanjut ke langkah berikutnya (mis. Gemini, Gemini, lalu GPT-OSS).
   const plan=_vbFixPlan();
   let used=0; // jumlah panggilan yang benar-benar dijalankan (buat statistik)
+  let _lastTransientKey=''; // kunci model yang baru saja kena error sementara (lihat penanganan apiFail di bawah)
   for(let si=0;si<plan.length&&pending.length;si++){
     const step=plan[si];
     used++;
@@ -19062,11 +19065,20 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
     finally{_vbUsageKindOverride='';}
     if(fixOut.apiFail){
       if(step.legacy)break; // perilaku lama: panggilan sudah retry sendiri, jangan buang percobaan lagi
-      if(fixOut.status===429){ // limit: percuma diulang ke model yang sama, langsung ke model berikutnya
+      var _fs=fixOut.status; // v11.5: error sementara (503/529/5xx/koneksi putus=0) -> coba ulang SEKALI di model yang sama (jeda 1,5 dtk); kalau gagal lagi baru lompat. 429 (limit) langsung lompat.
+      if(_fs===429){
         while(si+1<plan.length&&plan[si+1].key===step.key)si++;
+      }else if(_fs===503||_fs===529||_fs===500||_fs===502||_fs===504||_fs===0){
+        if(_lastTransientKey===step.key){
+          while(si+1<plan.length&&plan[si+1].key===step.key)si++; // percobaan ulang di model ini juga gagal sementara -> lompat
+        }else{
+          _lastTransientKey=step.key;
+          if(si+1<plan.length&&plan[si+1].key===step.key)await new Promise(function(r){setTimeout(r,1500);});
+        }
       }
       continue;
     }
+    _lastTransientKey='';
     let res=fixOut.res;
     if(Array.isArray(res)&&res.length){
       const byId={};
@@ -19356,8 +19368,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       }
       throw new Error('Data yang dikirim kebesaran (413) walau cuma 1 produk — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
     }
-    if(resp.status===503||resp.status===529)throw new Error('Server kami masih padat walau sudah dicoba ulang terus selama ~3 menit. Coba lagi beberapa saat lagi ya — biasanya ini sementara.');
-    if(resp.status===429)throw new Error('Server kami masih kewalahan menerima permintaan walau sudah dicoba ulang terus selama ~3 menit — kemungkinan besar beban harian server sedang penuh, bukan cuma antrean sesaat. Coba lagi nanti.');
+    if(resp.status===503||resp.status===529)throw new Error('Server kami masih padat walau sudah dicoba ulang berkali-kali (termasuk ke server cadangan). Coba lagi beberapa saat lagi ya — biasanya ini sementara.');
+    if(resp.status===429)throw new Error('Server kami masih kewalahan menerima permintaan walau sudah dicoba ulang berkali-kali (termasuk ke server cadangan) — kemungkinan besar beban harian server sedang penuh, bukan cuma antrean sesaat. Coba lagi nanti.');
     if(resp.status===0)throw new Error('Gagal terhubung ke server kami'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
     if(_vbIsRegionBlock403(resp.status,rawText)){var _e403=new Error(_vbRegionBlockMsg());_e403.toastMsg='Koneksi ke server ditolak (403). Ganti jaringan (WiFi ↔ data seluler), lalu tekan Lanjutkan.';throw _e403;}
     var _authQuotaMsg=_pbWorkerAuthQuotaMsg(resp.status,errJson);
