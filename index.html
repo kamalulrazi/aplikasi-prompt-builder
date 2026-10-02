@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v10.0</div>
+  <div class="splash-version" id="splash-version">v10.3</div>
 </div>
 <script>
   (function(){
@@ -6098,7 +6098,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Step produk</strong> otomatis muncul jika kamu tidak pilih foto produk<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Nama produk spesifik</strong> = hasil AI lebih akurat dan konsisten<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Compact JSON</strong> kadang lebih baik jika foto referensi banyak<br>
-      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Tab Video</strong> — script AI otomatis dibatasi 22-26 kata, tapi tetap bisa diedit manual di kartu hasil
+      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Tab Video</strong> — script AI otomatis dibatasi 24-27 kata, tapi tetap bisa diedit manual di kartu hasil
     </p>
   </div>
 
@@ -6131,7 +6131,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.0 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.3 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -14857,7 +14857,8 @@ document.addEventListener('click',function(e){
 // 30 Sep 2026 (permintaan user, hemat output token): rentang 24-30 (target 27) -> 22-28 (target 26) -> 22-26 (target 24).
 // Prompt (_vbBuildSingleModeSystemPrompt), penghitung kata UI, pemotong batas atas & sanitizer semua
 // membaca konstanta ini, jadi cukup diubah di sini.
-const VB_FIXED_WORD_RANGE={min:22,max:26,target:24};
+// 2 Okt 2026 (permintaan user): rentang 22-26 (target 24) -> 24-27 (target 25).
+const VB_FIXED_WORD_RANGE={min:24,max:27,target:25};
 function vbGetWordRange(){
   return VB_FIXED_WORD_RANGE;
 }
@@ -15504,16 +15505,16 @@ function _vbHookDirectiveInline(type,customText){
   // DIPERSINGKAT (permintaan user, hemat token): 1 baris pendek per gaya hook.
   // Kalau user tidak memilih gaya, return '' (tidak ada yang dikirim ke Claude).
   if(type==='psikologis'){
-    return 'HOOK PSIKOLOGIS (bikin penonton merasa kena: penasaran/insecure/FOMO)';
+    return 'PSYCHOLOGICAL HOOK (make the viewer feel called out: curiosity/insecurity/FOMO)';
   }
   if(type==='murah'){
-    return 'HOOK HARGA MURAH (kesan murah/hemat, JANGAN sebut angka harga atau nominal apapun)';
+    return 'CHEAP-PRICE HOOK (give a cheap/affordable impression, do NOT mention any price number or amount)';
   }
   if(type==='heboh'){
-    return 'HOOK SUPER HEBOH (energi tinggi, ekspresif, pakai kata seru)';
+    return 'SUPER HYPE HOOK (high energy, expressive, use exclamatory words)';
   }
   if(type==='custom'&&customText){
-    return 'arahan user untuk HOOK: '+customText;
+    return 'user direction for HOOK: '+customText;
   }
   return '';
 }
@@ -18530,7 +18531,7 @@ function _vbHardEnforceMaxWords(text,max,min){
 // mulai mengetik, supaya status "terpilih"-nya tidak nyangkut kelihatan
 // aktif padahal isi kolom sudah beda.
 var VB_TARGET_AUDIENCE_PRESETS={
-  'genz-perempuan':'gen z perempuan'
+  'genz-perempuan':'Gen Z women'
 };
 var VB_TA_PRESET={};
 // FITUR BARU: sapaan ke penonton (opsional). Disimpan global supaya SEMUA
@@ -18662,8 +18663,8 @@ function _vbBuildSingleModeSystemPrompt(range,count){
   return 'You are a professional content creator. Write EXACTLY 3 parts that flow into ONE continuous monologue:\n'
     +'- HOOK: engaging opener (funny question, surprising fact, everyday problem, or short story), not a template.\n'
     +'- STORY: a scenario of the audience using the product to solve an everyday problem, not a personal experience. (Do not always start with "bayangkan".)\n'
-    +'- CTA: tell viewers to tap the keranjang bawah (never keranjang kuning or checkout), no urgency or limited-stock claims.\n'
-    +'RULES: write in Indonesian, no emoji, no quotation marks, end sentences with a period. Each part must be '+range.min+'-'+range.max+' Indonesian words (target '+(range.target||Math.round((range.min+range.max)/2))+'; CTA is often too short). NEVER mention product material or texture (bahan/material/tekstur) unless it is in the stated advantages, and NEVER mention promo/diskon/limited. Rewrite product names naturally.\n'
+    +'- CTA: invite viewers to click the keranjang bawah without pressure (never mention keranjang kuning or checkout), no urgency or limited-stock claims.\n'
+    +'RULES: write in Indonesian, no emoji, no quotation marks. Use natural spoken-style punctuation (commas, ?, !, ...) attached to the word with no space before it; end sentences with . ? or !. Each part must be '+range.min+'-'+range.max+' Indonesian words (target '+(range.target||Math.round((range.min+range.max)/2))+'; CTA is often too short). NEVER mention product material or texture (bahan/material/tekstur) unless it is in the stated advantages, and NEVER mention promo/diskon/limited. Rewrite product names naturally.\n'
     +'Reply ONLY with a JSON array of EXACTLY '+count+' object(s), one per product in list order, no other text or markdown: [{'+(count>1?'"no":1,"produk":"...",':'')+'"hook":"...","story":"...","cta":"..."}]'+(count>1?' "no" is the product number from the list (1 to '+count+'), copied exactly; never skip, merge or reorder products.':'');
 }
 // ── PERBAIKAN SKRIP KEPENDEKAN — 1 PANGGILAN SAJA (permintaan user, 29 Sep 2026)
@@ -18675,7 +18676,7 @@ function _vbBuildSingleModeSystemPrompt(range,count){
 // tetap dijaga _vbHardEnforceMaxWords di pemanggil. Kalau panggilan ini
 // gagal/error apa pun, teks asli dipakai apa adanya (tidak melempar error).
 const VB_SHORTFIX_SYSTEM=
-  'You are a professional content creator. Add a few words to the script until the total is 22-26 words. Write in Indonesian. Do not mention product material.\n\n'
+  'You are a professional content creator. Add a few words to the script until the total is 24-27 words. Write in Indonesian. Do not mention product material.\n\n'
  +'Reply ONLY with a JSON array, copy "id" exactly:\n'
  +'[{"id":"...","teks":"kalimat tambahan"}]';
 function _vbSalvageIdTeks(text){
@@ -18709,9 +18710,9 @@ const VB_AUTO_SHORTFIX_ENABLED=false;
 const VB_TARGETED_FIX_ENABLED=true;                 // sakelar utama
 const VB_TARGETED_FIX_SKIP_MODELS=['sonnet'];       // kunci PB_AI_MODELS yang TIDAK dikenai perbaikan ini
 const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian
-const VB_TARGETED_FIX_INCLUDE_LONG=false;            // true = bagian KEPANJANGAN juga ditulis ulang ("kurangi N"); false = hanya kependekan
+const VB_TARGETED_FIX_INCLUDE_LONG=true;             // true = bagian KEPANJANGAN juga ditulis ulang ("remove N"); false = hanya kependekan. 2 Okt 2026 (permintaan user): true. Potong lokal (_vbHardEnforceMaxWords) tetap jadi cadangan.
 const VB_TARGETED_FIX_SYSTEM=
-  'You are a professional content creator. Continue the script I give you. Keep the context, mood and style of the script. Write in Indonesian. NEVER mention product material, limited stock, or keranjang kuning.\n\n'
+  'You are a professional content creator. Adjust the word count of the script I give you. Keep the context, mood and style of the script. Write in Indonesian. NEVER mention product material, limited stock, or keranjang kuning. Only add or cut words as needed.\n\n'
  +'Reply ONLY with a JSON array, copy "id" exactly, "teks" contains the FULL rewritten text:\n'
  +'[{"id":"...","teks":"..."}]';
 function _vbTargetedFixActive(){
@@ -19015,12 +19016,15 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // catatan revisi/hook yang sudah dipakai) — dikirim sebagai pesan user.
   let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
   let _motionVal=(typeof VB.motion==='string'?VB.motion.replace(/[\r\n"]+/g,' ').trim():'');
+  if(_motionVal==='lebay banget')_motionVal='over-the-top'; // preset chip -> English (custom text tetap apa adanya)
+  let _toneVal=String(VB.pitch||VB.pitchLabel||'').trim();
+  if(_toneVal==='bercanda')_toneVal='joking'; // preset chip -> English (custom text tetap apa adanya)
   // DIPADATKAN (30 Sep 2026): label ditulis Inggris (lebih hemat token); isi data user tetap apa adanya.
-  let prompt='Character: '+VB.genderLabel+', age '+(VB.age||VB.ageLabel)+' (adapt speaking style to the target audience).\n'
-    +(_sapaanVal?'Greeting: '+_sapaanVal+' (use in HOOK/STORY/CTA, not at the very beginning).\n':'')
-    +'Tone: '+(VB.pitchLabel||VB.pitch)+'\n'
-    +(_motionVal?'Movement: '+_motionVal+'\n':'')
-    +'Accent: '+(VB.accentLabel||VB.accent)+'\n'
+  let prompt='Character: '+(VB.gender||VB.genderLabel)+', age '+(VB.age||VB.ageLabel)+' (adapt speaking style to the target audience).\n'
+    +(_sapaanVal?'Greeting: '+_sapaanVal+' (use in HOOK/STORY/CTA, use sparingly).\n':'')
+    +'Speaking style: '+_toneVal+'\n'
+    +(_motionVal?'Demeanor: '+_motionVal+'\n':'')
+    +'Accent: '+(VB.accent||VB.accentLabel)+'\n'
     +'Target audience: '+targetAudience+' (all of the above affects the script)\n\n'
     +'Products ('+batch.length+'):\n'+produkListText+'\n'
     +(extraNote?'\nREVISION NOTE (top priority, overrides any conflicting rule): '+String(extraNote).slice(0,2500)+'\n':'')
