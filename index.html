@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v10.5</div>
+  <div class="splash-version" id="splash-version">v10.6</div>
 </div>
 <script>
   (function(){
@@ -5681,7 +5681,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
        Control & Mirror Selfie self-contained dan tidak pernah sampai sini).
        id="vmotion" (bukan v4) supaya id lama v4 (Aksen) & v5 (Script) TIDAK
        perlu diganti — cuma nomor tampilan (wnum) & total progress yang digeser
-       jadi 6. Cuma 1 chip preset "Lebay Banget" + kolom isi sendiri + tombol
+       jadi 6. Chip preset dirender dinamis sesuai Jenis Kelamin (lihat VB_MOTION_OPTS; dulu cuma 1 chip "Lebay Banget") + kolom isi sendiri + tombol
        Lewati. Sejak v7.6 nilainya (VB.motion) JUGA dikirim ke AI penulis skrip
        lewat blok DATA di _vbCallBulkBatch (baris "Gerakan pembawaan: ...",
        hanya kalau diisi), selain ditempel ke prompt akhir sebagai
@@ -5691,9 +5691,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     <div class="whead"><div class="wnum">4</div><div class="wtitle">Motion Karakter</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vamotion"></div></div>
     <div class="wbody">
       <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Gaya gerak karakter di video — bisa dilewati kalau tidak perlu.</p>
-      <div class="chips">
-        <div class="chip" onclick="vbPickMotion('lebay banget',this,'Lebay Banget')">Lebay Banget</div>
-      </div>
+      <div class="chips" id="vmotion-chips"></div>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
         <div class="inp-wrap">
@@ -6130,7 +6128,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.5 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.6 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -15538,6 +15536,7 @@ function vbPickGender(val,label){
   document.querySelectorAll('#vb-gender-chips .chip').forEach(c=>c.classList.remove('sel'));
   document.getElementById(val==='male'?'vb-gender-male':'vb-gender-female').classList.add('sel');
   VB.gender=val;VB.genderLabel=label;
+  vbSyncMotionGender();
   vbCheckV2Done();
 }
 function vbCheckV2Done(){
@@ -15598,6 +15597,74 @@ function vbPickPitchCustom(){
 }
 
 // ── STEP 4: MOTION KARAKTER (opsional) ──
+// DAFTAR PRESET MOTION (Okt 2026). g: 'f'=perempuan, 'm'=laki-laki, 'fm'=keduanya.
+// k  = nilai yang disimpan di VB.motion (tetap key Indonesia pendek; 'lebay banget'
+//      sama persis seperti dulu, jadi data lama/Riwayat tetap terbaca).
+// en = teks Inggris yang dikirim ke AI skrip (Demeanor) & ditempel ke prompt video.
+// Teks yang diketik user sendiri (bukan key preset) selalu dipakai apa adanya.
+// Urutan array = urutan tampil (disaring per gender).
+var VB_MOTION_OPTS=[
+  {k:'lebay banget',label:'Lebay Banget',g:'f',en:'over-the-top, exaggerated expressive gestures and dramatic facial reactions'},
+  {k:'gemes imut',label:'Gemes & Imut',g:'f',en:'cute and adorable, head tilts, wide smile, small playful gestures'},
+  {k:'energik semangat',label:'Energik & Semangat',g:'f',en:'energetic and enthusiastic, quick lively movements, frequent nodding'},
+  {k:'cool tegas',label:'Cool & Tegas',g:'m',en:'cool and confident, short firm movements, composed expression, small nods'},
+  {k:'ramah humble',label:'Ramah & Humble',g:'m',en:'friendly and humble, sincere smile, simple warm gestures'},
+  {k:'bro rekomendasi',label:'Bro Rekomendasi',g:'m',en:'recommending to a friend, leaning slightly toward camera, "trust me" hand gesture'},
+  {k:'heboh nemu barang bagus',label:'Heboh Nemu Barang Bagus',g:'fm',en:'excited about a great find, eyes widening, gasping, clapping hands'},
+  {k:'hype host live',label:'Hype Host Live',g:'fm',en:'live-shopping host style, fast expressive hand gestures, animated and upbeat'},
+  {k:'kocak slengean',label:'Kocak & Slengean',g:'fm',en:'funny and casual, playful exaggerated expressions, relaxed goofy gestures'}
+];
+function vbMotionOpt(val){
+  for(var i=0;i<VB_MOTION_OPTS.length;i++)if(VB_MOTION_OPTS[i].k===val)return VB_MOTION_OPTS[i];
+  return null;
+}
+// Gender belum dipilih / bukan male-female -> cuma preset netral ('fm').
+function vbMotionAllowed(o,gender){
+  if(gender==='male')return o.g.indexOf('m')>-1;
+  if(gender==='female')return o.g.indexOf('f')>-1;
+  return o.g==='fm';
+}
+function vbMotionOptsFor(gender){return VB_MOTION_OPTS.filter(function(o){return vbMotionAllowed(o,gender);});}
+// Preset -> teks Inggris; selain preset (teks custom) dikembalikan apa adanya.
+function vbMotionText(val){var o=vbMotionOpt(val);return o?o.en:String(val||'');}
+// true kalau val kosong, teks custom, atau preset yang boleh untuk gender ini.
+function vbMotionValid(val,gender){var o=vbMotionOpt(val);return !o||vbMotionAllowed(o,gender);}
+function vbRenderMotionChips(){
+  var box=document.getElementById('vmotion-chips');
+  if(!box)return;
+  box.innerHTML='';
+  vbMotionOptsFor(VB.gender).forEach(function(o){
+    var c=document.createElement('div');
+    c.className='chip'+(VB.motion===o.k?' sel':'');
+    c.textContent=o.label;
+    c.onclick=function(){vbPickMotion(o.k,c,o.label);};
+    box.appendChild(c);
+  });
+  var cb=document.getElementById('vmotion-confirmbar');if(cb)cb.remove();
+}
+// Dipanggil tiap Jenis Kelamin diganti di wizard: preset yang tidak cocok dengan gender baru
+// dikosongkan (VB.motion & override pensil per produk), lalu chip digambar ulang.
+function vbSyncMotionGender(){
+  if(!vbMotionValid(VB.motion,VB.gender)){
+    VB.motion='';
+    var mc=document.getElementById('vmotion'),ma=document.getElementById('vamotion');
+    if(mc&&ma&&mc.classList.contains('done'))ma.textContent='Tanpa motion';
+  }
+  try{
+    Object.keys(VB_CHAR_OVR).forEach(function(pi){
+      var o=VB_CHAR_OVR[pi];
+      if(!o||!Object.prototype.hasOwnProperty.call(o,'motion'))return;
+      var g=Object.prototype.hasOwnProperty.call(o,'gender')?o.gender:VB.gender;
+      if(vbMotionValid(o.motion,g))return;
+      delete o.motion;
+      if(!Object.keys(o).length)delete VB_CHAR_OVR[pi];
+      if(typeof _vbCharRefresh==='function')_vbCharRefresh(parseInt(pi,10));
+    });
+  }catch(e){}
+  vbRenderMotionChips();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',vbRenderMotionChips);
+else vbRenderMotionChips();
 function vbPickMotion(val,el,label){
   document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
@@ -16036,7 +16103,7 @@ function _vbCharVal(idx,key){
 }
 function _vbCharFields(){
   return [
-    {key:'motion',title:'Motion Karakter',none:'Tanpa motion',ph:'Atau isi sendiri, contoh: anggun dan kalem',max:80,chips:[['lebay banget','Lebay Banget']]},
+    {key:'motion',title:'Motion Karakter',none:'Tanpa motion',ph:'Atau isi sendiri, contoh: anggun dan kalem',max:80,chips:VB_MOTION_OPTS.map(function(o){return [o.k,o.label];})},
     {key:'gender',title:'Jenis Kelamin',chips:[['male','Laki-laki'],['female','Perempuan']]},
     {key:'age',title:'Usia',ph:'Atau isi sendiri, contoh: elderly woman, around 65 years old',max:120,chips:[['child, approximately 5-10 years old','Anak-anak'],['teenager, approximately 15-20 years old','Remaja'],['young adult, approximately 20-30 years old','Dewasa Muda'],['adult, approximately 30-45 years old','Dewasa'],['middle-aged adult, approximately 45-60 years old','Paruh Baya']]},
     {key:'pitch',title:'Nada Bicara',ph:'Atau tulis sendiri, contoh: lelah tapi tetap ramah',max:80,chips:[['bercanda','Bercanda']]},
@@ -16104,9 +16171,13 @@ function _vbCharBuildPanel(prodIdx,panel){
     if(f.key==='ov'){
       p+='<div data-ovhost></div>';
     }else{
-      p+='<div class="chips" style="margin:8px 0 6px;">';
-      if(f.none)p+='<div class="chip" data-k="'+f.key+'" data-v="" onclick="vbCharPick('+prodIdx+',this)">'+esc(f.none)+'</div>';
-      (f.chips||[]).forEach(function(c){p+='<div class="chip" data-k="'+f.key+'" data-v="'+esc(c[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(c[1])+'</div>';});
+      p+='<div class="chips" style="margin:8px 0 6px;"'+(f.key==='motion'?' data-mchips="1"':'')+'>';
+      if(f.key==='motion'){
+        p+=_vbCharMotionChipsHtml(prodIdx);
+      }else{
+        if(f.none)p+='<div class="chip" data-k="'+f.key+'" data-v="" onclick="vbCharPick('+prodIdx+',this)">'+esc(f.none)+'</div>';
+        (f.chips||[]).forEach(function(c){p+='<div class="chip" data-k="'+f.key+'" data-v="'+esc(c[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(c[1])+'</div>';});
+      }
       p+='</div>';
       if(f.ph)p+='<input class="inp" data-k="'+f.key+'" maxlength="'+f.max+'" placeholder="'+esc(f.ph)+'" oninput="vbCharCustom('+prodIdx+',this)" style="font-size:var(--fs-xs2);padding:6px 8px;width:100%;box-sizing:border-box;" />';
     }
@@ -16123,10 +16194,26 @@ function _vbCharBuildPanel(prodIdx,panel){
   panel.innerHTML=h;
   panel.querySelector('[data-ovhost]').appendChild(_vbBuildHookOverlayInPanel(prodIdx));
 }
+// Chip Motion di panel pensil mengikuti gender EFEKTIF produk itu (override pensil, kalau tidak ya default wizard).
+function _vbCharMotionChipsHtml(prodIdx){
+  var g=_vbCharVal(prodIdx*3,'gender');
+  var h='<div class="chip" data-k="motion" data-v="" onclick="vbCharPick('+prodIdx+',this)">Tanpa motion</div>';
+  vbMotionOptsFor(g).forEach(function(o){h+='<div class="chip" data-k="motion" data-v="'+esc(o.k)+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(o.label)+'</div>';});
+  return h;
+}
+function _vbCharRenderMotionChips(prodIdx,panel){
+  var box=panel.querySelector('[data-mchips]');
+  if(!box)return;
+  var sig=vbMotionOptsFor(_vbCharVal(prodIdx*3,'gender')).map(function(o){return o.k;}).join('|');
+  if(box.dataset.sig===sig)return;
+  box.dataset.sig=sig;
+  box.innerHTML=_vbCharMotionChipsHtml(prodIdx);
+}
 function _vbCharSync(prodIdx){
   var idx0=prodIdx*3;
   var panel=document.getElementById('vb-char-panel-'+prodIdx);
   if(panel){
+    _vbCharRenderMotionChips(prodIdx,panel);
     panel.querySelectorAll('.chip[data-k]').forEach(function(c){
       c.classList.toggle('sel',String(_vbCharVal(idx0,c.dataset.k)||'')===String(c.dataset.v));
     });
@@ -16170,6 +16257,7 @@ function _vbCharRefresh(prodIdx){
 function vbCharSet(prodIdx,key,val){
   var o=VB_CHAR_OVR[prodIdx]||(VB_CHAR_OVR[prodIdx]={});
   if(val===null)delete o[key];else o[key]=val;
+  if(key==='gender'&&!vbMotionValid(_vbCharVal(prodIdx*3,'motion'),_vbCharVal(prodIdx*3,'gender')))o.motion='';
   if(!Object.keys(o).length)delete VB_CHAR_OVR[prodIdx];
   _vbCharRefresh(prodIdx);
 }
@@ -19031,7 +19119,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // catatan revisi/hook yang sudah dipakai) — dikirim sebagai pesan user.
   let _sapaanVal=(typeof VB_SAPAAN==='string'?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'');
   let _motionVal=(typeof VB.motion==='string'?VB.motion.replace(/[\r\n"]+/g,' ').trim():'');
-  if(_motionVal==='lebay banget')_motionVal='over-the-top'; // preset chip -> English (custom text tetap apa adanya)
+  _motionVal=vbMotionText(_motionVal); // preset chip -> English (custom text tetap apa adanya)
   let _toneVal=String(VB.pitch||VB.pitchLabel||'').trim();
   if(_toneVal==='bercanda')_toneVal='joking'; // preset chip -> English (custom text tetap apa adanya)
   // DIPADATKAN (30 Sep 2026): label ditulis Inggris (lebih hemat token); isi data user tetap apa adanya.
@@ -22170,7 +22258,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // (apa pun isinya) tetap dipakai apa adanya sebagai prefix.
   // FITUR BARU: Motion Karakter (opsional) — ditempel di antara instruksi foto
   // referensi dan blok "dialogue:". Kosong = output sama persis seperti sebelumnya.
-  let motionTxt=String(_vbCharVal(idx,'motion')||'').replace(/[.\s]+$/,'').trim();
+  let motionTxt=String(vbMotionText(_vbCharVal(idx,'motion'))||'').replace(/[.\s]+$/,'').trim();
   if(motionTxt)instructionText=instructionText.replace(/\s+$/,'')+' motion karakter: '+motionTxt+'. ';
   let _cg=_vbCharVal(idx,'gender');
   let genderPrefix=_cg==='male'?'Male, ':_cg==='female'?'Female, ':(_cg?_cg+', ':'');
@@ -22328,6 +22416,7 @@ function vbResetNow(){
       let ma=document.getElementById('vamotion'); if(ma)ma.textContent='';
       let mcb=document.getElementById('vmotion-confirmbar'); if(mcb)mcb.remove();
       document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
+      if(typeof vbRenderMotionChips==='function')vbRenderMotionChips();
       let mi=document.getElementById('vmotion-custom'); if(mi)mi.value='';
       let mcnt=document.getElementById('vmotion-counter'); if(mcnt){mcnt.textContent='0 / 80';mcnt.className='inp-counter';}
     })();
