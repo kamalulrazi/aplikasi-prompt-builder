@@ -4154,7 +4154,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v10.8</div>
+  <div class="splash-version" id="splash-version">v11.4</div>
 </div>
 <script>
   (function(){
@@ -6128,7 +6128,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v10.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.4 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11912,12 +11912,12 @@ var PB_AI_MODEL_KEY='pb_ai_model_v1';
 var _pbAiModelKey='sonnet';
 try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
 // ── MODEL AI KHUSUS ADMIN (permintaan user, 1 Okt 2026) ─────────────────
-// Picker model HANYA tampil untuk admin. SEMUA user lain dikunci ke Haiku
-// dan tidak bisa menggantinya. Daftar email admin harus sama dengan
+// Picker model HANYA tampil untuk admin. SEMUA user lain dikunci ke Gemini
+// (v11.0, 2 Okt 2026, permintaan user; sebelumnya Haiku) dan tidak bisa menggantinya. Daftar email admin harus sama dengan
 // OWNER_EMAILS di admin.html. Ini penyaring sisi tampilan/klien; penegakan
 // sungguhan (anti-utak-atik devtools) harus ada di Worker proxy.
 var PB_ADMIN_EMAILS=['vid1hihu@gmail.com'];
-var PB_DEFAULT_USER_MODEL='haiku';
+var PB_DEFAULT_USER_MODEL='gemini';
 function pbIsAdmin(){
   var em='';
   try{em=(firebase.auth().currentUser&&firebase.auth().currentUser.email)||'';}catch(e){}
@@ -11925,7 +11925,7 @@ function pbIsAdmin(){
   em=String(em).toLowerCase();
   return PB_ADMIN_EMAILS.some(function(x){return String(x).toLowerCase()===em;});
 }
-// Model yang BENAR-BENAR dipakai: admin = pilihannya, user lain = Haiku.
+// Model yang BENAR-BENAR dipakai: admin = pilihannya, user lain = Gemini.
 function pbGetAiModelKey(){return pbIsAdmin()?_pbAiModelKey:PB_DEFAULT_USER_MODEL;}
 function _pbModelId(){return PB_AI_MODELS[pbGetAiModelKey()].id;}
 // THINKING HAIKU DIHAPUS (permintaan user, 30 Sep 2026): Haiku tidak lagi
@@ -14929,6 +14929,12 @@ function _vbCompressImageFile(file){
         let canvas=document.createElement('canvas');
         canvas.width=w;canvas.height=h;
         let ctx=canvas.getContext('2d');
+        // FIX v10.9 (laporan user: foto produk yang diupload jadi HITAM semua): JPEG tidak punya
+        // kanal transparan, jadi PNG/WebP berlatar transparan (hasil hapus background, stiker,
+        // screenshot produk) berubah jadi hitam kalau canvas tidak diisi warna dulu. Isi putih
+        // SEBELUM drawImage; foto biasa tanpa transparansi tidak terpengaruh.
+        ctx.fillStyle='#ffffff';
+        ctx.fillRect(0,0,w,h);
         ctx.drawImage(img,0,0,w,h);
         let dataUrl;
         try{dataUrl=canvas.toDataURL('image/jpeg',0.7);}catch(e){reject(new Error('Gagal memproses gambar (mungkin file rusak)'));return;}
@@ -18160,6 +18166,53 @@ async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemT
   return await _vbStreamClaudeJSONWithRetryModel(_pbModelId(),promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokensOverride,maxTotalWaitMs);
 }
 
+// ── FALLBACK GENERATE UTAMA (v11.2, 2 Okt 2026, permintaan user) ─────────────
+// Kalau model utama = Gemini dan generate-nya GAGAL (error API / limit / timeout setelah retry di dalam
+// _vbStreamClaudeJSONWithRetryModel), tugas generate dialihkan otomatis ke Haiku; kalau Haiku juga gagal -> Groq.
+// Perbaikan jumlah kata untuk hasil yang datang dari model cadangan memakai rantai sendiri:
+// Groq 2x lalu GPT-OSS 1x (VB_GEN_FALLBACK_FIX_CHAIN, dibaca _vbFixPlan lewat _vbFixChainOverride).
+// TIDAK dialihkan untuk: 413 (kebesaran, ditangani pemecahan batch di pemanggil), 401, dan 403 kuota/login/model_not_allowed
+// (bukan salah model; model lain pasti ikut ditolak). Batas tunggu retry per model 45 detik (bukan 3 menit) supaya total
+// 3 model tetap di bawah _VB_GEN_STALE_MS (5 menit). Error sesi login (pbAuthSession) tetap dilempar ke pemanggil.
+const VB_GEN_FALLBACK_ENABLED=true;
+const VB_GEN_FALLBACK_FOR_MAIN_MODEL='gemini';          // fallback hanya aktif kalau model utama = ini
+const VB_GEN_FALLBACK_MODELS=['haiku','groq'];           // urutan cadangan (kunci PB_AI_MODELS)
+const VB_GEN_FALLBACK_STEP_WAIT_MS=45000;                // batas tunggu retry per model
+const VB_GEN_FALLBACK_FIX_CHAIN=[{key:'groq',tries:2,extraTok:0},{key:'gptoss',tries:1,extraTok:1500}];
+var _vbFixChainOverride=null; // diisi _vbGenerateWithFallback kalau hasil generate datang dari model cadangan
+function _vbGenNoFallback(out){
+  var st=out&&out.resp?out.resp.status:0;
+  if(st===413||st===401)return true;
+  if(st===403){
+    var t='';try{var j=JSON.parse((out&&out.rawText)||'{}');t=(j&&j.error&&j.error.type)||'';}catch(e){}
+    if(t==='quota_exceeded'||t==='login_required'||t==='model_not_allowed')return true;
+  }
+  return false;
+}
+async function _vbGenerateWithFallback(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokens){
+  _vbFixChainOverride=null;
+  const mainKey=pbGetAiModelKey();
+  if(!VB_GEN_FALLBACK_ENABLED||mainKey!==VB_GEN_FALLBACK_FOR_MAIN_MODEL){
+    return await _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokens);
+  }
+  const keys=[mainKey].concat(VB_GEN_FALLBACK_MODELS);
+  let out=null;
+  for(let i=0;i<keys.length;i++){
+    const m=PB_AI_MODELS[keys[i]];
+    if(!m)continue;
+    out=await _vbStreamClaudeJSONWithRetryModel(m.id,promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokens,VB_GEN_FALLBACK_STEP_WAIT_MS);
+    if(out&&out.resp&&out.resp.ok){
+      if(i>0)_vbFixChainOverride=VB_GEN_FALLBACK_FIX_CHAIN;
+      return out;
+    }
+    if(i===keys.length-1||_vbGenNoFallback(out))return out;
+    var nextM=PB_AI_MODELS[keys[i+1]];
+    console.warn('[_vbGenerateWithFallback] '+m.label+' gagal (status '+(out&&out.resp?out.resp.status:'?')+'), dialihkan ke '+(nextM?nextM.label:'?'));
+    try{if(typeof showToast==='function'&&nextM)showToast(m.label+' sedang bermasalah, generate dialihkan ke '+nextM.label+'...');}catch(e){}
+  }
+  return out;
+}
+
 function _vbFetchWithTimeout(url,options,timeoutMs){
   let controller=new AbortController();
   let timedOut=false;
@@ -18493,7 +18546,7 @@ function _vbTrackFixCall(usage,meta){
 // keberapa berhentinya, dan apakah masih kurang kata pas berhenti.
 function _vbTrackFixOutcome(attemptsUsed,stillShort){
   var s=_vbLoadFixStats();
-  if(attemptsUsed>=1&&attemptsUsed<=3)s.attemptHist[attemptsUsed]=(s.attemptHist[attemptsUsed]||0)+1;
+  if(attemptsUsed>=1&&attemptsUsed<=4)s.attemptHist[attemptsUsed]=(s.attemptHist[attemptsUsed]||0)+1;
   if(stillShort)s.stillShort++;
   _vbSaveFixStats(s);
   _vbRenderFixBadgeIfExpanded();
@@ -18869,7 +18922,7 @@ const VB_AUTO_SHORTFIX_ENABLED=false;
 // Bagian yang di luar range (22-26) dikumpulkan dari SEMUA produk di batch, lalu dikirim
 // ke AI dalam SATU panggilan kecil per percobaan (tanpa foto, tanpa prompt utama) dengan
 // selisih PASTI dari kode, mis. "sekarang 19 kata, tambah 5" (target = range.target = 24).
-// Maksimal 2 percobaan; yang masih meleset sesudahnya ditangani seperti biasa
+// Urutan model & jumlah percobaan mengikuti rantai di bawah (VB_FIX_CHAIN / VB_GEN_FALLBACK_FIX_CHAIN); yang masih meleset sesudahnya ditangani seperti biasa
 // (potong lokal untuk yang kepanjangan, yang kependekan dibiarkan & ditandai di kartu).
 // Model yang dipakai = model yang sedang dipilih user (Haiku / Groq / Gemini), jadi
 // otomatis model termurah di jalurnya masing-masing. SONNET DILEWATI (permintaan user).
@@ -18877,7 +18930,7 @@ const VB_AUTO_SHORTFIX_ENABLED=false;
 // Tidak pernah melempar error — kalau panggilan gagal, teks asli dipakai apa adanya.
 const VB_TARGETED_FIX_ENABLED=true;                 // sakelar utama
 const VB_TARGETED_FIX_SKIP_MODELS=['sonnet'];       // kunci PB_AI_MODELS yang TIDAK dikenai perbaikan ini
-const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian
+const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian — HANYA untuk perilaku lama tanpa rantai (model utama bukan Gemini)
 const VB_TARGETED_FIX_INCLUDE_LONG=true;             // true = bagian KEPANJANGAN juga ditulis ulang ("remove N"); false = hanya kependekan. 2 Okt 2026 (permintaan user): true. Potong lokal (_vbHardEnforceMaxWords) tetap jadi cadangan.
 const VB_TARGETED_FIX_SYSTEM=
   'You are a professional content creator. Adjust the word count of the script I give you. Keep the context, mood and style of the script. Write in Indonesian. NEVER mention product material, limited stock, or keranjang kuning. Only add or cut words as needed.\n\n'
@@ -18886,24 +18939,32 @@ const VB_TARGETED_FIX_SYSTEM=
 function _vbTargetedFixActive(){
   return VB_TARGETED_FIX_ENABLED&&VB_TARGETED_FIX_SKIP_MODELS.indexOf(pbGetAiModelKey())===-1;
 }
-// ── RANTAI MODEL PERBAIKAN KATA (permintaan user, 1 Okt 2026, v9.7) ──────────
-// HANYA berlaku kalau model UTAMA yang dipilih = Haiku (VB_FIX_CHAIN_FOR_MAIN_MODEL).
-// UPDATE (permintaan user, 1 Okt 2026): urutan DIBALIK. Perbaikan kata sekarang dicoba
-// ke Groq GPT-OSS 120B (openai/gpt-oss-120b) dulu, maksimal 2x; kalau gagal baru pindah
-// ke Gemini 1x. "Gagal" = error API / limit / timeout, ATAU balasan yang tidak bisa
-// dibaca jadi daftar {id,teks}. Kalau GPT-OSS kena limit (HTTP 429) langsung pindah ke
-// Gemini tanpa mengulang. Selain itu, kalau GPT-OSS membalas dengan benar TAPI jumlah
-// kata masih meleset dari range, percobaan ke-2 di _vbRepairOutOfRange langsung dimulai
-// dari Gemini (bukan GPT-OSS lagi) -> itulah arti "gagal memperbaiki kata".
-// Kalau semuanya gagal, teks asli dipakai apa adanya (sama seperti perilaku lama).
-// Model utama lain (Sonnet/Groq/Gemini) TIDAK berubah: tetap memakai model yang dipilih,
-// 1 panggilan seperti biasa. Biaya tercatat per model asli.
-// extraTok = tambahan jatah token output per percobaan. GPT-OSS adalah model reasoning:
-// token "mikir"-nya ikut makan jatah max_completion_tokens, jadi tanpa tambahan ini
-// JSON balasan bisa terpotong. Batas akhir tetap 8192 (lihat _vbFixCallWithChain).
+// ── RANTAI MODEL PERBAIKAN KATA (v11.3, 2 Okt 2026, permintaan user) ──────────
+// 1 "langkah" = 1 panggilan AI yang menulis ulang SEMUA teks yang masih di luar rentang. Rantai di bawah
+// dipecah rata jadi daftar langkah (lihat _vbFixPlan): {key:'gemini',tries:2} = 2 langkah Gemini.
+// Langkah dihabiskan berurutan. Sebuah langkah dianggap TERPAKAI kalau panggilannya error/limit/timeout,
+// balasannya tidak terbaca, ATAU balasannya sah tapi jumlah kata masih meleset dari rentang — itulah arti
+// "gagal memperbaiki". Kalau suatu model kena limit (HTTP 429), sisa langkah model itu dilewati (percuma diulang).
+// Habis semua langkah & masih meleset: kependekan dibiarkan & ditandai di kartu, kepanjangan dipotong lokal
+// (_vbHardEnforceMaxWords) — sama seperti sebelumnya. Hasil tulis ulang hanya diterima kalau LEBIH DEKAT ke rentang.
+//   1) Generate utama BERHASIL di Gemini (kasus normal):
+//        VB_FIX_CHAIN = Gemini 2x -> GPT-OSS 1x.
+//   1b) Admin memilih Haiku sebagai model utama sejak awal (v11.4, permintaan user):
+//        VB_FIX_CHAINS_BY_MAIN.haiku = Gemini 2x -> Groq 2x.
+//   2) Generate utama Gemini ERROR, hasilnya datang dari model cadangan (Haiku — lihat _vbGenerateWithFallback):
+//        VB_GEN_FALLBACK_FIX_CHAIN = Groq 2x -> GPT-OSS 1x (dipasang lewat _vbFixChainOverride).
+// Rantai (1)/(1b) dipilih lewat VB_FIX_CHAINS_BY_MAIN berdasar model UTAMA yang aktif. Model utama lain
+// (admin yang memilih manual) tidak berubah: model yang dipilih, VB_TARGETED_FIX_MAX_ATTEMPTS panggilan.
+// extraTok = tambahan jatah token output per langkah. GPT-OSS adalah model reasoning: token "mikir"-nya
+// ikut makan jatah max_completion_tokens, jadi tanpa tambahan ini JSON balasan bisa terpotong. Batas akhir
+// tetap 8192 (lihat _vbFixRunStep). Biaya tercatat per model asli.
 const VB_FIX_CHAIN_ENABLED=true;                       // sakelar: false = perilaku lama untuk semua model
-const VB_FIX_CHAIN_FOR_MAIN_MODEL='haiku';             // rantai hanya aktif kalau model utama = ini
-const VB_FIX_CHAIN=[{key:'gptoss',tries:2,extraTok:1500},{key:'gemini',tries:1,extraTok:0}]; // urutan model + jumlah percobaan
+const VB_FIX_CHAIN=[{key:'gemini',tries:2,extraTok:0},{key:'gptoss',tries:1,extraTok:1500}]; // urutan model + jumlah langkah (model utama Gemini)
+// Rantai per model utama. Kunci = kunci PB_AI_MODELS dari model yang dipilih/aktif. Model utama yang tidak ada di sini = perilaku lama.
+const VB_FIX_CHAINS_BY_MAIN={
+  gemini:VB_FIX_CHAIN,
+  haiku:[{key:'gemini',tries:2,extraTok:0},{key:'groq',tries:2,extraTok:0}]
+};
 function _vbParseFixJson(rawText){
   let res=null;
   try{
@@ -18920,40 +18981,40 @@ function _vbParseFixJson(rawText){
   }catch(eParse){res=null;}
   return res;
 }
-// Mengembalikan {apiFail:true} kalau SEMUA panggilan gagal di level API (pemanggil berhenti
-// mencoba), atau {apiFail:false,res:array|null} (res null = balasan tidak terbaca).
-async function _vbFixCallWithChain(msg,maxTok,onWait,startStep){
-  const useChain=VB_FIX_CHAIN_ENABLED&&pbGetAiModelKey()===VB_FIX_CHAIN_FOR_MAIN_MODEL;
-  if(!useChain){
-    // Perilaku lama: 1 panggilan ke model yang sedang dipilih (batas tunggu retry 30 dtk).
-    const out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,30000);
-    if(!out||!out.resp||!out.resp.ok)return{apiFail:true,res:null};
-    return{apiFail:false,res:_vbParseFixJson(out.rawText)};
+// Daftar langkah perbaikan untuk panggilan ini (lihat komentar rantai di atas). Rantai aktif -> 1 elemen per
+// langkah {key,extraTok}; selain itu -> perilaku lama: VB_TARGETED_FIX_MAX_ATTEMPTS elemen {legacy:true}
+// (model yang sedang dipilih, 1 panggilan per elemen).
+function _vbFixPlan(){
+  const plan=[];
+  const _mainChain=VB_FIX_CHAINS_BY_MAIN[pbGetAiModelKey()];
+  const useChain=VB_FIX_CHAIN_ENABLED&&(!!_vbFixChainOverride||!!_mainChain);
+  if(useChain){
+    (_vbFixChainOverride||_mainChain).forEach(function(st){
+      if(!PB_AI_MODELS[st.key])return;
+      for(let t=0;t<(st.tries|0);t++)plan.push({key:st.key,extraTok:st.extraTok||0});
+    });
   }
-  let lastApiFail=true;
-  // startStep: indeks awal di VB_FIX_CHAIN (0 = mulai dari model pertama; 1 = lewati model pertama).
-  const firstStep=Math.min(Math.max(startStep|0,0),VB_FIX_CHAIN.length-1);
-  for(let si=firstStep;si<VB_FIX_CHAIN.length;si++){
-    const step=VB_FIX_CHAIN[si];
+  if(!plan.length){
+    for(let a=0;a<VB_TARGETED_FIX_MAX_ATTEMPTS;a++)plan.push({legacy:true});
+  }
+  return plan;
+}
+// Menjalankan 1 langkah = 1 panggilan AI. Mengembalikan {apiFail,status,res}: apiFail=true kalau panggilan
+// gagal di level API (error/limit/timeout); res = array {id,teks} atau null (balasan tidak terbaca).
+async function _vbFixRunStep(step,msg,maxTok,onWait){
+  let out=null;
+  if(step.legacy){
+    // Perilaku lama: model yang sedang dipilih, batas tunggu retry 30 dtk.
+    out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,maxTok,30000);
+  }else{
     const m=PB_AI_MODELS[step.key];
-    if(!m)continue;
     const stepMaxTok=Math.min(8192,maxTok+(step.extraTok||0));
-    for(let t=0;t<step.tries;t++){
-      let out=null;
-      // failFast=true: tidak ada retry/tunggu di dalam fungsi pemanggil; percobaan ulang & pindah model diatur di sini.
-      try{out=await _vbStreamClaudeJSONWithRetryModel(m.id,[{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,stepMaxTok,15000,true);}
-      catch(eCall){if(eCall&&eCall.pbAuthSession)throw eCall;out=null;}
-      if(!out||!out.resp||!out.resp.ok){
-        lastApiFail=true;
-        if(out&&out.resp&&out.resp.status===429)break; // limit: percuma diulang, langsung model berikutnya
-        continue;
-      }
-      const res=_vbParseFixJson(out.rawText);
-      if(Array.isArray(res)&&res.length)return{apiFail:false,res:res};
-      lastApiFail=false; // API sukses tapi balasan tidak terbaca: hitung sebagai 1 percobaan gagal
-    }
+    // failFast=true: tidak ada retry/tunggu di dalam fungsi pemanggil; percobaan ulang & pindah model diatur daftar langkah.
+    try{out=await _vbStreamClaudeJSONWithRetryModel(m.id,[{text:msg}],undefined,onWait,VB_TARGETED_FIX_SYSTEM,false,stepMaxTok,15000,true);}
+    catch(eCall){if(eCall&&eCall.pbAuthSession)throw eCall;out=null;}
   }
-  return{apiFail:lastApiFail,res:null};
+  if(!out||!out.resp||!out.resp.ok)return{apiFail:true,status:(out&&out.resp&&out.resp.status)||0,res:null};
+  return{apiFail:false,status:out.resp.status||200,res:_vbParseFixJson(out.rawText)};
 }
 async function _vbRepairOutOfRange(arr,batch,range,onWait){
   const KEYS=['hook','story','cta'];
@@ -18979,8 +19040,14 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
   if(!items.length)return;
   const all=items.slice();
   let pending=items;
-  for(let attempt=1;attempt<=VB_TARGETED_FIX_MAX_ATTEMPTS&&pending.length;attempt++){
-    pending.forEach(function(it){it.attempts=attempt;});
+  // Daftar langkah dari rantai model (lihat _vbFixPlan). Langkah TERPAKAI kalau panggilannya gagal ATAU hasilnya
+  // masih di luar rentang -> lanjut ke langkah berikutnya (mis. Gemini, Gemini, lalu GPT-OSS).
+  const plan=_vbFixPlan();
+  let used=0; // jumlah panggilan yang benar-benar dijalankan (buat statistik)
+  for(let si=0;si<plan.length&&pending.length;si++){
+    const step=plan[si];
+    used++;
+    pending.forEach(function(it){it.attempts=used;});
     const msg=pending.map(function(it){
       const cur=arr[it.pi][it.k];
       const n=wc(cur);
@@ -18991,11 +19058,15 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
     const maxTok=Math.min(8192,600+pending.length*130);
     let fixOut;
     _vbUsageKindOverride='fix';
-    // Model utama Haiku -> rantai GPT-OSS(2x) lalu Gemini(1x); model lain -> 1 panggilan lama (lihat _vbFixCallWithChain).
-    // Percobaan ke-2 (artinya hasil percobaan ke-1 masih meleset dari range) mulai dari model cadangan (Gemini).
-    try{fixOut=await _vbFixCallWithChain(msg,maxTok,onWait,attempt>1?1:0);}
+    try{fixOut=await _vbFixRunStep(step,msg,maxTok,onWait);}
     finally{_vbUsageKindOverride='';}
-    if(!fixOut||fixOut.apiFail)break; // semua panggilan gagal: jangan buang percobaan lagi, pakai teks yang ada
+    if(fixOut.apiFail){
+      if(step.legacy)break; // perilaku lama: panggilan sudah retry sendiri, jangan buang percobaan lagi
+      if(fixOut.status===429){ // limit: percuma diulang ke model yang sama, langsung ke model berikutnya
+        while(si+1<plan.length&&plan[si+1].key===step.key)si++;
+      }
+      continue;
+    }
     let res=fixOut.res;
     if(Array.isArray(res)&&res.length){
       const byId={};
@@ -19029,7 +19100,7 @@ async function _vbApplyShortFix(arr,batch,range,onWait){
   }
   try{if(VB_AUTO_SHORTFIX_ENABLED)await _vbExtendShortScriptsOnce(arr,batch,range,onWait);}
   catch(eShort){console.warn('[_vbApplyShortFix] perbaikan skrip kependekan dilewati:',eShort);}
-  // PERBAIKAN TERARAH (v9.3): kode hitung kata, AI tulis ulang hanya yang meleset (maks 2 percobaan). Sonnet dilewati.
+  // PERBAIKAN TERARAH (v9.3): kode hitung kata, AI tulis ulang hanya yang meleset (urutan model: rantai VB_FIX_CHAIN). Sonnet dilewati.
   try{if(_vbTargetedFixActive())await _vbRepairOutOfRange(arr,batch,range,onWait);}
   catch(eTgt){console.warn('[_vbApplyShortFix] perbaikan terarah dilewati:',eTgt);}
   for(let ei=0;ei<arr.length;ei++){
@@ -19230,7 +19301,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // berubah) dan dibatasi 8192 (batas keluaran default Claude tanpa
   // header beta output panjang) sebagai jaring pengaman.
   let _vbDynamicMaxTokens=Math.min(16000,Math.max(6144,batch.length*(range.max*3*3+60)+1500)); // audit Okt 2026: 3 token/kata (Indonesia) + batas 16000 (model mendukung jauh lebih besar)
-  let{resp,rawText}=await _vbStreamClaudeJSONWithRetry(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem,_vbDynamicMaxTokens);
+  let{resp,rawText}=await _vbGenerateWithFallback(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem,_vbDynamicMaxTokens); // v11.2: Gemini -> Haiku -> Groq kalau gagal
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
