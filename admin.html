@@ -216,6 +216,8 @@
         <div class="st-btns"><span class="live" id="live-badge"></span>
           <button class="btn btn-small" id="usage-load-btn" onclick="loadUsageAll()">🔄 Muat ulang</button>
           <button class="btn btn-outline btn-small hidden" id="usage-csv-btn" onclick="exportUsageCsv()">Unduh CSV</button>
+          <button class="btn btn-outline btn-small hidden" id="usage-csv-model-btn" onclick="exportModelCsv('ringkasan',this)">CSV Model / Hari</button>
+          <button class="btn btn-outline btn-small hidden" id="usage-csv-detail-btn" onclick="exportModelCsv('detail',this)">CSV Detail Panggilan</button>
         </div>
       </div>
       <div id="usage-result"></div>
@@ -644,6 +646,7 @@ function startLive(){
     if(_firstSnap){ buildShell(); _firstSnap=false; }
     paintSummary(); renderUsers(); refreshDetail();
     csv.classList.toggle('hidden', !_usageRows.length);
+    ['usage-csv-model-btn','usage-csv-detail-btn'].forEach(function(id){ var b=document.getElementById(id); if(b) b.classList.toggle('hidden', !_usageRows.length); });
     clearTimeout(_flashT); _flashT=setTimeout(function(){ _flash={}; },2500);
   },function(e){
     _unsub=null; setLive('err');
@@ -815,6 +818,110 @@ function exportUsageCsv(){
   el.download='statistik-semua-user-'+new Date().toISOString().slice(0,10)+'.csv';
   document.body.appendChild(el); el.click();
   setTimeout(function(){ URL.revokeObjectURL(el.href); el.remove(); },500);
+}
+
+// ── EKSPOR CSV: MODEL AI YANG DIPAKAI TIAP USER ──────────────────────────
+// Dua file, sama-sama dibangun dari riwayat per panggilan (blobs/pb_usage_log_v1, maks 60 hari)
+// + arsip harian (pb_usage_archive_v1) untuk hari yang sudah lewat dari log.
+//  1) 'ringkasan' → 1 baris per User × Tanggal × Jenis (Generate / Perbaikan kata) × Model
+//  2) 'detail'    → 1 baris per panggilan AI (jam, aksi, model, token, biaya)
+// Tanggal & jam mengikuti zona waktu perangkat yang membuka halaman admin ini.
+function _q(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
+function _dlCsv(name,lines){
+  var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  var el=document.createElement('a');
+  el.href=URL.createObjectURL(blob); el.download=name;
+  document.body.appendChild(el); el.click();
+  setTimeout(function(){ URL.revokeObjectURL(el.href); el.remove(); },500);
+}
+function _mname(k){ return MODELS[k] ? MODELS[k].label : 'Data lama (tanpa nama model)'; }
+function _mid(k){ return MODELS[k] ? MODELS[k].id : ''; }
+async function _loadAllLogs(onProgress){
+  var rows=_usageRows.slice(), out=[], i=0, done=0, fails=0;
+  async function worker(){
+    while(i<rows.length){
+      var r=rows[i++], log=[];
+      try{ log=await loadUserLog(r.uid); }catch(e){ fails++; }
+      out.push({r:r,log:log}); done++;
+      if(onProgress) onProgress(done,rows.length);
+    }
+  }
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  return {data:out,fails:fails};
+}
+// Satu baris per panggilan (dari log) + satu baris per hari/jenis/model (dari arsip).
+function _modelRecords(data){
+  var recs=[];
+  data.forEach(function(d){
+    var r=d.r, arc=r.raw.pb_usage_archive_v1||{};
+    (d.log||[]).forEach(function(e){
+      var t=new Date(_n(e.ts)), k=e.model||'unknown';
+      recs.push({email:r.email,uid:r.uid,tier:r.tier,sumber:'Log',ts:_n(e.ts),
+        date:t.toLocaleDateString('sv-SE'),time:t.toLocaleTimeString('sv-SE'),
+        kind:e.kind==='fix'?'Perbaikan kata':'Generate',mode:(e.mode&&e.mode!=='unknown')?e.mode:'',
+        aksi:e.sesiLabel||'',mk:k,calls:1,produk:_n(e.produkCount),foto:_n(e.fotoCount),
+        inTok:_n(e.noCacheInTok)+_n(e.cacheWriteInTok)+_n(e.cacheReadInTok),
+        cw:_n(e.cacheWriteInTok),cr:_n(e.cacheReadInTok),outTok:_n(e.outTok),
+        usd:usdTok(e,e.model),interrupted:e.interrupted?'ya':''});
+    });
+    Object.keys(arc).forEach(function(day){
+      [['generate','Generate'],['fix','Perbaikan kata']].forEach(function(p){
+        var b=arc[day]&&arc[day][p[0]]; if(!b) return;
+        var sm=splitModel(b), keys=Object.keys(sm);
+        keys.forEach(function(k){
+          var t=sm[k];
+          recs.push({email:r.email,uid:r.uid,tier:r.tier,sumber:'Arsip',ts:0,date:day,time:'',
+            kind:p[1],mode:'',aksi:'',mk:k,calls:keys.length===1?_n(b.calls):'',produk:'',foto:'',
+            inTok:_n(t.noCacheInTok)+_n(t.cacheWriteInTok)+_n(t.cacheReadInTok),
+            cw:_n(t.cacheWriteInTok),cr:_n(t.cacheReadInTok),outTok:_n(t.outTok),
+            usd:usdTok(t,k),interrupted:''});
+        });
+      });
+    });
+  });
+  return recs;
+}
+function _csvDetail(recs){
+  var head=['Email','UID','Paket','Tanggal','Jam','Jenis','Mode','Aksi','Model','ModelID','Produk','Foto','TokenMasuk','CacheTulis','CacheBaca','TokenKeluar','BiayaUSD','BiayaIDR','Terputus','Sumber'];
+  var lines=[head.join(',')];
+  recs.slice().sort(function(a,b){ return (b.date+b.time).localeCompare(a.date+a.time)||a.email.localeCompare(b.email); }).forEach(function(x){
+    lines.push([_q(x.email),_q(x.uid),_q(x.tier),x.date,x.time,_q(x.kind),_q(x.mode),_q(x.aksi),_q(_mname(x.mk)),_q(_mid(x.mk)),x.produk,x.foto,x.inTok,x.cw,x.cr,x.outTok,x.usd.toFixed(6),Math.round(x.usd*IDR_RATE),x.interrupted,x.sumber].join(','));
+  });
+  return lines;
+}
+function _csvRingkasan(recs){
+  var g={};
+  recs.forEach(function(x){
+    var key=[x.uid,x.date,x.kind,x.mk,x.sumber].join('|');
+    var s=g[key]||(g[key]={email:x.email,uid:x.uid,tier:x.tier,date:x.date,kind:x.kind,mk:x.mk,sumber:x.sumber,calls:0,unk:false,inTok:0,outTok:0,usd:0});
+    if(x.calls==='') s.unk=true; else s.calls+=x.calls;
+    s.inTok+=x.inTok; s.outTok+=x.outTok; s.usd+=x.usd;
+  });
+  var head=['Email','UID','Paket','Tanggal','Jenis','Model','ModelID','Panggilan','TokenMasuk','TokenKeluar','BiayaUSD','BiayaIDR','Sumber'];
+  var lines=[head.join(',')];
+  Object.keys(g).map(function(k){ return g[k]; }).sort(function(a,b){
+    return b.date.localeCompare(a.date)||a.email.localeCompare(b.email)||a.kind.localeCompare(b.kind);
+  }).forEach(function(s){
+    lines.push([_q(s.email),_q(s.uid),_q(s.tier),s.date,_q(s.kind),_q(_mname(s.mk)),_q(_mid(s.mk)),s.unk?'':s.calls,s.inTok,s.outTok,s.usd.toFixed(6),Math.round(s.usd*IDR_RATE),s.sumber].join(','));
+  });
+  return lines;
+}
+var _csvBusy=false;
+async function exportModelCsv(which,btn){
+  if(_csvBusy||!_usageRows.length) return;
+  _csvBusy=true;
+  var label=btn.textContent; btn.disabled=true;
+  try{
+    var res=await _loadAllLogs(function(d,t){ btn.textContent='Memuat '+d+'/'+t+'...'; });
+    var recs=_modelRecords(res.data), stamp=new Date().toISOString().slice(0,10);
+    if(which==='detail') _dlCsv('model-detail-panggilan-'+stamp+'.csv',_csvDetail(recs));
+    else _dlCsv('model-per-user-per-hari-'+stamp+'.csv',_csvRingkasan(recs));
+    if(res.fails) alert('Peringatan: riwayat '+res.fails+' user gagal dibaca (cek Firestore Rules bagian blobs). Datanya belum lengkap.');
+  }catch(e){
+    alert('Gagal membuat CSV: '+errMsg(e));
+  }finally{
+    btn.textContent=label; btn.disabled=false; _csvBusy=false;
+  }
 }
 </script>
 </body>
