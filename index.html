@@ -416,13 +416,17 @@
   function _touchLastActive(force){
     try{
       if(!_lastActiveReady) return;
-      if(!force && Date.now() - _lastActiveAt < 300000) return;
+      if(!force && Date.now() - _lastActiveAt < 90000) return; // jeda minimal 90 dtk antar tulisan
       var ref = _docRef(); if(!ref) return;
       _lastActiveAt = Date.now();
       ref.set({pb_last_active: _lastActiveAt}, {merge:true}).catch(function(){ _lastActiveAt = 0; });
     }catch(e){}
   }
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) _touchLastActive(false); });
+  // DETAK AKTIF (Okt 2026): selama tab/app terlihat, perbarui pb_last_active tiap 2 menit supaya admin.html
+  // tetap menampilkan user "Online" selama dia masih memakai app (batas online di admin = 5 menit).
+  // Tidak menulis saat app di background/tab tersembunyi, dan berhenti sendiri kalau belum login.
+  setInterval(function(){ if(!document.hidden) _touchLastActive(false); }, 120000);
 
   // ── PEMECAH DATA BESAR (CHUNKING) ───────────────────────────────────────
   // FIX (audit sinkron, Sept 2026): dulu SEMUA key di PB_SYNC_KEYS ditulis

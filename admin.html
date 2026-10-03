@@ -127,7 +127,7 @@
   .ugrid .urow:first-child{border-top:0;}
   .urow .bi{font-weight:600;}
   .pill.exp{background:rgba(224,97,90,.15);color:var(--red);}
-  .av{flex:none;width:24px;height:24px;border-radius:50%;background:rgba(232,201,131,.14);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;text-transform:uppercase;}
+  .av{position:relative;flex:none;width:24px;height:24px;border-radius:50%;background:rgba(232,201,131,.14);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;text-transform:uppercase;}
   .emt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .more{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:14px 0 4px;}
   .note{margin:10px 0 0;font-size:11px;}
@@ -142,6 +142,17 @@
     .st-head .sub{display:none;}
     .ucount{display:none;}
   }
+  /* ── Live / online ── */
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:0 4px;white-space:nowrap;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted2);display:inline-block;}
+  .dot.on{background:var(--green);animation:pulse 1.8s infinite;}
+  .dot.err{background:var(--red);}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,175,125,.55);}70%{box-shadow:0 0 0 7px rgba(76,175,125,0);}100%{box-shadow:0 0 0 0 rgba(76,175,125,0);}}
+  .av .od{position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:var(--green);border:2px solid var(--surface);}
+  .urow:hover .av .od{border-color:var(--surface2);}
+  .onl{color:var(--green);font-weight:600;}
+  .urow.flash{animation:rowflash 2.4s ease-out;}
+  @keyframes rowflash{0%{background:rgba(232,201,131,.30);}100%{background:transparent;}}
 </style>
 </head>
 <body>
@@ -202,7 +213,7 @@
           <div class="st-title">Statistik Biaya &amp; Cache Semua User</div>
           <div class="sub">Ketuk user untuk melihat detail lengkapnya.</div>
         </div>
-        <div class="st-btns">
+        <div class="st-btns"><span class="live" id="live-badge"></span>
           <button class="btn btn-small" id="usage-load-btn" onclick="loadUsageAll()">🔄 Muat ulang</button>
           <button class="btn btn-outline btn-small hidden" id="usage-csv-btn" onclick="exportUsageCsv()">Unduh CSV</button>
         </div>
@@ -298,7 +309,7 @@ firebase.auth().onAuthStateChanged(function(user){
   var loginScreen=document.getElementById('login-screen');
   var app=document.getElementById('admin-app');
   if(!user){
-    loginScreen.classList.remove('hidden'); app.classList.add('hidden');
+    loginScreen.classList.remove('hidden'); app.classList.add('hidden'); stopLive();
     return;
   }
   if(OWNER_EMAILS.indexOf(user.email) === -1){
@@ -309,6 +320,7 @@ firebase.auth().onAuthStateChanged(function(user){
   loginScreen.classList.add('hidden'); app.classList.remove('hidden');
   document.getElementById('who-am-i').textContent = 'Login sebagai '+user.email; setTopbarH();
   loadPending();
+  showTab(document.getElementById('tab-st').classList.contains('hidden')?'up':'st');
 });
 
 function fmtDate(ts){
@@ -529,13 +541,13 @@ function uMore(){ _uLimit+=UPAGE; renderUsers(); }
 function uAll(){ _uLimit=1e9; renderUsers(); }
 function renderUsers(){
   var q=(document.getElementById('u-q').value||'').trim().toLowerCase(), so=document.getElementById('u-sort').value;
-  var cnt={all:_usageRows.length,premium:0,standar:0,free:0};
-  _usageRows.forEach(function(r){ cnt[tierKey(r)]++; });
-  document.getElementById('u-chips').innerHTML=[['all','Semua'],['premium','Premium'],['standar','Standar'],['free','Gratis']].map(function(t){
+  var cnt={all:_usageRows.length,online:0,premium:0,standar:0,free:0};
+  _usageRows.forEach(function(r){ cnt[tierKey(r)]++; if(isOnline(r)) cnt.online++; });
+  document.getElementById('u-chips').innerHTML=[['all','Semua'],['online','● Online'],['premium','Premium'],['standar','Standar'],['free','Gratis']].map(function(t){
     return '<button class="chip'+(_uTier===t[0]?' on':'')+'" onclick="uTier(\''+t[0]+'\')">'+t[1]+' <span class="n">'+cnt[t[0]]+'</span></button>';
   }).join('');
   var rows=_usageRows.filter(function(r){
-    return (_uTier==='all'||tierKey(r)===_uTier) && (!q||r.email.toLowerCase().indexOf(q)>-1);
+    return (_uTier==='all'||(_uTier==='online'?isOnline(r):tierKey(r)===_uTier)) && (!q||r.email.toLowerCase().indexOf(q)>-1);
   });
   rows.sort(function(a,b){
     if(so==='gen') return (b.gen+b.fix)-(a.gen+a.fix);
@@ -551,13 +563,13 @@ function renderUsers(){
   shown.forEach(function(r){
     var ms=Object.keys(r.models).map(mshort).join(', ')||'-';
     var ini=(r.email.replace(/[^a-z0-9]/gi,'').charAt(0)||'?');
-    h+='<div class="urow clk" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)">'
-      +'<div class="em" title="'+_esc(r.email)+'"><span class="av">'+_esc(ini)+'</span><span class="emt">'+_esc(r.email)+'</span></div>'
+    h+='<div class="urow clk'+(_flash[r.uid]?' flash':'')+'" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)">'
+      +'<div class="em" title="'+_esc(r.email)+'"><span class="av">'+_esc(ini)+(isOnline(r)?'<i class="od"></i>':'')+'</span><span class="emt">'+_esc(r.email)+'</span></div>'
       +'<div class="pk"><span class="pill '+(r.tier==='free'?'free':safeTier(r.tier))+(tierStatus(r).k==='exp'?' exp':'')+'"'+(tierStatus(r).k==='exp'?' title="Paket kedaluwarsa"':'')+'>'+_esc(r.tier)+(tierStatus(r).k==='exp'?' ⏱':'')+'</span></div>'
       +'<div class="md">'+_esc(ms)+'</div>'
       +'<div class="ge">'+r.gen+(r.fix?' <span class="mu">(+'+r.fix+')</span>':'')+'<span class="u"> generate</span></div>'
       +'<div class="ch">'+pct(r.hit,r.hit+r.miss+r.noCache)+'<span class="u"> cache</span></div>'
-      +'<div class="ak">'+(r.updated?'<span class="u">aktif </span>'+fmtShort(r.updated):'-')+'</div>'
+      +'<div class="ak">'+(isOnline(r)?'<span class="onl">● Online</span>':(r.updated?'<span class="u">aktif </span>'+fmtShort(r.updated):'-'))+'</div>'
       +'<div class="bi">'+money(r.usd)+'</div></div>';
   });
   h+='</div>';
@@ -567,45 +579,83 @@ function renderUsers(){
   }
   list.innerHTML=h;
 }
-async function loadUsageAll(){
-  var box=document.getElementById('usage-result');
-  var btn=document.getElementById('usage-load-btn');
-  var csv=document.getElementById('usage-csv-btn');
-  btn.disabled=true; box.innerHTML='<div class="empty">Memuat...</div>';
-  document.getElementById('user-detail').innerHTML='';
-  try{
-    var snap=await db.collection('users').get({source:'server'});
-    _usageRows=[];
-    snap.forEach(function(doc){ _usageRows.push(buildRow(doc)); });
-    _usageRows.sort(function(a,b){ return b.usd-a.usd; });
-    var t={calls:0,hit:0,miss:0,noCache:0,fix:0,usd:0,active:0}, tm={};
-    _usageRows.forEach(function(r){
-      t.calls+=r.gen; t.hit+=r.hit; t.miss+=r.miss; t.noCache+=r.noCache; t.fix+=r.fix; t.usd+=r.usd;
-      if(r.gen+r.fix>0) t.active++;
-      Object.keys(r.models).forEach(function(k){ addTok(tm[k]||(tm[k]=emptyTok()),r.models[k]); });
-    });
-    _uTier='all'; _uLimit=UPAGE;
-    var h='<div class="stat-grid compact">'
-      +sc('User',_usageRows.length,t.active+' sudah generate')
-      +sc('Total biaya',idr(t.usd),'$'+t.usd.toFixed(4)+' · '+(IDR_LIVE?'kurs real-time':'kurs perkiraan'))
-      +sc('Cache hit (Claude)',pct(t.hit,t.hit+t.miss+t.noCache),t.hit+' hit · '+t.miss+' miss · '+t.noCache+' tanpa')
-      +sc('Panggilan generate',t.calls,'+ '+t.fix+' perbaikan kata')
-      +'</div>'
-      +'<details class="mdet"><summary>Biaya per model (semua user)</summary>'+modelTable(tm,t.usd)+'</details>'
-      +'<div class="utools">'
-      +'<div class="utl"><input id="u-q" type="search" placeholder="Cari email..." oninput="uChange()"><select id="u-sort" aria-label="Urutkan" onchange="uChange()"><option value="usd">Urut: biaya</option><option value="gen">Urut: generate</option><option value="act">Urut: terakhir aktif</option><option value="email">Urut: email A-Z</option></select></div>'
-      +'<div class="chips-row"><div class="chips" id="u-chips"></div><div class="ucount" id="u-count"></div></div>'
-      +'<div class="ugrid-head"><div class="urow uhead"><div class="em">Email</div><div class="pk">Paket</div><div class="md">Model</div><div class="ge">Generate</div><div class="ch">Cache hit</div><div class="ak">Terakhir aktif</div><div class="bi">Biaya</div></div></div>'
-      +'</div>'
-      +'<div id="u-list"></div>'
-      +'<div class="sub note">Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak terhitung.</div>';
-    box.innerHTML=h; renderUsers();
-    csv.classList.toggle('hidden', !_usageRows.length);
-  }catch(e){
-    box.innerHTML='<div class="empty" style="color:var(--red);">Gagal muat: '+_esc(errMsg(e))+'</div>';
-  }
-  btn.disabled=false;
+// ── REAL-TIME: daftar user diperbarui otomatis lewat onSnapshot (tanpa refresh) ──
+var _unsub=null, _firstSnap=true, _flash={}, _flashT=null, ONLINE_MS=5*60*1000;
+var _detailSig='', _detailLog=null, _detailErr=null;
+function isOnline(r){ return !!r.updated && (Date.now()-r.updated)<ONLINE_MS; }
+function curRow(uid){ return _usageRows.filter(function(x){ return x.uid===uid; })[0]; }
+function setLive(st){
+  var b=document.getElementById('live-badge'); if(!b) return;
+  if(st==='err') b.innerHTML='<span class="dot err"></span>Terputus';
+  else if(st==='connecting') b.innerHTML='<span class="dot"></span>Menyambung...';
 }
+function calcTotals(){
+  var t={calls:0,hit:0,miss:0,noCache:0,fix:0,usd:0,active:0,online:0}, tm={};
+  _usageRows.forEach(function(r){
+    t.calls+=r.gen; t.hit+=r.hit; t.miss+=r.miss; t.noCache+=r.noCache; t.fix+=r.fix; t.usd+=r.usd;
+    if(r.gen+r.fix>0) t.active++;
+    if(isOnline(r)) t.online++;
+    Object.keys(r.models).forEach(function(k){ addTok(tm[k]||(tm[k]=emptyTok()),r.models[k]); });
+  });
+  return {t:t,tm:tm};
+}
+function paintSummary(){
+  var c=calcTotals(), t=c.t;
+  document.getElementById('u-summary').innerHTML=
+     sc('User',_usageRows.length,t.active+' sudah generate · '+t.online+' online')
+    +sc('Total biaya',idr(t.usd),'$'+t.usd.toFixed(4)+' · '+(IDR_LIVE?'kurs real-time':'kurs perkiraan'))
+    +sc('Cache hit (Claude)',pct(t.hit,t.hit+t.miss+t.noCache),t.hit+' hit · '+t.miss+' miss · '+t.noCache+' tanpa')
+    +sc('Panggilan generate',t.calls,'+ '+t.fix+' perbaikan kata');
+  document.getElementById('u-models').innerHTML=modelTable(c.tm,t.usd);
+  var b=document.getElementById('live-badge');
+  if(b) b.innerHTML='<span class="dot on"></span>Live · '+t.online+' online';
+}
+function buildShell(){
+  _uTier='all'; _uLimit=UPAGE;
+  document.getElementById('usage-result').innerHTML=
+     '<div class="stat-grid compact" id="u-summary"></div>'
+    +'<details class="mdet"><summary>Biaya per model (semua user)</summary><div id="u-models"></div></details>'
+    +'<div class="utools">'
+    +'<div class="utl"><input id="u-q" type="search" placeholder="Cari email..." oninput="uChange()"><select id="u-sort" aria-label="Urutkan" onchange="uChange()"><option value="usd">Urut: biaya</option><option value="gen">Urut: generate</option><option value="act">Urut: terakhir aktif</option><option value="email">Urut: email A-Z</option></select></div>'
+    +'<div class="chips-row"><div class="chips" id="u-chips"></div><div class="ucount" id="u-count"></div></div>'
+    +'<div class="ugrid-head"><div class="urow uhead"><div class="em">Email</div><div class="pk">Paket</div><div class="md">Model</div><div class="ge">Generate</div><div class="ch">Cache hit</div><div class="ak">Terakhir aktif</div><div class="bi">Biaya</div></div></div>'
+    +'</div>'
+    +'<div id="u-list"></div>'
+    +'<div class="sub note">Data masuk otomatis (real-time). "Online" = aktif dalam 5 menit terakhir. Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak terhitung.</div>';
+}
+function detach(){ if(_unsub){ try{ _unsub(); }catch(e){} _unsub=null; } }
+function stopLive(){
+  detach(); _statsLoaded=false; _usageRows=[];
+  var b=document.getElementById('usage-result'); if(b) b.innerHTML='';
+  closeUser();
+}
+function startLive(){
+  detach();
+  var box=document.getElementById('usage-result'), csv=document.getElementById('usage-csv-btn');
+  _firstSnap=true; _flash={};
+  box.innerHTML='<div class="empty">Memuat...</div>';
+  closeUser(); setLive('connecting');
+  _unsub=db.collection('users').onSnapshot(function(snap){
+    var rows=[];
+    snap.forEach(function(doc){ rows.push(buildRow(doc)); });
+    rows.sort(function(a,b){ return b.usd-a.usd; });
+    if(!_firstSnap){ snap.docChanges().forEach(function(ch){ if(ch.type!=='removed') _flash[ch.doc.id]=true; }); }
+    _usageRows=rows;
+    if(_firstSnap){ buildShell(); _firstSnap=false; }
+    paintSummary(); renderUsers(); refreshDetail();
+    csv.classList.toggle('hidden', !_usageRows.length);
+    clearTimeout(_flashT); _flashT=setTimeout(function(){ _flash={}; },2500);
+  },function(e){
+    _unsub=null; setLive('err');
+    if(_firstSnap) box.innerHTML='<div class="empty" style="color:var(--red);">Gagal muat: '+_esc(errMsg(e))+'</div>';
+    else showToast('Koneksi live terputus. Ketuk "Muat ulang" untuk menyambung lagi.');
+  });
+}
+function loadUsageAll(){ startLive(); }
+// Tombol "online" berhenti menyala sendiri tanpa perlu data baru: segarkan tiap 30 detik.
+setInterval(function(){
+  if(_unsub && !document.hidden && document.getElementById('u-list')){ paintSummary(); renderUsers(); }
+},30000);
 
 // Riwayat per panggilan: users/{uid}/blobs/pb_usage_log_v1 (manifest {n}) + potongan pb_usage_log_v1__0..n-1 ({d}).
 async function loadUserLog(uid){
@@ -674,7 +724,27 @@ function logTable(log){
   });
   return h+'</tbody></table></div>';
 }
-function closeUser(){ document.getElementById('user-detail').innerHTML=''; document.body.style.overflow=''; }
+function closeUser(){ var b=document.getElementById('user-detail'); b.innerHTML=''; b.dataset.uid=''; _detailSig=''; _detailLog=null; _detailErr=null; document.body.style.overflow=''; }
+function paintDetail(r){
+  var box=document.getElementById('user-detail'), top=box.scrollTop;
+  var open=[].map.call(box.querySelectorAll('details'),function(d){ return d.open; });
+  renderUser(r,_detailLog,_detailErr);
+  [].forEach.call(box.querySelectorAll('details'),function(d,i){ if(open[i]) d.open=true; });
+  box.scrollTop=top;
+}
+function refreshDetail(){
+  var box=document.getElementById('user-detail'), uid=box.dataset.uid;
+  if(!uid||!box.innerHTML) return;
+  var r=curRow(uid); if(!r) return;
+  var sig=JSON.stringify(r.raw);
+  if(sig===_detailSig) return;
+  _detailSig=sig; paintDetail(r);
+  if(_detailLog!==null){
+    loadUserLog(uid).then(function(log){
+      if(box.dataset.uid===uid&&box.innerHTML){ _detailLog=log; _detailErr=null; paintDetail(curRow(uid)||r); }
+    }).catch(function(){});
+  }
+}
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&document.getElementById('user-detail').innerHTML) closeUser(); });
 function renderUser(r,log,err){
   var tt=function(t){ return '<div style="font-weight:700;margin:16px 0 6px;">'+t+'</div>'; };
@@ -691,7 +761,7 @@ function renderUser(r,log,err){
   document.getElementById('user-detail').innerHTML=
     '<div class="sheet"><div class="sheetbar"><button class="btn btn-outline btn-small" onclick="closeUser()">← Kembali</button><div class="t">'+_esc(r.email)+'</div></div>'
     +'<div class="card" style="border-color:var(--accent);">'
-    +'<div class="req-meta">Paket <span class="pill '+(r.tier==='free'?'free':safeTier(r.tier))+(tierStatus(r).k==='exp'?' exp':'')+'">'+_esc(r.tier)+'</span>'+(r.expiry?' sampai '+fmtDate(r.expiry):'')+' · <b style="color:'+(tierStatus(r).k==='exp'?'var(--red)':(tierStatus(r).k==='aktif'?'var(--green)':'var(--muted)'))+';">'+tierStatus(r).t+'</b> · terakhir aktif '+(r.updated?fmtDate(r.updated):'-')+'</div>'
+    +'<div class="req-meta">Paket <span class="pill '+(r.tier==='free'?'free':safeTier(r.tier))+(tierStatus(r).k==='exp'?' exp':'')+'">'+_esc(r.tier)+'</span>'+(r.expiry?' sampai '+fmtDate(r.expiry):'')+' · <b style="color:'+(tierStatus(r).k==='exp'?'var(--red)':(tierStatus(r).k==='aktif'?'var(--green)':'var(--muted)'))+';">'+tierStatus(r).t+'</b> · terakhir aktif '+(r.updated?fmtDate(r.updated):'-')+(isOnline(r)?' · <b style="color:var(--green);">● Online sekarang</b>':'')+'</div>'
     +(pend?'<div class="req-meta" style="color:var(--warning);margin-top:6px;">⏳ Ada permintaan upgrade pending: '+_esc(pend.tier||'-')+' · Rp'+Number(pend.price||0).toLocaleString('id-ID')+' · '+fmtDate(pend.requestedAt)+' (proses di tab Upgrade Tier)</div>':'')
     +'<div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div>'
     +'<div class="stat-grid">'
@@ -711,17 +781,19 @@ function renderUser(r,log,err){
     +'</div></div>';
 }
 async function showUser(uid){
-  var r=_usageRows.filter(function(x){ return x.uid===uid; })[0];
+  var r=curRow(uid);
   if(!r) return;
   var box=document.getElementById('user-detail');
-  box.dataset.uid=uid;
+  box.dataset.uid=uid; _detailSig=JSON.stringify(r.raw); _detailLog=null; _detailErr=null;
   renderUser(r,null,null);
   document.body.style.overflow='hidden';
   try{
     var log=await loadUserLog(uid);
-    if(box.dataset.uid===uid) renderUser(r,log,null);
+    _detailLog=log;
+    if(box.dataset.uid===uid) paintDetail(curRow(uid)||r);
   }catch(e){
-    if(box.dataset.uid===uid) renderUser(r,null,errMsg(e));
+    _detailErr=errMsg(e);
+    if(box.dataset.uid===uid) paintDetail(curRow(uid)||r);
   }
 }
 
