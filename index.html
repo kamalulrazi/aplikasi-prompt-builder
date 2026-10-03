@@ -4185,7 +4185,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.8</div>
+  <div class="splash-version" id="splash-version">v11.9</div>
 </div>
 <script>
   (function(){
@@ -5545,7 +5545,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
            pbGoStep7VideoOpen() & disembunyikan lagi di pbStep7VideoDone()
            atau saat tur di-skip (pbHideOverlay). -->
       <div id="vb-tour-mode-hint" style="display:none;padding:8px 10px;margin-bottom:10px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.4;">
-        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya. Frame Asset, Raw Asset, Motion Control, dan Mirror Selfie kita kunci sementara.
+        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya. Frame Asset, Raw Asset, Motion Control, Mirror Selfie, dan Percobaan kita kunci sementara.
       </div>
       <!-- PERMINTAAN USER (Sept 2026): mode disusun vertikal (kolom kiri), kolom
            kanan dikosongkan untuk pratinjau — lihat CSS .vb-mode-row. Pratinjau
@@ -5563,6 +5563,9 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           <div class="chip" id="vb-mode-kp" onclick="vbPickRefMode('kp')">Raw Asset</div>
           <div class="chip" id="vb-mode-ikuti" onclick="vbPickRefMode('ikuti')">Motion Control</div>
           <div class="chip" id="vb-mode-mirrorselfie" onclick="vbPickRefMode('mirrorselfie')">Mirror Selfie</div>
+          <!-- MODE BARU (Okt 2026): Percobaan — video voice over, tiap foto = 1 adegan.
+               Tetap lanjut ke wizard V2-V5 (Gender/Usia, Nada, Pembawaan, Aksen, Script). -->
+          <div class="chip" id="vb-mode-percobaan" onclick="vbPickRefMode('percobaan')">Percobaan</div>
         </div>
         <!-- PERMINTAAN USER (Okt 2026): pratinjau mode Frame Asset — tampilannya sama
              dengan Start Frame (checklist syarat -> Video AI) tapi syaratnya 2 foto.
@@ -6215,7 +6218,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.9 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13563,9 +13566,9 @@ function _pbInjectPerCardCopyButtons(root){
         // teks lama yang sempat tersimpan dengan kutip di dalam script tidak
         // terpotong di kutip pertama & terduplikasi.
         let _safeTa=String(ta.value).replace(/"/g,"'");
-        let _scriptRe=/script:"[\s\S]*?"(?=$|\. (?:A very small text overlay|Make sure no icon|Muncul tulisan|Pastikan tidak ada icon))/;
-        if(!_scriptRe.test(txt))_scriptRe=/script:"[\s\S]*?"/;
-        liveTxt=txt.replace(_scriptRe,function(){return 'script:"'+_safeTa+'"';});
+        let _scriptRe=/(script:\s*")[\s\S]*?"(?=$|\. (?:A very small text overlay|Make sure no icon|Muncul tulisan|Pastikan tidak ada icon))/;
+        if(!_scriptRe.test(txt))_scriptRe=/(script:\s*")[\s\S]*?"/;
+        liveTxt=txt.replace(_scriptRe,function(m,pre){return pre+_safeTa+'"';});
       }
       _copyTextRobust(liveTxt,function(){
         btn.textContent='Tersalin!';
@@ -14951,7 +14954,11 @@ document.addEventListener('click',function(e){
 // membaca konstanta ini, jadi cukup diubah di sini.
 // 2 Okt 2026 (permintaan user): rentang 22-26 (target 24) -> 24-27 (target 25).
 const VB_FIXED_WORD_RANGE={min:24,max:27,target:25};
+// Rentang kata khusus mode Percobaan (voice over banyak adegan). Sekarang SAMA dengan rentang umum;
+// ubah min/max/target di sini saja kalau mau beda. Prompt AI, penghitung kata, & pemotong batas atas ikut otomatis.
+const VB_PERCOBAAN_WORD_RANGE={min:24,max:27,target:25};
 function vbGetWordRange(){
+  if(typeof VB!=='undefined' && VB && VB.refMode==='percobaan')return VB_PERCOBAAN_WORD_RANGE;
   return VB_FIXED_WORD_RANGE;
 }
 
@@ -15168,14 +15175,18 @@ function _vbRenderProdukFotoMulti(){
 
 const VB_REF_MODE_TEXT={
   satu:'Use the attached photo as the reference for the character, outfit, and location. Keep every detail consistent throughout the video.',
-  aset:'Use the attached photos as the starting frame for each scene change. For example, if there are 2 photos, use photo 1 for seconds 0-4 and photo 2 for seconds 4-8. If a photo does not show a face, do not show one.'
+  aset:'Use the attached photos as the starting frame for each scene change. For example, if there are 2 photos, use photo 1 for seconds 0-4 and photo 2 for seconds 4-8. If a photo does not show a face, do not show one.',
+  // MODE BARU "Percobaan" (Okt 2026): video voice over, tiap foto = 1 adegan. Bagian ini = pembuka
+  // prompt saja; blok suara narator (gender/usia/nada/aksen/script) dirakit di _vbBuildFlowText.
+  percobaan:'Use all attached reference photos as the starting frame of each scene, in the order attached: photo 1 first, then photo 2, and so on up to the last photo. Each photo is one scene, and every scene gets roughly equal time. If there is only one photo, use that photo as the starting frame for the entire video. Keep everything in the photos exactly the same in every scene (shape, color, material, and every small detail). If a photo shows a person, keep the face and outfit consistent across all scenes; if a photo does not show a face, do not show one. Do not create or show anything that is not visible in the reference photos. Use smooth, natural camera movement and soft transitions between scenes. This is a voice-over video: no one on screen speaks. Any person who appears keeps their mouth closed or relaxed, with no lip movement and not talking to the camera. The narration is heard only as an off-screen voice, flowing in the order of the scenes so that the words roughly match what is visible. No text, no subtitles, no extra logos, no music with lyrics.'
 };
 const VB_REF_MODE_DESC={
   satu:'Cukup satu foto bahan aja, yaitu FOTO AI. Video akan mengikuti FOTO AI yang kamu kirim sebagai frame awal. Hasil konsisten tanpa pergantian scene.',
   aset:'Cocok untuk mempromosikan produk dengan detail kecil dan rumit, video akan mengikuti setiap foto yang kita lampirkan secara konsisten tanpa membuat hasil produk rusak.',
   kp:'Foto referensi 1 = karakter (wajah & outfit dipertahankan), foto referensi 2 = produk. Lokasi & lighting kamu pilih nanti di Step 6.',
   ikuti:'FOTO AI akan mengikuti setiap gerakan dari video yang kamu lampirkan, dengan mempertahankan lokasi, outfit, lighting pada FOTO AI.',
-  mirrorselfie:'Persiapkan 1 bahan aja, yaitu FOTO AI. FOTO AI wajib dengan pose mirror selfie. Kamu bisa pilih di Pose ketika merakit prompt foto.'
+  mirrorselfie:'Persiapkan 1 bahan aja, yaitu FOTO AI. FOTO AI wajib dengan pose mirror selfie. Kamu bisa pilih di Pose ketika merakit prompt foto.',
+  percobaan:'Video voice over: lampirkan beberapa foto sesuai urutan, tiap foto jadi satu adegan dengan durasi kurang lebih sama. Tidak ada orang yang bicara di layar, narasi terdengar sebagai suara dari luar layar.'
 };
 // ── MODE 4 — "Ikuti Gerakan Video Referensi": beda total dari Mode 1-3.
 // Mode 1-3 masih lanjut ke wizard suara karakter & script dialog (V2-V5)
@@ -15403,6 +15414,8 @@ function vbPickRefMode(mode){
   // Control (mode 'ikuti') — lihat #vb-mode-selfie-area & vbGenerateMirrorSelfie().
   let mirrorChip=document.getElementById('vb-mode-mirrorselfie');
   if(mirrorChip)mirrorChip.classList.toggle('sel',mode==='mirrorselfie');
+  let percobaanChip=document.getElementById('vb-mode-percobaan');
+  if(percobaanChip)percobaanChip.classList.toggle('sel',mode==='percobaan');
   let desc=document.getElementById('vb-mode-desc');
   if(desc)desc.textContent=VB_REF_MODE_DESC[mode];
   // Mode 4: sembunyikan footer normal (catatan + tombol "Lanjut →", yang
@@ -15609,7 +15622,7 @@ function vbUpdateProgress(stepNum,stepName){
 }
 
 function vbConfirmRef(){
-  let modeLabel=VB.refMode==='kp'?'Raw Asset':(VB.refMode==='aset'?'Frame Asset':'Start Frame');
+  let modeLabel=VB.refMode==='kp'?'Raw Asset':(VB.refMode==='aset'?'Frame Asset':(VB.refMode==='percobaan'?'Percobaan':'Start Frame'));
   let _wasEdit=doneCard('v1','va1',modeLabel);
   vbAdvanceStep(_wasEdit,'v2',2,'Jenis Kelamin & Usia');
   // Notifikasi "Urutan Foto Tidak Boleh Terbalik" DIHAPUS (permintaan user).
@@ -22681,7 +22694,11 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     let _mSafe='Movements stay natural and smooth, in sync with the speech';
     if(VB.refMode==='kp')_mSafe+='; the face stays identical to reference photo 1 and the product stays clearly visible';
     else if(VB.refMode==='satu')_mSafe+='; the face stays consistent';
+    if(VB.refMode==='percobaan')_mSafe='Movements stay natural and smooth, in sync with the narration';
     instructionText=instructionText.replace(/\s+$/,'')+' Character demeanor: '+motionTxt+'. '+_mSafe+'. ';
+  }else if(VB.refMode==='percobaan'){
+    // Mode Percobaan: kalimat gerakan selalu ada walau Pembawaan dilewati.
+    instructionText=instructionText.replace(/\s+$/,'')+' Movements stay natural and smooth, in sync with the narration. ';
   }
   let _cg=_vbCharVal(idx,'gender');
   let genderPrefix=_cg==='male'?'Male, ':_cg==='female'?'Female, ':(_cg?_cg+', ':'');
@@ -22700,6 +22717,12 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // ("...sepanjang video.dialogue:"). Sekarang selalu tepat 1 spasi.
   let safeScript=String(scriptText==null?'':scriptText).replace(/"/g,"'");
   let flowText=instructionText.replace(/\s+$/,'')+' dialogue:voice_character:age:'+ageFull+',pitch:'+_vbEn(_vbCharVal(idx,'pitch'))+',accent:'+accentFull+',script:"'+safeScript+'"';
+  if(VB.refMode==='percobaan'){
+    // Mode Percobaan: blok suara narator off-screen (bukan format "dialogue:" di mode lain).
+    // Isi script tetap Indonesia; sisanya Inggris. Akhiran 'narration script: "..."' dipakai
+    // regex penyalinan Riwayat (lihat _scriptRe) — jangan diubah tanpa menyesuaikan regex itu.
+    flowText=instructionText.replace(/\s+$/,'')+' Off-screen voice (narrator), gender and age: '+ageFull+', tone: '+_vbEn(_vbCharVal(idx,'pitch'))+', natural Indonesian accent: '+_vbCharVal(idx,'accent')+', narration script: "'+safeScript+'"';
+  }
   // GANTI TOTAL (permintaan user, Sept 2026): kalimat overlay Hook lama
   // ("Tulis :"X" muncul pada detik 0 sampai detik 2 (2 detik) lalu
   // menghilang, dengan ukuran teks 10px.") DIHAPUS, diganti kalimat baru di
@@ -22718,6 +22741,9 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   if(isHookCard){
     let overlayTxt=_vbHookOverlayText(idx);
     if(overlayTxt){
+      // Mode Percobaan: instruksi dasarnya melarang teks ("No text, no subtitles"), padahal overlay
+      // Hook adalah teks. Larangan dilonggarkan supaya tidak saling bertentangan.
+      if(VB.refMode==='percobaan')flowText=flowText.replace('No text, no subtitles, no extra logos','No subtitles, no extra logos, no text other than the small overlay described at the end');
       flowText+=_vbOverlaySentence(overlayTxt);
     }
   }
@@ -24630,6 +24656,7 @@ function pbHideOverlay(endingTour){
     pbUnlockChip('#vb-mode-kp');
     pbUnlockChip('#vb-mode-ikuti');
     pbUnlockChip('#vb-mode-mirrorselfie');
+    pbUnlockChip('#vb-mode-percobaan');
     let hintEl=document.getElementById('vb-tour-mode-hint');
     if(hintEl) hintEl.style.display='none';
     document.body.classList.remove('pb-tour-blur-context');
@@ -24949,6 +24976,7 @@ function pbGoStep7VideoOpen(){
   pbLockChip('#vb-mode-kp');
   pbLockChip('#vb-mode-ikuti');
   pbLockChip('#vb-mode-mirrorselfie');
+  pbLockChip('#vb-mode-percobaan');
   document.body.classList.add('pb-tour-blur-context');
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='block';
@@ -24987,6 +25015,7 @@ function pbStep7VideoDone(){
   pbUnlockChip('#vb-mode-kp');
   pbUnlockChip('#vb-mode-ikuti');
   pbUnlockChip('#vb-mode-mirrorselfie');
+  pbUnlockChip('#vb-mode-percobaan');
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='none';
   document.body.classList.remove('pb-tour-blur-context');
