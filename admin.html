@@ -215,9 +215,8 @@
         </div>
         <div class="st-btns"><span class="live" id="live-badge"></span>
           <button class="btn btn-small" id="usage-load-btn" onclick="loadUsageAll()">🔄 Muat ulang</button>
-          <button class="btn btn-outline btn-small hidden" id="usage-csv-btn" onclick="exportUsageCsv()">Unduh CSV</button>
-          <button class="btn btn-outline btn-small hidden" id="usage-csv-model-btn" onclick="exportModelCsv('ringkasan',this)">CSV Model / Hari</button>
-          <button class="btn btn-outline btn-small hidden" id="usage-csv-detail-btn" onclick="exportModelCsv('detail',this)">CSV Detail Panggilan</button>
+          <button class="btn btn-small hidden" id="usage-gen-btn" onclick="showAllGen(this)">Per Generate</button>
+          <button class="btn btn-outline btn-small hidden" id="usage-csv-btn" onclick="exportAllXlsx(this)">Unduh Semua (Excel)</button>
         </div>
       </div>
       <div id="usage-result"></div>
@@ -646,7 +645,7 @@ function startLive(){
     if(_firstSnap){ buildShell(); _firstSnap=false; }
     paintSummary(); renderUsers(); refreshDetail();
     csv.classList.toggle('hidden', !_usageRows.length);
-    ['usage-csv-model-btn','usage-csv-detail-btn'].forEach(function(id){ var b=document.getElementById(id); if(b) b.classList.toggle('hidden', !_usageRows.length); });
+    ['usage-gen-btn'].forEach(function(id){ var b=document.getElementById(id); if(b) b.classList.toggle('hidden', !_usageRows.length); });
     clearTimeout(_flashT); _flashT=setTimeout(function(){ _flash={}; },2500);
   },function(e){
     _unsub=null; setLive('err');
@@ -759,7 +758,7 @@ function renderUser(r,log,err){
     ? '<div class="empty" style="color:var(--red);">Gagal baca riwayat per panggilan: '+_esc(err)+'<br>Pastikan Firestore Rules versi terbaru (bagian blobs) sudah di-Publish — lihat komentar di atas script halaman ini.</div>'
     : (log===null
       ? '<div class="empty">Memuat riwayat per panggilan...</div>'
-      : tt('Biaya per hari (30 hari terakhir)')+dayTable(m)+tt('Per aksi generate (30 terbaru)')+sessionTable(log)
+      : tt('Biaya per hari (30 hari terakhir)')+dayTable(m)+tt('Per generate / produk (50 terbaru) — perbaikan kata digabung')+genTable(buildGenRows(log,r.email),false,50)+tt('Per aksi generate (30 terbaru)')+sessionTable(log)
         +'<details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:700;padding:6px 0;">Riwayat per panggilan ('+Math.min(log.length,100)+' terbaru, maks 60 hari) — ketuk untuk membuka</summary>'+logTable(log)+'</details>');
   document.getElementById('user-detail').innerHTML=
     '<div class="sheet"><div class="sheetbar"><button class="btn btn-outline btn-small" onclick="closeUser()">← Kembali</button><div class="t">'+_esc(r.email)+'</div></div>'
@@ -826,14 +825,6 @@ function exportUsageCsv(){
 //  1) 'ringkasan' → 1 baris per User × Tanggal × Jenis (Generate / Perbaikan kata) × Model
 //  2) 'detail'    → 1 baris per panggilan AI (jam, aksi, model, token, biaya)
 // Tanggal & jam mengikuti zona waktu perangkat yang membuka halaman admin ini.
-function _q(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
-function _dlCsv(name,lines){
-  var blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
-  var el=document.createElement('a');
-  el.href=URL.createObjectURL(blob); el.download=name;
-  document.body.appendChild(el); el.click();
-  setTimeout(function(){ URL.revokeObjectURL(el.href); el.remove(); },500);
-}
 function _mname(k){ return MODELS[k] ? MODELS[k].label : 'Data lama (tanpa nama model)'; }
 function _mid(k){ return MODELS[k] ? MODELS[k].id : ''; }
 async function _loadAllLogs(onProgress){
@@ -881,44 +872,180 @@ function _modelRecords(data){
   });
   return recs;
 }
-function _csvDetail(recs){
-  var head=['Email','UID','Paket','Tanggal','Jam','Jenis','Mode','Aksi','Model','ModelID','Produk','Foto','TokenMasuk','CacheTulis','CacheBaca','TokenKeluar','BiayaUSD','BiayaIDR','Terputus','Sumber'];
-  var lines=[head.join(',')];
-  recs.slice().sort(function(a,b){ return (b.date+b.time).localeCompare(a.date+a.time)||a.email.localeCompare(b.email); }).forEach(function(x){
-    lines.push([_q(x.email),_q(x.uid),_q(x.tier),x.date,x.time,_q(x.kind),_q(x.mode),_q(x.aksi),_q(_mname(x.mk)),_q(_mid(x.mk)),x.produk,x.foto,x.inTok,x.cw,x.cr,x.outTok,x.usd.toFixed(6),Math.round(x.usd*IDR_RATE),x.interrupted,x.sumber].join(','));
-  });
-  return lines;
-}
-function _csvRingkasan(recs){
-  var g={};
-  recs.forEach(function(x){
-    var key=[x.uid,x.date,x.kind,x.mk,x.sumber].join('|');
-    var s=g[key]||(g[key]={email:x.email,uid:x.uid,tier:x.tier,date:x.date,kind:x.kind,mk:x.mk,sumber:x.sumber,calls:0,unk:false,inTok:0,outTok:0,usd:0});
-    if(x.calls==='') s.unk=true; else s.calls+=x.calls;
-    s.inTok+=x.inTok; s.outTok+=x.outTok; s.usd+=x.usd;
-  });
-  var head=['Email','UID','Paket','Tanggal','Jenis','Model','ModelID','Panggilan','TokenMasuk','TokenKeluar','BiayaUSD','BiayaIDR','Sumber'];
-  var lines=[head.join(',')];
-  Object.keys(g).map(function(k){ return g[k]; }).sort(function(a,b){
-    return b.date.localeCompare(a.date)||a.email.localeCompare(b.email)||a.kind.localeCompare(b.kind);
-  }).forEach(function(s){
-    lines.push([_q(s.email),_q(s.uid),_q(s.tier),s.date,_q(s.kind),_q(_mname(s.mk)),_q(_mid(s.mk)),s.unk?'':s.calls,s.inTok,s.outTok,s.usd.toFixed(6),Math.round(s.usd*IDR_RATE),s.sumber].join(','));
-  });
-  return lines;
-}
 var _csvBusy=false;
-async function exportModelCsv(which,btn){
+
+// ── PER GENERATE (per produk): perbaikan kata digabung ke generate-nya ────
+// Satu baris = satu panggilan generate. Perbaikan kata yang muncul setelahnya (aksi/sesi yang sama,
+// maks 60 detik) ditempelkan ke baris itu → terlihat "model generate → model perbaikan kata".
+// Penautan memakai kedekatan waktu karena log belum punya ID penghubung generate↔perbaikan.
+var GEN_LINK_SEC=60, _genRows=null;
+function _tokIn(e){ return _n(e.noCacheInTok)+_n(e.cacheWriteInTok)+_n(e.cacheReadInTok); }
+function buildGenRows(log,email){
+  var arr=(log||[]).slice().sort(function(a,b){ return (_n(a.ts)-_n(b.ts)) || ((a.kind==='fix'?1:0)-(b.kind==='fix'?1:0)); });
+  var rows=[], cur=null;
+  arr.forEach(function(e){
+    var key=e.sesiId||e.sesiLabel||'', mk=e.model||'unknown', u=usdTok(e,e.model);
+    if(e.kind!=='fix'){
+      cur={email:email,ts:_n(e.ts),key:key,aksi:e.sesiLabel||'-',produk:_n(e.produkCount),model:mk,fix:[],usdG:u,usdF:0,inTok:_tokIn(e),outTok:_n(e.outTok)};
+      rows.push(cur);
+    }else if(cur&&cur.key===key&&_n(e.ts)-cur.ts<=GEN_LINK_SEC*1000){
+      cur.fix.push(mk); cur.usdF+=u; cur.inTok+=_tokIn(e); cur.outTok+=_n(e.outTok);
+    }else{
+      rows.push({email:email,ts:_n(e.ts),key:key,aksi:e.sesiLabel||'-',produk:_n(e.produkCount),model:null,fix:[mk],usdG:0,usdF:u,inTok:_tokIn(e),outTok:_n(e.outTok)});
+    }
+  });
+  return rows;
+}
+function fixText(list){
+  if(!list||!list.length) return '-';
+  var c={}, order=[];
+  list.forEach(function(k){ var s=mshort(k); if(!c[s]){ c[s]=0; order.push(s); } c[s]++; });
+  order.sort(function(a,b){ return c[b]-c[a]; });
+  return order.map(function(s){ return c[s]>1 ? s+' ×'+c[s] : s; }).join(', ');
+}
+function genText(r){ return r.model===null ? '(tanpa generate)' : mshort(r.model); }
+function genTable(rows,showEmail,limit){
+  var list=rows.slice().sort(function(a,b){ return b.ts-a.ts; }).slice(0,limit);
+  if(!list.length) return '<div class="empty">Belum ada generate.</div>';
+  var h='<div class="tbl-wrap"><table class="st stack" style="min-width:0;"><thead><tr><th>Waktu</th>'+(showEmail?'<th>User</th>':'')+'<th>Aksi</th><th>Model generate</th><th>Perbaikan kata</th><th class="r">Biaya</th></tr></thead><tbody>';
+  list.forEach(function(r){
+    h+='<tr>'+td('Waktu',fmtDate(r.ts),'first')+(showEmail?td('User',_esc(r.email)):'')+td('Aksi',_esc(r.aksi))
+      +td('Generate',_esc(genText(r))+(r.model!==null&&r.produk>1?' <span style="color:var(--muted);">('+r.produk+' produk)</span>':''))
+      +td('Perbaikan kata',_esc(fixText(r.fix)))+td('Biaya',money(r.usdG+r.usdF),'r')+'</tr>';
+  });
+  return h+'</tbody></table></div>';
+}
+function comboRows(rows){
+  var g={};
+  rows.forEach(function(r){
+    var gt=genText(r), ft=fixText(r.fix), k=r.email+'|'+gt+'|'+ft;
+    var s=g[k]||(g[k]={email:r.email,gen:gt,fix:ft,n:0,usd:0});
+    s.n++; s.usd+=r.usdG+r.usdF;
+  });
+  return Object.keys(g).map(function(k){ return g[k]; }).sort(function(a,b){ return a.email.localeCompare(b.email)||b.n-a.n; });
+}
+function comboTable(rows){
+  var c=comboRows(rows);
+  if(!c.length) return '<div class="empty">Belum ada data.</div>';
+  var h='<div class="tbl-wrap"><table class="st stack" style="min-width:0;"><thead><tr><th>User</th><th>Model generate</th><th>Perbaikan kata</th><th class="r">Jumlah</th><th class="r">Biaya</th></tr></thead><tbody>';
+  c.forEach(function(s){
+    h+='<tr>'+td('User',_esc(s.email),'first')+td('Generate',_esc(s.gen))+td('Perbaikan kata',_esc(s.fix))+td('Jumlah',num(s.n)+'×','r')+td('Biaya',money(s.usd),'r')+'</tr>';
+  });
+  return h+'</tbody></table></div>';
+}
+function renderGenSheet(rows,fails){
+  var tt=function(t){ return '<div style="font-weight:700;margin:16px 0 6px;">'+t+'</div>'; };
+  var nGen=rows.filter(function(r){ return r.model!==null; }).length, users={};
+  rows.forEach(function(r){ users[r.email]=1; });
+  return '<div class="sheet"><div class="sheetbar"><button class="btn btn-outline btn-small" onclick="closeUser()">← Kembali</button><div class="t">Per Generate — semua user</div></div>'
+    +'<div class="card" style="border-color:var(--accent);">'
+    +'<div class="req-meta">'+num(nGen)+' generate dari '+Object.keys(users).length+' user · riwayat maks 60 hari · perbaikan kata digabung ke generate-nya</div>'
+    +(fails?'<div class="req-meta" style="color:var(--red);margin-top:6px;">Riwayat '+fails+' user gagal dibaca (cek Firestore Rules bagian blobs) — data belum lengkap.</div>':'')
+    +'<div style="margin-top:10px;"><button class="btn btn-small" onclick="exportAllXlsx(this)">Unduh Semua (Excel)</button></div>'
+    +tt('Model yang dipakai per user')+comboTable(rows)
+    +tt('Daftar per generate (200 terbaru)')+genTable(rows,true,200)
+    +'</div></div>';
+}
+async function showAllGen(btn){
   if(_csvBusy||!_usageRows.length) return;
-  _csvBusy=true;
-  var label=btn.textContent; btn.disabled=true;
+  _csvBusy=true; var label=btn.textContent; btn.disabled=true;
   try{
     var res=await _loadAllLogs(function(d,t){ btn.textContent='Memuat '+d+'/'+t+'...'; });
-    var recs=_modelRecords(res.data), stamp=new Date().toISOString().slice(0,10);
-    if(which==='detail') _dlCsv('model-detail-panggilan-'+stamp+'.csv',_csvDetail(recs));
-    else _dlCsv('model-per-user-per-hari-'+stamp+'.csv',_csvRingkasan(recs));
+    var rows=[]; res.data.forEach(function(x){ rows=rows.concat(buildGenRows(x.log,x.r.email)); });
+    rows.sort(function(a,b){ return b.ts-a.ts; });
+    _genRows=rows;
+    var box=document.getElementById('user-detail');
+    box.dataset.uid=''; box.innerHTML=renderGenSheet(rows,res.fails);
+    document.body.style.overflow='hidden';
+  }catch(e){
+    alert('Gagal memuat: '+errMsg(e));
+  }finally{
+    btn.textContent=label; btn.disabled=false; _csvBusy=false;
+  }
+}
+function _loadScript(src){
+  return new Promise(function(ok,no){
+    if(window.XLSX) return ok();
+    var s=document.createElement('script'); s.src=src; s.onload=ok;
+    s.onerror=function(){ no(new Error('Gagal memuat pustaka Excel — cek koneksi internet')); };
+    document.head.appendChild(s);
+  });
+}
+function _addSheet(wb,name,aoa,wch){
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=wch.map(function(w){ return {wch:w}; });
+  if(aoa.length>1) ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:aoa.length-1,c:aoa[0].length-1}})};
+  XLSX.utils.book_append_sheet(wb,ws,name);
+}
+// SATU unduhan Excel berisi SEMUA data: Per Generate, Kombinasi Model, Model per Hari, Ringkasan User, Detail Panggilan.
+async function exportAllXlsx(btn){
+  if(_csvBusy||!_usageRows.length) return;
+  _csvBusy=true; var label=btn.textContent; btn.disabled=true;
+  try{
+    var res=await _loadAllLogs(function(d,t){ btn.textContent='Memuat '+d+'/'+t+'...'; });
+    btn.textContent='Menyiapkan Excel...';
+    await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    var rp=function(u){ return Math.round(u*IDR_RATE); }, stamp=new Date().toISOString().slice(0,10);
+    var wb=XLSX.utils.book_new();
+
+    // 1) Per Generate — perbaikan kata digabung ke generate-nya
+    var gen=[]; res.data.forEach(function(x){ gen=gen.concat(buildGenRows(x.log,x.r.email)); });
+    gen.sort(function(a,b){ return b.ts-a.ts; });
+    _genRows=gen;
+    var s1=[['Tanggal','Jam','Email','Aksi','Produk','Model generate','Jml perbaikan kata','Model perbaikan kata','Token masuk','Token keluar','Biaya generate (Rp)','Biaya perbaikan (Rp)','Total (Rp)']];
+    gen.forEach(function(r){
+      var t=new Date(r.ts);
+      s1.push([t.toLocaleDateString('sv-SE'),t.toLocaleTimeString('sv-SE'),r.email,r.aksi,r.produk,genText(r),r.fix.length,fixText(r.fix),r.inTok,r.outTok,rp(r.usdG),rp(r.usdF),rp(r.usdG)+rp(r.usdF)]);
+    });
+    _addSheet(wb,'Per Generate',s1,[11,9,26,34,8,14,11,24,11,11,12,12,11]);
+
+    // 2) Kombinasi Model — user memakai model apa untuk generate & perbaikan kata
+    var s2=[['Email','Model generate','Model perbaikan kata','Jumlah generate','Total (Rp)']];
+    comboRows(gen).forEach(function(s){ s2.push([s.email,s.gen,s.fix,s.n,rp(s.usd)]); });
+    _addSheet(wb,'Kombinasi Model',s2,[26,15,26,12,11]);
+
+    // 3) Model per Hari — per user × tanggal × jenis × model (log + arsip harian)
+    var recs=_modelRecords(res.data), g={};
+    recs.forEach(function(x){
+      var k=[x.uid,x.date,x.kind,x.mk,x.sumber].join('|');
+      var s=g[k]||(g[k]={email:x.email,date:x.date,kind:x.kind,mk:x.mk,sumber:x.sumber,calls:0,unk:false,inTok:0,outTok:0,usd:0});
+      if(x.calls==='') s.unk=true; else s.calls+=x.calls;
+      s.inTok+=x.inTok; s.outTok+=x.outTok; s.usd+=x.usd;
+    });
+    var s3=[['Tanggal','Email','Jenis','Model','Panggilan','Token masuk','Token keluar','Biaya (USD)','Biaya (Rp)','Sumber']];
+    Object.keys(g).map(function(k){ return g[k]; }).sort(function(a,b){
+      return b.date.localeCompare(a.date)||a.email.localeCompare(b.email)||a.kind.localeCompare(b.kind);
+    }).forEach(function(s){
+      s3.push([s.date,s.email,s.kind,_mname(s.mk),s.unk?'':s.calls,s.inTok,s.outTok,Number(s.usd.toFixed(6)),rp(s.usd),s.sumber]);
+    });
+    _addSheet(wb,'Model per Hari',s3,[11,26,15,26,10,12,12,12,11,8]);
+
+    // 4) Ringkasan User — total per user (isi sama dengan "Unduh CSV" lama)
+    var mkeys=Object.keys(MODELS).concat('unknown');
+    var s4=[['Email','UID','Paket','Paket sampai','Terakhir aktif','Generate','Perbaikan kata','Cache hit','Cache miss','Tanpa cache','Non-Claude','Token masuk (tanpa cache)','Cache tulis','Cache baca','Token keluar','Biaya generate (USD)','Biaya perbaikan (USD)','Biaya total (USD)','Biaya total (Rp)']
+      .concat(mkeys.map(function(k){ return 'Biaya '+(MODELS[k]?MODELS[k].s:'Data lama')+' (USD)'; }))
+      .concat(['Status paket','Sisa hari','Kuota terpakai','Kuota tanggal','Upgrade pending'])];
+    _usageRows.forEach(function(r){
+      var ts=tierStatus(r), qt=r.raw.pb_quota, up=r.raw.pb_upgrade_request;
+      s4.push([r.email,r.uid,r.tier,r.expiry?new Date(r.expiry).toISOString().slice(0,10):'',r.updated?new Date(r.updated).toLocaleString('sv-SE'):'',
+        r.gen,r.fix,r.hit,r.miss,r.noCache,r.nonClaude,r.noCacheInTok,r.cacheWriteInTok,r.cacheReadInTok,r.outTok,
+        Number(r.usdGen.toFixed(6)),Number(r.usdFix.toFixed(6)),Number(r.usd.toFixed(6)),rp(r.usd)]
+        .concat(mkeys.map(function(k){ return r.models[k]?Number(usdTok(r.models[k],k).toFixed(6)):0; }))
+        .concat([ts.k,ts.d==null?'':ts.d,(qt&&qt.count!=null)?qt.count:'',(qt&&qt.date)||'',(up&&up.status==='pending')?up.tier:'']));
+    });
+    _addSheet(wb,'Ringkasan User',s4,[26,30,9,12,19,9,10,9,9,10,10,14,11,11,11,12,12,12,12,12,12,12,12,12,12,10,9,10,11,12]);
+
+    // 5) Detail Panggilan — satu baris per panggilan AI
+    var s5=[['Tanggal','Jam','Email','Paket','Jenis','Mode','Aksi','Model','ID model','Produk','Foto','Token masuk','Cache tulis','Cache baca','Token keluar','Biaya (USD)','Biaya (Rp)','Terputus','UID']];
+    recs.filter(function(x){ return x.sumber==='Log'; }).sort(function(a,b){ return b.ts-a.ts; }).forEach(function(x){
+      s5.push([x.date,x.time,x.email,x.tier,x.kind,x.mode,x.aksi,_mname(x.mk),_mid(x.mk),x.produk,x.foto,x.inTok,x.cw,x.cr,x.outTok,Number(x.usd.toFixed(6)),rp(x.usd),x.interrupted,x.uid]);
+    });
+    _addSheet(wb,'Detail Panggilan',s5,[11,9,26,9,15,9,34,24,24,8,7,11,10,10,11,12,10,9,30]);
+
+    XLSX.writeFile(wb,'data-lengkap-'+stamp+'.xlsx');
     if(res.fails) alert('Peringatan: riwayat '+res.fails+' user gagal dibaca (cek Firestore Rules bagian blobs). Datanya belum lengkap.');
   }catch(e){
-    alert('Gagal membuat CSV: '+errMsg(e));
+    alert('Gagal membuat Excel: '+errMsg(e));
   }finally{
     btn.textContent=label; btn.disabled=false; _csvBusy=false;
   }
