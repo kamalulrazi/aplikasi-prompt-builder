@@ -24173,6 +24173,54 @@ window.PB_IMG_VBKP_FOTO2='media/vbkp-foto2.jpg';
 window.PB_IMG_VBMS_VIDEO='media/vbms-video.mp4';
 window.PB_IMG_VBMS_FOTO='media/vbms-foto.jpg';
 
+// Pemanasan media pratinjau Video Builder (Okt 2026). Sejak foto/video dipisah
+// ke folder media/, tiap kali pindah mode (mis. Start Frame -> Frame Asset)
+// browser baru mulai mengunduh video mode itu, jadi kotak videonya kosong
+// sekitar 1 detik. Solusinya: begitu halaman Video Builder terlihat, video
+// semua mode diunduh pelan-pelan di latar belakang (satu per satu), lalu
+// alamat di window.PB_IMG_* diganti ke blob lokal di memori. Kode lain tidak
+// perlu diubah karena selalu membaca window.PB_IMG_* saat dibutuhkan; kalau
+// unduhan belum selesai/gagal, tetap jalan pakai alamat media/ biasa.
+// Unduhan lewat cache HTTP browser, jadi pembukaan berikutnya hampir tanpa data.
+(function(){
+  var VID_KEYS=['PB_IMG_VBASET_VIDEO','PB_IMG_VBMS_VIDEO','PB_IMG_VBKP_VIDEO','PB_IMG_VBREF_VIDEO'];
+  var PHOTO_KEYS=['PB_IMG_VBREF_FOTO','PB_IMG_VBASET_FOTO1','PB_IMG_VBASET_FOTO2','PB_IMG_VBMS_FOTO','PB_IMG_VBKP_FOTO1','PB_IMG_VBKP_FOTO2'];
+  var started=false;
+  function warmPhotos(){
+    PHOTO_KEYS.forEach(function(k){
+      try{ var u=window[k]; if(u){ var im=new Image(); im.decoding='async'; im.src=u; } }catch(e){}
+    });
+  }
+  function warmVideo(i){
+    if(i>=VID_KEYS.length) return;
+    var k=VID_KEYS[i], u=window[k];
+    if(!u || String(u).indexOf('blob:')===0 || !window.fetch || !window.URL || !URL.createObjectURL){
+      warmVideo(i+1); return;
+    }
+    fetch(u).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.blob(); })
+      .then(function(b){ window[k]=URL.createObjectURL(b); })
+      .catch(function(){})
+      .then(function(){ setTimeout(function(){ warmVideo(i+1); },300); });
+  }
+  function start(){
+    if(started) return; started=true;
+    setTimeout(function(){ warmPhotos(); warmVideo(0); },800);
+  }
+  function init(){
+    var chip=document.getElementById('vb-mode-satu');
+    if(!chip) return;
+    if(!('IntersectionObserver' in window)){ setTimeout(start,4000); return; }
+    var io=new IntersectionObserver(function(es){
+      for(var i=0;i<es.length;i++){
+        if(es[i].isIntersecting){ io.disconnect(); start(); return; }
+      }
+    });
+    io.observe(chip);
+  }
+  if(document.readyState==='complete') init();
+  else window.addEventListener('load',init);
+})();
+
 // ── STATUS TUR PER AKUN (lihat "ATURAN TUR" di atas) ─────────────────
 function pbTourCurrentEmail(){
   try{
