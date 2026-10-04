@@ -6868,7 +6868,7 @@ function doneCard(id,ansId,text){
           // ATAU dibersihkan, jadi ada 2 sumber "hasil" yang tidak sinkron
           // sampai user generate ulang. Sekarang v5 ikut diperiksa sama
           // seperti v1-v4.
-          let _isVideoStep=/^v(?:[1-5]|motion)$/.test(id);
+          let _isVideoStep=/^v(?:[1-5]|motion|cam)$/.test(id);
           let _mo=_isVideoStep?document.getElementById('vb-multi-output'):null;
           let _moHasContent=_mo&&_mo.style.display!=='none'&&_mo.innerHTML.trim()!=='';
           if(_moHasContent){
@@ -13020,7 +13020,12 @@ function _vbPackState(){
 function _vbUnpackState(json){
   try{
     let obj=JSON.parse(json||'{}');
-    if(obj.VB && typeof VB!=='undefined')Object.assign(VB,obj.VB);
+    if(obj.VB && typeof VB!=='undefined'){
+      Object.assign(VB,obj.VB);
+      // Entri Riwayat lama (dibuat sebelum step Pergerakan Kamera ada) tidak punya camMove —
+      // jangan sampai nilai camMove dari sesi yang sedang aktif ikut menempel ke entri itu.
+      if(!('camMove' in obj.VB))VB.camMove='';
+    }
     if(typeof VB_BULK_ITEMS!=='undefined')VB_BULK_ITEMS=obj.VB_BULK_ITEMS||[];
     if(typeof VB_BULK_PRODUCTS!=='undefined')VB_BULK_PRODUCTS=obj.VB_BULK_PRODUCTS||[];
     if(typeof VB_BULK_LAST_CONTEXT!=='undefined')VB_BULK_LAST_CONTEXT=obj.VB_BULK_LAST_CONTEXT||null;
@@ -15472,7 +15477,7 @@ function vbSyncStep6Mode3(){
   // Nomor tampilan kartu Script / Dialog: 7 di Raw Asset (ada step Pergerakan Kamera), 6 di mode lain.
   let _w5=document.querySelector('#v5 > .whead .wnum');
   if(_w5){
-    let _n5=(VB.refMode==='kp')?'7':'6';
+    let _n5=_vbIsKp()?'7':'6';
     if(_w5._origText)_w5._origText=_n5;
     let _c5=document.getElementById('v5');
     if(!(_c5&&_c5.classList.contains('done')))_w5.textContent=_n5;
@@ -15592,7 +15597,10 @@ var VB_STEP_META={
 };
 // Raw Asset (kp) punya 1 step ekstra (Pergerakan Kamera = step 6), jadi Script / Dialog
 // jadi step 7 di mode itu; mode lain tetap step 6.
-Object.defineProperty(VB_STEP_META,'v5',{enumerable:true,configurable:true,get:function(){return [(VB.refMode==='kp'?7:6),'Script / Dialog'];}});
+// AMAN dipanggil kapan saja, termasuk sebelum `let VB` dieksekusi (vbUpdateProgress sempat dipanggil
+// saat app baru dimuat) — membaca VB di fase itu akan melempar ReferenceError.
+function _vbIsKp(){try{return VB.refMode==='kp';}catch(e){return false;}}
+Object.defineProperty(VB_STEP_META,'v5',{enumerable:true,configurable:true,get:function(){return [(_vbIsKp()?7:6),'Script / Dialog'];}});
 // Teks camera_movement per pilihan, urutan: [Hook, Story, CTA].
 var VB_CAM_MOVES={
   juyyy:[
@@ -15649,7 +15657,7 @@ function vbAdvanceStep(wasEdit,nextId,stepNum,stepName){
 }
 
 function vbUpdateProgress(stepNum,stepName){
-  let total=(VB.refMode==='kp')?7:6;
+  let total=_vbIsKp()?7:6;
   let pct=Math.round((stepNum/total)*100);
   let fill=document.getElementById('vb-progress-fill');
   let label=document.getElementById('vb-progress-label');
@@ -16118,7 +16126,7 @@ function vbManualLiveInit(){
     vbManualRenderGroups(count);
   }
   doneCard('v5','va5','Isi manual sendiri');
-  vbUpdateProgress(6,'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
+  vbUpdateProgress(_vbIsKp()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
   setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 // Cache PERSISTEN nama produk tiap grup manual (per index produk), bertahan
@@ -20316,7 +20324,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     await _vbRenderBulkOutput(allResults,produkList,true,false);
     _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     doneCard('v5','va5',(allResults.length*3)+' script bulk');
-    vbUpdateProgress(6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+    vbUpdateProgress(_vbIsKp()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     if(allResults.length<produkList.length){
       // FITUR BARU (permintaan user): dulu di sini cuma toast "sisanya bisa
       // dicoba generate ulang" — maksudnya generate ULANG SEMUA dari nol,
