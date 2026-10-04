@@ -13,6 +13,21 @@ self.addEventListener('activate', function (event) {
 });
 
 self.addEventListener('fetch', function (event) {
+  // BARU (Okt 2026): video/foto pratinjau sekarang file terpisah di folder
+  // media/. Video dimuat browser pakai request Range (potongan byte), jadi
+  // dibiarkan ditangani browser sendiri (tanpa respondWith) supaya cache
+  // HTTP-nya jalan normal dan video tidak diunduh ulang setiap kali.
+  var url = new URL(event.request.url);
+  if (url.origin === self.location.origin &&
+      url.pathname.indexOf('/media/') !== -1) {
+    return;
+  }
+  if (event.request.headers.has('range') ||
+      event.request.destination === 'video' ||
+      event.request.destination === 'audio') {
+    return;
+  }
+
   // FIX (audit refresh, "app masih versi lama setelah refresh"): untuk
   // dokumen HTML utama (index.html — SATU-SATUNYA file app ini, semua
   // CSS/JS inline di dalamnya), fetch dipaksa cache:'no-store' supaya
