@@ -5833,18 +5833,20 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </div>
   </div>
 
-  <!-- PERGERAKAN KAMERA (permintaan user, Okt 2026) — KHUSUS Raw Asset (kp).
-       Step 6 untuk Raw Asset; Script / Dialog (id v5) jadi step 7 di mode ini
-       (mode lain tetap: Script / Dialog = step 6, kartu ini dilewati). Cuma 1
+  <!-- PERGERAKAN KAMERA (permintaan user, Okt 2026) — untuk Start Frame (satu),
+       Frame Asset (aset), dan Raw Asset (kp). Step 6 di ketiga mode ini; Script / Dialog
+       (id v5) jadi step 7 (mode lain tetap: Script / Dialog = step 6, kartu ini dilewati).
+       Sama seperti Raw Asset: cuma muncul di prompt video, TIDAK dikirim ke AI penulis skrip. Cuma 1
        opsi: "juyyy". Kalau dipilih, prompt Hook/Story/CTA otomatis ditambah
        "camera_movement: ..." (lihat VB_CAM_MOVES & _vbBuildFlowText). -->
   <div class="wcard pending" id="vcam">
     <div class="whead"><div class="wnum">6</div><div class="wtitle">Pergerakan Kamera</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vacam"></div></div>
     <div class="wbody">
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih gaya pergerakan kamera. Prompt Hook, Story, dan CTA otomatis dapat tambahan <code>camera_movement</code> sendiri-sendiri.</p>
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih gaya pergerakan kamera, atau lewati kalau tidak perlu. Prompt Hook, Story, dan CTA otomatis dapat tambahan <code>camera_movement</code> sendiri-sendiri. Hasilnya cuma muncul di prompt video, tidak dikirim ke AI penulis skrip.</p>
       <div class="chips" id="vcam-chips">
         <div class="chip" onclick="vbPickCam('juyyy',this,'juyyy')">juyyy</div>
       </div>
+      <button type="button" class="btn sm ghost" style="width:100%;margin-top:12px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
     </div>
   </div>
 
@@ -9612,7 +9614,7 @@ function fOpenStepJump(pageId){
     // Tidak ditampilkan di daftar Lompat ke step (tab foto).
     if(pageId==='foto' && c.id==='f2') return false;
     // Pergerakan Kamera cuma ada di Raw Asset.
-    if(pageId==='video' && c.id==='vcam' && typeof VB!=='undefined' && VB && VB.refMode!=='kp') return false;
+    if(pageId==='video' && c.id==='vcam' && typeof VB!=='undefined' && VB && !(VB.refMode==='kp'||VB.refMode==='satu'||VB.refMode==='aset')) return false;
     // FIX: kalau user cuma pilih Karakter Sheet + Outfit (tanpa foto produk),
     // f3 \"Cara Tampil Produk\" memang tidak relevan. Flow sengaja menandainya
     // 'done' (lihat cabang \"Tidak ada foto produk\" di fKonfirmRef) supaya
@@ -15454,7 +15456,10 @@ function vbPickRefMode(mode){
   let normalFooter=document.getElementById('vb-mode-normal-footer');
   if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='mirrorselfie');
   if(justSwitchedToKp)vbMode3ResetSteps();
+  // try/catch: dipanggil juga saat app baru dimuat, ketika STEP_PAUSE_STACK/VB bisa belum terdefinisi (TDZ).
+  try{_vbReconcileCamStep();}catch(e){}
   vbSyncStep6Mode3();
+  try{_vbRefreshProgressTotal();}catch(e){}
 }
 // Reset ke step 1 (Nama Produk) tiap kali Mode 3 dipilih ulang
 function vbMode3ResetSteps(){
@@ -15470,14 +15475,14 @@ function vbMode3ResetSteps(){
   let b1=document.getElementById('vb-mode3-lokasi-bar'); if(b1)b1.innerHTML='';
   let b2=document.getElementById('vb-mode3-lighting-bar'); if(b2)b2.innerHTML='';
 }
-// Atur tampilan Step 6 (Script / Dialog) sesuai mode referensi foto:
+// Atur tampilan Step 6/7 (Script / Dialog) sesuai mode referensi foto:
 //  - bukan Raw Asset  → langsung pemilih "Kami Bantu Isi / Tulis Manual".
 //  - Raw Asset        → Lokasi → Lighting dulu, baru pemilih script muncul.
 function vbSyncStep6Mode3(){
-  // Nomor tampilan kartu Script / Dialog: 7 di Raw Asset (ada step Pergerakan Kamera), 6 di mode lain.
+  // Nomor tampilan kartu Script / Dialog: 7 di Start Frame/Frame Asset/Raw Asset (ada step Pergerakan Kamera), 6 di mode lain.
   let _w5=document.querySelector('#v5 > .whead .wnum');
   if(_w5){
-    let _n5=_vbIsKp()?'7':'6';
+    let _n5=_vbHasCam()?'7':'6';
     if(_w5._origText)_w5._origText=_n5;
     let _c5=document.getElementById('v5');
     if(!(_c5&&_c5.classList.contains('done')))_w5.textContent=_n5;
@@ -15595,12 +15600,15 @@ var VB_STEP_META={
   vcam:[6,'Pergerakan Kamera'],
   v5:[6,'Script / Dialog']
 };
-// Raw Asset (kp) punya 1 step ekstra (Pergerakan Kamera = step 6), jadi Script / Dialog
+// Start Frame, Frame Asset, dan Raw Asset punya 1 step ekstra (Pergerakan Kamera = step 6), jadi Script / Dialog
 // jadi step 7 di mode itu; mode lain tetap step 6.
 // AMAN dipanggil kapan saja, termasuk sebelum `let VB` dieksekusi (vbUpdateProgress sempat dipanggil
 // saat app baru dimuat) — membaca VB di fase itu akan melempar ReferenceError.
 function _vbIsKp(){try{return VB.refMode==='kp';}catch(e){return false;}}
-Object.defineProperty(VB_STEP_META,'v5',{enumerable:true,configurable:true,get:function(){return [(_vbIsKp()?7:6),'Script / Dialog'];}});
+// Step Pergerakan Kamera (step 6) tampil di Start Frame, Frame Asset, dan Raw Asset (permintaan user, Okt 2026).
+// Mode lain (mis. Percobaan) tetap tanpa step ini.
+function _vbHasCam(){try{return VB.refMode==='kp'||VB.refMode==='satu'||VB.refMode==='aset';}catch(e){return false;}}
+Object.defineProperty(VB_STEP_META,'v5',{enumerable:true,configurable:true,get:function(){return [(_vbHasCam()?7:6),'Script / Dialog'];}});
 // Teks camera_movement per pilihan, urutan: [Hook, Story, CTA].
 var VB_CAM_MOVES={
   juyyy:[
@@ -15619,6 +15627,56 @@ function vbPickCamConfirmed(val,label){
   let _wasEdit=doneCard('vcam','vacam',label);
   vbAdvanceStep(_wasEdit,'v5',7,'Script / Dialog');
   vbSyncStep6Mode3();
+}
+// Lewati step Pergerakan Kamera: camMove kosong -> prompt tanpa baris camera_movement.
+function vbSkipCam(){
+  document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
+  let cb=document.getElementById('vcam-confirmbar'); if(cb)cb.remove();
+  vbPickCamConfirmed('','Tanpa gerakan kamera');
+}
+// Jaga konsistensi step kamera saat user GANTI MODE di tengah alur (lewat step 1 / Riwayat).
+//  - Pindah KE mode yang punya step kamera, padahal user sudah sampai Script tanpa pernah
+//    melewati step kamera -> kartu kamera ditandai selesai "Tanpa gerakan kamera" (bisa diubah
+//    lewat Lompat ke step). VB.camMove sengaja tidak disentuh (bisa berasal dari Riwayat).
+//  - Pindah KE mode tanpa step kamera, padahal kartu kamera sedang terbuka/tertunda untuk
+//    dilanjutkan -> kartu kamera dibatalkan dan Script / Dialog yang jadi step aktif.
+function _vbReconcileCamStep(){
+  let cam=document.getElementById('vcam'), v5=document.getElementById('v5');
+  if(!cam||!v5)return;
+  let stack=(typeof STEP_PAUSE_STACK!=='undefined'&&STEP_PAUSE_STACK.video)?STEP_PAUSE_STACK.video:[];
+  if(_vbHasCam()){
+    if(cam.classList.contains('pending')&&!v5.classList.contains('pending')){
+      // doneCard() memanggil fResumePausedStep() — amankan tumpukan pause supaya tidak ikut ter-pop.
+      let saved=stack.slice(); stack.length=0;
+      try{ doneCard('vcam','vacam',VB.camMove?VB.camMove:'Tanpa gerakan kamera'); }
+      finally{ saved.forEach(function(x){stack.push(x);}); }
+    }
+  }else{
+    let idx=stack.indexOf('vcam');
+    let camOpen=!cam.classList.contains('done')&&!cam.classList.contains('pending')&&!cam.classList.contains('hidden');
+    if(idx>=0||camOpen){
+      cam.classList.remove('hidden','anim-in');
+      cam.classList.add('pending');
+      document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
+      let cb=document.getElementById('vcam-confirmbar'); if(cb)cb.remove();
+      if(idx>=0)stack[idx]='v5';
+      if(v5.classList.contains('pending')){
+        v5.classList.remove('pending');
+        if(idx>=0)v5.classList.add('hidden');
+      }
+    }
+  }
+}
+// Samakan angka total di header progres ("dari 6/7") dengan mode terpilih, tanpa memicu animasi pulse.
+function _vbRefreshProgressTotal(){
+  let lbl=document.getElementById('vb-progress-label'); if(!lbl)return;
+  let sp=lbl.querySelectorAll('span'); if(sp.length<2)return;
+  let cur=parseInt(sp[0].textContent,10); if(isNaN(cur))return;
+  let total=_vbHasCam()?7:6;
+  if(sp[1].textContent===String(total))return;
+  sp[1].textContent=String(total);
+  let fill=document.getElementById('vb-progress-fill');
+  if(fill)fill.style.width=Math.min(100,Math.round((cur/total)*100))+'%';
 }
 // FIX BUG "STEP JADI TERTUMPUK / KAYAK DIFOTO" (Video): user lagi di step N,
 // lalu lewat "Lompat ke step" balik edit step M (M < N-1). doneCard() akan
@@ -15657,7 +15715,7 @@ function vbAdvanceStep(wasEdit,nextId,stepNum,stepName){
 }
 
 function vbUpdateProgress(stepNum,stepName){
-  let total=_vbIsKp()?7:6;
+  let total=_vbHasCam()?7:6;
   let pct=Math.round((stepNum/total)*100);
   let fill=document.getElementById('vb-progress-fill');
   let label=document.getElementById('vb-progress-label');
@@ -16024,7 +16082,7 @@ function vbPickAccent(val,el,label){
 function vbPickAccentConfirmed(val,label){
   VB.accent=val;VB.accentLabel=label;
   let _wasEdit=doneCard('v4','va4',label);
-  if(VB.refMode==='kp')vbAdvanceStep(_wasEdit,'vcam',6,'Pergerakan Kamera');
+  if(_vbHasCam())vbAdvanceStep(_wasEdit,'vcam',6,'Pergerakan Kamera');
   else vbAdvanceStep(_wasEdit,'v5',6,'Script / Dialog');
   vbSyncStep6Mode3();
 }
@@ -16126,7 +16184,7 @@ function vbManualLiveInit(){
     vbManualRenderGroups(count);
   }
   doneCard('v5','va5','Isi manual sendiri');
-  vbUpdateProgress(_vbIsKp()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
+  vbUpdateProgress(_vbHasCam()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
   setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 // Cache PERSISTEN nama produk tiap grup manual (per index produk), bertahan
@@ -20324,7 +20382,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     await _vbRenderBulkOutput(allResults,produkList,true,false);
     _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     doneCard('v5','va5',(allResults.length*3)+' script bulk');
-    vbUpdateProgress(_vbIsKp()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+    vbUpdateProgress(_vbHasCam()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     if(allResults.length<produkList.length){
       // FITUR BARU (permintaan user): dulu di sini cuma toast "sisanya bisa
       // dicoba generate ulang" — maksudnya generate ULANG SEMUA dari nol,
@@ -22797,7 +22855,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // FITUR BARU (permintaan user, Okt 2026): khusus Raw Asset, tambah camera_movement
   // sesuai kartu — Hook (idx%3===0), Story (1), CTA (2). Ditaruh tepat setelah blok
   // dialogue/script, SEBELUM kalimat overlay Hook & larangan icon CTA (tetap paling akhir).
-  if(VB.refMode==='kp'&&VB.camMove&&typeof idx==='number'&&VB_CAM_MOVES[VB.camMove]){
+  if(_vbHasCam()&&VB.camMove&&typeof idx==='number'&&VB_CAM_MOVES[VB.camMove]){
     let _camVal=VB_CAM_MOVES[VB.camMove][idx%3];
     if(_camVal)flowText+=' camera_movement: '+_camVal;
   }
