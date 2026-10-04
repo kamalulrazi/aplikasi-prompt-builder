@@ -4185,7 +4185,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.10</div>
+  <div class="splash-version" id="splash-version">v11.13</div>
 </div>
 <script>
   (function(){
@@ -6235,7 +6235,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.10 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.13 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -19301,7 +19301,7 @@ const VB_TARGETED_FIX_SKIP_MODELS=['sonnet'];       // kunci PB_AI_MODELS yang T
 const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian — HANYA untuk perilaku lama tanpa rantai (model utama bukan Gemini)
 const VB_TARGETED_FIX_INCLUDE_LONG=true;             // true = bagian KEPANJANGAN juga ditulis ulang ("remove N"); false = hanya kependekan. 2 Okt 2026 (permintaan user): true. Potong lokal (_vbHardEnforceMaxWords) tetap jadi cadangan.
 const VB_TARGETED_FIX_SYSTEM=
-  'You are a professional content creator. Adjust the word count of the script I give you. Keep the context, mood and style of the script. Write in Indonesian. NEVER mention product material, limited stock, or keranjang kuning. Only add or cut words as needed.\n\n'
+  'You are a professional content creator. Adjust the word count of the script I give you with the SMALLEST possible edit. Do NOT rewrite it: keep every existing word in its original order and wording. To add words, only INSERT the missing number of new words (or short phrases) into the existing text. To cut words, only DELETE the extra number of words from the existing text. Do not rephrase, replace, or reorder anything else. Keep the context, mood and style of the script. Write in Indonesian. NEVER mention product material, limited stock, or keranjang kuning.\n\n'
  +'Reply ONLY with a JSON array, copy "id" exactly, "teks" contains the FULL rewritten text:\n'
  +'[{"id":"...","teks":"..."}]';
 function _vbTargetedFixActive(){
@@ -19384,6 +19384,17 @@ async function _vbFixRunStep(step,msg,maxTok,onWait){
   if(!out||!out.resp||!out.resp.ok)return{apiFail:true,status:(out&&out.resp&&out.resp.status)||0,res:null};
   return{apiFail:false,status:out.resp.status||200,res:_vbParseFixJson(out.rawText)};
 }
+// EDIT MINIMAL (4 Okt 2026, permintaan user: perbaikan kata jangan menulis ulang skrip). Hasil AI hanya diterima kalau
+// kata-kata teks lama TETAP ADA dan berurutan (kalau menambah kata), atau kata-kata hasil seluruhnya berasal dari teks lama
+// dan berurutan (kalau mengurangi kata). Huruf besar-kecil dan tanda baca diabaikan. Selain itu ditolak -> teks lama dipertahankan.
+function _vbIsMinimalEdit(oldT,newT){
+  const tok=function(t){return String(t||'').toLowerCase().split(/\s+/).map(function(w){return w.replace(/[^\p{L}\p{N}]+/gu,'');}).filter(Boolean);};
+  const isSub=function(a,b){let i=0;for(let j=0;j<b.length&&i<a.length;j++){if(a[i]===b[j])i++;}return i===a.length;};
+  const o=tok(oldT),n=tok(newT);
+  if(n.length>o.length)return isSub(o,n);
+  if(n.length<o.length)return isSub(n,o);
+  return true;
+}
 async function _vbRepairOutOfRange(arr,batch,range,onWait){
   const KEYS=['hook','story','cta'];
   const wc=function(t){return String(t||'').trim().split(/\s+/).filter(Boolean).length;};
@@ -19421,7 +19432,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
       const cur=arr[it.pi][it.k];
       const n=wc(cur);
       const diff=target-n;
-      return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+cur+'\nCurrently '+n+' words, '+(diff>0?'add '+diff:'remove '+(-diff));
+      return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+cur+'\nCurrently '+n+' words, '+(diff>0?'add '+diff+' (only insert words, keep all existing words unchanged)':'remove '+(-diff)+' (only delete words, keep all other words unchanged)');
     }).join('\n\n');
     // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
     const maxTok=Math.min(8192,600+pending.length*130);
@@ -19457,7 +19468,8 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait){
         if(!nt)return;
         const cur=arr[it.pi][it.k];
         // Terima hanya kalau benar-benar lebih dekat ke range daripada teks sebelumnya.
-        if(dist(wc(nt))<dist(wc(cur)))arr[it.pi][it.k]=nt;
+        // (4 Okt 2026, permintaan user) DAN hanya kalau ini edit minimal: kata lama utuh & berurutan, AI cuma menyisipkan/menghapus kata.
+        if(dist(wc(nt))<dist(wc(cur))&&_vbIsMinimalEdit(cur,nt))arr[it.pi][it.k]=nt;
       });
     }
     pending=pending.filter(function(it){return dist(wc(arr[it.pi][it.k]))>0;});
