@@ -4185,7 +4185,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.43</div>
+  <div class="splash-version" id="splash-version">v11.45</div>
 </div>
 <script>
   (function(){
@@ -6240,7 +6240,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.43 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.45 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13032,6 +13032,8 @@ function _vbUnpackState(json){
       // Entri Riwayat lama (dibuat sebelum step Pergerakan Kamera ada) tidak punya camMove —
       // jangan sampai nilai camMove dari sesi yang sedang aktif ikut menempel ke entri itu.
       if(!('camMove' in obj.VB))VB.camMove='';
+      // Entri Riwayat lama (sebelum fitur "Gaya khas aksen") tidak punya accentStyle — jangan sampai gaya sesi aktif menempel ke entri itu.
+      if(!('accentStyle' in obj.VB)){VB.accentStyle='';VB.accentStyleLabel='';VB.accentStyleFor='';}
     }
     if(typeof VB_BULK_ITEMS!=='undefined')VB_BULK_ITEMS=obj.VB_BULK_ITEMS||[];
     if(typeof VB_BULK_PRODUCTS!=='undefined')VB_BULK_PRODUCTS=obj.VB_BULK_PRODUCTS||[];
@@ -16234,7 +16236,17 @@ var VB_NADA_AKSEN_HINT={
     'casual Jakarta accent':'full Jakarta gaul rhythm.'}
 };
 var VB_AKSEN_STYLE_PENDING='';
-function vbRenderAksenStyleChips(accentVal){
+function _vbAksenLabelFor(val,label){
+  if(label)return label;
+  if(VB&&VB.accent===val&&VB.accentLabel)return VB.accentLabel;
+  var out='';
+  document.querySelectorAll('#v4 .chips .chip').forEach(function(c){
+    var oc=c.getAttribute&&c.getAttribute('onclick');
+    if(!out&&oc&&oc.indexOf("'"+val+"'")>-1)out=c.textContent;
+  });
+  return out||val;
+}
+function vbRenderAksenStyleChips(accentVal,accentLabel){
   try{
     var wrap=document.getElementById('v4-style-wrap'),box=document.getElementById('v4-style-chips');
     if(!wrap||!box)return;
@@ -16252,6 +16264,10 @@ function vbRenderAksenStyleChips(accentVal){
         box.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
         VB_AKSEN_STYLE_PENDING=was?'':it[0];
         if(!was)d.classList.add('sel');
+        // Kartu Aksen yang dibuka ulang lewat "ubah" tidak punya tombol konfirmasi sampai ada chip dipilih —
+        // munculkan lagi supaya perubahan gaya benar-benar tersimpan.
+        var _lbl=_vbAksenLabelFor(accentVal,accentLabel);
+        fShowConfirm('v4',d,function(){vbPickAccentConfirmed(accentVal,_lbl);});
       };
       box.appendChild(d);
     });
@@ -16272,7 +16288,7 @@ function _vbAksenToneRule(accent,pitch){
 function vbPickAccent(val,el,label){
   document.querySelectorAll('#v4 .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
-  vbRenderAksenStyleChips(val);
+  vbRenderAksenStyleChips(val,label);
   fShowConfirm('v4', el, function(){ vbPickAccentConfirmed(val,label); });
 }
 function vbPickAccentConfirmed(val,label){
@@ -16281,7 +16297,7 @@ function vbPickAccentConfirmed(val,label){
   let _asHit=null;
   (VB_AKSEN_STYLE[val]||[]).forEach(function(it){if(it[0]===VB_AKSEN_STYLE_PENDING)_asHit=it;});
   VB.accentStyle=_asHit?_asHit[0]:'';VB.accentStyleLabel=_asHit?_asHit[1]:'';VB.accentStyleFor=_asHit?val:'';
-  VB_AKSEN_STYLE_PENDING='';
+  vbRenderAksenStyleChips(val); // selaraskan tampilan chip dengan pilihan yang tersimpan
   vbRenderSapaanChips(); // chip sapaan mengikuti aksen
   let _wasEdit=doneCard('v4','va4',_asHit?(label+' · '+_asHit[1]):label);
   if(_vbHasCam())vbAdvanceStep(_wasEdit,'vcam',6,'Pergerakan Kamera');
@@ -19464,7 +19480,10 @@ function _vbSapaanPronoun(val){
   if(!v)return '';
   if(/\bkak(?:ak)?\b/.test(v))return 'ak';
   var hit='';
-  Object.keys(VB_SAPAAN_BY_LOGAT).forEach(function(k){
+  var cur=(typeof VB!=='undefined'&&VB)?String(VB.accent||VB.accentLabel||'').trim():'';
+  var keys=Object.keys(VB_SAPAAN_BY_LOGAT);
+  if(VB_SAPAAN_BY_LOGAT[cur])keys=[cur].concat(keys.filter(function(k){return k!==cur;})); // aksen yang sedang dipilih dicek dulu
+  keys.forEach(function(k){
     VB_SAPAAN_BY_LOGAT[k].forEach(function(it){if(!hit&&it[0]===v)hit=it[1];});
   });
   return hit;
@@ -19509,6 +19528,7 @@ function vbResetSapaan(){
   let inp=document.getElementById('vb-sapaan-input'); if(inp)inp.value='';
   let wrap=document.getElementById('vb-sapaan-chips');
   if(wrap)wrap.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
+  vbRenderSapaanChips(); // VB sudah direset (aksen kosong) -> chip kembali ke daftar netral
 }
 function vbPickTargetAudiencePreset(inputId,presetKey,el){
   if(!VB_TARGET_AUDIENCE_PRESETS[presetKey]) return;
@@ -19562,10 +19582,10 @@ function _vbSapaanRule(){
   var g=(typeof VB_SAPAAN==='string')?VB_SAPAAN.replace(/[\r\n"]+/g,' ').trim():'';
   if(!g)return '';
   var pr=_vbSapaanPronoun(g);
-  var r=' GREETING: if DATA has a Greeting, call the viewer by it as a natural mid-sentence address (never the first word of the HOOK), in at most two of the three parts and at most once per part; keep it exactly as written, in the same voice as the Accent line.';
-  if(pr==='gl')r+=' The Greeting is a Jakarta-style address, so speak with gue/lo and never aku/kamu.';
-  else if(pr==='au')r+=' The Greeting is a Batak-style address, so speak with aku/kau and never gue/lo/gw.';
-  else if(pr==='ak')r+=' The Greeting calls for aku/kamu; never use gue/lo/gw.';
+  var r=' GREETING: if DATA has a Greeting, use it exactly as written as a mid-sentence address (never the first word of the HOOK), at most once per part and in at most two parts.';
+  if(pr==='gl')r+=' Speak with gue/lo, never aku/kamu.';
+  else if(pr==='au')r+=' Speak with aku/kau, never gue/lo/gw.';
+  else if(pr==='ak')r+=' Speak with aku/kamu, never gue/lo/gw.';
   return r;
 }
 function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age){
@@ -19975,7 +19995,7 @@ function _vbFixRegister(prod){
     if(!prod[k])return;
     prod[k]=prod[k]
       .replace(/\b(gue|gua|gw)\b/gi,function(m){return m[0]===m[0].toUpperCase()?'Aku':'aku';})
-      .replace(/\b(lo|lu|elo)\b/gi,function(m){return m[0]===m[0].toUpperCase()?'Kamu':'kamu';});
+      .replace(/\b(lo|lu|elo)\b/gi,function(m){var _kau=(_pr==='au');return m[0]===m[0].toUpperCase()?(_kau?'Kau':'Kamu'):(_kau?'kau':'kamu');});
   });
 }
 // Klaim: kata bernada klaim fungsi/fisik/tampilan di Story & CTA yang TIDAK ada di nama produk atau keunggulan.
@@ -23564,6 +23584,7 @@ function vbResetNow(){
     document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
     document.querySelectorAll('#v3 .chips .chip').forEach(c=>c.classList.remove('sel'));
     document.querySelectorAll('#v4 .chips .chip').forEach(c=>c.classList.remove('sel'));
+    try{VB_AKSEN_STYLE_PENDING='';vbRenderAksenStyleChips('');}catch(eAs){} // chip "Gaya khas aksen" ikut disembunyikan
     // Step 4 Motion Karakter (id vmotion, di luar daftar v1-v5 di atas): reset kartu,
     // pilihan chip, kolom isi sendiri, & counter-nya. VB.motion sudah '' lewat reset VB.
     (function(){
