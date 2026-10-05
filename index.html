@@ -4185,7 +4185,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.41</div>
+  <div class="splash-version" id="splash-version">v11.42</div>
 </div>
 <script>
   (function(){
@@ -6236,7 +6236,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.41 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.42 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -15972,7 +15972,7 @@ function _vbNadaLine(pitch){
     return 'TONE joking: one funny beat per part from a relatable daily situation (exaggeration, harmless self-own, odd comparison), on the last words, never explained. Gentle CTA; benefit stays clear.';
   }
   if(k==='gaul'||k==='casual slang'){
-    return 'TONE gaul: social-media native chatting with a close friend. Current slang (auto, gaskeun, kuy, fix, receh), max 2 per part; the accent outranks slang.';
+    return 'TONE gaul: social-media native chatting with a close friend. Use current slang only from the product\'s SLANG options in DATA (if none is listed, pick your own current slang and never reuse the same slang across products), max 2 per part, and skip any that does not fit naturally; the accent outranks slang.';
   }
   if(k==='toxic'||k==='snarky'){
     return 'TONE toxic: savage, unfiltered friend who insults the viewer. EVERY part has a clear put-down or sharp sarcasm aimed at the viewer\'s habit, choice or situation, using blunt everyday words (norak, kampungan, jadul, lebay, alay, ceroboh, sok tau). The viewer may feel offended; that is the point. Never target body, looks, income, religion, ethnicity, disability or family. Benefit stays clear; CTA nonchalant but stinging.';
@@ -19543,9 +19543,23 @@ function _vbDeal(list,n){
   }
   return out;
 }
-function _vbPickVariation(n){
-  var h=_vbDeal(VB_HOOK_ANGLES,n),out=[];
-  for(var i=0;i<n;i++)out.push({hook:h[i]});
+// v11.42 (5 Okt 2026): slang nada Gaul diundi KODE per produk (bukan daftar tetap di prompt) supaya kata yang sama tidak dipakai berulang.
+// Panjang daftar = 18 (kelipatan 3) supaya tiap kantong acak habis tepat per 3 kata; tiap produk dapat 3 pilihan yang tidak bertabrakan dengan produk lain di kantong yang sama.
+// Sengaja tanpa kata tekanan/promo (gercep, buruan, cuan, sultan) dan tanpa kata khas satu logat.
+var VB_SLANG_POOL=['auto','gaskeun','kuy','fix','receh','gas','santuy','spill','relate','mager','kepo','gabut','baper','kece','mantul','gokil','sat set','anti ribet'];
+function _vbPickSlang(n,k){
+  k=k||3;
+  var d=_vbDeal(VB_SLANG_POOL,n*k),out=[];
+  for(var i=0;i<n;i++){
+    var chunk=[];
+    d.slice(i*k,i*k+k).forEach(function(w){if(chunk.indexOf(w)===-1)chunk.push(w);});
+    out.push(chunk);
+  }
+  return out;
+}
+function _vbPickVariation(n,withSlang){
+  var h=_vbDeal(VB_HOOK_ANGLES,n),sl=withSlang?_vbPickSlang(n,3):null,out=[];
+  for(var i=0;i<n;i++)out.push({hook:h[i],slang:sl?sl[i]:null});
   return out;
 }
 // ── PERBAIKAN SKRIP KEPENDEKAN — 1 PANGGILAN SAJA (permintaan user, 29 Sep 2026)
@@ -20013,7 +20027,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // mana punya produk yang mana waktu beberapa gambar dikirim sekaligus.
   let _imgCounter=0;
   const _maxImgThisCall=_pbMaxImages(); // FIX: label [Image N] & lampiran foto dibatasi sesuai batas model (Groq 3 / Gemini 16)
-  const _vbVar=extraNote?null:_vbPickVariation(batch.length); // v10: sudut Hook & momen Story diundi kode (hanya generate baru, bukan revisi)
+  const _vbTk=String(VB.pitch||VB.pitchLabel||'').trim(),_vbIsGaul=(_vbTk==='gaul'||_vbTk==='casual slang');
+  const _vbVar=extraNote?null:_vbPickVariation(batch.length,_vbIsGaul); // v10: sudut Hook & momen Story diundi kode (hanya generate baru, bukan revisi)
   let produkListText=batch.map((p,i)=>{
     let line=(i+1)+'. '+_vbCleanField(p.nama,160)+(p.keunggulan?' — advantages: '+_vbCleanField(p.keunggulan,400):'')+(p.topik?' — STORY focus: '+_vbCleanField(p.topik,400):'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
@@ -20022,7 +20037,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // prompt video (lihat _vbOverlaySentence).
     let _hookDir=_vbHookDirectiveInline(p.hookType,p.hookCustom);
     if(_hookDir)line+=' — HOOK style: '+_hookDir;
-    if(_vbVar){if(!_hookDir)line+=' — HOOK angle: '+_vbVar[i].hook;}
+    if(_vbVar){if(!_hookDir)line+=' — HOOK angle: '+_vbVar[i].hook;if(_vbVar[i].slang&&_vbVar[i].slang.length)line+=' — SLANG options: '+_vbVar[i].slang.join(', ');}
     if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
       line+=' [Image '+_imgCounter+']';
