@@ -5522,6 +5522,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
 <div class="wrap">
   <div class="sec-title" style="margin-top:20px;">Builder Prompt Video</div>
   <div class="sec-desc">Isi karakter suara & dialog — prompt JSON video terbentuk otomatis.</div>
+  <ol class="pb-tl" id="pb-tl" aria-label="Alur langkah"></ol>
 
   <!-- V1: REFERENSI FOTO -->
   <div class="wcard" id="v1">
@@ -5739,6 +5740,42 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </div>
   </div>
 
+  <!-- PERGERAKAN KAMERA + VISUAL HOOK (permintaan user, Okt 2026) — untuk Start Frame (satu),
+       Frame Asset (aset), dan Raw Asset (kp). Step 6 di ketiga mode ini; Script / Dialog
+       (id v5) jadi step 7 (mode lain tetap: Script / Dialog = step 6, kartu ini dilewati).
+       Pilihan chip DIRENDER OTOMATIS sesuai mode (lihat VB_CAM_OPTS, VB_CAM_HOOK_OPTS &
+       _vbRenderCamChips). Ada 2 baris pilihan: (1) Gerakan Kamera -> dipakai di kartu Hook/Story/CTA
+       sebagai "camera_movement: ...", (2) Visual Hook -> HANYA dipakai di kartu Hook (1-3 detik pertama)
+       sebagai "visual_hook: ...". Keduanya opsional dan cuma muncul di prompt video, TIDAK dikirim ke
+       AI penulis skrip (lihat _vbBuildFlowText). -->
+  <div class="wcard pending" id="vcam">
+    <div class="whead"><div class="wnum">6</div><div class="wtitle">Pergerakan Kamera</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vacam"></div></div>
+    <div class="wbody">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih gaya pergerakan kamera dan/atau Visual Hook, atau lewati kalau tidak perlu. Prompt Hook, Story, dan CTA otomatis dapat tambahan <code>camera_movement</code> sendiri-sendiri. Visual Hook hanya masuk ke prompt Hook. Hasilnya cuma muncul di prompt video, tidak dikirim ke AI penulis skrip.</p>
+      <p id="vcam-modehint" style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 12px;line-height:1.7;"></p>
+      <div style="font-size:var(--fs-sm);font-weight:700;margin:0 0 8px;">Gerakan Kamera</div>
+      <div class="chips" id="vcam-chips"></div>
+      <div style="font-size:var(--fs-sm);font-weight:700;margin:16px 0 4px;">Visual Hook <span style="font-weight:400;color:var(--muted);">(khusus kartu Hook, 1–3 detik pertama)</span></div>
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 8px;line-height:1.6;">Gerakan mendadak di awal video supaya penonton berhenti scroll. Klik lagi untuk batal pilih.</p>
+      <div class="chips" id="vcam-hook-chips"></div>
+      <button type="button" class="btn sm" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
+      <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
+    </div>
+  </div>
+
+  <!-- VFORK: CARA BIKIN SCRIPT (percabangan, Okt 2026) — pilihan di sini menentukan step berikutnya.
+       "Kami Bantu Isi" memunculkan Nada Bicara, Pembawaan, Aksen, Info Produk; "Tulis Manual Sendiri"
+       langsung ke Tulis Script (nada & aksen otomatis Ramah/Netral). Logika: blok #pb-fork-js di akhir file. -->
+  <div class="wcard pending" id="vfork">
+    <div class="whead"><div class="wnum">3</div><div class="wtitle">Cara Bikin Script</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vafork"></div></div>
+    <div class="wbody">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Karakter kakak nanti akan ngomong apa? Step berikutnya menyesuaikan pilihan ini.</p>
+      <button type="button" class="pb-fk" id="pb-fk-ai" onclick="pbSelectPath('ai')"><b>Kami Bantu Isi</b><small>Kami yang tulis scriptnya dari info produk kamu.</small><span>+ Nada Bicara · Pembawaan · Aksen · Info Produk</span><em class="pb-fk-tot"></em></button>
+      <button type="button" class="pb-fk" id="pb-fk-manual" onclick="pbSelectPath('manual')"><b>Tulis Manual Sendiri</b><small>Kamu ketik sendiri dialog Hook, Cerita, dan CTA.</small><span>+ Tulis Script</span><em class="pb-fk-tot"></em></button>
+      <button type="button" class="btn sm" id="pb-fk-go" style="width:100%;margin-top:6px;" disabled onclick="pbConfirmPath()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
+    </div>
+  </div>
+
   <!-- V3: NADA BICARA (PITCH) -->
   <div class="wcard pending" id="v3">
     <div class="whead"><div class="wnum">3</div><div class="wtitle">Nada Bicara</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va3"></div></div>
@@ -5825,29 +5862,6 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAccentCustom()">Konfirmasi →</button>
       </div>
-    </div>
-  </div>
-
-  <!-- PERGERAKAN KAMERA + VISUAL HOOK (permintaan user, Okt 2026) — untuk Start Frame (satu),
-       Frame Asset (aset), dan Raw Asset (kp). Step 6 di ketiga mode ini; Script / Dialog
-       (id v5) jadi step 7 (mode lain tetap: Script / Dialog = step 6, kartu ini dilewati).
-       Pilihan chip DIRENDER OTOMATIS sesuai mode (lihat VB_CAM_OPTS, VB_CAM_HOOK_OPTS &
-       _vbRenderCamChips). Ada 2 baris pilihan: (1) Gerakan Kamera -> dipakai di kartu Hook/Story/CTA
-       sebagai "camera_movement: ...", (2) Visual Hook -> HANYA dipakai di kartu Hook (1-3 detik pertama)
-       sebagai "visual_hook: ...". Keduanya opsional dan cuma muncul di prompt video, TIDAK dikirim ke
-       AI penulis skrip (lihat _vbBuildFlowText). -->
-  <div class="wcard pending" id="vcam">
-    <div class="whead"><div class="wnum">6</div><div class="wtitle">Pergerakan Kamera</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vacam"></div></div>
-    <div class="wbody">
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih gaya pergerakan kamera dan/atau Visual Hook, atau lewati kalau tidak perlu. Prompt Hook, Story, dan CTA otomatis dapat tambahan <code>camera_movement</code> sendiri-sendiri. Visual Hook hanya masuk ke prompt Hook. Hasilnya cuma muncul di prompt video, tidak dikirim ke AI penulis skrip.</p>
-      <p id="vcam-modehint" style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 12px;line-height:1.7;"></p>
-      <div style="font-size:var(--fs-sm);font-weight:700;margin:0 0 8px;">Gerakan Kamera</div>
-      <div class="chips" id="vcam-chips"></div>
-      <div style="font-size:var(--fs-sm);font-weight:700;margin:16px 0 4px;">Visual Hook <span style="font-weight:400;color:var(--muted);">(khusus kartu Hook, 1–3 detik pertama)</span></div>
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 8px;line-height:1.6;">Gerakan mendadak di awal video supaya penonton berhenti scroll. Klik lagi untuk batal pilih.</p>
-      <div class="chips" id="vcam-hook-chips"></div>
-      <button type="button" class="btn sm" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
-      <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
     </div>
   </div>
 
@@ -15819,7 +15833,7 @@ function vbPickCamConfirmed(val,hookVal){
   VB.camHook=hookVal||'';
   _vbCamSyncPend();
   let _wasEdit=doneCard('vcam','vacam',_vbCamSummary());
-  vbAdvanceStep(_wasEdit,'v5',7,'Script / Dialog');
+  vbAdvanceStep(_wasEdit,'vfork',4,'Cara Bikin Script');
   vbSyncStep6Mode3();
 }
 // Lewati step Pergerakan Kamera: camMove & camHook kosong -> prompt tanpa baris camera_movement / visual_hook.
@@ -15907,11 +15921,12 @@ function vbAdvanceStep(wasEdit,nextId,stepNum,stepName){
   }
   showCard(nextId);
   if(nextEl)nextEl.classList.remove('pending');
-  vbUpdateProgress(stepNum,stepName);
+  var _pm=(typeof VB_STEP_META!=='undefined')?VB_STEP_META[nextId]:null;
+  vbUpdateProgress(_pm?_pm[0]:stepNum,_pm?_pm[1]:stepName);
 }
 
 function vbUpdateProgress(stepNum,stepName){
-  let total=_vbHasCam()?7:6;
+  let total=(typeof pbStepTotal==='function')?pbStepTotal():(_vbHasCam()?7:6);
   let pct=Math.round((stepNum/total)*100);
   let fill=document.getElementById('vb-progress-fill');
   let label=document.getElementById('vb-progress-label');
@@ -16205,7 +16220,7 @@ function vbCheckV2Done(){
   let anchorEl=document.getElementById('vb-age-chips')||document.getElementById('vb-gender-chips');
   fShowConfirm('v2', anchorEl, function(){
     let _wasEdit=doneCard('v2','va2',VB.genderLabel+' · '+VB.ageLabel);
-    vbAdvanceStep(_wasEdit,'v3',3,'Nada Bicara');
+    vbAdvanceStep(_wasEdit,_vbHasCam()?'vcam':'vfork',3,'');
   });
 }
 // PERMINTAAN USER (Sept 2026): kolom "Atau isi sendiri" untuk Jenis Kelamin
@@ -16539,8 +16554,7 @@ function vbPickAccentConfirmed(val,label){
   vbRenderAksenStyleChips(val); // selaraskan tampilan chip dengan pilihan yang tersimpan
   vbRenderSapaanChips(); // chip sapaan mengikuti aksen
   let _wasEdit=doneCard('v4','va4',_asHit?(label+' · '+_asHit[1]):label);
-  if(_vbHasCam())vbAdvanceStep(_wasEdit,'vcam',6,'Pergerakan Kamera');
-  else vbAdvanceStep(_wasEdit,'v5',6,'Script / Dialog');
+  vbAdvanceStep(_wasEdit,'v5',8,'Info Produk & Audiens');
   vbSyncStep6Mode3();
 }
 function vbPickAccentCustom(){
@@ -28378,6 +28392,132 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
   document.addEventListener('DOMContentLoaded', _check);
   setInterval(_check, 3000);
   _check();
+})();
+</script>
+<style id="pb-fork-css">
+/* Timeline + percabangan builder video (preview opsi B) */
+.pb-tl{list-style:none;margin:12px 0 6px;padding:12px 14px;border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;gap:9px;font-size:var(--fs-sm,12.5px);color:var(--muted)}
+.pb-tl li{display:flex;gap:8px;align-items:center;min-width:0}
+.pb-tl i{font-style:normal;flex:none;width:20px;height:20px;border-radius:50%;border:1px solid var(--border);display:grid;place-items:center;font-size:10.5px}
+.pb-tl .on{color:var(--text)}.pb-tl .on i{border-color:var(--accent);color:var(--accent-2)}
+.pb-tl .done i{background:var(--accent);border-color:var(--accent);color:#1a1405}
+.pb-tl .gh{opacity:.55}
+.pb-tl .pb-ai{font-size:9.5px;padding:1px 6px;border-radius:99px;background:var(--accent-dim-bg);color:var(--accent);margin-left:6px}
+.pb-tl .pop{animation:pbUp .3s both}
+@keyframes pbUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pb-fk{display:flex;flex-direction:column;gap:4px;width:100%;text-align:left;padding:13px;margin-bottom:8px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.04);color:var(--text);font:inherit;cursor:pointer}
+.pb-fk.sel{border-color:var(--accent);background:var(--accent-dim-bg)}
+.pb-fk small{color:var(--muted);font-size:12.5px}.pb-fk span{font-size:11.5px;color:var(--muted)}.pb-fk em{font-style:normal;font-size:11px;color:var(--accent)}
+#pb-fk-go:disabled{opacity:.4;cursor:not-allowed}
+#vb-script-choose{display:none!important}
+@media (prefers-reduced-motion:reduce){.pb-tl .pop{animation:none}}
+</style>
+<script id="pb-fork-js">
+/* ALUR PERCABANGAN BUILDER VIDEO (permintaan user, 7 Okt 2026, preview opsi B):
+   Mode Referensi → Jenis Kelamin & Usia → (Kamera) → Cara Bikin Script.
+   "Kami Bantu Isi" → + Nada Bicara, Pembawaan, Aksen, Info Produk. "Tulis Manual Sendiri" → + Tulis Script
+   (nada = Ramah & aksen = Netral otomatis, supaya jalur manual tetap lengkap datanya). */
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var NAME={v1:'Mode Referensi Foto',v2:'Jenis Kelamin & Usia',vcam:'Pergerakan Kamera',vfork:'Cara Bikin Script',v3:'Nada Bicara',vmotion:'Pembawaan',v4:'Aksen',v5:'Script / Dialog'};
+  var prev=null;
+  function inferred(){
+    try{
+      var c=$('v5');
+      if(c&&(c.classList.contains('done')||!c.classList.contains('pending'))){
+        var a=$('vb-mode-ai-area'),m=$('vb-manual-script-area');
+        if(a&&!a.classList.contains('hidden'))return 'ai';
+        if(m&&!m.classList.contains('hidden'))return 'manual';
+      }
+    }catch(e){}
+    return '';
+  }
+  function path(){try{return VB.pbPath||inferred();}catch(e){return '';}}
+  function forkDone(){try{return VB.pbDone||inferred();}catch(e){return '';}}
+  function steps(){
+    var p=path(),s=[['v1',NAME.v1],['v2',NAME.v2]];
+    if(_vbHasCam())s.push(['vcam',NAME.vcam]);
+    s.push(['vfork',NAME.vfork]);
+    if(p==='ai')s.push(['v3',NAME.v3,1],['vmotion',NAME.vmotion,1],['v4',NAME.v4,1],['v5','Info Produk & Audiens',1]);
+    else if(p==='manual')s.push(['v5','Tulis Script']);
+    return s;
+  }
+  window.pbStepTotal=function(){return steps().length;};
+  Object.keys(NAME).forEach(function(id){
+    var old=VB_STEP_META[id];
+    Object.defineProperty(VB_STEP_META,id,{enumerable:true,configurable:true,get:function(){
+      var s=steps(),i=-1;
+      for(var k=0;k<s.length;k++)if(s[k][0]===id){i=k;break;}
+      return i<0?(old||[s.length+1,NAME[id]]):[i+1,s[i][1]];
+    }});
+  });
+  function render(){
+    var ol=$('pb-tl');if(!ol)return;
+    var s=steps(),p=path(),fd=forkDone(),on=-1,h='',keys=[];
+    function isDone(x){var c=$(x[0]);return x[0]==='vfork'?!!fd:!!(c&&c.classList.contains('done'));}
+    s.forEach(function(x,i){if(on<0&&!isDone(x))on=i;});
+    s.forEach(function(x,i){
+      var c=$(x[0]),n=String(i+1),d=isDone(x),k=x[0]+'|'+x[1],isNew=prev&&prev.indexOf(k)<0;
+      keys.push(k);
+      if(c){var w=c.querySelector('.wnum');if(w){if(w._origText!==undefined)w._origText=n;if(!c.classList.contains('done'))w.textContent=n;}}
+      h+='<li class="'+(d?'done':(i===on?'on':''))+(isNew?' pop':'')+'"><i>'+(d?'✓':n)+'</i><div>'+x[1]+(x[2]?'<span class="pb-ai">AI</span>':'')+'</div></li>';
+    });
+    if(!p)h+='<li class="gh"><i>…</i><div>Menyesuaikan pilihan</div></li>';
+    ol.innerHTML=h;prev=keys;
+    var t=document.querySelector('#v5 .wtitle');
+    if(t)t.textContent=p==='ai'?'Info Produk & Audiens':(p==='manual'?'Tulis Script':'Script / Dialog');
+    var sel='';try{sel=VB.pbPath||'';}catch(e){}
+    var fa=$('pb-fk-ai'),fm=$('pb-fk-manual'),go=$('pb-fk-go');
+    if(fa)fa.classList.toggle('sel',sel==='ai');
+    if(fm)fm.classList.toggle('sel',sel==='manual');
+    if(go)go.disabled=!sel;
+    var b=_vbHasCam()?4:3,tt=document.querySelectorAll('.pb-fk-tot');
+    if(tt[0])tt[0].textContent='Total '+(b+4)+' step';
+    if(tt[1])tt[1].textContent='Total '+(b+1)+' step';
+  }
+  function apply(){
+    var p;try{p=VB.pbDone;}catch(e){}
+    if(!p)return;
+    var ch=$('vb-script-choose'),a=$('vb-mode-ai-area'),m=$('vb-manual-script-area');
+    if(!ch||!a||!m||ch.classList.contains('hidden'))return;
+    if(p==='ai'?a.classList.contains('hidden'):m.classList.contains('hidden'))vbSelectScriptMode(p);
+  }
+  window.pbSelectPath=function(p){VB.pbPath=p;render();};
+  window.pbConfirmPath=function(){
+    var p=VB.pbPath;if(!p)return;
+    var old=VB.pbDone||'';
+    var we=doneCard('vfork','vafork',p==='ai'?'Kami Bantu Isi':'Tulis Manual Sendiri');
+    VB.pbDone=p;
+    if(old&&old!==p){
+      we=false;
+      ['v3','vmotion','v4','v5'].forEach(function(id){var c=$(id);if(c&&!c.classList.contains('done'))c.classList.add('pending');});
+    }
+    if(p==='manual'){
+      if(!VB.pitch){VB.pitch='ramah';VB.pitchLabel='Ramah';VB.pbDefP=1;}
+      if(!VB.accent){VB.accent='neutral standard accent';VB.accentLabel='Netral';VB.pbDefA=1;}
+    }else{
+      if(VB.pbDefP){VB.pitch='';VB.pitchLabel='';VB.pbDefP=0;}
+      if(VB.pbDefA){VB.accent='';VB.accentLabel='';VB.pbDefA=0;}
+    }
+    var nxt='v5';
+    if(p==='ai'&&!['v3','vmotion','v4'].every(function(id){var c=$(id);return c&&c.classList.contains('done');}))nxt='v3';
+    vbAdvanceStep(we,nxt,0,'');
+    try{vbSyncStep6Mode3();}catch(e){}
+    render();
+  };
+  var o6=window.vbSyncStep6Mode3;
+  window.vbSyncStep6Mode3=function(){var r=o6.apply(this,arguments);try{apply();render();}catch(e){}return r;};
+  var ou=window.vbUpdateProgress;
+  window.vbUpdateProgress=function(){var r=ou.apply(this,arguments);try{render();}catch(e){}return r;};
+  var orr=window.vbResetNow;
+  window.vbResetNow=function(){
+    var r=orr.apply(this,arguments);
+    try{var c=$('vfork');if(c){c.classList.remove('done','hidden');c.classList.add('pending');}var a=$('vafork');if(a)a.textContent='';prev=null;render();}catch(e){}
+    return r;
+  };
+  var raf=0,mo=new MutationObserver(function(){cancelAnimationFrame(raf);raf=requestAnimationFrame(render);});
+  ['v1','v2','vcam','vfork','v3','vmotion','v4','v5'].forEach(function(id){var c=$(id);if(c)mo.observe(c,{attributes:true,attributeFilter:['class']});});
+  render();
 })();
 </script>
 </body>
