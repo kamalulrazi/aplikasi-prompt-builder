@@ -1826,15 +1826,6 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
   border-color:rgba(217,184,118,0.4);font-weight:600;
   box-shadow:0 0 0 1px rgba(217,184,118,0.12);
 }
-/* Denyut lembut pada chip Motion yang cocok dengan Nada Bicara (3 Okt 2026). Hilang kalau chip sudah dipilih. */
-@keyframes vbMotionRecPulse{
-  0%,100%{box-shadow:0 0 0 0 rgba(var(--pulse-rgb,217,184,118),0);}
-  50%{box-shadow:0 0 0 5px rgba(var(--pulse-rgb,217,184,118),0.20);}
-}
-.chip.vb-rec{border-color:rgba(var(--pulse-rgb,217,184,118),0.5);animation:vbMotionRecPulse 2.4s ease-in-out infinite;}
-.chip.vb-rec.sel{animation:none;}
-@media (prefers-reduced-motion:reduce){.chip.vb-rec{animation:none;box-shadow:0 0 0 2px rgba(var(--pulse-rgb,217,184,118),0.22);}}
-
 /* INPUTS */
 .inp{
   width:100%;background:var(--surface2);border:1px solid var(--border);
@@ -5782,7 +5773,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   <div class="wcard pending" id="vmotion">
     <div class="whead"><div class="wnum">4</div><div class="wtitle">Pembawaan</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vamotion"></div></div>
     <div class="wbody">
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Harap pilih pembawaan yang sesuai dengan nada bicara, supaya hasil video tidak kontradiktif.</p>
+      <p id="vmotion-hint" style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Harap pilih pembawaan yang sesuai dengan nada bicara, supaya hasil video tidak kontradiktif.</p>
       <div class="chips" id="vmotion-chips"></div>
       <button type="button" class="btn sm ghost" style="width:100%;margin-top:12px;" onclick="vbSkipMotion()">Lewati, tanpa pembawaan</button>
       <div class="mt12">
@@ -5837,20 +5828,26 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </div>
   </div>
 
-  <!-- PERGERAKAN KAMERA (permintaan user, Okt 2026) — untuk Start Frame (satu),
+  <!-- PERGERAKAN KAMERA + VISUAL HOOK (permintaan user, Okt 2026) — untuk Start Frame (satu),
        Frame Asset (aset), dan Raw Asset (kp). Step 6 di ketiga mode ini; Script / Dialog
        (id v5) jadi step 7 (mode lain tetap: Script / Dialog = step 6, kartu ini dilewati).
-       Sama seperti Raw Asset: cuma muncul di prompt video, TIDAK dikirim ke AI penulis skrip. Cuma 1
-       opsi: "juyyy". Kalau dipilih, prompt Hook/Story/CTA otomatis ditambah
-       "camera_movement: ..." (lihat VB_CAM_MOVES & _vbBuildFlowText). -->
+       Pilihan chip DIRENDER OTOMATIS sesuai mode (lihat VB_CAM_OPTS, VB_CAM_HOOK_OPTS &
+       _vbRenderCamChips). Ada 2 baris pilihan: (1) Gerakan Kamera -> dipakai di kartu Hook/Story/CTA
+       sebagai "camera_movement: ...", (2) Visual Hook -> HANYA dipakai di kartu Hook (1-3 detik pertama)
+       sebagai "visual_hook: ...". Keduanya opsional dan cuma muncul di prompt video, TIDAK dikirim ke
+       AI penulis skrip (lihat _vbBuildFlowText). -->
   <div class="wcard pending" id="vcam">
     <div class="whead"><div class="wnum">6</div><div class="wtitle">Pergerakan Kamera</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vacam"></div></div>
     <div class="wbody">
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih gaya pergerakan kamera, atau lewati kalau tidak perlu. Prompt Hook, Story, dan CTA otomatis dapat tambahan <code>camera_movement</code> sendiri-sendiri. Hasilnya cuma muncul di prompt video, tidak dikirim ke AI penulis skrip.</p>
-      <div class="chips" id="vcam-chips">
-        <div class="chip" onclick="vbPickCam('juyyy',this,'juyyy')">juyyy</div>
-      </div>
-      <button type="button" class="btn sm ghost" style="width:100%;margin-top:12px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih gaya pergerakan kamera dan/atau Visual Hook, atau lewati kalau tidak perlu. Prompt Hook, Story, dan CTA otomatis dapat tambahan <code>camera_movement</code> sendiri-sendiri. Visual Hook hanya masuk ke prompt Hook. Hasilnya cuma muncul di prompt video, tidak dikirim ke AI penulis skrip.</p>
+      <p id="vcam-modehint" style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 12px;line-height:1.7;"></p>
+      <div style="font-size:var(--fs-sm);font-weight:700;margin:0 0 8px;">Gerakan Kamera</div>
+      <div class="chips" id="vcam-chips"></div>
+      <div style="font-size:var(--fs-sm);font-weight:700;margin:16px 0 4px;">Visual Hook <span style="font-weight:400;color:var(--muted);">(khusus kartu Hook, 1–3 detik pertama)</span></div>
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 8px;line-height:1.6;">Gerakan mendadak di awal video supaya penonton berhenti scroll. Klik lagi untuk batal pilih.</p>
+      <div class="chips" id="vcam-hook-chips"></div>
+      <button type="button" class="btn sm" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
+      <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
     </div>
   </div>
 
@@ -13032,6 +13029,8 @@ function _vbUnpackState(json){
       // Entri Riwayat lama (dibuat sebelum step Pergerakan Kamera ada) tidak punya camMove —
       // jangan sampai nilai camMove dari sesi yang sedang aktif ikut menempel ke entri itu.
       if(!('camMove' in obj.VB))VB.camMove='';
+      if(!('camHook' in obj.VB))VB.camHook='';
+      try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
       // Entri Riwayat lama (sebelum fitur "Gaya khas aksen") tidak punya accentStyle — jangan sampai gaya sesi aktif menempel ke entri itu.
       if(!('accentStyle' in obj.VB)){VB.accentStyle='';VB.accentStyleLabel='';VB.accentStyleFor='';}
     }
@@ -13598,7 +13597,7 @@ function _pbInjectPerCardCopyButtons(root){
         // teks lama yang sempat tersimpan dengan kutip di dalam script tidak
         // terpotong di kutip pertama & terduplikasi.
         let _safeTa=String(ta.value).replace(/"/g,"'");
-        let _scriptRe=/(script:\s*")[\s\S]*?"(?=$| camera_movement:|\. (?:A very small text overlay|Make sure no icon|Muncul tulisan|Pastikan tidak ada icon))/;
+        let _scriptRe=/(script:\s*")[\s\S]*?"(?=$| visual_hook:| camera_movement:|\. (?:A very small text overlay|Make sure no icon|Muncul tulisan|Pastikan tidak ada icon))/;
         if(!_scriptRe.test(txt))_scriptRe=/(script:\s*")[\s\S]*?"/;
         liveTxt=txt.replace(_scriptRe,function(m,pre){return pre+_safeTa+'"';});
       }
@@ -15423,6 +15422,7 @@ function vbPickRefMode(mode){
   // cuma jalan kalau mode BENERAN baru berubah ke 'kp' dari mode lain —
   // klik ulang pada mode yang sudah aktif tidak menyentuh data yang sudah ada.
   let justSwitchedToKp=(mode==='kp'&&VB.refMode!=='kp');
+  let _camPrevMode=VB.refMode;
   VB.refMode=mode; vbSyncOrderFlow();
   document.getElementById('vb-mode-satu').classList.toggle('sel',mode==='satu');
   // PERMINTAAN USER (Sept 2026): begitu Start Frame diklik, tampilkan info
@@ -15467,6 +15467,23 @@ function vbPickRefMode(mode){
   // try/catch: dipanggil juga saat app baru dimuat, ketika STEP_PAUSE_STACK/VB bisa belum terdefinisi (TDZ).
   // Motion Control & Mirror Selfie self-contained (tidak lewat wizard V2-V5) — jangan utak-atik kartu kamera di situ.
   if(mode!=='ikuti'&&mode!=='mirrorselfie'){try{_vbReconcileCamStep();}catch(e){}}
+  // Pilihan kamera & Visual Hook beda per mode: kalau mode BENAR-BENAR berganti, buang pilihan yang
+  // bukan milik mode baru, lalu gambar ulang chip sesuai mode. Pilihan dari Riwayat (mode sama) tidak disentuh.
+  try{
+    if(_camPrevMode!==mode){
+      if(mode==='satu'||mode==='aset'||mode==='kp'){
+        let _okM=(VB_CAM_OPTS[mode]||[]).some(function(o){return o[0]===VB.camMove;});
+        let _okH=(VB_CAM_HOOK_OPTS[mode]||[]).some(function(o){return o[0]===VB.camHook;});
+        let _cleared=false;
+        if(VB.camMove&&!_okM){VB.camMove='';_cleared=true;}
+        if(VB.camHook&&!_okH){VB.camHook='';_cleared=true;}
+        _vbCamSyncPend();
+        let _cc=document.getElementById('vcam');
+        if(_cleared&&_cc&&_cc.classList.contains('done')){let _ca=document.getElementById('vacam');if(_ca)_ca.textContent=_vbCamSummary();}
+      }
+    }
+    _vbRenderCamChips();
+  }catch(e){}
   vbSyncStep6Mode3();
   try{_vbRefreshProgressTotal();}catch(e){}
 }
@@ -15618,7 +15635,118 @@ function _vbIsKp(){try{return VB.refMode==='kp';}catch(e){return false;}}
 // Mode lain (mis. Percobaan) tetap tanpa step ini.
 function _vbHasCam(){try{return VB.refMode==='kp'||VB.refMode==='satu'||VB.refMode==='aset';}catch(e){return false;}}
 Object.defineProperty(VB_STEP_META,'v5',{enumerable:true,configurable:true,get:function(){return [(_vbHasCam()?7:6),'Script / Dialog'];}});
-// Teks camera_movement per pilihan, urutan: [Hook, Story, CTA].
+// ===== PERGERAKAN KAMERA & VISUAL HOOK (permintaan user, Okt 2026) =====
+// Pilihan kamera SEKARANG BEDA PER MODE (Start Frame / Frame Asset / Raw Asset). Teks sengaja umum
+// ("main subject" = produk atau karakter) supaya cocok untuk semua jenis produk & isi foto.
+// Format tiap opsi: [id, label chip, teks Hook, teks Story, teks CTA]
+//  - Hook  : gerakan paling menarik perhatian
+//  - Story : gerakan paling tenang agar dialog & produk jelas
+//  - CTA   : gerakan yang berakhir tegas di subjek utama
+var VB_CAM_OPTS={
+  // START FRAME: 1 foto = frame pertama video. Foto harus tampil apa adanya dulu, lalu gerak halus
+  // (sudut putar kecil supaya sisi yang tidak ada di foto tidak "dikarang" AI).
+  satu:[
+    ['satu_pushin','Slow Push-In',
+      'slow smooth push-in toward the main subject, starting exactly from the composition of the reference photo, main subject stays sharp and stable',
+      'very slow gentle push-in, barely noticeable, main subject stays steady and clearly visible throughout',
+      'steady push-in that settles on the main subject and holds a clear, stable final frame'],
+    ['satu_pullback','Slow Pull-Back',
+      'slow smooth pull-back starting from a slightly closer crop of the reference photo, widening gradually to reveal the full composition',
+      'very slow gentle pull-back, main subject stays clear and stable in frame',
+      'smooth pull-back that settles on a clean, centered final composition of the main subject'],
+    ['satu_handheld','Subtle Handheld',
+      'subtle handheld phone-camera feel with light natural micro-shake, UGC style, starting exactly from the composition of the reference photo',
+      'very light relaxed handheld sway, natural UGC feel, main subject stays clear and stable',
+      'light handheld movement that gradually steadies and holds the main subject clearly in frame'],
+    ['satu_arc','Gentle Arc',
+      'gentle arc of about 10 to 15 degrees around the main subject, starting from the reference photo composition, main subject stays centered, no new unseen sides are shown',
+      'very slow small arc to the side of about 10 degrees, main subject stays centered and steady',
+      'small smooth arc that returns to a front-facing, centered view of the main subject and holds'],
+    ['satu_slide','Slow Slide',
+      'slow lateral slide to the left or right creating gentle depth and parallax, main subject stays in frame, starting from the reference photo composition',
+      'very slow smooth sideways glide, calm and stable, main subject stays clearly visible',
+      'smooth sideways glide that ends with the main subject centered and held steady']
+  ],
+  // FRAME ASSET: 2 foto (isi bebas: produk saja / karakter pegang produk / karakter pakai produk).
+  // Semua opsi = transisi dari komposisi foto 1 menuju komposisi foto 2, tanpa mengasumsikan isi foto.
+  aset:[
+    ['aset_pushpull','Push-In / Pull-Back Transisi',
+      'starts exactly on the composition of the first photo, then smoothly pushes in or pulls back (depending on the distance between the two photos) until it lands on the composition of the second photo',
+      'very slow gentle push-in or pull-back, calm and steady, moving from the composition of the first photo to the composition of the second photo',
+      'smooth push-in or pull-back that lands firmly on the composition of the second photo and holds on the main subject'],
+    ['aset_slide','Slide Transisi',
+      'starts exactly on the composition of the first photo, then slides sideways in one smooth movement until it lands on the composition of the second photo',
+      'very slow smooth sideways glide from the composition of the first photo to the composition of the second photo, calm and stable',
+      'smooth sideways glide that ends firmly on the composition of the second photo and holds on the main subject'],
+    ['aset_orbit','Orbit Transisi',
+      'starts exactly on the composition of the first photo, then orbits smoothly from the angle of the first photo to the angle of the second photo',
+      'very slow gentle orbit from the angle of the first photo to the angle of the second photo, calm and steady',
+      'smooth orbit that ends firmly on the angle of the second photo and holds on the main subject'],
+    ['aset_rack','Rack Focus',
+      'camera stays nearly still on the composition of the first photo, then focus shifts clearly from the main subject of the first photo to the main subject of the second photo',
+      'camera nearly still, very gentle slow focus shift from the first photo composition to the second photo composition',
+      'focus shifts and settles firmly on the main subject of the second photo, held sharp at the end'],
+    ['aset_whip','Smooth Whip Transition',
+      'starts exactly on the composition of the first photo, then a fast clean whip movement with light motion blur lands exactly on the composition of the second photo',
+      'soft quick sweep with minimal motion blur from the composition of the first photo to the composition of the second photo, then calm and steady',
+      'clean fast whip movement that lands firmly on the composition of the second photo and holds on the main subject']
+  ],
+  // RAW ASSET: karakter sheet + foto produk. AI membuat adegan dari nol -> boleh paling dinamis.
+  kp:[
+    ['kp_orbit','Orbit Subjek',
+      'smooth orbit of 90 to 180 degrees around the character and the product, main subject stays centered and sharp',
+      'very slow gentle orbit of about 30 degrees around the character and the product, calm and stable',
+      'smooth orbit that ends on a clear front-facing view of the character and the product and holds'],
+    ['kp_tracking','Tracking Follow',
+      'camera follows the character as they move, smooth tracking shot with a natural vlog feel, main subject stays in frame',
+      'slow steady tracking shot following the character, calm and smooth, product stays clearly visible',
+      'tracking shot that closes in and ends on the character presenting the product clearly, then holds steady'],
+    ['kp_dollyin','Dolly In ke Produk',
+      'dolly in from a medium shot toward the product, smooth and confident, product sharp and prominent',
+      'slow gentle dolly in from a medium shot, product and character stay clearly visible',
+      'dolly in that ends on a close-up of the product, held sharp and centered'],
+    ['kp_crane','Tilt / Crane Reveal',
+      'camera rises or tilts smoothly to gradually reveal the product and the character, cinematic reveal',
+      'very slow gentle tilt that moves calmly between the character and the product',
+      'smooth tilt or crane movement that ends on the product, held clear and stable'],
+    ['kp_handheld','Handheld Dinamis',
+      'lively natural handheld movement, energetic UGC feel, main subject stays in frame and sharp',
+      'light relaxed handheld sway, natural and calm, main subject stays clear',
+      'handheld movement with a light whip pan that lands on the product and steadies']
+  ]
+};
+// Visual Hook (HANYA kartu Hook, 1-3 detik pertama). Format: [id, label chip, teks]
+var VB_CAM_HOOK_OPTS={
+  satu:[
+    ['satu_h_snapzoom','Snap Zoom','a brief hold on the first frame, then a fast snap zoom toward the main subject that settles smoothly in sharp focus'],
+    ['satu_h_fastpullback','Fast Pull-Back Reveal','starts on a very tight crop of the first frame, then a fast pull-back reveals the full composition'],
+    ['satu_h_ramp','Speed Ramp Push-In','fast push-in toward the main subject that smoothly slows down at the end (speed ramp)'],
+    ['satu_h_focuspop','Focus Pop','starts slightly out of focus, then snaps quickly into crisp sharp focus on the main subject'],
+    ['satu_h_jolt','Handheld Jolt','a small quick handheld jolt like a phone camera being grabbed, then the frame stabilizes on the main subject']
+  ],
+  aset:[
+    ['aset_h_whip','Whip Cut ke Foto 2','fast whip pan with motion blur starting from the composition of the first photo and landing cleanly on the composition of the second photo'],
+    ['aset_h_ramp','Speed Ramp Transisi','fast movement at the start that smoothly slows down exactly at the composition of the second photo (speed ramp)'],
+    ['aset_h_orbit','Fast Orbit Snap','quick orbit from the angle of the first photo to the angle of the second photo, ending stable'],
+    ['aset_h_rack','Rack Focus Snap','quick focus shift from the main subject of the first photo to the main subject of the second photo'],
+    ['aset_h_snapzoom','Snap Zoom Transisi','fast snap zoom that ends exactly on the composition of the second photo']
+  ],
+  kp:[
+    ['kp_h_crash','Crash Zoom','very fast crash zoom toward the main subject with a sharp snap focus'],
+    ['kp_h_orbit','Fast Orbit','quick fast orbit around the character and the product, ending stable on the main subject'],
+    ['kp_h_whip','Whip Pan Reveal','fast whip pan with motion blur that stops sharply on the main subject'],
+    ['kp_h_crane','Crane Snap','quick camera rise or drop that stops sharply on the main subject'],
+    ['kp_h_dollyzoom','Dolly Zoom (ringan)','subtle dolly zoom where the background appears to stretch while the main subject keeps its size']
+  ]
+};
+// Penjelasan singkat di atas chip, sesuai mode.
+var VB_CAM_HINT={
+  satu:'Mode Start Frame: foto kamu jadi frame pertama video, jadi gerakannya halus dan dimulai dari komposisi foto. Isi foto bebas (karakter pegang produk, produk saja, atau produk dipegang tanpa wajah).',
+  aset:'Mode Frame Asset: semua gerakan adalah transisi dari komposisi foto 1 ke komposisi foto 2, apa pun isi kedua foto itu.',
+  kp:'Mode Raw Asset: adegan dibuat dari nol, jadi gerakan boleh lebih dinamis.'
+};
+// Tabel pencarian datar dibangun otomatis dari daftar di atas. 'juyyy' dipertahankan HANYA supaya entri
+// Riwayat lama yang sudah menyimpan pilihan itu tetap menghasilkan prompt yang sama.
 var VB_CAM_MOVES={
   juyyy:[
     "rapid dolly in toward the subject's face, background stretching behind her, cinematic tension",
@@ -15626,23 +15754,82 @@ var VB_CAM_MOVES={
     'fast whip pan to the right with motion blur, landing on a new composition'
   ]
 };
-function vbPickCam(val,el,label){
-  document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
-  el.classList.add('sel');
-  fShowConfirm('vcam', el, function(){ vbPickCamConfirmed(val,label); });
+var VB_CAM_HOOKS={};
+var VB_CAM_LABELS={};
+(function(){
+  Object.keys(VB_CAM_OPTS).forEach(function(m){
+    VB_CAM_OPTS[m].forEach(function(o){VB_CAM_MOVES[o[0]]=[o[2],o[3],o[4]];VB_CAM_LABELS[o[0]]=o[1];});
+  });
+  Object.keys(VB_CAM_HOOK_OPTS).forEach(function(m){
+    VB_CAM_HOOK_OPTS[m].forEach(function(o){VB_CAM_HOOKS[o[0]]=o[2];VB_CAM_LABELS[o[0]]=o[1];});
+  });
+})();
+// Pilihan sementara (belum dikonfirmasi) — baru masuk VB.camMove / VB.camHook saat klik "Lanjut".
+var _vbCamPendMove='', _vbCamPendHook='';
+function _vbCamSyncPend(){
+  try{_vbCamPendMove=(VB&&VB.camMove)||'';_vbCamPendHook=(VB&&VB.camHook)||'';}catch(e){_vbCamPendMove='';_vbCamPendHook='';}
 }
-function vbPickCamConfirmed(val,label){
-  VB.camMove=val;
-  let _wasEdit=doneCard('vcam','vacam',label);
+// Ringkasan yang tampil di kepala kartu setelah selesai (dari nilai yang SUDAH dikonfirmasi di VB).
+function _vbCamSummary(){
+  let mv=VB.camMove?(VB_CAM_LABELS[VB.camMove]||VB.camMove):'';
+  let hk=VB.camHook?(VB_CAM_LABELS[VB.camHook]||VB.camHook):'';
+  if(!mv&&!hk)return 'Tanpa gerakan kamera';
+  let parts=[]; if(mv)parts.push(mv); if(hk)parts.push('Hook: '+hk);
+  return parts.join(' · ');
+}
+// Gambar ulang chip sesuai mode yang sedang aktif. Aman dipanggil kapan saja (termasuk saat app baru dimuat).
+function _vbRenderCamChips(){
+  try{
+    if(typeof VB_CAM_OPTS==='undefined'||!VB_CAM_OPTS)return;
+    let mode=VB.refMode;
+    let moves=VB_CAM_OPTS[mode]||[], hooks=VB_CAM_HOOK_OPTS[mode]||[];
+    let box1=document.getElementById('vcam-chips'), box2=document.getElementById('vcam-hook-chips');
+    let hint=document.getElementById('vcam-modehint');
+    if(!box1||!box2)return;
+    if(hint)hint.textContent=VB_CAM_HINT[mode]||'';
+    function draw(box,list,kind,cur){
+      box.innerHTML='';
+      list.forEach(function(o){
+        let d=document.createElement('div');
+        d.className='chip'+(cur===o[0]?' sel':'');
+        d.textContent=o[1];
+        d.onclick=function(){vbPickCam(kind,o[0],d);};
+        box.appendChild(d);
+      });
+    }
+    draw(box1,moves,'move',_vbCamPendMove);
+    draw(box2,hooks,'hook',_vbCamPendHook);
+  }catch(e){}
+}
+// Klik chip = pilih sementara. Klik lagi pada chip yang sama = batal pilih.
+function vbPickCam(kind,id,el){
+  let box=el.parentNode;
+  let wasSel=el.classList.contains('sel');
+  box.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+  if(!wasSel)el.classList.add('sel');
+  if(kind==='hook')_vbCamPendHook=wasSel?'':id;
+  else _vbCamPendMove=wasSel?'':id;
+}
+// Tombol "Lanjut": simpan kedua pilihan (boleh kosong salah satunya, atau keduanya).
+function vbCamConfirm(){
+  vbPickCamConfirmed(_vbCamPendMove,_vbCamPendHook);
+}
+function vbPickCamConfirmed(val,hookVal){
+  VB.camMove=val||'';
+  VB.camHook=hookVal||'';
+  _vbCamSyncPend();
+  let _wasEdit=doneCard('vcam','vacam',_vbCamSummary());
   vbAdvanceStep(_wasEdit,'v5',7,'Script / Dialog');
   vbSyncStep6Mode3();
 }
-// Lewati step Pergerakan Kamera: camMove kosong -> prompt tanpa baris camera_movement.
+// Lewati step Pergerakan Kamera: camMove & camHook kosong -> prompt tanpa baris camera_movement / visual_hook.
 function vbSkipCam(){
   document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
   let cb=document.getElementById('vcam-confirmbar'); if(cb)cb.remove();
-  vbPickCamConfirmed('','Tanpa gerakan kamera');
+  _vbCamPendMove='';_vbCamPendHook='';
+  vbPickCamConfirmed('','');
 }
+try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
 // Jaga konsistensi step kamera saat user GANTI MODE di tengah alur (lewat step 1 / Riwayat).
 //  - Pindah KE mode yang punya step kamera, padahal user sudah sampai Script tanpa pernah
 //    melewati step kamera -> kartu kamera ditandai selesai "Tanpa gerakan kamera" (bisa diubah
@@ -15657,7 +15844,7 @@ function _vbReconcileCamStep(){
     if(cam.classList.contains('pending')&&!v5.classList.contains('pending')){
       // doneCard() memanggil fResumePausedStep() — amankan tumpukan pause supaya tidak ikut ter-pop.
       let saved=stack.slice(); stack.length=0;
-      try{ doneCard('vcam','vacam',VB.camMove?VB.camMove:'Tanpa gerakan kamera'); }
+      try{ doneCard('vcam','vacam',_vbCamSummary()); }
       finally{ saved.forEach(function(x){stack.push(x);}); }
     }
   }else{
@@ -16060,7 +16247,7 @@ function vbPickPitch(val,el,label){
 }
 function vbPickPitchConfirmed(val,label){
   VB.pitch=val;VB.pitchLabel=label;
-  try{_vbMotionDrawChips();}catch(e){} // tandai motion yang cocok dengan nada ini
+  try{vbSyncMotionNada();}catch(e){} // saring pilihan pembawaan sesuai nada ini (+ kosongkan yang tidak cocok)
   let _wasEdit=doneCard('v3','va3',label);
   vbAdvanceStep(_wasEdit,'vmotion',4,'Pembawaan');
 }
@@ -16089,7 +16276,23 @@ var VB_MOTION_OPTS=[
   {k:'natural santai',label:'Natural & Santai',g:'fm',en:'natural and relaxed, like chatting with a friend: small gentle movements, easy smile, occasional nods'},
   {k:'heboh nemu barang bagus',label:'Heboh Nemu Barang Bagus',g:'fm',en:'excited about a great find: eyes widening, a quick gasp of surprise, one free hand to the mouth or cheek, enthusiastic nodding'},
   {k:'hype host live',label:'Hype Host Live',g:'fm',en:'live-shopping host style: upbeat and animated, fast lively facial expressions and head movements, clear moderate-speed hand gestures'},
-  {k:'kocak slengean',label:'Kocak & Slengean',g:'fm',en:'funny and casual, playful exaggerated expressions, relaxed goofy gestures'}
+  {k:'kocak slengean',label:'Kocak & Slengean',g:'fm',en:'funny and casual, playful exaggerated expressions, relaxed goofy gestures'},
+  // ── Pembawaan khusus per Nada Bicara (6 Okt 2026, permintaan user: opsi yang benar-benar pas dengan nadanya) ──
+  // Nada BERCANDA
+  {k:'ngelawak receh',label:'Ngelawak Receh',g:'fm',en:'cracking silly jokes: a mischievous half-smile, playfully raised eyebrows, a small suppressed laugh after the punchline, light teasing gestures'},
+  {k:'jahil usil',label:'Jahil & Usil',g:'fm',en:'mischievous and teasing: a sly grin, playful side glances at the camera, a quick wink, cheeky finger-point gestures'},
+  {k:'ketawa ngakak',label:'Ketawa Ngakak',g:'fm',en:'laughing at their own joke: breaking into natural laughter mid-sentence, shoulders shaking, one hand covering the mouth, eyes crinkling with amusement'},
+  {k:'sok serius',label:'Sok Serius Padahal Lucu',g:'fm',en:'straight-faced and pretending to be serious: composed posture, slow deliberate nods, a tiny smile slipping through at the funny moments'},
+  // Nada GAUL
+  {k:'santai nongkrong',label:'Santai Nongkrong',g:'fm',en:'hanging-out vibe: relaxed posture, casual shoulder shrugs, an easy smirk, loose hand gestures as if chatting with friends at a cafe'},
+  {k:'asik kekinian',label:'Asik & Kekinian',g:'fm',en:'trendy and upbeat content-creator style: quick confident head nods, bright smile, snappy casual hand gestures'},
+  {k:'cuek stylish',label:'Cuek & Stylish',g:'fm',en:'effortlessly cool and a little nonchalant: relaxed half-smile, slow head tilt, casual adjustment of hair or collar, laid-back eye contact'},
+  {k:'curhat ke temen',label:'Curhat ke Temen',g:'fm',en:'confiding in a close friend: leaning slightly toward the camera, animated eyebrows, small expressive hand movements, a you-have-to-try-this energy'},
+  // Nada TOXIC
+  {k:'sinis nyinyir',label:'Sinis & Nyinyir',g:'fm',en:'sarcastic and judgmental: a slow eye-roll, one raised eyebrow, a smirk of mild disdain, dismissive hand flicks'},
+  {k:'sarkas dingin',label:'Sarkas Dingin',g:'fm',en:'cold deadpan sarcasm: flat unimpressed expression, steady eye contact with the camera, minimal movement, a slow tilt of the head'},
+  {k:'nyolot kesal',label:'Nyolot Pura-pura Kesal',g:'fm',en:'feigned exasperation: an audible sigh, hand on hip, narrowed eyes, a scolding finger pointed at the camera'},
+  {k:'songong',label:'Songong & Pede',g:'fm',en:'smug and self-assured: chin slightly raised, a confident smirk, slow knowing nods, a dismissive flick of the hand'}
 ];
 function vbMotionOpt(val){
   for(var i=0;i<VB_MOTION_OPTS.length;i++)if(VB_MOTION_OPTS[i].k===val)return VB_MOTION_OPTS[i];
@@ -16101,35 +16304,80 @@ function vbMotionAllowed(o,gender){
   if(gender==='female')return o.g.indexOf('f')>-1;
   return o.g==='fm';
 }
-function vbMotionOptsFor(gender){return VB_MOTION_OPTS.filter(function(o){return vbMotionAllowed(o,gender);});}
+// Filter pembawaan: gender SELALU, nada (pitch) kalau ada daftarnya di VB_MOTION_BY_NADA.
+// Nada tulis-sendiri / belum dipilih / pitch tidak dikirim -> hanya disaring gender. Kalau hasil saringan kosong, jatuh ke saringan gender saja.
+function vbMotionOptsFor(gender,pitch){
+  var byG=VB_MOTION_OPTS.filter(function(o){return vbMotionAllowed(o,gender);});
+  var list=vbMotionNadaList(pitch);
+  if(!list)return byG;
+  var both=byG.filter(function(o){return list.indexOf(o.k)>-1;});
+  return both.length?both:byG;
+}
 // Preset -> teks Inggris; selain preset (teks custom) dikembalikan apa adanya.
 function vbMotionText(val){var o=vbMotionOpt(val);return o?o.en:String(val||'');}
 // true kalau val kosong, teks custom, atau preset yang boleh untuk gender ini.
 function vbMotionValid(val,gender){var o=vbMotionOpt(val);return !o||vbMotionAllowed(o,gender);}
-// Motion yang cocok dengan tiap Nada Bicara (chip). Nada tulis-sendiri -> tidak ada yang berdenyut. Ubah daftar ini kalau mau.
+// Motion yang cocok dengan tiap Nada Bicara (chip). Sejak 6 Okt 2026 (permintaan user) pilihan Pembawaan DISARING:
+// kalau Nada Bicara = Bercanda/Gaul/Toxic, hanya pembawaan yang cocok yang tampil (lalu disaring lagi per gender).
+// Nada tulis-sendiri (atau belum dipilih) -> semua pembawaan tampil. Ubah daftar ini kalau mau.
 var VB_MOTION_BY_NADA={
-  'gaul':['hype host live','energik semangat','kocak slengean','natural santai'],
-  'bercanda':['kocak slengean','lebay banget','heboh nemu barang bagus'],
-  'toxic':['cool tegas','natural santai']
+  'bercanda':['ngelawak receh','jahil usil','ketawa ngakak','sok serius','kocak slengean','heboh nemu barang bagus','lebay banget','gemes imut'],
+  'gaul':['santai nongkrong','asik kekinian','cuek stylish','curhat ke temen','hype host live','energik semangat','kocak slengean','natural santai'],
+  'toxic':['sinis nyinyir','sarkas dingin','nyolot kesal','songong','cool tegas']
 };
-function _vbMotionIsRec(motionKey){
-  var n=String(VB.pitch||'').trim().toLowerCase();
-  var list=VB_MOTION_BY_NADA[n];
-  return !!(list&&list.indexOf(motionKey)>-1);
+// Daftar key pembawaan yang cocok untuk nada ini, atau null kalau nada tidak punya daftar (tulis-sendiri/kosong).
+function vbMotionNadaList(pitch){
+  var n=String(pitch||'').trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(VB_MOTION_BY_NADA,n)?VB_MOTION_BY_NADA[n]:null;
+}
+// true kalau val kosong, teks sendiri, nada tanpa daftar, atau preset yang ada di daftar nada itu.
+function vbMotionFitsNada(val,pitch){
+  if(!val)return true;
+  if(!vbMotionOpt(val))return true;
+  var list=vbMotionNadaList(pitch);
+  return !list||list.indexOf(val)>-1;
 }
 function _vbMotionDrawChips(){
   var box=document.getElementById('vmotion-chips');
   if(!box)return;
   box.innerHTML='';
-  vbMotionOptsFor(VB.gender).forEach(function(o){
+  vbMotionOptsFor(VB.gender,VB.pitch).forEach(function(o){
     var c=document.createElement('div');
-    c.className='chip'+(VB.motion===o.k?' sel':'')+(_vbMotionIsRec(o.k)?' vb-rec':'');
+    c.className='chip'+(VB.motion===o.k?' sel':'');
     c.textContent=o.label;
     c.dataset.k=o.k;
     c.onclick=function(){vbPickMotion(o.k,c,o.label);};
     box.appendChild(c);
   });
+  var hint=document.getElementById('vmotion-hint');
+  if(hint){
+    hint.textContent=vbMotionNadaList(VB.pitch)
+      ?'Pilihan di bawah sudah disesuaikan dengan nada bicara "'+(VB.pitchLabel||VB.pitch)+'", supaya hasil video tidak kontradiktif.'
+      :'Harap pilih pembawaan yang sesuai dengan nada bicara, supaya hasil video tidak kontradiktif.';
+  }
   var cb=document.getElementById('vmotion-confirmbar');if(cb)cb.remove();
+}
+// Dipanggil tiap Nada Bicara diganti di wizard: pembawaan yang tidak cocok dengan nada baru
+// dikosongkan (VB.motion & override pensil per produk), lalu chip digambar ulang.
+function vbSyncMotionNada(){
+  if(!vbMotionFitsNada(VB.motion,VB.pitch)){
+    VB.motion='';
+    try{showToast('Pembawaan disesuaikan dengan nada bicara — pilih lagi ya','info');}catch(e){}
+    var mc=document.getElementById('vmotion'),ma=document.getElementById('vamotion');
+    if(mc&&ma&&mc.classList.contains('done'))ma.textContent='Tanpa pembawaan';
+  }
+  try{
+    Object.keys(VB_CHAR_OVR).forEach(function(pi){
+      var o=VB_CHAR_OVR[pi];
+      if(!o||!Object.prototype.hasOwnProperty.call(o,'motion'))return;
+      var pt=Object.prototype.hasOwnProperty.call(o,'pitch')?o.pitch:VB.pitch;
+      if(vbMotionFitsNada(o.motion,pt))return;
+      delete o.motion;
+      if(!Object.keys(o).length)delete VB_CHAR_OVR[pi];
+      if(typeof _vbCharRefresh==='function')_vbCharRefresh(parseInt(pi,10));
+    });
+  }catch(e){}
+  _vbMotionDrawChips();
 }
 // Dipanggil tiap Jenis Kelamin diganti di wizard: preset yang tidak cocok dengan gender baru
 // dikosongkan (VB.motion & override pensil per produk), lalu chip digambar ulang.
@@ -16781,13 +17029,13 @@ function _vbCharBuildPanel(prodIdx,panel){
 function _vbCharMotionChipsHtml(prodIdx){
   var g=_vbCharVal(prodIdx*3,'gender');
   var h='<div class="chip" data-k="motion" data-v="" onclick="vbCharPick('+prodIdx+',this)">Tanpa pembawaan</div>';
-  vbMotionOptsFor(g).forEach(function(o){h+='<div class="chip" data-k="motion" data-v="'+esc(o.k)+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(o.label)+'</div>';});
+  vbMotionOptsFor(g,_vbCharVal(prodIdx*3,'pitch')).forEach(function(o){h+='<div class="chip" data-k="motion" data-v="'+esc(o.k)+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(o.label)+'</div>';});
   return h;
 }
 function _vbCharRenderMotionChips(prodIdx,panel){
   var box=panel.querySelector('[data-mchips]');
   if(!box)return;
-  var sig=vbMotionOptsFor(_vbCharVal(prodIdx*3,'gender')).map(function(o){return o.k;}).join('|');
+  var sig=vbMotionOptsFor(_vbCharVal(prodIdx*3,'gender'),_vbCharVal(prodIdx*3,'pitch')).map(function(o){return o.k;}).join('|');
   if(box.dataset.sig===sig)return;
   box.dataset.sig=sig;
   box.innerHTML=_vbCharMotionChipsHtml(prodIdx);
@@ -16841,6 +17089,14 @@ function vbCharSet(prodIdx,key,val){
   var o=VB_CHAR_OVR[prodIdx]||(VB_CHAR_OVR[prodIdx]={});
   if(val===null)delete o[key];else o[key]=val;
   if(key==='gender'&&!vbMotionValid(_vbCharVal(prodIdx*3,'motion'),_vbCharVal(prodIdx*3,'gender')))o.motion='';
+  // Ganti Nada di pensil: pembawaan produk ini yang tidak cocok dengan nada baru dikosongkan.
+  if(key==='pitch'){
+    var _rawM=Object.prototype.hasOwnProperty.call(o,'motion')?o.motion:(VB.motion||'');
+    if(_rawM&&!vbMotionFitsNada(_rawM,_vbCharVal(prodIdx*3,'pitch'))){
+      o.motion='';
+      try{showToast('Pembawaan disesuaikan dengan nada bicara','info');}catch(e){}
+    }
+  }
   if(!Object.keys(o).length)delete VB_CHAR_OVR[prodIdx];
   _vbCharRefresh(prodIdx);
 }
@@ -23444,9 +23700,25 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // FITUR BARU (permintaan user, Okt 2026): khusus Raw Asset, tambah camera_movement
   // sesuai kartu — Hook (idx%3===0), Story (1), CTA (2). Ditaruh tepat setelah blok
   // dialogue/script, SEBELUM kalimat overlay Hook & larangan icon CTA (tetap paling akhir).
+  // VISUAL HOOK (permintaan user, Okt 2026): HANYA kartu Hook (idx%3===0), cuma 1-3 detik pertama.
+  // Ditaruh sebelum camera_movement; kalau keduanya dipilih, camera_movement kartu Hook
+  // dilanjutkan "setelah visual hook" supaya dua instruksi gerak tidak bertabrakan.
+  let _hasVisHook=false;
+  if(_vbHasCam()&&typeof idx==='number'&&idx%3===0&&VB.camHook&&VB_CAM_HOOKS[VB.camHook]){
+    flowText+=' visual_hook: during the first 2 seconds only, '+VB_CAM_HOOKS[VB.camHook]+'. After that the shot continues naturally.';
+    _hasVisHook=true;
+  }
   if(_vbHasCam()&&VB.camMove&&typeof idx==='number'&&VB_CAM_MOVES[VB.camMove]){
     let _camVal=VB_CAM_MOVES[VB.camMove][idx%3];
-    if(_camVal)flowText+=' camera_movement: '+_camVal;
+    // Kalau kartu Hook punya visual hook, gerakan kamera yang jalan SETELAH hook memakai versi tenang (Story),
+    // supaya dua gerakan tidak bertabrakan. Frame Asset: transisi foto 1 -> foto 2 sudah dikerjakan oleh
+    // visual hook, jadi setelahnya kamera cukup tenang di komposisi foto 2.
+    if(_hasVisHook&&idx%3===0){
+      _camVal=(VB.refMode==='aset')
+        ?'the camera stays calm and steady on the composition of the second photo, main subject clearly visible'
+        :VB_CAM_MOVES[VB.camMove][1];
+    }
+    if(_camVal)flowText+=' camera_movement: '+((_hasVisHook&&idx%3===0)?'after the visual hook, ':'')+_camVal;
   }
   let isHookCard=(typeof idx==='number')&&(idx%3===0);
   if(isHookCard){
@@ -23592,6 +23864,7 @@ function vbResetNow(){
       let ca=document.getElementById('vacam'); if(ca)ca.textContent='';
       let ccb=document.getElementById('vcam-confirmbar'); if(ccb)ccb.remove();
       document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
+      _vbCamPendMove='';_vbCamPendHook='';
     })();
     vbPickRefMode('satu');
     let m3lc=document.getElementById('vb-mode3-lokasi-custom'); if(m3lc)m3lc.value='';
