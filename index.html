@@ -4185,7 +4185,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.50</div>
+  <div class="splash-version" id="splash-version">v11.51</div>
 </div>
 <script>
   (function(){
@@ -6240,7 +6240,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.50 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.51 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -19639,7 +19639,7 @@ function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age){
   //   Rentang kata (range.min/max/target), kunci JSON, aturan keranjang bawah, larangan promo & aturan logat/nada TIDAK berubah.
   return [
     'TASK\nWrite the CHARACTER\'s spoken Indonesian monologue (see DATA) for EACH product in DATA.'+(count>1?' Write each product separately; the problem must truly fit that product.':'')+'\nArc: hook the viewer\'s emotion, make them realize a problem, present the product as the solution, then invite.',
-    'STRUCTURE: 3 parts, EXACTLY 2 sentences each, 6 sentences in this order\nHOOK\n1 STOPPER: the first five words already carry tension. Open inside ONE specific small daily problem that one of the product\'s advantages solves. Follow the HOOK style in DATA if any. A greeting is optional.\n2 REALIZE: the plain cause and the annoying result in everyday words, then name the product in this sentence as the fix.\nSTORY\n3-4 SCENE: the audience using the product in one everyday scenario. No product features, no personal experiences.\nCTA\n5-6 INVITE: invite the viewer to click the \"keranjang bawah\", in the character\'s speaking style. Never mention keranjang kuning, checkout, limited stock, urgency, promos, or any claim not in DATA.',
+    'STRUCTURE: 3 parts, EXACTLY 2 sentences each, 6 sentences in this order\nHOOK\n1 STOPPER: the first five words already carry tension. Open inside ONE specific small daily problem that one of the product\'s advantages solves. Follow the HOOK style in DATA if any. A greeting is optional.\n2 REALIZE: the plain cause and the annoying result in everyday words, then name the product in this sentence as the fix.\nSTORY\n3-4 SCENE: the audience using the product in one everyday scenario. No product features, no personal experiences.\nCTA\n5-6 INVITE: invite the viewer to click the \"keranjang bawah\", in the character\'s speaking style. The keranjang bawah is only the cart button on the shopping platform where viewers check out the product, NOT a physical basket, so never write it as a real object that is picked up, carried, held or filled. Never mention keranjang kuning, checkout, limited stock, urgency, promos, or any claim not in DATA.',
     'SPEAKING STYLE: spoken, not written; never stiff. '+_lg.gaya,
     _pv,
     _nd,
@@ -23463,8 +23463,11 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // story=1/cta=2 seperti komentar di atas), tambahkan instruksi ini PALING
   // AKHIR prompt supaya AI video tidak memunculkan icon apapun pas bagian CTA.
   let isCtaCard=(typeof idx==='number')&&(idx%3===2);
-  if(VB.refMode==='kp'&&isCtaCard){
-    flowText+='. Make sure no icon of any kind appears during the CTA.';
+  if((VB.refMode==='kp'||VB.refMode==='satu'||VB.refMode==='aset'||VB.refMode==='percobaan')&&isCtaCard){
+    // Okt 2026 (permintaan user): larangan ini kini juga dipasang di Start Frame (satu), Frame Asset (aset) & Percobaan,
+    // bukan cuma Raw Asset (kp), dan diperluas: tidak ada keranjang fisik + tidak ada ikon/elemen tampilan belanja.
+    // Awal kalimat "Make sure no icon" JANGAN diubah (dipakai regex tombol Salin per kartu).
+    flowText+='. Make sure no icon of any kind appears during the CTA. The keranjang bawah mentioned in the narration is only a checkout button on the shopping platform, so do not show any physical basket, shopping cart, shopping bag, or basket-like object, and the character must not hold, point at, or reach for one. Also do not show any shopping cart icon, basket icon, shopping bag icon, buy button, or any e-commerce interface element anywhere in the frame, as an overlay, sticker, graphic, or animation.';
   }
   return flowText;
 }
