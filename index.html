@@ -17859,6 +17859,7 @@ function _vbDayKeyToTs(day){
   return new Date(+p[0],+p[1]-1,+p[2]).getTime();
 }
 function _vbArchiveAdd(arc,e){
+  if(e&&e.failed)return; // catatan percobaan gagal (tanpa biaya) tidak ikut diarsip/dihitung sebagai panggilan
   var day=_vbDayKey(e.ts);
   if(!arc[day])arc[day]={generate:_vbEmptyKindBucket(),fix:_vbEmptyKindBucket()};
   var kind=e.kind==='fix'?'fix':'generate';
@@ -17907,6 +17908,7 @@ function _vbPeriodTotals(startTs,endTs,archiveData,logData){
   });
   var log=logData||_vbLoadUsageLog();
   log.forEach(function(e){
+    if(e.failed)return;
     if(e.ts>=startTs&&e.ts<endTs){
       var k=e.kind==='fix'?'fix':'generate';
       var t=totals[k];
@@ -17953,7 +17955,8 @@ function _vbLogUsageEvent(kind,mode,tok,outTok,extra){ // extra: {model,outEstTo
     noCacheInTok:(tok&&tok.noCacheInTok)||0,cacheWriteInTok:(tok&&tok.cacheWriteInTok)||0,cacheReadInTok:(tok&&tok.cacheReadInTok)||0,outTok:outTok||0,
     model:_vbValidModelKey(extra&&extra.model)||undefined,
     outEstTok:(extra&&extra.outEstTok>0)?extra.outEstTok:undefined,
-    interrupted:(extra&&extra.interrupted)?true:undefined});
+    interrupted:(extra&&extra.interrupted)?true:undefined,
+    failed:(extra&&extra.failed)?true:undefined,status:(extra&&extra.status)||undefined,to:(extra&&extra.to)||undefined});
   l=_vbCompactUsageLog(l);
   _vbSaveUsageLog(l);
 }
@@ -18132,6 +18135,7 @@ function _vbBuildUsageChartSvg(archiveData,logData){
 async function _vbExportUsageCsv(){
   var rows=[['Tanggal','Jam','Sesi','LabelSesi','JumlahProdukSesi','Jenis','Mode','JumlahProdukPanggilan','JumlahFoto','EstBiayaFotoUSD','TokenInputNoCache','TokenCacheWrite','TokenCacheRead','TokenOutput','Model','TokenOutputPerkiraanTerputus','BiayaPerkiraanTerputusUSD','BiayaUSD']];
   _vbLoadUsageLog().slice().sort(function(a,b){return a.ts-b.ts;}).forEach(function(e){
+    if(e.failed)return;
     var d=new Date(e.ts);
     var usd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,e.model);
     var estTokE=e.outEstTok||0,estUsdE=_vbCalcUsd(0,0,0,estTokE,e.model);
@@ -18988,6 +18992,11 @@ const VB_GEN_FALLBACK_MODELS=['haiku','groq'];           // urutan cadangan (kun
 const VB_GEN_FALLBACK_STEP_WAIT_MS=45000;                // batas tunggu retry per model
 const VB_GEN_FALLBACK_FIX_CHAIN=[{key:'groq',tries:2,extraTok:0},{key:'gptoss',tries:1,extraTok:1500}];
 var _vbFixChainOverride=null; // diisi _vbGenerateWithFallback kalau hasil generate datang dari model cadangan
+// Catat percobaan generate yang GAGAL (tanpa token/biaya) supaya admin bisa lihat "Gemini gagal -> dialihkan ke Haiku".
+function _vbLogFailedAttempt(mKey,out,toKey){
+  var st=out&&out.resp?out.resp.status:0;
+  _vbLogUsageEvent('generate',_vbCurrentCallMode,null,0,{model:mKey,failed:true,status:st,to:toKey||''});
+}
 function _vbGenNoFallback(out){
   var st=out&&out.resp?out.resp.status:0;
   if(out&&out.netDown)return true; // FIX #2: Worker tidak terjangkau -> Haiku/Groq (URL Worker sama) pasti ikut gagal; timeout/stream putus tetap boleh fallback
@@ -19034,6 +19043,7 @@ async function _vbGenerateWithFallback(promptParts,onPartial,onWait,systemText,c
       if(i>0)_vbFixChainOverride=VB_GEN_FALLBACK_FIX_CHAIN;
       return out;
     }
+    try{_vbLogFailedAttempt(keys[i],out,(i<keys.length-1&&!_vbGenNoFallback(out))?keys[i+1]:'');}catch(eLog){}
     if(i===keys.length-1||_vbGenNoFallback(out))return out;
     var nextM=PB_AI_MODELS[keys[i+1]];
     console.warn('[_vbGenerateWithFallback] '+m.label+' gagal (status '+(out&&out.resp?out.resp.status:'?')+'), dialihkan ke '+(nextM?nextM.label:'?'));

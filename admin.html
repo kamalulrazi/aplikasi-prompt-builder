@@ -88,6 +88,11 @@ table.st .r{text-align:right;white-space:nowrap}
 .av .od{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:var(--green);border:2px solid var(--surface)}
 .more{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:12px}
 .note{padding:0 12px 12px;font-size:12px}
+/* kartu angka yang bisa diketuk */
+.stat-card.clk{cursor:pointer;transition:border-color .15s}.stat-card.clk:hover{border-color:var(--line2)}
+.card .stat-card.clk{border:1px solid transparent}.stat-card.clk.on,.card .stat-card.clk.on{border-color:var(--accent);background:var(--accent-soft)}
+.stat-card.clk .k::after{content:" ›";color:var(--faint)}
+.rng{border-color:var(--accent)}
 /* detail user */
 #user-detail:not(:empty){position:fixed;inset:0;z-index:50;overflow-y:auto;background:var(--bg);padding:0 16px 56px}
 .sheet{max-width:960px;margin:0 auto}
@@ -421,7 +426,8 @@ function idr(usd){ return 'Rp'+Math.round(usd*IDR_RATE).toLocaleString('id-ID');
 function pct(a,b){ return b>0 ? (a/b*100).toFixed(1)+'%' : '-'; }
 function num(v){ return _n(v).toLocaleString('id-ID'); }
 function money(usd){ return idr(usd)+'<div class="sm">$'+usd.toFixed(4)+'</div>'; }
-function sc(k,v,s){ return '<div class="stat-card"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'; }
+var _range=null;
+function sc(k,v,s,a){ return '<div class="stat-card'+(a?' clk'+(_range===a?' on':''):'')+'"'+(a?' tabindex="0" role="button" onclick="dRange(\''+a+'\')" onkeydown="if(event.key===\'Enter\')dRange(\''+a+'\')"':'')+'><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>'; }
 
 function mdl(k){ return MODELS[k]||MODELS[LEGACY_KEY]; }
 function mlabel(k){ return MODELS[k] ? MODELS[k].label : 'Tanpa nama model (tarif '+MODELS[LEGACY_KEY].s+')'; }
@@ -688,7 +694,7 @@ function dayMap(r,log){
   var m={}, arc=r.raw.pb_usage_archive_v1||{};
   function slot(d){ return m[d]||(m[d]={calls:0,usd:0}); }
   Object.keys(arc).forEach(function(d){ ['generate','fix'].forEach(function(k){ var b=arc[d]&&arc[d][k]; if(b){ var s=slot(d); s.calls+=_n(b.calls); s.usd+=sumModels(splitModel(b)); } }); });
-  (log||[]).forEach(function(e){ var s=slot(new Date(_n(e.ts)).toLocaleDateString('sv-SE')); s.calls++; s.usd+=usdTok(e,e.model); });
+  (log||[]).forEach(function(e){ if(e.failed) return; var s=slot(new Date(_n(e.ts)).toLocaleDateString('sv-SE')); s.calls++; s.usd+=usdTok(e,e.model); });
   return m;
 }
 function periodCards(m){
@@ -700,7 +706,7 @@ function periodCards(m){
     if(k>=wk&&k<=today){ p.w.c+=x.calls; p.w.u+=x.usd; }
     if(k.slice(0,7)===today.slice(0,7)){ p.m.c+=x.calls; p.m.u+=x.usd; }
   });
-  return sc('Hari ini',idr(p.d.u),p.d.c+' panggilan')+sc('7 hari terakhir',idr(p.w.u),p.w.c+' panggilan')+sc('Bulan ini',idr(p.m.u),p.m.c+' panggilan');
+  return sc('Hari ini',idr(p.d.u),p.d.c+' panggilan','d')+sc('7 hari terakhir',idr(p.w.u),p.w.c+' panggilan','w')+sc('Bulan ini',idr(p.m.u),p.m.c+' panggilan','m');
 }
 function dayTable(m){
   var days=Object.keys(m).sort().reverse().slice(0,30);
@@ -731,7 +737,7 @@ function logTable(log){
   rows.forEach(function(e){
     var inTok=_n(e.noCacheInTok)+_n(e.cacheWriteInTok)+_n(e.cacheReadInTok);
     h+='<tr>'+td('Waktu',fmtDate(e.ts),'first')
-      +td('Jenis',(e.kind==='fix'?'Perbaikan kata':'Generate')+(e.mode&&e.mode!=='unknown'?' · '+_esc(e.mode):'')+(e.interrupted?' · terputus':''))
+      +td('Jenis',(e.failed?'Gagal'+(e.status?' (status '+_esc(e.status)+')':''):e.kind==='fix'?'Perbaikan kata':'Generate')+(e.mode&&e.mode!=='unknown'?' · '+_esc(e.mode):'')+(e.interrupted?' · terputus':''))
       +td('Aksi',_esc(e.sesiLabel||'-'))+td('Model',_esc(mshort(e.model)))+td('Produk / foto',num(e.produkCount)+' / '+num(e.fotoCount),'r')
       +td('Input',num(inTok)+((e.cacheWriteInTok||e.cacheReadInTok)?'<div class="sm" style="white-space:nowrap;">cache tulis '+num(e.cacheWriteInTok)+' · baca '+num(e.cacheReadInTok)+'</div>':''),'r')
       +td('Output',num(e.outTok)+(e.outEstTok?'<div class="sm">~'+num(e.outEstTok)+' perkiraan</div>':''),'r')+td('Biaya',money(usdTok(e,e.model)),'r')+'</tr>';
@@ -791,12 +797,33 @@ function genFeed(rows){
     var dd=new Date(r.ts).toLocaleDateString('sv-SE');
     if(dd!==day){ day=dd; var su=0,c=0; list.forEach(function(z){ if(new Date(z.ts).toLocaleDateString('sv-SE')===dd){ su+=z.usdG+z.usdF; c++; } }); h+='<div class="day">'+dLong(r.ts)+'<span>'+c+' generate · '+idr(su)+'</span></div>'; }
     h+='<div class="gr"><span class="tm">'+hm(r.ts)+'</span><span class="gl"><b>'+_esc(r.aksi)+'</b><small>'+num(r.produk)+' produk · pukul '+hms(r.ts)+'</small></span><span class="rp">'+idr(r.usdG+r.usdF)+'</span>'
-      +'<span class="mods">Generate '+(r.model!==null?tagM(r.model):'–')+' · Perbaikan kata '+fixTags(r.fix)+'</span>'
+      +'<span class="mods">Generate '+(r.model!==null?tagM(r.model):'–')+(r.failed?' <span class="pill exp">Gagal'+(r.status?' (status '+_esc(r.status)+')':'')+'</span>':r.int?' <span class="pill exp">Terputus</span>':'')+(r.to?' → dialihkan ke '+tagM(r.to):'')+(r.from?' <span class="pill">cadangan dari '+_esc(mshort(r.from))+'</span>':'')+' · Perbaikan kata '+fixTags(r.fix)+'</span>'
       +'<span class="mods2">Biaya generate '+idr(r.usdG)+' + perbaikan kata '+idr(r.usdF)+' · token masuk '+num(r.inTok)+' / keluar '+num(r.outTok)+'</span></div>';
   });
   return h;
 }
 var _dTab='ringkasan';
+function dRange(k){
+  _range=(_range===k)?null:k;
+  var r=curRow(document.getElementById('user-detail').dataset.uid); if(!r) return;
+  renderUser(r,_detailLog,_detailErr);
+  var el=document.querySelector('.rng'); if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function rangeDetail(r,log){
+  if(!_range) return '';
+  if(log===null) return '<div class="card rng"><div class="empty">Memuat detail...</div></div>';
+  var now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+  var from={d:today,w:today-6*864e5,m:new Date(now.getFullYear(),now.getMonth(),1).getTime(),total:0,gen:0,fix:0}[_range];
+  var ttl={d:'Hari ini',w:'7 hari terakhir',m:'Bulan ini',total:'Semua riwayat',gen:'Biaya generate',fix:'Biaya perbaikan kata'}[_range];
+  var L=(log||[]).filter(function(e){ return _n(e.ts)>=from && (_range!=='gen'||e.kind!=='fix') && (_range!=='fix'||e.kind==='fix'); });
+  var usd=0,inT=0,outT=0,nf=0,models={};
+  var Lok=L.filter(function(e){ return !e.failed; }), nFail=L.length-Lok.length;
+  Lok.forEach(function(e){ var k=e.model||'unknown'; usd+=usdTok(e,e.model); inT+=_tokIn(e); outT+=_n(e.outTok); if(e.kind==='fix') nf++; addTok(models[k]||(models[k]=emptyTok()),e); });
+  var head='<div class="bar"><div><h3 class="sec" style="margin:0;">'+ttl+'</h3><p class="sub">Dihitung dari riwayat per panggilan (maks 60 hari)</p></div><button class="btn btn-outline btn-small" onclick="dRange(null)">Tutup</button></div>';
+  if(!L.length) return '<div class="card rng">'+head+'<div class="empty">Tidak ada panggilan pada periode ini.</div></div>';
+  return '<div class="card rng">'+head+'<div class="stat-grid">'+sc('Biaya',idr(usd),'$'+usd.toFixed(4))+sc('Panggilan',Lok.length,(Lok.length-nf)+' generate · '+nf+' perbaikan kata'+(nFail?' · '+nFail+' gagal':''))+sc('Token',num(inT),'keluar '+num(outT))+'</div>'
+    +'<h3 class="sec">Model AI</h3>'+modelTable(models,usd)+'<h3 class="sec">Daftar generate</h3>'+genFeed(buildGenRows(L,r.email))+'</div>';
+}
 function dTab(t){ _dTab=t; var r=curRow(document.getElementById('user-detail').dataset.uid); if(r) renderUser(r,_detailLog,_detailErr); }
 function renderUser(r,log,err){
   var st=tierStatus(r), ex=st.k==='exp', m=(log===null||err)?null:dayMap(r,log), qt=r.raw.pb_quota, nCall=r.gen+r.fix;
@@ -816,13 +843,13 @@ function renderUser(r,log,err){
     tt('Riwayat generate')+genFeed(rows)+tt('Biaya per hari','30 hari terakhir')+dayTable(m)
     +'<details class="mdet" style="margin-top:16px;"><summary>Riwayat per panggilan AI ('+Math.min(log.length,100)+' terbaru, maks 60 hari)</summary>'+logTable(log)+'</details>')
     +'<details class="mdet" style="margin-top:16px;"><summary>Semua field di dokumen user ('+Object.keys(r.raw||{}).length+')</summary>'+rawTable(r.raw)+'</details>';
-  else body='<div class="stat-grid">'+sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))+(m?periodCards(m):'')
-    +sc('Biaya generate',idr(r.usdGen),r.gen+' panggilan')+sc('Biaya perbaikan kata',idr(r.usdFix),r.fix+' panggilan')
+  else body='<div class="stat-grid">'+sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4),'total')+(m?periodCards(m):'')
+    +sc('Biaya generate',idr(r.usdGen),r.gen+' panggilan','gen')+sc('Biaya perbaikan kata',idr(r.usdFix),r.fix+' panggilan','fix')
     +sc('Cache hit (Claude)',pct(r.hit,r.hit+r.miss+r.noCache),r.hit+' hit · '+r.miss+' miss · '+r.noCache+' tanpa cache')
     +(nCall>0?sc('Rata-rata per panggilan',idr(r.usd/nCall),nCall+' panggilan total'):'')
     +((qt&&qt.count!=null)?sc('Kuota terpakai',num(qt.count),qt.date?'tanggal '+_esc(qt.date):''):'')
     +(r.estUsd>0?sc('Percobaan terputus','~$'+r.estUsd.toFixed(4),r.interrupted+' percobaan · belum masuk total'):'')+'</div>'
-    +tt('Model AI yang dipakai')+modelTable(r.models,r.usd);
+    +rangeDetail(r,log)+tt('Model AI yang dipakai (semua waktu)')+modelTable(r.models,r.usd);
   document.getElementById('user-detail').innerHTML=
     '<div class="sheet"><div class="sheetbar"><button class="btn btn-outline btn-small" onclick="closeUser()">← Kembali</button><div class="t">'+_esc(r.email)+'</div></div>'
     +info+tabs+body+'</div>';
@@ -895,6 +922,7 @@ function _modelRecords(data){
   data.forEach(function(d){
     var r=d.r, arc=r.raw.pb_usage_archive_v1||{};
     (d.log||[]).forEach(function(e){
+      if(e.failed) return;
       var t=new Date(_n(e.ts)), k=e.model||'unknown';
       recs.push({email:r.email,uid:r.uid,tier:r.tier,sumber:'Log',ts:_n(e.ts),
         date:t.toLocaleDateString('sv-SE'),time:t.toLocaleTimeString('sv-SE'),
@@ -934,14 +962,26 @@ function buildGenRows(log,email){
   var rows=[], cur=null;
   arr.forEach(function(e){
     var key=e.sesiId||e.sesiLabel||'', mk=e.model||'unknown', u=usdTok(e,e.model);
+    if(e.failed){
+      var last=rows[rows.length-1];
+      if(last&&last.int&&last.model===mk&&last.key===key&&_n(e.ts)-last.ts<=120000){ last.status=e.status; return; }
+      rows.push({email:email,ts:_n(e.ts),key:key,aksi:e.sesiLabel||'-',produk:_n(e.produkCount),model:mk,failed:true,status:e.status,fix:[],usdG:0,usdF:0,inTok:0,outTok:0});
+      return;
+    }
     if(e.kind!=='fix'){
-      cur={email:email,ts:_n(e.ts),key:key,aksi:e.sesiLabel||'-',produk:_n(e.produkCount),model:mk,fix:[],usdG:u,usdF:0,inTok:_tokIn(e),outTok:_n(e.outTok)};
+      cur={email:email,ts:_n(e.ts),key:key,aksi:e.sesiLabel||'-',produk:_n(e.produkCount),model:mk,int:!!e.interrupted,fix:[],usdG:u,usdF:0,inTok:_tokIn(e),outTok:_n(e.outTok)};
       rows.push(cur);
     }else if(cur&&cur.key===key&&_n(e.ts)-cur.ts<=GEN_LINK_SEC*1000){
       cur.fix.push(mk); cur.usdF+=u; cur.inTok+=_tokIn(e); cur.outTok+=_n(e.outTok);
     }else{
       rows.push({email:email,ts:_n(e.ts),key:key,aksi:e.sesiLabel||'-',produk:_n(e.produkCount),model:null,fix:[mk],usdG:0,usdF:u,inTok:_tokIn(e),outTok:_n(e.outTok)});
     }
+  });
+  // Tandai pengalihan: percobaan terputus lalu disusul generate berhasil (sesi sama, <=2 menit) dengan model lain.
+  rows.sort(function(a,b){ return a.ts-b.ts; });
+  rows.forEach(function(r,i){
+    var n=rows[i+1];
+    if((r.int||r.failed)&&r.model!==null&&n&&n.model!==null&&!n.int&&n.key===r.key&&n.ts-r.ts<=120000&&n.model!==r.model){ r.to=n.model; n.from=r.model; }
   });
   return rows;
 }
@@ -952,7 +992,7 @@ function fixText(list){
   order.sort(function(a,b){ return c[b]-c[a]; });
   return order.map(function(s){ return c[s]>1 ? s+' ×'+c[s] : s; }).join(', ');
 }
-function genText(r){ return r.model===null ? '(tanpa generate)' : mshort(r.model); }
+function genText(r){ return r.model===null ? '(tanpa generate)' : mshort(r.model)+(r.failed?' (gagal)':r.int?' (terputus)':''); }
 function genTable(rows,showEmail,limit){
   var list=rows.slice().sort(function(a,b){ return b.ts-a.ts; }).slice(0,limit);
   if(!list.length) return '<div class="empty">Belum ada generate.</div>';
