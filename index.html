@@ -4176,7 +4176,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.51</div>
+  <div class="splash-version" id="splash-version">v11.52</div>
 </div>
 <script>
   (function(){
@@ -6251,7 +6251,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.51 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.52 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -17561,11 +17561,11 @@ function _vbWaitReasonLabel(status){
   // mikir Claude yang memang sengaja terjadi sebelum teks jawaban mulai
   // di-stream.
   if(status==='thinking')return'kami sedang menyusun hasilnya';
-  if(status===429)return'antrean server lagi penuh, menunggu giliran';
-  if(status===529)return'server kami lagi padat';
+  if(status===429)return'server membatasi permintaan sementara, menunggu lalu mencoba lagi';
+  if(status===529||status===503)return'server kami lagi padat';
   if(status===0)return'koneksi sempat putus, mencoba lagi';
   if(status===403)return'koneksi ke server ditolak sesaat, mencoba lagi';
-  return'server kami lagi sibuk';
+  return'server kami belum merespons dengan benar';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -19036,7 +19036,7 @@ async function _vbGenerateWithFallback(promptParts,onPartial,onWait,systemText,c
     if(i===keys.length-1||_vbGenNoFallback(out))return out;
     var nextM=PB_AI_MODELS[keys[i+1]];
     console.warn('[_vbGenerateWithFallback] '+m.label+' gagal (status '+(out&&out.resp?out.resp.status:'?')+'), dialihkan ke '+(nextM?nextM.label:'?'));
-    try{if(typeof showToast==='function'&&nextM)showToast(i===0?'Server utama lagi sibuk, mengalihkan ke server lain...':'Server cadangan juga lagi sibuk, mencoba server lain...');}catch(e){}
+    try{if(typeof showToast==='function'&&nextM)showToast(i===0?'Server utama gagal merespons, mengalihkan ke server lain...':'Server cadangan juga gagal merespons, mencoba server lain...');}catch(e){}
   }
   return out;
 }
@@ -20397,6 +20397,50 @@ async function _vbExtendShortScriptsPass(arr,batch,range,onWait){
     });
   }catch(eOut){console.warn('[_vbExtendShortScriptsOnce] catat hasil gagal:',eOut);}
 }
+// ── AKURASI PESAN ERROR JARINGAN (permintaan user, 7 Okt 2026) ──────────────
+// Dulu pesan "Gagal terhubung ke server" menyatakan sebagai FAKTA bahwa penyebabnya
+// "bukan masalah dari tools, tapi koneksi HP/WiFi" — padahal browser TIDAK memberi tahu
+// penyebab "Failed to fetch" (internet mati, DNS, diblokir, CORS, server down, data
+// terlalu besar: semuanya tampil sama persis). Sekarang aplikasi MENGUJI sendiri
+// (HEAD ke Worker + HEAD ke situs pembanding, tanpa kirim data) lalu pesan hanya
+// memuat hal yang benar-benar terukur; sisanya ditulis jelas sebagai "tidak bisa dipastikan".
+function _pbFallbackActive(){
+  try{return !!VB_GEN_FALLBACK_ENABLED&&pbGetAiModelKey()===VB_GEN_FALLBACK_FOR_MAIN_MODEL;}catch(e){return false;}
+}
+function _pbProbeReach(url,ms){
+  return new Promise(function(resolve){
+    var c=new AbortController(),done=false;
+    var t=setTimeout(function(){if(!done){done=true;try{c.abort();}catch(e){}resolve(false);}},ms);
+    fetch(url,{method:'HEAD',mode:'no-cors',cache:'no-store',signal:c.signal})
+      .then(function(){if(!done){done=true;clearTimeout(t);resolve(true);}})
+      .catch(function(){if(!done){done=true;clearTimeout(t);resolve(false);}});
+  });
+}
+async function _pbExplainStatus0(rawText,netDown){
+  var raw=String(rawText||'').substring(0,150);
+  if(/^timeout/i.test(raw)){
+    return 'Tidak ada balasan dari server dalam batas waktu ('+raw.replace(/^timeout\s*[—-]\s*/i,'')+'). Aplikasi tidak bisa membedakan apakah penyebabnya jaringan yang lambat atau server yang lama menjawab. Tekan Lanjutkan untuk mencoba lagi.';
+  }
+  if(/^koneksi terputus/i.test(raw)){
+    return 'Koneksi terputus di tengah jalan, jadi hasil dari server tidak selesai diterima. Tekan Lanjutkan untuk mencoba lagi.';
+  }
+  var head='Aplikasi tidak mendapat balasan apa pun dari server kami'+(raw?' (pesan dari browser: '+raw+')':'')+', walau sudah dicoba ulang otomatis.';
+  if(typeof navigator!=='undefined'&&navigator.onLine===false){
+    return head+' Perangkat melaporkan HP sedang tidak tersambung ke internet. Sambungkan WiFi/data seluler, lalu tekan Lanjutkan.';
+  }
+  if(!netDown){
+    return head+' Penyebabnya tidak bisa dipastikan dari sisi aplikasi. Tekan Lanjutkan untuk mencoba lagi.';
+  }
+  var r=await Promise.all([_pbProbeReach(ANTHROPIC_ENDPOINT,6000),_pbProbeReach('https://www.gstatic.com/generate_204',6000)]);
+  var srvOk=r[0],webOk=r[1];
+  if(srvOk){
+    return head+' Pengecekan: server kami BISA dijangkau dari HP ini, jadi ini bukan tanda internet HP mati. Yang gagal adalah permintaan generate-nya sendiri. Penyebab yang mungkin (aplikasi tidak bisa memastikan mana): data yang dikirim terlalu besar (mis. banyak/berat foto), atau server menolak permintaan dari aplikasi ini (pengaturan CORS di Worker). Kalau terus terulang walau ganti jaringan, periksa sisi server.';
+  }
+  if(webOk){
+    return head+' Pengecekan: situs pembanding bisa dijangkau (internet HP jalan), tapi server kami tidak menjawab dalam 6 detik dari jaringan ini. Bisa karena server sedang bermasalah atau jaringan ini memblokirnya; aplikasi tidak bisa memastikan mana. Coba ganti jaringan (WiFi ↔ data seluler) lalu tekan Lanjutkan. Kalau gagal di kedua jaringan, kemungkinan masalahnya ada di sisi server.';
+  }
+  return head+' Pengecekan: server kami maupun situs pembanding sama-sama tidak menjawab dalam 6 detik, jadi koneksi internet HP kemungkinan sedang putus atau sangat lemah. Cek WiFi/data seluler (kalau memakai VPN atau pemblokir iklan, coba matikan dulu), lalu tekan Lanjutkan.';
+}
 async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,usedHooks,cacheSystem,totalProdukInSesi,fixShort){
   if(cacheSystem===undefined)cacheSystem=true;
   // FIX BUG BIAYA (laporan user, Sept 2026 — "generate 3 produk sekaligus
@@ -20521,7 +20565,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // berubah) dan dibatasi 8192 (batas keluaran default Claude tanpa
   // header beta output panjang) sebagai jaring pengaman.
   let _vbDynamicMaxTokens=Math.min(16000,Math.max(6144,batch.length*(range.max*3*3+60)+1500)); // audit Okt 2026: 3 token/kata (Indonesia) + batas 16000 (model mendukung jauh lebih besar)
-  let{resp,rawText}=await _vbGenerateWithFallback(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem,_vbDynamicMaxTokens); // v11.2: Gemini -> Haiku -> Groq kalau gagal
+  let{resp,rawText,netDown}=await _vbGenerateWithFallback(_promptParts,onPartial,onWait,_vbEffectiveSystemPrompt,cacheSystem,_vbDynamicMaxTokens); // v11.2: Gemini -> Haiku -> Groq kalau gagal
   console.log('[vbGenerateBulkAI batch] status:',resp.status,'body:',rawText.substring(0,500));
   if(!resp.ok){
     let errJson={};try{errJson=JSON.parse(rawText);}catch(e){}
@@ -20574,11 +20618,11 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
         if(fixShort)await _vbApplyShortFix(mergedSplit,(mergedSplit.length&&mergedSplit.every(function(o){return o&&o._bi!=null;}))?mergedSplit.map(function(o){return batch[o._bi];}):batch,range,onWait);
         return mergedSplit;
       }
-      throw new Error('Data yang dikirim kebesaran (413) walau cuma 1 produk — biasanya penyebabnya foto referensi produk ini masih terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
+      throw new Error('Data yang dikirim kebesaran (413) walau cuma 1 produk — penyebabnya bisa foto referensi produk ini terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
     }
-    if(resp.status===503||resp.status===529)throw new Error('Server kami masih padat walau sudah dicoba ulang berkali-kali (termasuk ke server cadangan). Coba lagi beberapa saat lagi ya — biasanya ini sementara.');
-    if(resp.status===429)throw new Error('Server kami masih kewalahan menerima permintaan walau sudah dicoba ulang berkali-kali (termasuk ke server cadangan) — kemungkinan besar beban harian server sedang penuh, bukan cuma antrean sesaat. Coba lagi nanti.');
-    if(resp.status===0)throw new Error('Gagal terhubung ke server kami'+(rawText?(' ('+rawText.substring(0,150)+')'):'')+'. Biasanya ini bukan masalah dari tools, tapi koneksi HP/WiFi ke server yang gagal — cek: (1) internet HP/WiFi masih nyala & bisa buka situs lain, (2) matikan dulu VPN/proxy/ad-blocker kalau ada, (3) coba ganti dari WiFi ke data seluler (atau sebaliknya), lalu coba generate lagi.');
+    if(resp.status===503||resp.status===529)throw new Error('Server sedang padat (kode '+resp.status+'). Aplikasi sudah mencoba ulang otomatis'+(_pbFallbackActive()?' (termasuk ke server cadangan)':'')+' tapi belum berhasil. Coba lagi beberapa saat lagi.');
+    if(resp.status===429)throw new Error('Server menolak karena terlalu banyak permintaan (kode 429). Aplikasi sudah mencoba ulang otomatis'+(_pbFallbackActive()?' (termasuk ke server cadangan)':'')+' tapi masih ditolak. Aplikasi tidak bisa memastikan apakah ini batas sesaat atau batas harian. Coba lagi nanti.');
+    if(resp.status===0)throw new Error(await _pbExplainStatus0(rawText,netDown));
     if(_vbIsRegionBlock403(resp.status,rawText)){var _e403=new Error(_vbRegionBlockMsg());_e403.toastMsg='Koneksi ke server ditolak (403). Ganti jaringan (WiFi ↔ data seluler), lalu tekan Lanjutkan.';throw _e403;}
     var _authQuotaMsg=_pbWorkerAuthQuotaMsg(resp.status,errJson);
     if(_authQuotaMsg)throw new Error(_authQuotaMsg);
@@ -20595,7 +20639,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // pesan yang konsisten dengan gaya error lain di bawah.
   let data;
   try{data=JSON.parse(rawText);}catch(eParse){
-    throw new Error('Respons dari server tidak bisa dibaca (bukan format yang diharapkan) — kemungkinan gangguan jaringan sesaat. Coba tap ulang.');
+    throw new Error('Respons dari server tidak bisa dibaca (bukan format yang diharapkan). Coba tap ulang.');
   }
   if(data.error){console.warn('[_vbCallBulkBatch] data.error dari server: '+(data.error.message||'(tanpa pesan)'));throw new Error('Server kami sedang bermasalah. Coba tap ulang.');}
   let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
