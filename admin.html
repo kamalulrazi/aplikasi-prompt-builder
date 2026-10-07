@@ -7,211 +7,134 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#111214; --surface:#1a1b1e; --surface2:#212226; --border:#2c2d31; --border-hi:#3a3b40;
-    --text:#f2f1ee; --muted:#9b9a97; --muted2:#6f6e6c;
-    --accent:#e8c983; --green:#4caf7d; --warning:#e0a85a; --red:#e0615a;
-    --radius:14px; --radius-sm:10px;
-  }
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:0 14px 60px;}
-  .wrap{max-width:960px;margin:0 auto;}
-  h1{font-size:20px;margin:8px 0 4px;}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:24px;}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
-  .btn{background:var(--accent);color:#1a1a1a;border:none;border-radius:var(--radius-sm);padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer;}
-  .btn:active{opacity:0.85;}
-  .btn-outline{background:none;border:1px solid var(--border-hi);color:var(--text);}
-  .btn-reject{background:var(--surface2);color:var(--red);border:1px solid var(--border-hi);}
-  .btn-small{padding:7px 12px;font-size:13px;}
-  input,select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px;width:100%;}
-  label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px;margin-top:12px;}
-  .row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
-  .pill{font-size:11px;padding:3px 9px;border-radius:99px;font-weight:700;}
-  .pill.standar{background:rgba(232,201,131,0.15);color:var(--accent);}
-  .pill.premium{background:rgba(232,201,131,0.25);color:var(--accent);}
-  .req-email{font-weight:700;font-size:14px;}
-  .req-meta{font-size:12px;color:var(--muted);margin-top:2px;}
-  .empty{color:var(--muted2);font-size:13px;text-align:center;padding:24px 0;}
-  .hidden{display:none!important;}
-  #login-screen{text-align:center;padding:60px 20px;}
-  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0;}
-  .stat-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);}
-  .stat-card .k{font-size:11px;color:var(--muted);}
-  .stat-card .v{font-size:17px;font-weight:700;margin-top:2px;}
-  .stat-card .s{font-size:11px;color:var(--muted);margin-top:2px;}
-  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:12px;}
-  table.st{width:100%;border-collapse:collapse;font-size:12px;min-width:560px;}
-  table.st th{text-align:left;color:var(--muted);padding:8px 8px;font-weight:600;}
-  table.st td{padding:8px 8px;border-top:1px solid var(--border);}
-  table.st .r{text-align:right;white-space:nowrap;}
-  .tabs{display:flex;gap:6px;}
-  .tab{flex:none;background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer;}
-  .tab.on{background:var(--accent);border-color:var(--accent);color:#1a1a1a;}
-  @media(max-width:640px){
-    .tbl-wrap{border:0;}
-    table.stack{min-width:0!important;}
-    table.stack thead{display:none;}
-    table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%;}
-    table.stack tr{border:1px solid var(--border);border-radius:12px;margin-bottom:8px;padding:6px 12px;background:var(--surface2);}
-    table.stack td{border:0!important;padding:3px 0;display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
-    table.stack td::before{content:attr(data-label);color:var(--muted);flex:none;}
-    table.stack td .c{text-align:right;}
-    table.stack td.first{display:block;font-weight:700;padding:4px 0 6px;}
-    table.stack td.first::before{content:none;}
-    table.stack td.first .c{text-align:left;word-break:break-all;}
-  }
-  .pill.free{background:var(--surface2);color:var(--muted);}
-  .mu{color:var(--muted);}
-  .ugrid{border:1px solid var(--border);border-top:0;border-radius:0 0 12px 12px;overflow:hidden;}
-  .urow{display:grid;grid-template-columns:minmax(0,2.8fr) 88px minmax(0,1fr) 80px 72px 118px 84px;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--border);font-size:12.5px;}
-  .urow.uhead{border-top:0;color:var(--muted);font-weight:600;font-size:12px;}
-  .urow.clk{cursor:pointer;}
-  .urow.clk:hover{background:var(--surface2);}
-  .urow .em{font-weight:600;display:flex;align-items:center;gap:8px;min-width:0;}
-  .urow .ge,.urow .ch,.urow .ak,.urow .bi{text-align:right;}
-  .urow .u{display:none;}
-  #user-detail:not(:empty){position:fixed;inset:0;z-index:50;overflow-y:auto;background:var(--bg);padding:0 14px 60px;}
-  #user-detail .sheet{max-width:960px;margin:0 auto;}
-  .sheetbar{position:sticky;top:0;z-index:2;background:var(--bg);display:flex;align-items:center;gap:10px;padding:12px 0 10px;border-bottom:1px solid var(--border);margin-bottom:12px;}
-  .sheetbar .t{font-weight:700;font-size:14px;word-break:break-all;min-width:0;}
-  @media(max-width:640px){
-    .urow.uhead{display:none;}
-    .urow{grid-template-columns:auto 1fr auto;grid-template-areas:"em em bi" "pk md md" "ge ch ak";row-gap:6px;}
-    .urow .em{grid-area:em;font-size:13.5px;}
-    .urow .bi{grid-area:bi;font-weight:700;}
-    .urow .pk{grid-area:pk;}
-    .urow .md{grid-area:md;color:var(--muted);}
-    .urow .ge{grid-area:ge;text-align:left;}
-    .urow .ch{grid-area:ch;text-align:center;}
-    .urow .ak{grid-area:ak;text-align:right;}
-    .urow .ge,.urow .ch,.urow .ak{font-size:11.5px;color:var(--muted);}
-    .urow .u{display:inline;}
-  }
-  .sm{font-size:10.5px;color:var(--muted);margin-top:2px;white-space:normal;font-weight:400;}
-  tr.clk{cursor:pointer;}
-  tr.clk:hover td{background:var(--surface2);}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:92vw;text-align:center;background:var(--surface2);border:1px solid var(--border-hi);padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;}
-  .toast.show{opacity:1;}
-  /* ── Topbar lengket + tata letak daftar user ── */
-  .topbar{position:sticky;top:0;z-index:20;background:var(--bg);display:grid;grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"title tabs out";align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);margin-bottom:14px;}
-  .tb-title{grid-area:title;min-width:0;}
-  .tb-title h1{margin:0;font-size:18px;}
-  .tb-title .sub{margin:2px 0 0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .topbar .tabs{grid-area:tabs;}
-  .tb-out{grid-area:out;}
-  .st-head{align-items:flex-start;margin-bottom:12px;}
-  .st-title{font-weight:700;}
-  .st-head .sub{margin:2px 0 0;}
-  .st-btns{display:flex;gap:8px;flex-wrap:wrap;}
-  .stat-grid.compact{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 12px;}
-  .stat-grid.compact .stat-card{padding:8px 10px;}
-  .stat-grid.compact .stat-card .v{font-size:15px;}
-  .mdet{margin:0 0 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);}
-  .mdet summary{cursor:pointer;font-weight:600;font-size:13px;padding:9px 12px;}
-  .mdet .tbl-wrap{margin:0 8px 8px;}
-  .utools{position:sticky;top:var(--topbar-h,0px);z-index:10;background:var(--surface);padding-top:4px;}
-  .utl{display:flex;gap:8px;margin-bottom:8px;}
-  .utl input{flex:1 1 auto;min-width:0;width:auto;}
-  .utl select{flex:0 0 auto;width:auto;max-width:50%;}
-  .chips-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
-  .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;min-width:0;}
-  .chips::-webkit-scrollbar{display:none;}
-  .chip{flex:none;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:99px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;}
-  .chip .n{opacity:.7;font-weight:400;}
-  .chip.on{background:var(--accent);border-color:var(--accent);color:#1a1a1a;}
-  .ucount{font-size:11px;color:var(--muted);white-space:nowrap;flex:none;}
-  .ugrid-head{border:1px solid var(--border);border-radius:12px 12px 0 0;background:var(--surface2);}
-  .ugrid-head .urow{border-top:0;}
-  .ugrid .urow:first-child{border-top:0;}
-  .urow .bi{font-weight:600;}
-  .pill.exp{background:rgba(224,97,90,.15);color:var(--red);}
-  .av{position:relative;flex:none;width:24px;height:24px;border-radius:50%;background:rgba(232,201,131,.14);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;text-transform:uppercase;}
-  .emt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .more{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:14px 0 4px;}
-  .note{margin:10px 0 0;font-size:11px;}
-  @media(max-width:640px){
-    .topbar{position:static;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title out" "tabs tabs";padding-top:14px;}
-    .topbar .tab{flex:1;}
-    .stat-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr));}
-    .utools{top:0;}
-    .ugrid-head{display:none;}
-    .ugrid{border-top:1px solid var(--border);border-radius:12px;}
-    .emt{white-space:normal;word-break:break-all;}
-    .st-head .sub{display:none;}
-    .ucount{display:none;}
-  }
-  /* ── Live / online ── */
-  .live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:0 4px;white-space:nowrap;}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted2);display:inline-block;}
-  .dot.on{background:var(--green);animation:pulse 1.8s infinite;}
-  .dot.err{background:var(--red);}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,175,125,.55);}70%{box-shadow:0 0 0 7px rgba(76,175,125,0);}100%{box-shadow:0 0 0 0 rgba(76,175,125,0);}}
-  .av .od{position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:var(--green);border:2px solid var(--surface);}
-  .urow:hover .av .od{border-color:var(--surface2);}
-  .onl{color:var(--green);font-weight:600;}
-  .urow.flash{animation:rowflash 2.4s ease-out;}
-  @keyframes rowflash{0%{background:rgba(232,201,131,.30);}100%{background:transparent;}}
-  .sk summary{display:grid;grid-template-columns:1fr auto;gap:2px 12px;list-style:none;}
-  .sk summary::-webkit-details-marker{display:none;}
-  .sk-t{font-weight:700;}
-  .sk-c{font-weight:700;text-align:right;}
-  .sk-m{grid-column:1/3;color:var(--muted);font-size:12px;font-weight:400;}
-  .sk-b{padding:4px 12px 12px;}
-  .sk-call{border-left:2px solid var(--border-hi);padding:2px 0 12px 12px;margin-left:4px;}
-  .sk-h{display:flex;justify-content:space-between;gap:8px;font-size:13px;}
-  .sk-h i{color:var(--muted);font-style:normal;font-size:12px;}
-  .sk-s{color:var(--muted);font-size:12px;margin-top:2px;}
-  .sk-x{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:14px;line-height:1.7;max-width:68ch;white-space:pre-wrap;max-height:240px;overflow:auto;}
-
-  /* ── TAMPILAN BARU (tema terang) ── */
-  :root{--bg:#F3F4F7;--surface:#fff;--surface2:#F3F4F7;--border:#E1E4EA;--border-hi:#CBD0DA;--text:#141925;--muted:#5C6579;--muted2:#8A93A6;--accent:#2540C8;--green:#0C7A52;--warning:#A86500;--red:#B3261E;}
-  body{font-family:"Instrument Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;font-size:15px;}
-  h1,.stat-card .v,.sec{font-family:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;letter-spacing:-.01em;}
-  .wrap,#user-detail .sheet{max-width:1080px;}
-  .btn,.tab.on,.chip.on{color:#fff;}.chip.on{background:var(--text);border-color:var(--text);}
-  .btn-outline{color:var(--text);background:none;}.btn-reject{color:var(--red);}
-  .pill.standar{background:#E9EDFC;color:var(--accent);}.pill.premium{background:#FFF1CC;color:#7A5A00;}
-  .av{background:#E9EDFC;color:var(--accent);}.av .od{border-color:#fff;}
-  @keyframes rowflash{0%{background:#E9EDFC;}100%{background:transparent;}}
-  .sec{font-size:17px;margin:26px 0 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
-  .sec small{font:400 13px "Instrument Sans",system-ui,sans-serif;color:var(--muted);letter-spacing:0;}
-  .tag{display:inline-block;font-size:12.5px;font-weight:600;padding:1px 9px;border-radius:7px;background:hsl(var(--h) 85% 93%);color:hsl(var(--h) 60% 24%);white-space:nowrap;}
-  .day{display:flex;justify-content:space-between;gap:10px;margin:18px 0 8px;font-weight:600;}
-  .day span{color:var(--muted);font-weight:500;font-size:13.5px;}
-  .gr,.g summary{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:4px 12px;padding:12px 14px;}
-  .gr{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;}
-  details.g{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;}
-  details.g[open]{border-color:var(--accent);}
-  .g summary{cursor:pointer;list-style:none;}.g summary::-webkit-details-marker{display:none;}
-  .tm{font-weight:700;font-size:16px;}.gl b{display:block;}.gl small{color:var(--muted);}
-  .gr .rp,.g .rp{grid-row:1/3;grid-column:3;align-self:center;font-weight:700;font-size:16px;white-space:nowrap;}
-  .mods{grid-column:2;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;font-size:13px;color:var(--muted);}
-  .mods2{grid-column:2/4;font-size:12.5px;color:var(--muted);}
-  .gb{padding:2px 14px 14px;border-top:1px solid var(--border);}
-  .sp>span{display:block;font-weight:600;font-size:13px;margin:12px 0 4px;}
-  .sc{white-space:pre-wrap;max-width:68ch;background:#FAFBFC;border:1px solid var(--border);border-radius:10px;padding:12px 14px;line-height:1.75;}
-  .gb .chip{margin-top:12px;}
-  @media(max-width:640px){.gr,.g summary{grid-template-columns:48px minmax(0,1fr) auto;}}
-
-  /* ── Tata letak 2 kolom (desktop): daftar user di kiri, detail + skrip di kanan ── */
-  .wrap{max-width:1320px;}
-  .urow.on{background:#E9EDFC;box-shadow:inset 3px 0 var(--accent);}
-  @media(min-width:900px){
-    #tab-st{display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px;align-items:start;}
-    #tab-st>.card{position:sticky;top:var(--topbar-h,64px);max-height:calc(100vh - 84px);overflow:auto;margin:0;}
-    #user-detail:not(:empty){position:static;inset:auto;z-index:auto;overflow:visible;background:none;padding:0;}
-    #user-detail:empty::before{content:"Pilih user di daftar kiri untuk melihat skrip, model AI, dan biayanya.";display:block;padding:24px;border:1px dashed var(--border-hi);border-radius:14px;color:var(--muted);}
-    body{overflow:auto!important;}
-    .sheetbar{position:static;padding-top:0;}.sheetbar .btn{display:none;}
-    .utools{top:0;}.ugrid-head,.urow.uhead{display:none;}.ugrid{border-top:1px solid var(--border);border-radius:12px;}
-    .urow{grid-template-columns:auto 1fr auto;grid-template-areas:"em em bi" "pk md md" "ge ch ak";row-gap:6px;}
-    .urow .em{grid-area:em;}.urow .bi{grid-area:bi;font-weight:700;}.urow .pk{grid-area:pk;}.urow .md{grid-area:md;color:var(--muted);}
-    .urow .ge{grid-area:ge;text-align:left;}.urow .ch{grid-area:ch;text-align:center;}.urow .ak{grid-area:ak;text-align:right;}
-    .urow .ge,.urow .ch,.urow .ak{font-size:11.5px;color:var(--muted);}.urow .u{display:inline;}.emt{white-space:normal;word-break:break-all;}
-  }
+:root{--bg:#F5F6F8;--surface:#fff;--soft:#F1F3F6;--line:#E4E7EC;--line2:#CFD4DC;--text:#101828;--muted:#667085;--faint:#98A2B3;--accent:#2540C8;--accent-soft:#E9EDFC;--green:#0C7A52;--amber:#8A5300;--red:#B3261E;--topbar-h:64px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 "Instrument Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums;padding:0 16px 56px}
+.wrap{max-width:1240px;margin:0 auto}
+h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
+h1{font-size:19px}h2{font-size:16px}
+.sub{color:var(--muted);font-size:13px;margin:2px 0 0}
+.hidden{display:none!important}.mu{color:var(--muted)}.sm{font-size:11.5px;color:var(--muted);font-weight:400}
+#login-screen{text-align:center;padding:80px 20px}#login-screen .sub{margin:8px 0 20px}
+/* tombol & form */
+.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:600 14px inherit;font-family:inherit;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}.btn:disabled{opacity:.5;cursor:default}
+.btn-outline{background:var(--surface);color:var(--text);border:1px solid var(--line2)}
+.btn-reject{background:var(--surface);color:var(--red);border:1px solid var(--line2)}
+.btn-small{padding:7px 12px;font-size:13px}
+input,select{background:var(--surface);border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:9px 11px;font:inherit;font-size:14px;width:100%}
+input:focus,select:focus,.btn:focus-visible,.chip:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0}
+.form-grid .wide{grid-column:1/-1}
+/* header */
+.topbar{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;align-items:center;gap:16px;padding:14px 0;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.tb-title{flex:1;min-width:0}.tb-title .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs,.subtabs{display:flex;gap:4px;background:var(--soft);border:1px solid var(--line);padding:3px;border-radius:10px}
+.tab,.subtab{background:none;border:0;color:var(--muted);border-radius:7px;padding:7px 14px;font:600 13px inherit;font-family:inherit;cursor:pointer;white-space:nowrap}
+.tab.on,.subtab.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.subtabs{margin:14px 0}.subtab{flex:1}
+/* kartu */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+.card-head,.bar,.row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.bar{margin-bottom:12px;align-items:center}.bar .btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.req{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line)}
+.req:first-child{border-top:0}.req .row{align-items:center}
+.req-email{font-weight:600}.req-meta{font-size:13px;color:var(--muted);margin-top:2px}
+.empty{color:var(--faint);font-size:13.5px;text-align:center;padding:24px 8px}
+.sec{font-size:15px;margin:24px 0 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sec small{font:400 12.5px "Instrument Sans",system-ui,sans-serif;color:var(--muted)}
+/* label status */
+.pill{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:99px;font-weight:600;background:var(--soft);color:var(--muted)}
+.pill.standar{background:var(--accent-soft);color:var(--accent)}.pill.premium{background:#FFF1CC;color:#7A5A00}
+.pill.exp{background:#FCE9E7;color:var(--red)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}.dot.on{background:var(--green);animation:pulse 1.8s infinite}.dot.err{background:var(--red)}
+@keyframes pulse{70%{box-shadow:0 0 0 7px rgba(12,122,82,0)}100%{box-shadow:0 0 0 0 rgba(12,122,82,0)}}
+.onl{color:var(--green);font-weight:600}
+/* angka ringkas */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.stat-card{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.card .stat-card{background:var(--soft);border-color:transparent}
+.stat-card .k{font-size:12.5px;color:var(--muted)}.stat-card .v{font-size:20px;font-weight:650;margin-top:2px}.stat-card .s{font-size:12px;color:var(--muted);margin-top:2px}
+/* tabel */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table.st{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+table.st th{text-align:left;color:var(--muted);font-weight:600;padding:9px 12px;background:var(--soft)}
+table.st td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+table.st .r{text-align:right;white-space:nowrap}
+.mdet{margin:0 0 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.mdet summary{cursor:pointer;font-weight:600;font-size:13.5px;padding:10px 14px}
+.mdet .tbl-wrap{margin:0 10px 10px}
+/* daftar user */
+.split{display:block}
+.list-pane{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.utools{padding:12px;border-bottom:1px solid var(--line);background:var(--surface)}
+.utl{display:flex;gap:8px;margin-bottom:10px}.utl input{flex:1;min-width:0;width:auto}.utl select{width:auto;max-width:48%}
+.chips-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;min-width:0}.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;background:var(--surface);border:1px solid var(--line2);color:var(--muted);border-radius:99px;padding:4px 11px;font:600 12.5px inherit;font-family:inherit;cursor:pointer}
+.chip .n{font-weight:400;opacity:.75}.chip.on{background:var(--text);border-color:var(--text);color:#fff}
+.ucount{font-size:12px;color:var(--muted);white-space:nowrap}
+.urow{display:flex;align-items:center;gap:10px;padding:11px 12px;border-top:1px solid var(--line);cursor:pointer}
+.urow:first-child{border-top:0}.urow:hover{background:var(--soft)}.urow.on{background:var(--accent-soft);box-shadow:inset 3px 0 var(--accent)}
+.urow.flash{animation:flash 2.4s ease-out}@keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
+.ui{flex:1;min-width:0}.emt{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.us{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:12px;color:var(--muted);margin-top:3px}
+.bi{flex:none;text-align:right;font-weight:600;font-size:13.5px}
+.av{position:relative;flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;text-transform:uppercase}
+.av .od{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:var(--green);border:2px solid var(--surface)}
+.more{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:12px}
+.note{padding:0 12px 12px;font-size:12px}
+/* detail user */
+#user-detail:not(:empty){position:fixed;inset:0;z-index:50;overflow-y:auto;background:var(--bg);padding:0 16px 56px}
+.sheet{max-width:960px;margin:0 auto}
+.sheetbar{position:sticky;top:0;z-index:2;background:var(--bg);display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);margin-bottom:14px}
+.sheetbar .t{font-weight:650;min-width:0;word-break:break-all}
+.info{display:flex;flex-direction:column;gap:6px}
+.day{display:flex;justify-content:space-between;gap:10px;margin:18px 0 8px;font-weight:600}.day span{color:var(--muted);font-weight:500;font-size:13px}
+.gr,.g summary{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:2px 12px;padding:12px 14px}
+.gr,details.g{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
+details.g[open]{border-color:var(--accent)}.g summary{cursor:pointer;list-style:none}.g summary::-webkit-details-marker{display:none}
+.tm{font-weight:650}.gl b{display:block}.gl small,.mods,.mods2{color:var(--muted);font-size:12.5px}
+.rp{grid-row:1/3;grid-column:3;align-self:center;font-weight:650;white-space:nowrap}
+.mods{grid-column:2;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}.mods2{grid-column:2/4}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:6px;background:hsl(var(--h) 85% 93%);color:hsl(var(--h) 60% 24%)}
+.gb{padding:2px 14px 14px;border-top:1px solid var(--line)}
+.sp>span{display:block;font-weight:600;font-size:13px;margin:12px 0 4px}
+.sc,.sk-x{white-space:pre-wrap;max-width:68ch;background:var(--soft);border-radius:8px;padding:12px 14px;line-height:1.7;font-size:14px}
+.gb .chip{margin-top:12px}
+.sk summary{display:grid;grid-template-columns:1fr auto;gap:2px 12px;list-style:none}.sk summary::-webkit-details-marker{display:none}
+.sk-t,.sk-c{font-weight:650}.sk-m{grid-column:1/3;color:var(--muted);font-size:12.5px;font-weight:400}
+.sk-b{padding:4px 12px 12px}.sk-call{border-left:2px solid var(--line2);padding:2px 0 12px 12px;margin-left:4px}
+.sk-h{display:flex;justify-content:space-between;gap:8px;font-size:13px}.sk-h i{color:var(--muted);font-style:normal}.sk-s{color:var(--muted);font-size:12px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);max-width:92vw;text-align:center;background:var(--text);color:#fff;padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}.toast.show{opacity:1}
+/* layar lebar: daftar kiri, detail kanan */
+@media(min-width:900px){
+  .split{display:grid;grid-template-columns:380px minmax(0,1fr);gap:16px;align-items:start}
+  .list-pane{position:sticky;top:calc(var(--topbar-h) + 8px);max-height:calc(100vh - var(--topbar-h) - 24px);overflow:auto}
+  .utools{position:sticky;top:0;z-index:2}
+  #user-detail:not(:empty){position:static;overflow:visible;background:none;padding:0}
+  #user-detail:empty::before{content:"Pilih user di daftar kiri untuk melihat detailnya.";display:block;padding:24px;border:1px dashed var(--line2);border-radius:12px;color:var(--muted)}
+  .sheetbar{position:static;padding-top:0}.sheetbar .btn{display:none}
+  body{overflow:auto!important}
+}
+/* HP */
+@media(max-width:640px){
+  .topbar{position:static;flex-wrap:wrap;gap:10px}.tabs{order:3;width:100%}.tab{flex:1}
+  .form-grid{grid-template-columns:1fr}.ucount{display:none}
+  .tbl-wrap{border:0;background:none}
+  table.stack{min-width:0!important}table.stack thead{display:none}
+  table.stack,table.stack tbody,table.stack tr,table.stack td{display:block;width:100%}
+  table.stack tr{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;padding:6px 12px;background:var(--surface)}
+  table.stack td{border:0!important;padding:3px 0;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  table.stack td::before{content:attr(data-label);color:var(--muted);flex:none}
+  table.stack td .c{text-align:right}
+  table.stack td.first{display:block;font-weight:650;padding:4px 0 6px}table.stack td.first::before{content:none}
+  table.stack td.first .c{text-align:left;word-break:break-all}
+}
 </style>
 </head>
 <body>
@@ -225,63 +148,48 @@
   </div>
 
   <div id="admin-app" class="hidden">
-    <div class="topbar">
-      <div class="tb-title">
-        <h1>Admin Panel <small style="font:600 12px 'Instrument Sans',sans-serif;color:var(--accent);">tampilan baru</small></h1>
-        <div class="sub" id="who-am-i"></div>
-      </div>
-      <div class="tabs"><button class="tab on" id="tab-b-up" onclick="showTab('up')">Upgrade Tier</button><button class="tab" id="tab-b-st" onclick="showTab('st')">Statistik &amp; User</button></div>
-      <button class="btn btn-outline btn-small tb-out" onclick="adminLogout()">Keluar</button>
-    </div>
+    <header class="topbar">
+      <div class="tb-title"><h1>Admin Panel</h1><div class="sub" id="who-am-i"></div></div>
+      <nav class="tabs"><button class="tab on" id="tab-b-up" onclick="showTab('up')">Upgrade paket</button><button class="tab" id="tab-b-st" onclick="showTab('st')">User &amp; biaya</button></nav>
+      <button class="btn btn-outline btn-small" onclick="adminLogout()">Keluar</button>
+    </header>
 
-    <div id="tab-up">
-    <div class="card">
-      <div style="font-weight:700;margin-bottom:2px;">Permintaan Upgrade Pending</div>
-      <div class="sub" style="margin-bottom:0;">Cek mutasi transfer dulu di rekening kamu sebelum klik Setujui.</div>
-    </div>
-    <div id="pending-list"></div>
-    <button class="btn btn-outline btn-small" style="margin:8px 0 24px;" onclick="loadPending()">🔄 Muat Ulang</button>
-
-    <div class="card">
-      <div style="font-weight:700;margin-bottom:2px;">Set Tier Manual</div>
-      <div class="sub" style="margin-bottom:0;">Buat kasus di luar daftar pending — termasuk naikkan akun kamu sendiri ke Premium, gratis, kapan aja.</div>
-      <label>Email akun (harus sama persis dengan email login Google user-nya)</label>
-      <input type="email" id="manual-email" placeholder="user@gmail.com">
-      <label>Tier</label>
-      <select id="manual-tier">
-        <option value="free">Gratis</option>
-        <option value="standar">Standar</option>
-        <option value="premium" selected>Premium</option>
-      </select>
-      <label>Masa aktif</label>
-      <select id="manual-days">
-        <option value="30">30 hari</option>
-        <option value="365">1 tahun</option>
-        <option value="36500" selected>Selamanya (khusus akun kamu sendiri)</option>
-      </select>
-      <div style="margin-top:14px;">
-        <button class="btn btn-small" onclick="manualSetTier()">Terapkan</button>
-      </div>
-    </div>
-
-    </div>
-    <div id="tab-st" class="hidden">
-    <div class="card">
-      <div class="row st-head">
-        <div>
-          <div class="st-title">Statistik Biaya &amp; Cache Semua User</div>
-          <div class="sub">Ketuk user untuk melihat detail lengkapnya.</div>
+    <main id="tab-up">
+      <section class="card">
+        <div class="card-head">
+          <div><h2>Permintaan upgrade</h2><p class="sub">Cek mutasi transfer di rekening dulu sebelum menyetujui.</p></div>
+          <button class="btn btn-outline btn-small" onclick="loadPending()">Muat ulang</button>
         </div>
-        <div class="st-btns"><span class="live" id="live-badge"></span>
-          <button class="btn btn-small" id="usage-load-btn" onclick="loadUsageAll()">🔄 Muat ulang</button>
-          <button class="btn btn-small hidden" id="usage-gen-btn" onclick="showAllGen(this)">Per Generate</button>
-          <button class="btn btn-outline btn-small hidden" id="usage-csv-btn" onclick="exportAllXlsx(this)">Unduh Semua (Excel)</button>
+        <div id="pending-list"></div>
+      </section>
+      <section class="card">
+        <h2>Ubah paket manual</h2>
+        <p class="sub">Untuk kasus di luar daftar permintaan, termasuk akun kamu sendiri.</p>
+        <div class="form-grid">
+          <div class="wide"><label for="manual-email">Email akun (sama persis dengan email login Google user)</label><input type="email" id="manual-email" placeholder="user@gmail.com"></div>
+          <div><label for="manual-tier">Paket</label><select id="manual-tier"><option value="free">Gratis</option><option value="standar">Standar</option><option value="premium" selected>Premium</option></select></div>
+          <div class="wide"><label for="manual-days">Masa aktif</label><select id="manual-days"><option value="30">30 hari</option><option value="365">1 tahun</option><option value="36500" selected>Selamanya (khusus akun kamu sendiri)</option></select></div>
+        </div>
+        <button class="btn" onclick="manualSetTier()">Terapkan</button>
+      </section>
+    </main>
+
+    <main id="tab-st" class="hidden">
+      <div class="bar">
+        <div><h2>User &amp; biaya</h2><p class="sub">Pilih user untuk melihat skrip, model AI, dan biayanya.</p></div>
+        <div class="btns"><span class="live" id="live-badge"></span>
+          <button class="btn btn-outline btn-small" id="usage-load-btn" onclick="loadUsageAll()">Muat ulang</button>
+          <button class="btn btn-outline btn-small hidden" id="usage-gen-btn" onclick="showAllGen(this)">Per generate</button>
+          <button class="btn btn-small hidden" id="usage-csv-btn" onclick="exportAllXlsx(this)">Unduh Excel</button>
         </div>
       </div>
-      <div id="usage-result"></div>
-    </div>
-    <div id="user-detail"></div>
-    </div>
+      <div class="stat-grid" id="u-summary"></div>
+      <details class="mdet"><summary>Biaya per model (semua user)</summary><div id="u-models"></div></details>
+      <div class="split">
+        <div class="list-pane" id="usage-result"></div>
+        <div id="user-detail"></div>
+      </div>
+    </main>
   </div>
 
 </div>
@@ -400,7 +308,7 @@ async function loadPending(){
       var d=doc.data();
       var req=d.pb_upgrade_request || {};
       var card=document.createElement('div');
-      card.className='card';
+      card.className='req';
       card.innerHTML =
         '<div class="row">'+
           '<div>'+
@@ -619,17 +527,16 @@ function renderUsers(){
   document.getElementById('u-count').textContent=(shown.length<rows.length?shown.length+' / ':'')+rows.length+' dari '+_usageRows.length+' user';
   var list=document.getElementById('u-list');
   if(!rows.length){ list.innerHTML='<div class="empty">Tidak ada user yang cocok.</div>'; return; }
-  var h='<div class="ugrid">';
+  var h='<div>';
   shown.forEach(function(r){
-    var ms=Object.keys(r.models).map(mshort).join(', ')||'-';
     var ini=(r.email.replace(/[^a-z0-9]/gi,'').charAt(0)||'?');
-    h+='<div class="urow clk'+(_flash[r.uid]?' flash':'')+(document.getElementById('user-detail').dataset.uid===r.uid?' on':'')+'" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)">'
-      +'<div class="em" title="'+_esc(r.email)+'"><span class="av">'+_esc(ini)+(isOnline(r)?'<i class="od"></i>':'')+'</span><span class="emt">'+_esc(r.email)+'</span></div>'
-      +'<div class="pk"><span class="pill '+(r.tier==='free'?'free':safeTier(r.tier))+(tierStatus(r).k==='exp'?' exp':'')+'"'+(tierStatus(r).k==='exp'?' title="Paket kedaluwarsa"':'')+'>'+_esc(r.tier)+(tierStatus(r).k==='exp'?' ⏱':'')+'</span></div>'
-      +'<div class="md">'+_esc(ms)+'</div>'
-      +'<div class="ge">'+r.gen+(r.fix?' <span class="mu">(+'+r.fix+')</span>':'')+'<span class="u"> generate</span></div>'
-      +'<div class="ch">'+pct(r.hit,r.hit+r.miss+r.noCache)+'<span class="u"> cache</span></div>'
-      +'<div class="ak">'+(isOnline(r)?'<span class="onl">● Online</span>':(r.updated?'<span class="u">aktif </span>'+fmtShort(r.updated):'-'))+'</div>'
+    var stt=tierStatus(r), tl=r.tier==='free'?'free':safeTier(r.tier);
+    h+='<div class="urow'+(_flash[r.uid]?' flash':'')+(document.getElementById('user-detail').dataset.uid===r.uid?' on':'')+'" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)">'
+      +'<span class="av">'+_esc(ini)+(isOnline(r)?'<i class="od"></i>':'')+'</span>'
+      +'<div class="ui"><div class="emt" title="'+_esc(r.email)+'">'+_esc(r.email)+'</div>'
+      +'<div class="us"><span class="pill '+tl+(stt.k==='exp'?' exp':'')+'">'+_esc(r.tier)+(stt.k==='exp'?' (habis)':'')+'</span>'
+      +'<span>'+r.gen+(r.fix?' (+'+r.fix+')':'')+' generate</span><span>cache '+pct(r.hit,r.hit+r.miss+r.noCache)+'</span>'
+      +(isOnline(r)?'<span class="onl">Online</span>':(r.updated?'<span>aktif '+fmtShort(r.updated)+'</span>':''))+'</div></div>'
       +'<div class="bi">'+money(r.usd)+'</div></div>';
   });
   h+='</div>';
@@ -673,15 +580,12 @@ function paintSummary(){
 function buildShell(){
   _uTier='all'; _uLimit=UPAGE;
   document.getElementById('usage-result').innerHTML=
-     '<div class="stat-grid compact" id="u-summary"></div>'
-    +'<details class="mdet"><summary>Biaya per model (semua user)</summary><div id="u-models"></div></details>'
-    +'<div class="utools">'
+     '<div class="utools">'
     +'<div class="utl"><input id="u-q" type="search" placeholder="Cari email..." oninput="uChange()"><select id="u-sort" aria-label="Urutkan" onchange="uChange()"><option value="usd">Urut: biaya</option><option value="gen">Urut: generate</option><option value="act">Urut: terakhir aktif</option><option value="email">Urut: email A-Z</option></select></div>'
     +'<div class="chips-row"><div class="chips" id="u-chips"></div><div class="ucount" id="u-count"></div></div>'
-    +'<div class="ugrid-head"><div class="urow uhead"><div class="em">Email</div><div class="pk">Paket</div><div class="md">Model</div><div class="ge">Generate</div><div class="ch">Cache hit</div><div class="ak">Terakhir aktif</div><div class="bi">Biaya</div></div></div>'
     +'</div>'
     +'<div id="u-list"></div>'
-    +'<div class="sub note">Data masuk otomatis (real-time). "Online" = aktif dalam 5 menit terakhir. Angka dalam kurung = panggilan perbaikan jumlah kata. User yang belum pernah login tidak punya data di cloud, jadi tidak terhitung.</div>';
+    +'<div class="sub note">Data masuk otomatis. "Online" = aktif dalam 5 menit terakhir. Angka dalam kurung = perbaikan jumlah kata. User yang belum pernah login tidak terhitung.</div>';
 }
 function detach(){ if(_unsub){ try{ _unsub(); }catch(e){} _unsub=null; } }
 function stopLive(){
@@ -892,31 +796,36 @@ function genFeed(rows){
   });
   return h;
 }
+var _dTab='ringkasan';
+function dTab(t){ _dTab=t; var r=curRow(document.getElementById('user-detail').dataset.uid); if(r) renderUser(r,_detailLog,_detailErr); }
 function renderUser(r,log,err){
   var st=tierStatus(r), ex=st.k==='exp', m=(log===null||err)?null:dayMap(r,log), qt=r.raw.pb_quota, nCall=r.gen+r.fix;
   var pend=(r.raw.pb_upgrade_request&&r.raw.pb_upgrade_request.status==='pending')?r.raw.pb_upgrade_request:null;
-  var actDays=m?Object.keys(m).filter(function(d){ return m[d].calls>0; }).length:0;
   var rows=(log&&!err)?buildGenRows(log,r.email):[];
   var tt=function(t,s){ return '<h3 class="sec">'+t+(s?'<small>'+s+'</small>':'')+'</h3>'; };
-  var tail=err?'<div class="empty" style="color:var(--red);">Gagal baca riwayat per panggilan: '+_esc(err)+'<br>Pastikan Firestore Rules versi terbaru (bagian blobs) sudah di-Publish.</div>'
-    :(log===null?'<div class="empty">Memuat riwayat per panggilan...</div>'
-    :tt('Riwayat generate','tanggal, jam, model, perbaikan kata, dan biaya')+genFeed(rows)+tt('Biaya per hari','30 hari terakhir')+dayTable(m)
-      +'<details class="mdet" style="margin-top:16px;"><summary>Riwayat per panggilan AI ('+Math.min(log.length,100)+' terbaru, maks 60 hari)</summary>'+logTable(log)+'</details>');
-  document.getElementById('user-detail').innerHTML=
-    '<div class="sheet"><div class="sheetbar"><button class="btn btn-outline btn-small" onclick="closeUser()">← Kembali</button><div class="t">'+_esc(r.email)+'</div></div>'
-    +'<div class="card"><div class="req-meta"><span class="pill '+(r.tier==='free'?'free':safeTier(r.tier))+'">'+_esc(r.tier)+'</span> <span class="pill'+(ex?' exp':'')+'">'+st.t+'</span>'+(r.expiry?' · sampai '+fmtDate(r.expiry):'')+'</div>'
-    +'<div class="req-meta" style="margin-top:6px;">Terakhir aktif '+(r.updated?dLong(r.updated)+', '+hm(r.updated):'-')+(isOnline(r)?' · <b style="color:var(--green);">● Online sekarang</b>':'')+'</div>'
-    +(pend?'<div class="req-meta" style="color:var(--warning);margin-top:6px;">⏳ Permintaan upgrade pending: '+_esc(pend.tier||'-')+' · Rp'+Number(pend.price||0).toLocaleString('id-ID')+' · '+fmtDate(pend.requestedAt)+' (proses di tab Upgrade Tier)</div>':'')
-    +'<div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div>'
-    +'</div>'+tt('Skrip terakhir','6 produk terakhir · Hook, Cerita, CTA')+scriptCards(_detailHist,rows,_detailHistErr)+tt('Ringkasan biaya')+'<div class="card"><div class="stat-grid">'+sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))+(m?periodCards(m):'')
+  var info='<div class="card info"><div><span class="pill '+(r.tier==='free'?'free':safeTier(r.tier))+'">'+_esc(r.tier)+'</span> <span class="pill'+(ex?' exp':'')+'">'+st.t+'</span></div>'
+    +(r.expiry?'<div class="req-meta">Paket sampai '+fmtDate(r.expiry)+'</div>':'')
+    +'<div class="req-meta">Terakhir aktif '+(r.updated?dLong(r.updated)+', '+hm(r.updated):'-')+(isOnline(r)?' · <b class="onl">Online sekarang</b>':'')+'</div>'
+    +(pend?'<div class="req-meta" style="color:var(--amber);">Ada permintaan upgrade: '+_esc(pend.tier||'-')+' · Rp'+Number(pend.price||0).toLocaleString('id-ID')+' · '+fmtDate(pend.requestedAt)+' (proses di tab Upgrade paket)</div>':'')
+    +'<div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div></div>';
+  var tabs='<div class="subtabs">'+[['ringkasan','Ringkasan'],['skrip','Skrip'],['riwayat','Riwayat']].map(function(x){ return '<button class="subtab'+(_dTab===x[0]?' on':'')+'" onclick="dTab(\''+x[0]+'\')">'+x[1]+'</button>'; }).join('')+'</div>';
+  var bad=err?'<div class="empty" style="color:var(--red);">Gagal baca riwayat: '+_esc(err)+'<br>Pastikan Firestore Rules versi terbaru (bagian blobs) sudah di-Publish.</div>':'';
+  var body;
+  if(_dTab==='skrip') body=tt('Skrip terakhir','6 produk terakhir · Hook, Cerita, CTA')+scriptCards(_detailHist,rows,_detailHistErr);
+  else if(_dTab==='riwayat') body=bad||(log===null?'<div class="empty">Memuat riwayat...</div>':
+    tt('Riwayat generate')+genFeed(rows)+tt('Biaya per hari','30 hari terakhir')+dayTable(m)
+    +'<details class="mdet" style="margin-top:16px;"><summary>Riwayat per panggilan AI ('+Math.min(log.length,100)+' terbaru, maks 60 hari)</summary>'+logTable(log)+'</details>')
+    +'<details class="mdet" style="margin-top:16px;"><summary>Semua field di dokumen user ('+Object.keys(r.raw||{}).length+')</summary>'+rawTable(r.raw)+'</details>';
+  else body='<div class="stat-grid">'+sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))+(m?periodCards(m):'')
     +sc('Biaya generate',idr(r.usdGen),r.gen+' panggilan')+sc('Biaya perbaikan kata',idr(r.usdFix),r.fix+' panggilan')
     +sc('Cache hit (Claude)',pct(r.hit,r.hit+r.miss+r.noCache),r.hit+' hit · '+r.miss+' miss · '+r.noCache+' tanpa cache')
-    +sc('Token masuk',num(r.noCacheInTok+r.cacheWriteInTok+r.cacheReadInTok),'keluar '+num(r.outTok))
-    +(nCall>0?sc('Rata-rata per panggilan',idr(r.usd/nCall),nCall+' panggilan total'):'')+(m?sc('Hari aktif',actDays,'dari riwayat yang tersimpan'):'')
+    +(nCall>0?sc('Rata-rata per panggilan',idr(r.usd/nCall),nCall+' panggilan total'):'')
     +((qt&&qt.count!=null)?sc('Kuota terpakai',num(qt.count),qt.date?'tanggal '+_esc(qt.date):''):'')
-    +(r.estUsd>0?sc('Percobaan terputus','~$'+r.estUsd.toFixed(4),r.interrupted+' percobaan · belum masuk total'):'')+'</div></div>'
-    +tt('Model AI yang dipakai')+modelTable(r.models,r.usd)+tail
-    +'<details class="mdet" style="margin-top:16px;"><summary>Semua field di dokumen user ('+Object.keys(r.raw||{}).length+')</summary>'+rawTable(r.raw)+'</details></div>';
+    +(r.estUsd>0?sc('Percobaan terputus','~$'+r.estUsd.toFixed(4),r.interrupted+' percobaan · belum masuk total'):'')+'</div>'
+    +tt('Model AI yang dipakai')+modelTable(r.models,r.usd);
+  document.getElementById('user-detail').innerHTML=
+    '<div class="sheet"><div class="sheetbar"><button class="btn btn-outline btn-small" onclick="closeUser()">← Kembali</button><div class="t">'+_esc(r.email)+'</div></div>'
+    +info+tabs+body+'</div>';
 }
 async function showUser(uid){
   var r=curRow(uid);
