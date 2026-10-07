@@ -195,6 +195,23 @@
   .sc{white-space:pre-wrap;max-width:68ch;background:#FAFBFC;border:1px solid var(--border);border-radius:10px;padding:12px 14px;line-height:1.75;}
   .gb .chip{margin-top:12px;}
   @media(max-width:640px){.gr,.g summary{grid-template-columns:48px minmax(0,1fr) auto;}}
+
+  /* ── Tata letak 2 kolom (desktop): daftar user di kiri, detail + skrip di kanan ── */
+  .wrap{max-width:1320px;}
+  .urow.on{background:#E9EDFC;box-shadow:inset 3px 0 var(--accent);}
+  @media(min-width:900px){
+    #tab-st{display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px;align-items:start;}
+    #tab-st>.card{position:sticky;top:var(--topbar-h,64px);max-height:calc(100vh - 84px);overflow:auto;margin:0;}
+    #user-detail:not(:empty){position:static;inset:auto;z-index:auto;overflow:visible;background:none;padding:0;}
+    #user-detail:empty::before{content:"Pilih user di daftar kiri untuk melihat skrip, model AI, dan biayanya.";display:block;padding:24px;border:1px dashed var(--border-hi);border-radius:14px;color:var(--muted);}
+    body{overflow:auto!important;}
+    .sheetbar{position:static;padding-top:0;}.sheetbar .btn{display:none;}
+    .utools{top:0;}.ugrid-head,.urow.uhead{display:none;}.ugrid{border-top:1px solid var(--border);border-radius:12px;}
+    .urow{grid-template-columns:auto 1fr auto;grid-template-areas:"em em bi" "pk md md" "ge ch ak";row-gap:6px;}
+    .urow .em{grid-area:em;}.urow .bi{grid-area:bi;font-weight:700;}.urow .pk{grid-area:pk;}.urow .md{grid-area:md;color:var(--muted);}
+    .urow .ge{grid-area:ge;text-align:left;}.urow .ch{grid-area:ch;text-align:center;}.urow .ak{grid-area:ak;text-align:right;}
+    .urow .ge,.urow .ch,.urow .ak{font-size:11.5px;color:var(--muted);}.urow .u{display:inline;}.emt{white-space:normal;word-break:break-all;}
+  }
 </style>
 </head>
 <body>
@@ -210,7 +227,7 @@
   <div id="admin-app" class="hidden">
     <div class="topbar">
       <div class="tb-title">
-        <h1>Admin Panel</h1>
+        <h1>Admin Panel <small style="font:600 12px 'Instrument Sans',sans-serif;color:var(--accent);">tampilan baru</small></h1>
         <div class="sub" id="who-am-i"></div>
       </div>
       <div class="tabs"><button class="tab on" id="tab-b-up" onclick="showTab('up')">Upgrade Tier</button><button class="tab" id="tab-b-st" onclick="showTab('st')">Statistik &amp; User</button></div>
@@ -606,7 +623,7 @@ function renderUsers(){
   shown.forEach(function(r){
     var ms=Object.keys(r.models).map(mshort).join(', ')||'-';
     var ini=(r.email.replace(/[^a-z0-9]/gi,'').charAt(0)||'?');
-    h+='<div class="urow clk'+(_flash[r.uid]?' flash':'')+'" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)">'
+    h+='<div class="urow clk'+(_flash[r.uid]?' flash':'')+(document.getElementById('user-detail').dataset.uid===r.uid?' on':'')+'" data-uid="'+_esc(r.uid)+'" onclick="showUser(this.dataset.uid)">'
       +'<div class="em" title="'+_esc(r.email)+'"><span class="av">'+_esc(ini)+(isOnline(r)?'<i class="od"></i>':'')+'</span><span class="emt">'+_esc(r.email)+'</span></div>'
       +'<div class="pk"><span class="pill '+(r.tier==='free'?'free':safeTier(r.tier))+(tierStatus(r).k==='exp'?' exp':'')+'"'+(tierStatus(r).k==='exp'?' title="Paket kedaluwarsa"':'')+'>'+_esc(r.tier)+(tierStatus(r).k==='exp'?' ⏱':'')+'</span></div>'
       +'<div class="md">'+_esc(ms)+'</div>'
@@ -686,6 +703,7 @@ function startLive(){
     _usageRows=rows;
     if(_firstSnap){ buildShell(); _firstSnap=false; }
     paintSummary(); renderUsers(); refreshDetail();
+    if(window.innerWidth>=900&&_usageRows.length&&!document.getElementById('user-detail').dataset.uid) showUser(_usageRows[0].uid);
     csv.classList.toggle('hidden', !_usageRows.length);
     ['usage-gen-btn'].forEach(function(id){ var b=document.getElementById(id); if(b) b.classList.toggle('hidden', !_usageRows.length); });
     clearTimeout(_flashT); _flashT=setTimeout(function(){ _flash={}; },2500);
@@ -851,7 +869,7 @@ function scriptCards(hist,rows,err){
   if(err) return '<div class="empty" style="color:var(--red);">Skrip belum bisa dibaca: '+_esc(err)+'<br>Pastikan aturan blobs pb_history_v1 di Firestore Rules sudah di-Publish.</div>';
   if(hist===null) return '<div class="empty">Memuat skrip...</div>';
   var L=hist.slice().sort(function(a,b){ return _n(b.ts)-_n(a.ts); }).slice(0,6); _scr=L;
-  if(!L.length) return '<div class="empty">Belum ada skrip tersimpan. Skrip tercatat setelah user generate memakai versi aplikasi terbaru.</div>';
+  if(!L.length) return '<div class="empty">Belum ada skrip tersimpan untuk user ini. Skrip baru terekam setelah user generate (bulk) memakai index.html versi terbaru; skrip lama tidak pernah tersimpan di cloud.</div>';
   return L.map(function(x,i){
     var best=null,bd=6e5; (rows||[]).forEach(function(r){ var d=Math.abs(_n(x.ts)-r.ts); if(d<bd&&r.model!==null){ bd=d; best=r; } });
     var p=String(x.text||'').split(/(?:^|\n+)(HOOK|STORY|CTA):\s*/), body='';
@@ -890,14 +908,13 @@ function renderUser(r,log,err){
     +'<div class="req-meta" style="margin-top:6px;">Terakhir aktif '+(r.updated?dLong(r.updated)+', '+hm(r.updated):'-')+(isOnline(r)?' · <b style="color:var(--green);">● Online sekarang</b>':'')+'</div>'
     +(pend?'<div class="req-meta" style="color:var(--warning);margin-top:6px;">⏳ Permintaan upgrade pending: '+_esc(pend.tier||'-')+' · Rp'+Number(pend.price||0).toLocaleString('id-ID')+' · '+fmtDate(pend.requestedAt)+' (proses di tab Upgrade Tier)</div>':'')
     +'<div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div>'
-    +'<div class="stat-grid">'+sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))+(m?periodCards(m):'')
+    +'</div>'+tt('Skrip terakhir','6 produk terakhir · Hook, Cerita, CTA')+scriptCards(_detailHist,rows,_detailHistErr)+tt('Ringkasan biaya')+'<div class="card"><div class="stat-grid">'+sc('Total biaya',idr(r.usd),'$'+r.usd.toFixed(4))+(m?periodCards(m):'')
     +sc('Biaya generate',idr(r.usdGen),r.gen+' panggilan')+sc('Biaya perbaikan kata',idr(r.usdFix),r.fix+' panggilan')
     +sc('Cache hit (Claude)',pct(r.hit,r.hit+r.miss+r.noCache),r.hit+' hit · '+r.miss+' miss · '+r.noCache+' tanpa cache')
     +sc('Token masuk',num(r.noCacheInTok+r.cacheWriteInTok+r.cacheReadInTok),'keluar '+num(r.outTok))
     +(nCall>0?sc('Rata-rata per panggilan',idr(r.usd/nCall),nCall+' panggilan total'):'')+(m?sc('Hari aktif',actDays,'dari riwayat yang tersimpan'):'')
     +((qt&&qt.count!=null)?sc('Kuota terpakai',num(qt.count),qt.date?'tanggal '+_esc(qt.date):''):'')
     +(r.estUsd>0?sc('Percobaan terputus','~$'+r.estUsd.toFixed(4),r.interrupted+' percobaan · belum masuk total'):'')+'</div></div>'
-    +tt('Skrip terakhir','6 produk terakhir · Hook, Cerita, CTA')+scriptCards(_detailHist,rows,_detailHistErr)
     +tt('Model AI yang dipakai')+modelTable(r.models,r.usd)+tail
     +'<details class="mdet" style="margin-top:16px;"><summary>Semua field di dokumen user ('+Object.keys(r.raw||{}).length+')</summary>'+rawTable(r.raw)+'</details></div>';
 }
@@ -905,7 +922,7 @@ async function showUser(uid){
   var r=curRow(uid);
   if(!r) return;
   var box=document.getElementById('user-detail');
-  box.dataset.uid=uid; _detailSig=JSON.stringify(r.raw); _detailLog=null; _detailErr=null;
+  box.dataset.uid=uid; _detailSig=JSON.stringify(r.raw); _detailLog=null; _detailErr=null; renderUsers();
   _detailHist=null; _detailHistErr=null;
   renderUser(r,null,null);
   loadUserHist(uid).then(function(h){ _detailHist=h; }).catch(function(e){ _detailHist=[]; _detailHistErr=errMsg(e); }).then(function(){
