@@ -153,6 +153,17 @@
   .onl{color:var(--green);font-weight:600;}
   .urow.flash{animation:rowflash 2.4s ease-out;}
   @keyframes rowflash{0%{background:rgba(232,201,131,.30);}100%{background:transparent;}}
+  .sk summary{display:grid;grid-template-columns:1fr auto;gap:2px 12px;list-style:none;}
+  .sk summary::-webkit-details-marker{display:none;}
+  .sk-t{font-weight:700;}
+  .sk-c{font-weight:700;text-align:right;}
+  .sk-m{grid-column:1/3;color:var(--muted);font-size:12px;font-weight:400;}
+  .sk-b{padding:4px 12px 12px;}
+  .sk-call{border-left:2px solid var(--border-hi);padding:2px 0 12px 12px;margin-left:4px;}
+  .sk-h{display:flex;justify-content:space-between;gap:8px;font-size:13px;}
+  .sk-h i{color:var(--muted);font-style:normal;font-size:12px;}
+  .sk-s{color:var(--muted);font-size:12px;margin-top:2px;}
+  .sk-x{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:14px;line-height:1.7;max-width:68ch;white-space:pre-wrap;max-height:240px;overflow:auto;}
 </style>
 </head>
 <body>
@@ -275,7 +286,7 @@ service cloud.firestore {
       allow delete: if isOwner();
       match /blobs/{doc} {
         allow read: if request.auth != null && (request.auth.uid == uid
-          || (isOwner() && doc.matches('pb_usage_log_v1.*')));
+          || (isOwner() && (doc.matches('pb_usage_log_v1.*') || doc.matches('pb_history_v1.*'))));
         allow write: if request.auth != null && request.auth.uid == uid;
       }
     }
@@ -672,6 +683,54 @@ async function loadUserLog(uid){
   return Array.isArray(a)?a:[];
 }
 
+var _detailHist=null,_detailHistErr=null;
+// Skrip hasil generate: users/{uid}/blobs/pb_history_v1 (format sama dengan log: manifest {n} + potongan __0..n-1 {d}).
+async function loadUserHist(uid){
+  var c=db.collection('users').doc(uid).collection('blobs');
+  var m=await c.doc('pb_history_v1').get({source:'server'});
+  if(!m.exists) return [];
+  var n=_n((m.data()||{}).n), reads=[];
+  for(var i=0;i<n;i++) reads.push(c.doc('pb_history_v1__'+i).get({source:'server'}));
+  var snaps=await Promise.all(reads);
+  var txt=snaps.map(function(s){ var d=s.exists?s.data():null; return (d&&typeof d.d==='string')?d.d:''; }).join('');
+  var a=JSON.parse(txt||'[]');
+  return Array.isArray(a)?a:[];
+}
+function skripFeed(log,hist,err){
+  var note='<div class="sub" style="margin:0 0 10px;">Skrip yang tersimpan hanya 5 terakhir per user (batas dari aplikasi). Skrip dicocokkan ke panggilan AI lewat waktu terdekat.</div>';
+  if(err) note+='<div class="empty" style="color:var(--red);">Skrip belum bisa dibaca: '+_esc(err)+'<br>Tambahkan aturan blobs pb_history_v1 di Firestore Rules (lihat komentar di atas script halaman ini), lalu Publish.</div>';
+  else if(hist===null) note+='<div class="empty">Memuat skrip...</div>';
+  var calls=(log||[]).slice().sort(function(a,b){ return _n(a.ts)-_n(b.ts); });
+  var ck=function(c){ return c.id!=null?c.id:'t'+c.ts; };
+  var by={}, spare=[];
+  (hist||[]).forEach(function(h){
+    var best=null, bd=3e5;
+    calls.forEach(function(c){ var d=Math.abs(_n(h.ts)-_n(c.ts)); if(d<bd){ bd=d; best=c; } });
+    if(best) (by[ck(best)]=by[ck(best)]||[]).push(h); else spare.push(h);
+  });
+  var g={};
+  calls.forEach(function(c){
+    var k=c.sesiId||('x'+c.id), s=g[k]||(g[k]={ts:0,label:c.sesiLabel||'-',calls:[],usd:0,models:{}});
+    s.ts=Math.max(s.ts,_n(c.ts)); s.calls.push(c); s.usd+=usdTok(c,c.model); s.models[mshort(c.model)]=1;
+  });
+  var rows=Object.keys(g).map(function(k){ return g[k]; }).sort(function(a,b){ return b.ts-a.ts; }).slice(0,30);
+  var sx=function(arr){ return (arr||[]).map(function(x){ return '<div class="sk-x">'+_esc(x.text||'')+'</div>'; }).join(''); };
+  var h=note;
+  if(!rows.length && !spare.length) return h+'<div class="empty">Belum ada riwayat.</div>';
+  rows.forEach(function(s){
+    var fix=s.calls.filter(function(c){ return c.kind==='fix'; }).length;
+    h+='<details class="mdet sk"><summary><span class="sk-t">'+_esc(s.label)+'</span><span class="sk-c">'+idr(s.usd)+'</span><span class="sk-m">'+fmtDate(s.ts)+' · '+_esc(Object.keys(s.models).join(', '))+' · '+s.calls.length+' panggilan'+(fix?' ('+fix+' perbaikan kata)':'')+'</span></summary><div class="sk-b">';
+    s.calls.forEach(function(c){
+      var u=usdTok(c,c.model), inTok=_n(c.noCacheInTok)+_n(c.cacheWriteInTok)+_n(c.cacheReadInTok);
+      h+='<div class="sk-call"><div class="sk-h"><b>'+(c.kind==='fix'?'Perbaikan kata':'Generate')+(c.interrupted?' · terputus':'')+'</b><span>'+idr(u)+' <i>$'+u.toFixed(4)+'</i></span></div>'
+        +'<div class="sk-s">'+fmtDate(c.ts)+' · '+_esc(mlabel(c.model))+' · masuk '+num(inTok)+(c.cacheReadInTok?' (cache baca '+num(c.cacheReadInTok)+')':'')+' · keluar '+num(c.outTok)+'</div>'+sx(by[ck(c)])+'</div>';
+    });
+    h+='</div></details>';
+  });
+  if(spare.length) h+='<details class="mdet"><summary>Skrip tanpa riwayat biaya ('+spare.length+')</summary><div class="sk-b">'+sx(spare)+'</div></details>';
+  return h;
+}
+
 function dayMap(r,log){
   var m={}, arc=r.raw.pb_usage_archive_v1||{};
   function slot(d){ return m[d]||(m[d]={calls:0,usd:0}); }
@@ -726,7 +785,7 @@ function logTable(log){
   });
   return h+'</tbody></table></div>';
 }
-function closeUser(){ var b=document.getElementById('user-detail'); b.innerHTML=''; b.dataset.uid=''; _detailSig=''; _detailLog=null; _detailErr=null; document.body.style.overflow=''; }
+function closeUser(){ var b=document.getElementById('user-detail'); b.innerHTML=''; b.dataset.uid=''; _detailSig=''; _detailLog=null; _detailErr=null; _detailHist=null; _detailHistErr=null; document.body.style.overflow=''; }
 function paintDetail(r){
   var box=document.getElementById('user-detail'), top=box.scrollTop;
   var open=[].map.call(box.querySelectorAll('details'),function(d){ return d.open; });
@@ -758,7 +817,7 @@ function renderUser(r,log,err){
     ? '<div class="empty" style="color:var(--red);">Gagal baca riwayat per panggilan: '+_esc(err)+'<br>Pastikan Firestore Rules versi terbaru (bagian blobs) sudah di-Publish — lihat komentar di atas script halaman ini.</div>'
     : (log===null
       ? '<div class="empty">Memuat riwayat per panggilan...</div>'
-      : tt('Biaya per hari (30 hari terakhir)')+dayTable(m)+tt('Per generate / produk (50 terbaru) — perbaikan kata digabung')+genTable(buildGenRows(log,r.email),false,50)+tt('Per aksi generate (30 terbaru)')+sessionTable(log)
+      : tt('Biaya per hari (30 hari terakhir)')+dayTable(m)+tt('Per generate / produk (50 terbaru) — perbaikan kata digabung')+genTable(buildGenRows(log,r.email),false,50)+tt('Skrip &amp; biaya per aksi (30 terbaru)')+skripFeed(log,_detailHist,_detailHistErr)
         +'<details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:700;padding:6px 0;">Riwayat per panggilan ('+Math.min(log.length,100)+' terbaru, maks 60 hari) — ketuk untuk membuka</summary>'+logTable(log)+'</details>');
   document.getElementById('user-detail').innerHTML=
     '<div class="sheet"><div class="sheetbar"><button class="btn btn-outline btn-small" onclick="closeUser()">← Kembali</button><div class="t">'+_esc(r.email)+'</div></div>'
@@ -787,7 +846,11 @@ async function showUser(uid){
   if(!r) return;
   var box=document.getElementById('user-detail');
   box.dataset.uid=uid; _detailSig=JSON.stringify(r.raw); _detailLog=null; _detailErr=null;
+  _detailHist=null; _detailHistErr=null;
   renderUser(r,null,null);
+  loadUserHist(uid).then(function(h){ _detailHist=h; }).catch(function(e){ _detailHist=[]; _detailHistErr=errMsg(e); }).then(function(){
+    if(box.dataset.uid===uid&&box.innerHTML) paintDetail(curRow(uid)||r);
+  });
   document.body.style.overflow='hidden';
   try{
     var log=await loadUserLog(uid);
