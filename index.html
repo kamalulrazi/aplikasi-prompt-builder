@@ -12692,7 +12692,7 @@ if(typeof csRenderAll==='function')csRenderAll();
 // Dipanggil dari fGenerate() setelah berhasil
 // ============================================================
 const HISTORY_KEY='pb_history_v1'; // sudah ada prefix pb_
-const HISTORY_MAX=5;
+const HISTORY_MAX=6; // 6 produk terakhir (1 entri = 1 produk berisi Hook+Cerita+CTA)
 
 function historyAdd(type,label,promptText){
   try{
@@ -12726,9 +12726,10 @@ function historyClearAll(){
 function _historyRenderInto(wrap){
   if(!wrap)return;
   let arr=historyGet();
-  if(!arr.length){wrap.innerHTML='<p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada prompt tersimpan. Generate prompt foto untuk melihat histori.</p>';return;}
+  if(!arr.filter(function(x){return !x.skrip;}).length){wrap.innerHTML='<p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada prompt tersimpan. Generate prompt foto untuk melihat histori.</p>';return;}
   wrap.innerHTML='';
   arr.forEach(function(item,i){
+    if(item.skrip)return;
     let d=new Date(item.ts);
     let tstr=d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
     let row=document.createElement('div');
@@ -23438,6 +23439,34 @@ function vbPickLokasiCard(idx,key,label){
 // sessionLabel yang sudah dikirim oleh semua pemanggil.
 function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
+  // Riwayat skrip (dibaca halaman admin): 1 entri = 1 produk berisi HOOK + STORY + CTA.
+  // Hanya HISTORY_MAX (6) produk terakhir yang disimpan. Entri ditandai skrip:1 supaya
+  // tidak muncul di daftar Riwayat lama di aplikasi (lihat _historyRenderInto).
+  try{
+    let byP={},order=[];
+    VB_BULK_ITEMS.forEach(function(it,i){
+      let p=Math.floor(i/3),el=document.getElementById('vb-bulk-script-'+i);
+      let t=String((el&&typeof el.value==='string'?el.value:it.script)||'').trim();
+      let k=String(it.role||'').toUpperCase();
+      if(k!=='HOOK'&&k!=='STORY'&&k!=='CTA')k=['HOOK','STORY','CTA'][i%3];
+      if(!byP[p]){byP[p]={nama:'',parts:[]};order.push(p);}
+      if(it.produk)byP[p].nama=it.produk;
+      if(t)byP[p].parts.push(k+': '+t);
+    });
+    let now=Date.now(),add=[],names={};
+    order.forEach(function(p){
+      let o=byP[p];if(!o.parts.length)return;
+      let label=o.nama||sessionLabel||'Skrip';names[label]=1;
+      add.push({type:'video',skrip:1,label:label,text:o.parts.join('\n\n'),ts:now+p});
+    });
+    if(!add.length)return;
+    add.reverse(); // produk terakhir paling atas
+    // revisi/undo produk yang sama dalam 30 menit menimpa entri lama, bukan menambah baru
+    let arr=historyGet().filter(function(h){return !(h&&h.skrip&&names[h.label]&&Math.abs(now-h.ts)<1800000);});
+    arr=add.concat(arr).slice(0,HISTORY_MAX);
+    localStorage.setItem(HISTORY_KEY,JSON.stringify(arr));
+    if(typeof pbCloudQueue==='function')pbCloudQueue(HISTORY_KEY);
+  }catch(e){}
 }
 
 // Bangun 3 kartu KOSONG (Hook/Story/CTA) di #vb-multi-output SEBELUM AI
