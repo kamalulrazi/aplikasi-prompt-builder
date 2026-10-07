@@ -28536,6 +28536,89 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
 #vb-script-choose{display:none!important}
 @media (prefers-reduced-motion:reduce){.pb-tl .pop{animation:none}}
 </style>
+<style id="pbw-css">
+/* WIZARD FOKUS (opsi B) builder video: satu step per layar */
+:root{--pbw-nav:0px}
+#pb-tl{display:none}
+#pbw-head{margin:12px 0 4px}
+.pbw-seg{display:flex;gap:4px}.pbw-seg i{flex:1;height:4px;border-radius:4px;background:var(--surface3,#202024)}
+.pbw-seg i.f{background:rgba(52,211,153,.6)}.pbw-seg i.c{background:var(--accent,#D9B876)}
+.pbw-meta{display:flex;justify-content:space-between;color:var(--muted,#8B8892);font-size:11px;margin:8px 0 2px}
+.pbw-h{font-size:19px;font-weight:600;margin:6px 0 0;color:var(--text,#F2F0EC)}
+.pbw-recap{display:flex;gap:6px;overflow-x:auto;margin-top:12px;scrollbar-width:none}
+.pbw-rc{flex:none;max-width:200px;display:flex;flex-direction:column;text-align:left;border:1px solid var(--border,rgba(255,255,255,.07));background:var(--surface,#121215);border-radius:10px;padding:6px 10px;cursor:pointer;font:500 12px/1.4 inherit;color:var(--green,#34D399)}
+.pbw-rc small{color:var(--muted,#8B8892);font-size:10px;font-weight:400}
+#video .wcard{background:none;border:0;box-shadow:none;border-radius:0;overflow:visible;margin:16px 0 0}
+#video .wcard.done,#video .wcard.pending{display:none!important}
+#video .wcard .whead{display:none}
+#video .wcard .wbody{padding:0 0 8px;overflow:visible}
+/* tombol aksi menempel di atas nav bawah (tinggi nav dihitung JS ke --pbw-nav) */
+.pbw-dock,#v1 .wbody>#vb-mode-normal-footer{position:sticky;bottom:var(--pbw-nav);z-index:5;margin-top:16px;padding:12px 0;background:linear-gradient(to top,var(--bg,#08080A) 75%,transparent)}
+.pbw-dock{display:flex;flex-wrap:wrap;gap:8px}
+.pbw-dock>*{margin:0!important}.pbw-dock [hidden]{display:none!important}
+.pbw-dock .btn{height:46px;width:auto!important;flex:1 1 120px;order:3}
+.pbw-dock .btn.ghost,.pbw-dock .wback{flex:0 1 auto;order:1;height:46px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border,rgba(255,255,255,.07));border-radius:12px;background:none;color:var(--text,#F2F0EC);font-weight:600;cursor:pointer}
+.pbw-dock [id$="-confirmbar"]{flex:1 1 140px;order:3}
+.pbw-dock [id$="-confirmbar"] .btn{width:100%!important}
+#vb-mode-normal-footer .btn{width:100%!important;height:46px}
+</style>
+<script id="pbw-js">
+/* Opsi B: progres bertahap, chip ringkasan yang bisa diketuk, tombol aksi menempel di bawah.
+   Hanya tampilan; logika step & state VB tidak diubah. Dipanggil dari render() layer pb-fork. */
+(function(){
+  var $=function(i){return document.getElementById(i);},IDS=['v1','v2','vcam','vfork','v3','vmotion','v4','v5'];
+  function act(c){return !!c&&!c.classList.contains('done')&&!c.classList.contains('pending')&&!c.classList.contains('hidden')&&c.style.display!=='none';}
+  function vis(e){return getComputedStyle(e).display!=='none';}
+  function navH(){var h=0;[].forEach.call(document.querySelectorAll('nav'),function(n){var s=getComputedStyle(n),r=n.getBoundingClientRect();if(s.position==='fixed'&&r.height>20&&r.bottom>=innerHeight-2)h=Math.round(r.height);});document.documentElement.style.setProperty('--pbw-nav',h+'px');}
+  window.addEventListener('resize',navH);
+  /* Bar "Konfirmasi & Lanjut" dibuat app belakangan (fShowConfirm -> appendChild di wbody): ikutkan ke dock, dock tetap paling bawah. */
+  function sync(b){
+    var d=b.querySelector(':scope>.pbw-dock');if(!d)return;
+    [].slice.call(b.children).forEach(function(e){if(e!==d&&(/-confirmbar$/.test(e.id)||e.id==='summary-edit-done-btn'))d.appendChild(e);});
+    if(b.lastElementChild!==d)b.appendChild(d);
+    d.style.display=[].some.call(d.children,vis)?'':'none';
+  }
+  window.pbWizRender=function(s,on,isDone){
+    var ol=$('pb-tl');if(!ol)return;
+    navH();
+    var h=$('pbw-head');
+    if(!h){h=document.createElement('div');h.id='pbw-head';ol.parentNode.insertBefore(h,ol);
+      h.addEventListener('click',function(e){var b=e.target.closest('.pbw-rc'),c=b&&$(b.dataset.id),k=c&&c.querySelector('.whead');if(k)k.click();});}
+    var n=s.length,cur=-1,f=0,seg='',rc='',more=s[n-1][0]==='vfork';
+    s.forEach(function(x,i){if(cur<0&&act($(x[0])))cur=i;});
+    if(cur<0)cur=on;
+    s.forEach(function(x,i){
+      var c=$(x[0]),d=isDone(x)&&!act(c),a=c&&c.querySelector('.wanswer'),v=a?a.textContent.trim():'';
+      if(d)f++;
+      seg+='<i class="'+(i===cur?'c':(d?'f':''))+'"></i>';
+      if(d&&v)rc+='<button type="button" class="pbw-rc" data-id="'+x[0]+'" data-i="'+i+'"><small>'+esc(x[1])+'</small>'+esc(v)+'</button>';
+    });
+    h.dataset.cur=cur<0?n:cur;
+    h.innerHTML='<div class="pbw-seg">'+seg+'</div><div class="pbw-meta"><span>'+(cur<0?'Semua step selesai':'Step '+(cur+1)+' dari '+n+(more?'+':''))+'</span><span>'+f+' terisi</span></div>'
+      +(cur<0?'':'<h2 class="pbw-h">'+esc(s[cur][1])+'</h2>')+(rc?'<div class="pbw-recap">'+rc+'</div>':'');
+    IDS.forEach(function(id){
+      var c=$(id),b=c&&c.querySelector('.wbody');if(!b)return;
+      if(!b.querySelector(':scope>.pbw-dock')){
+        var k=[].slice.call(b.children),t=[];
+        k.forEach(function(e){if(e.matches('.wback'))t.push(e);});
+        while(k.length&&k[k.length-1].matches('button.btn,.wback')){var e=k.pop();if(t.indexOf(e)<0)t.unshift(e);}
+        var d=document.createElement('div');d.className='pbw-dock';
+        t.forEach(function(e){d.appendChild(e);});
+        if(!d.querySelector('.wback')){var g=document.createElement('button');g.type='button';g.className='btn ghost pbw-bk';g.textContent='Kembali';
+          /* Kembali = ubah step tepat sebelum step aktif (sama seperti mengetuk chip-nya) */
+          g.onclick=function(){var cu=+$('pbw-head').dataset.cur,r=[].filter.call(document.querySelectorAll('#pbw-head .pbw-rc'),function(x){return +x.dataset.i<cu;});if(r.length)r[r.length-1].click();};
+          d.insertBefore(g,d.firstChild);}
+        b.appendChild(d);
+        new MutationObserver(function(){sync(b);}).observe(b,{childList:true});
+      }
+      sync(b);
+    });
+    var has=!!h.querySelector('.pbw-rc[data-i]')&&[].some.call(h.querySelectorAll('.pbw-rc'),function(x){return +x.dataset.i<(+h.dataset.cur);});
+    document.querySelectorAll('.pbw-bk').forEach(function(x){x.hidden=!has;});
+    IDS.forEach(function(id){var c=$(id),b=c&&c.querySelector('.wbody');if(b)sync(b);});
+  };
+})();
+</script>
 <script id="pb-fork-js">
 /* ALUR PERCABANGAN BUILDER VIDEO (permintaan user, 7 Okt 2026, preview opsi B):
    Mode Referensi → Jenis Kelamin & Usia → (Kamera) → Cara Bikin Script.
@@ -28587,7 +28670,7 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
       h+='<li class="'+(d?'done':(i===on?'on':''))+(isNew?' pop':'')+'"><i>'+(d?'✓':n)+'</i><div>'+x[1]+(x[2]?'<span class="pb-ai">AI</span>':'')+'</div></li>';
     });
     if(!p)h+='<li class="gh"><i>…</i><div>Menyesuaikan pilihan</div></li>';
-    ol.innerHTML=h;prev=keys;
+    ol.innerHTML=h;prev=keys;try{window.pbWizRender&&window.pbWizRender(s,on,isDone);}catch(e){console.warn('pbWiz',e);}
     var t=document.querySelector('#v5 .wtitle');
     if(t)t.textContent=p==='ai'?'Info Produk & Audiens':(p==='manual'?'Tulis Script':'Script / Dialog');
     var sel='';try{sel=VB.pbPath||'';}catch(e){}
