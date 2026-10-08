@@ -4202,7 +4202,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.56</div>
+  <div class="splash-version" id="splash-version">v11.59</div>
 </div>
 <script>
   (function(){
@@ -6280,7 +6280,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.56 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.59 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -7485,7 +7485,9 @@ function _fSyncImportProdukState(){
     // Tidak ada foto produk lagi — hanya bersihkan kalau memang masih ada
     // sisa info produk lama (hindari toast/beban kerja percuma kalau
     // memang dari awal sudah tidak ada produk).
-    if(FS.produkMode || FS.produkNama || FS.importProductBlock || FS.hold || FS.holdKey){
+    if(FS.importProdukNoPhoto && FS.importProductBlock){
+      // v11.58: produk dari JSON lama memang tanpa foto — jangan dihapus cuma karena user menambah/menghapus foto lain.
+    } else if(FS.produkMode || FS.produkNama || FS.importProductBlock || FS.hold || FS.holdKey){
       FS.produkMode='tidak'; FS.produkNama=''; FS.holdKey=''; FS.hold=''; FS.conflictLevel=0;
       FS.importProductBlock=null;
       let b=document.getElementById('f3-conflict-banner');
@@ -7501,6 +7503,7 @@ function _fSyncImportProdukState(){
       showToast('Foto produk dihapus — info "Cara Tampil Produk" ikut dikosongkan biar tidak nyangkut','error');
     }
   } else {
+    FS.importProdukNoPhoto = false; // sekarang produknya punya foto sungguhan
     // Ada foto produk — kalau sebelumnya belum ada mode produk yang valid
     // (baru diset 'tidak', atau memang belum pernah diisi), aktifkan mode
     // 'foto' supaya foto ini beneran dijadikan "hero product", bukan cuma
@@ -9951,6 +9954,20 @@ function _fDoGenerate(){
 // dan ganti pilihan, perubahannya konsisten kepakai di kedua mode,
 // bukan cuma di salah satu.
 // ============================================================
+// Menyesuaikan teks output_quality dengan cahaya/mood/mode produk-saja (dipakai jalur normal
+// DAN jalur impor, supaya keduanya tidak bisa saling melenceng).
+function _fAdaptQuality(quality, effCahaya, effMood, isProdukSaja){
+  let _c=String(effCahaya||'').toLowerCase(), _m=String(effMood||'').toLowerCase();
+  let _phone=/phone camera|candid/.test(_m);
+  let _ctrl=/studio|softbox|e-commerce|dark moody|low key|dramatic|directional/.test(_c)||/clean, bright|luxury premium|editorial fashion|dark moody|soft pastel|high-key/.test(_m);
+  if(_ctrl){
+    quality.lighting='Follow the selected lighting setup exactly and keep it controlled and consistent across the frame; do not add random uneven light or phone-style exposure flaws that contradict it.';
+    if(!_phone) quality.camera='High-quality, sharp, well-exposed photo with accurate colors and clean detail, matching the selected lighting and mood; realistic and natural-looking, not over-processed or artificially smoothed.';
+  } else if(isProdukSaja){
+    quality.lighting=quality.lighting.replace('on one side of the face and slightly brighter highlights on the other','on one side of the product and slightly brighter highlights on the other');
+  }
+  return quality;
+}
 function _fComputePlacement(ov){
   ov = ov || {};
   let placement = '';
@@ -10061,11 +10078,18 @@ function _fBuildImportedPromptJSON(ov){
   // pakai FS.produkNama (live) dengan fallback ke nama beku kalau belum
   // pernah diedit sama sekali.
   let effPlacementImp = _fComputePlacement(placementOv);
+  // v11.58: placement custom/tidak dikenal dari JSON impor dipakai apa adanya selama belum diedit.
+  // Tanpa ini _fComputePlacement() menambah prefix "held or displayed by the character — " lagi.
+  if(!isProdukSaja && !ov.placementOverride && FS.holdKey==='custom' && FS.hold && FS.importProductBlock && FS.hold===FS.importProductBlock.placement){
+    effPlacementImp = FS.hold;
+  }
   // FIX BUG KONTRADIKSI TANGAN (lanjutan): kalau angle jelas-jelas "Dipegang
   // Tangan" tapi placement masih kosong (holdKey/hold memang tidak diisi
   // untuk mode produk-saja), isi teks default yang konsisten dengan angle-nya
   // — sama seperti fallback di _fBuildPromptJSON (angleHasHand).
-  if(!effPlacementImp && angleHasHand){
+  if(angleHasHand){
+    // v11.58: produk-saja + angle "Dipegang Tangan" SELALU pakai teks tangan, bukan sisa FS.hold impor
+    // (dulu jadi "held or displayed by the character — held by a hand…" yang kontradiktif).
     effPlacementImp = 'held by a hand entering the frame — only the hand is visible, product sharp, fully visible and prominently framed toward camera';
   }
   // FIX BUG TERSEMBUNYI (audit lanjutan skenario import — belum pernah
@@ -10093,7 +10117,8 @@ function _fBuildImportedPromptJSON(ov){
   // hilang selama belum pernah di-null-kan), dengan instruksi default yang
   // sama seperti jalur normal kalau memang sudah tidak ada snapshot lagi.
   let hasProdukRefImp = FS.refs ? FS.refs.some(function(r){return r.type==='produk';}) : false;
-  let effProductBlock = (FS.produkMode !== 'tidak' && hasProdukRefImp) ? {
+  let _impBlockNoPhoto = !!(FS.importProdukNoPhoto && FS.importProductBlock && FS.importProductBlock.name);
+  let effProductBlock = (FS.produkMode !== 'tidak' && (hasProdukRefImp || _impBlockNoPhoto)) ? {
     name: FS.produkNama || (FS.importProductBlock && FS.importProductBlock.name) || '[product from reference photo]',
     placement: effPlacementImp,
     instruction: (FS.importProductBlock && FS.importProductBlock.instruction) || 'This product MUST be clearly visible, sharp, and prominently displayed. Preserve its exact shape, color, size, logo, and all visual details. Do NOT alter, resize, or obscure the product at any point.'
@@ -10103,9 +10128,12 @@ function _fBuildImportedPromptJSON(ov){
     ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
     : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
 
+  let _impRandomDescs = (!isProdukSaja && FS.refs) ? FS.refs.filter(function(r){return r.type==='outfit_random';}).map(function(r){return r.focus;}).filter(Boolean) : [];
+  let outfitRandomIntroImp = _impRandomDescs.length ? 'Outfit (AI-generated, no reference photo): ' + _impRandomDescs.join(' | ') + '. ' : '';
   let intro = (isProdukSaja
       ? introProdukSajaTextImp
-      : 'A photorealistic image, shot in a candid and natural style. Subject: ' + (FS.importSubject || 'a person') + '. ')
+      : (effProductBlock ? 'A photorealistic product image' : 'A photorealistic lifestyle fashion image') + ', shot in a candid and natural style. Subject: ' + (FS.importSubject || 'a person') + '. ')
+    + outfitRandomIntroImp
     + (effProductBlock ? 'Hero product: ' + effProductBlock.name + (effProductBlock.placement ? ', ' + effProductBlock.placement + '. ' : '. ') + (effProductBlock.instruction || '') + ' ' : '')
     + 'Scene: ' + effLokasi + '. '
     + 'Lighting: ' + effCahaya + '. '
@@ -10113,6 +10141,19 @@ function _fBuildImportedPromptJSON(ov){
     + (effKamera ? 'Camera framing: ' + effKamera + '. ' : '')
     + 'Camera angle: ' + effAngle + '. '
     + 'Mood & tone: ' + effMood + '.';
+
+  // v11.58: output_quality asli dari JSON hanya dipakai kalau cahaya/mood/mode belum berubah sejak impor.
+  // Kalau JSON tidak membawa output_quality, atau user mengedit cahaya/mood, disesuaikan seperti jalur normal.
+  let effQualityImp;
+  if(FS.importOutputQuality && (!FS.importSceneSig || FS.importSceneSig === (String(effCahaya||'')+'||'+String(effMood||'')+'||'+(isProdukSaja?'1':'0')))){
+    // (tanpa tanda tangan = halaman tersimpan dari versi lama → pakai output_quality aslinya, seperti dulu)
+    effQualityImp = FS.importOutputQuality;
+  } else {
+    effQualityImp = _fAdaptQuality({
+      camera: 'Shot using a smartphone camera (not DSLR), with natural handheld feel. The image includes subtle digital noise and grain typical of a phone camera, especially in shadows and low-light areas. Slight imperfections such as minor motion blur, soft focus inconsistencies, and natural exposure shifts are present. The dynamic range is realistic (not overly HDR), with slightly clipped highlights and soft shadow details. The framing is slightly imperfect, not perfectly centered, with a subtle wide lens feel and natural perspective distortion. Overall look resembles an authentic phone photo, not a polished or studio-quality image.',
+      lighting: 'Lighting is natural and imperfect, coming from a window or ambient indoor source rather than studio lights. The light falls unevenly across the subject, creating soft shadows on one side of the face and slightly brighter highlights on the other. There may be mild overexposure in small highlight areas and gentle shadow gradients across the scene. The lighting is not perfectly balanced, with slight warmth and natural color variation. Some areas of the scene may be dimmer or less illuminated, creating a cozy, lived-in atmosphere. Avoid flat lighting or perfectly even illumination. Overall lighting should feel organic, spontaneous, and human, not staged or studio-controlled.'
+    }, effCahaya, effMood, isProdukSaja);
+  }
 
   let fullJson = {
     prompt: intro,
@@ -10125,8 +10166,8 @@ function _fBuildImportedPromptJSON(ov){
       // dari FS.refs (lihat fix reference_photos di bawah) tidak dapat instruksi
       // "baca tiap foto secara selektif" sama sekali — padahal jalur normal
       // SELALU menyertakan default ini kapanpun ada reference_photos.
-      if(FS.importCriticalRule) return {critical_rule: FS.importCriticalRule};
-      let hasRealRefsImp = FS.refs && FS.refs.some(function(r){return r.type!=='outfit_random';});
+      let hasRealRefsImp = (FS.refs && FS.refs.some(function(r){return r.type!=='outfit_random';})) || (FS.importRefPhotos||[]).some(function(p){return p && !_fREF_LABEL_TO_KEY[p.type];});
+      if(FS.importCriticalRule && hasRealRefsImp) return {critical_rule: FS.importCriticalRule};
       return hasRealRefsImp ? {critical_rule: 'Read each reference photo SELECTIVELY. Extract ONLY the specified elements from each photo and ignore everything else. Every extract_only and ignore_completely directive is ABSOLUTE — do NOT blend elements across photos unless explicitly stated.'} : {};
     })(),
     ...(function(){
@@ -10143,7 +10184,7 @@ function _fBuildImportedPromptJSON(ov){
       if(FS.conflictLevel === 1){
         return {conflict_priority: 'PRIORITY OVERRIDE: The product photo is the SINGLE authoritative source for ' + FS.produkNama + '. Any appearance of a similar item in other reference photos (especially the outfit photo) must be completely IGNORED and replaced by the product from the product reference photo. The product photo takes absolute priority over all other photos for this specific item.'};
       }
-      return FS.importConflictRule ? {conflict_priority: FS.importConflictRule} : {};
+      return (FS.importConflictRule && FS.refs && FS.refs.some(function(r){return r.type==='produk';})) ? {conflict_priority: FS.importConflictRule} : {};
     })(),
     // FIX BUG KRITIS — REFERENCE_PHOTOS TIDAK PERNAH KE-UPDATE: sebelumnya
     // baris ini ({reference_photos: FS.importRefPhotos}) selalu pakai array
@@ -10234,10 +10275,7 @@ function _fBuildImportedPromptJSON(ov){
       lighting: effCahaya,
       mood_and_tone: effMood
     },
-    output_quality: FS.importOutputQuality || {
-      camera: 'Shot using a smartphone camera (not DSLR), with natural handheld feel. The image includes subtle digital noise and grain typical of a phone camera, especially in shadows and low-light areas. Slight imperfections such as minor motion blur, soft focus inconsistencies, and natural exposure shifts are present. The dynamic range is realistic (not overly HDR), with slightly clipped highlights and soft shadow details. The framing is slightly imperfect, not perfectly centered, with a subtle wide lens feel and natural perspective distortion. Overall look resembles an authentic phone photo, not a polished or studio-quality image.',
-      lighting: 'Lighting is natural and imperfect, coming from a window or ambient indoor source rather than studio lights. The light falls unevenly across the subject, creating soft shadows on one side of the face and slightly brighter highlights on the other. There may be mild overexposure in small highlight areas and gentle shadow gradients across the scene. The lighting is not perfectly balanced, with slight warmth and natural color variation. Some areas of the scene may be dimmer or less illuminated, creating a cozy, lived-in atmosphere. Avoid flat lighting or perfectly even illumination. Overall lighting should feel organic, spontaneous, and human, not staged or studio-controlled.'
-    }
+    output_quality: effQualityImp
   };
   if(FS.importStyleReference) fullJson.style_reference = FS.importStyleReference;
 
@@ -10345,40 +10383,55 @@ const _fREF_LABEL_TO_KEY={
   'Hewan / Objek':'objek'
 };
 
-function fImportPrompt(){
-  // PENGAMAN (permintaan user: fitur ini tidak boleh mengganggu proses pembuatan prompt foto):
-  // impor MENULIS ULANG semua step foto. Kalau wizard sudah ada isinya, minta konfirmasi dulu supaya
-  // isian yang sedang berjalan tidak hilang karena salah tap.
-  if(!window._fImportConfirmed && (FS.subjek||FS.lokasi||FS.pose||FS.cahaya||FS.angle||FS.mood||FS.produkNama)){
-    showConfirm('Impor akan menimpa isian wizard foto yang sedang berjalan. Lanjutkan?',function(){
-      window._fImportConfirmed=true;
-      try{ fImportPrompt(); }finally{ window._fImportConfirmed=false; }
-    },null,'Ya, Timpa');
-    return;
+// Pembaca JSON longgar untuk impor prompt lama (v11.58): terima JSON biasa, JSON yang
+// ter-escape dua kali (string), array [ {...} ] (ambil objek prompt pertama), dan teks
+// yang kutip lurusnya berubah jadi kutip pintar (“ ”) karena lewat WhatsApp/Notes/Word.
+function _fImportParseLoose(txt){
+  function tryP(s){ try{ return JSON.parse(s); }catch(e){ return undefined; } }
+  function pick(p, depth){
+    if(depth>2) return null;
+    if(typeof p==='string'){ let q=tryP(p.trim()); return q===undefined ? null : pick(q, depth+1); }
+    if(Array.isArray(p)){
+      for(let i=0;i<p.length;i++){ let x=pick(p[i], depth+1); if(x && (x.scene||x.product||x.prompt)) return x; }
+      return null;
+    }
+    return (p && typeof p==='object') ? p : null;
   }
-  // Buang juga sisa "step yang ketutup sementara karena lagi diedit" dari
-  // sesi sebelumnya — import ini akan menulis ulang semua step foto, jadi
-  // state pause lama (kalau ada) sudah tidak relevan dan harus dibuang biar
-  // tidak nyangkut salah unhide nanti.
-  STEP_PAUSE_STACK.foto=[];
+  function sanitize(s){
+    return s.replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB]/g,'"').replace(/[\u2018\u2019\u201A\u201B]/g,"'").replace(/[\u00A0\u200B\uFEFF]/g,' ');
+  }
+  let cands=[txt];
+  let s=txt.indexOf('{'), en=txt.lastIndexOf('}');
+  if(s!==-1 && en>s) cands.push(txt.substring(s,en+1));
+  let t2=sanitize(txt);
+  if(t2!==txt){
+    cands.push(t2);
+    let s2=t2.indexOf('{'), e2=t2.lastIndexOf('}');
+    if(s2!==-1 && e2>s2) cands.push(t2.substring(s2,e2+1));
+  }
+  for(let i=0;i<cands.length;i++){
+    let p=tryP(cands[i]);
+    if(p===undefined) continue;
+    let r=pick(p,0);
+    if(r) return r;
+  }
+  return null;
+}
+
+function fImportPrompt(){
+  // v11.58: validasi teks (kosong / bukan JSON / tanpa isian) dilakukan DULU, baru dialog konfirmasi
+  // "timpa isian" — dulu dialog muncul lebih awal sehingga user disuruh konfirmasi dulu baru
+  // dikasih tahu textarea-nya kosong. State lama (strip status impor) juga baru dibersihkan setelah lolos.
   let errBox = document.getElementById('f-import-error');
   let statusBox = document.getElementById('f-import-status');
   if(errBox){errBox.classList.add('hidden');errBox.textContent='';}
-  if(statusBox){statusBox.classList.add('hidden');statusBox.textContent='';}
-  let _impArea0 = document.getElementById('f-import-area'); if(_impArea0) _impArea0.classList.remove('ft-imported');
 
   let raw = document.getElementById('f-import-textarea').value.trim();
   if(!raw){showToast('Paste dulu JSON prompt-nya ya','error');return;}
 
   // Bersihkan markdown fence kalau ada, lalu coba parse langsung
   let cleaned = raw.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
-  let parsed = null;
-  try{ parsed = JSON.parse(cleaned); }catch(e){
-    let s = cleaned.indexOf('{'), en = cleaned.lastIndexOf('}');
-    if(s !== -1 && en !== -1 && en > s){
-      try{ parsed = JSON.parse(cleaned.substring(s, en+1)); }catch(e2){ parsed = null; }
-    }
-  }
+  let parsed = _fImportParseLoose(cleaned);
 
   let scene = parsed && parsed.scene;
   if(!parsed || (!scene && !parsed.product && !parsed.prompt)){
@@ -10401,6 +10454,21 @@ function fImportPrompt(){
     showToast('Tidak ada isian yang bisa diambil dari prompt ini','error');
     return;
   }
+
+  // PENGAMAN (permintaan user: fitur ini tidak boleh mengganggu proses pembuatan prompt foto):
+  // impor MENULIS ULANG semua step foto. Kalau wizard sudah ada isinya, minta konfirmasi dulu supaya
+  // isian yang sedang berjalan tidak hilang karena salah tap.
+  if(!window._fImportConfirmed && (FS.subjek||FS.lokasi||FS.pose||FS.cahaya||FS.angle||FS.mood||FS.produkNama)){
+    showConfirm('Impor akan menimpa isian wizard foto yang sedang berjalan. Lanjutkan?',function(){
+      window._fImportConfirmed=true;
+      try{ fImportPrompt(); }finally{ window._fImportConfirmed=false; }
+    },null,'Ya, Timpa');
+    return;
+  }
+  // Buang sisa "step yang ketutup sementara karena lagi diedit" dari sesi sebelumnya.
+  STEP_PAUSE_STACK.foto=[];
+  if(statusBox){statusBox.classList.add('hidden');statusBox.textContent='';}
+  let _impArea0 = document.getElementById('f-import-area'); if(_impArea0) _impArea0.classList.remove('ft-imported');
 
   // FIX BUG HANGER/RIWAYAT NYANGKUT: sebelum ini, field FS (lokasi, cahaya,
   // angle, pose, kamera, mood, hold, holdKey, produkMode, dst) cuma diisi
@@ -10454,9 +10522,9 @@ function fImportPrompt(){
     let defRP=FTYPE[keyRP];
     FS.refs.push({
       id:idRP, type:keyRP,
-      focus:p.detail||'',
-      extractCustom:(p.extract_only!==undefined&&p.extract_only!==null&&p.extract_only!=='')?p.extract_only:defRP.extract,
-      ignoreCustom:(p.ignore_completely!==undefined&&p.ignore_completely!==null&&p.ignore_completely!=='')?p.ignore_completely:defRP.ignore,
+      focus:p.detail?String(p.detail):((keyRP==='produk'&&parsed.product&&parsed.product.name)?String(parsed.product.name):''),
+      extractCustom:(p.extract_only!==undefined&&p.extract_only!==null&&p.extract_only!=='')?String(p.extract_only):defRP.extract,
+      ignoreCustom:(p.ignore_completely!==undefined&&p.ignore_completely!==null&&p.ignore_completely!=='')?String(p.ignore_completely):defRP.ignore,
       autoSyncOutfit:false // FIX: teks Ambil/Abaikan hasil impor jangan ditimpa fSyncWajahOutfitDefault()
     });
     if(keyRP==='produk') FS.hasProdukFoto=true;
@@ -10465,7 +10533,7 @@ function fImportPrompt(){
     FS.refCounter++;
     let idGO='fr'+FS.refCounter;
     let defGO=FTYPE['outfit_random'];
-    FS.refs.push({id:idGO,type:'outfit_random',focus:(g&&g.description)||'',extractCustom:defGO.extract,ignoreCustom:defGO.ignore});
+    FS.refs.push({id:idGO,type:'outfit_random',focus:(g&&g.description)?String(g.description):'',extractCustom:defGO.extract,ignoreCustom:defGO.ignore});
   });
   FS.importProductBlock = parsed.product || null;
   FS.importOutputQuality = parsed.output_quality || null;
@@ -10515,6 +10583,12 @@ function fImportPrompt(){
     filled.push('Mood & Tone');
   }
   if(FS.importProductBlock && FS.importProductBlock.name) FS.produkNama = FS.importProductBlock.name;
+  // v11.58: JSON lama bisa membawa blok "product" TANPA foto bertipe Produk di reference_photos.
+  // Dulu blok itu hilang diam-diam saat generate ulang. Tandai supaya tetap dipakai.
+  FS.importProdukNoPhoto = !!(FS.importProductBlock && FS.importProductBlock.name && !FS.hasProdukFoto);
+  // Tanda tangan cahaya+mood+mode saat impor — dipakai builder untuk tahu apakah output_quality
+  // asli dari JSON masih cocok, atau harus disesuaikan ulang karena user mengedit cahaya/mood.
+  FS.importSceneSig = String(FS.cahayaDesc||FS.cahaya||'')+'||'+String(FS.mood||'')+'||'+(FS.importIsProdukSaja?'1':'0');
 
   // Subjek — cocokkan teks "subject" dari prompt lama ke jenis subjek yang dikenal
   let subjMatch = _fSUBJECT_TEXT_MAP[String(FS.importSubject||'').trim().toLowerCase()];
@@ -10549,7 +10623,17 @@ function fImportPrompt(){
   // Cara Tampil Produk — cocokkan teks placement ke HOLD_MAP
   if(FS.importProductBlock){
     let holdLabel = _fFindHoldLabel(FS.importProductBlock.placement);
-    FS.hold = FS.importProductBlock.placement || '';
+    // v11.58: untuk hanger, simpan HANYA bagian setelah prefix (sama seperti HOLD_MAP.hanger.val).
+    // _fComputePlacement() menambahkan prefix sendiri; kalau FS.hold sudah berisi placement penuh,
+    // prefix-nya menumpuk lagi di setiap impor→generate.
+    let _impPl = String(FS.importProductBlock.placement || '');
+    if(holdLabel === 'Pakai hanger — ke kamera'){
+      let _hp = 'displayed on a hanger presented by the character to the camera';
+      let _rest = _impPl.indexOf(_hp)===0 ? _impPl.substring(_hp.length).replace(/^\s*[—–-]+\s*/,'').trim() : '';
+      FS.hold = _rest || HOLD_MAP.hanger.val;
+    } else {
+      FS.hold = _impPl;
+    }
     FS.holdKey = holdLabel ? {'Dipakai langsung':'dipakai','Pakai hanger — ke kamera':'hanger','Dipegang — diarahkan ke kamera':'tangan'}[holdLabel] : 'custom';
     // FIX RINGKASAN IMPORT: FS.produkMode sebelumnya tidak pernah di-set di
     // sini, padahal fRenderSummary() baris "Cara Tampil" hanya muncul kalau
@@ -10591,6 +10675,8 @@ function fImportPrompt(){
   if(!FS.cahaya) _impMissing.push('Cahaya');
   if(!FS.angle) _impMissing.push('Sudut Kamera');
   if(!FS.mood) _impMissing.push('Mood & Tone');
+  if(!FS.importIsProdukSaja && !FS.pose && !(FS.refs||[]).some(function(r){return r.type==='outfit_random'&&r.focus;})) _impMissing.push('Pose');
+  if((FS.refs||[]).some(function(r){return r.type==='produk'&&!(r.focus&&String(r.focus).trim());})) _impMissing.push('Nama produk (di Foto Referensi)');
   if(statusBox){
     statusBox.innerHTML = 'Berhasil diimpor: <strong>' + esc(filled.join(', ')) + '</strong>. Tap "ubah" di step manapun buat ganti sebelum generate ulang.' + (_impMissing.length ? '<br><span style="color:var(--red);">Belum terisi: <strong>' + esc(_impMissing.join(', ')) + '</strong> — tap "ubah" dan isi dulu, kalau tidak prompt-nya bolong.</span>' : '') + '<br><button onclick="fCancelImport()" style="background:none;border:none;color:var(--red);font-size:var(--fs-xs);text-decoration:underline;cursor:pointer;padding:4px 0 0;"><svg class="icon"><use href="#ic-close"></use></svg> Batal, mulai dari awal</button>';
     statusBox.classList.remove('hidden');
@@ -10614,6 +10700,7 @@ function fCancelImport(){
   FS.importOutputQuality = null;
   FS.importStyleReference = null;
   FS.importSubject = '';
+  FS.importIsProdukSaja = false; FS.importProdukNoPhoto = false; FS.importSceneSig = '';
   fResetFrom(0);
   let ta = document.getElementById('f-import-textarea'); if(ta) ta.value='';
   let statusBox = document.getElementById('f-import-status'); if(statusBox) statusBox.classList.add('hidden');
@@ -10750,17 +10837,7 @@ function _fBuildPromptJSON(ov){
   let effMood = ov.moodOverride || FS.mood;
   // FIX: output_quality dulu SELALU menulis "foto HP, bukan studio", "hindari cahaya rata" dan menyebut "wajah" —
   // bentrok dengan Softbox/Studio rata/Dark Moody, mood Clean/Luxury/Editorial, dan mode Produk Saja (tanpa wajah).
-  (function(){
-    let _c=String(effCahaya||'').toLowerCase(), _m=String(effMood||'').toLowerCase();
-    let _phone=/phone camera|candid/.test(_m);
-    let _ctrl=/studio|softbox|e-commerce|dark moody|low key|dramatic|directional/.test(_c)||/clean, bright|luxury premium|editorial fashion|dark moody|soft pastel|high-key/.test(_m);
-    if(_ctrl){
-      quality.lighting='Follow the selected lighting setup exactly and keep it controlled and consistent across the frame; do not add random uneven light or phone-style exposure flaws that contradict it.';
-      if(!_phone) quality.camera='High-quality, sharp, well-exposed photo with accurate colors and clean detail, matching the selected lighting and mood; realistic and natural-looking, not over-processed or artificially smoothed.';
-    } else if(isProdukSaja){
-      quality.lighting=quality.lighting.replace('on one side of the face and slightly brighter highlights on the other','on one side of the product and slightly brighter highlights on the other');
-    }
-  })();
+  _fAdaptQuality(quality, effCahaya, effMood, isProdukSaja);
 
   // Tambahkan keterangan outfit random ke intro jika ada
   let outfitRandomIntro = '';
@@ -11810,7 +11887,7 @@ function fResetNow(){
     // Bersihkan state & UI import prompt lama juga
     FS.importActive=false;FS.importRefPhotos=null;FS.importCriticalRule='';FS.importConflictRule='';
     FS.importGeneratedOutfit=null;FS.importProductBlock=null;FS.importOutputQuality=null;
-    FS.importStyleReference=null;FS.importSubject='';FS.importIsProdukSaja=false;
+    FS.importStyleReference=null;FS.importSubject='';FS.importIsProdukSaja=false;FS.importProdukNoPhoto=false;FS.importSceneSig='';
     let importTa=document.getElementById('f-import-textarea');if(importTa)importTa.value='';
     let importStatus=document.getElementById('f-import-status');if(importStatus)importStatus.classList.add('hidden');
     let importErr=document.getElementById('f-import-error');if(importErr)importErr.classList.add('hidden');
@@ -28896,18 +28973,25 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
 }
 </style>
 <style id="tl-fold-style">
-/* Kartu Ringkasan lama disembunyikan (elemennya tetap ada di DOM karena fRenderSummary & Riwayat masih membacanya).
-   Gantinya: setelah Generate, alur step dilipat jadi satu kotak; ketuk kotaknya untuk membuka step-nya lagi. */
-#summary-card{display:none!important}
-.tl-fold{display:block;margin:0 0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;animation:summaryIn .25s ease;-webkit-tap-highlight-color:transparent}
-.tl-fold[hidden]{display:none}
+/* HP/tablet (<=1023px): kartu Ringkasan lama disembunyikan, tapi elemennya tetap ada di DOM (fRenderSummary & Riwayat membacanya)
+   dan warning-nya tetap muncul kalau ada. Di desktop Ringkasan TETAP tampil: di sana step selesai disembunyikan total,
+   jadi Ringkasan satu-satunya tempat melihat/mengubah pilihan.
+   Setelah Generate, alur step dilipat jadi satu kotak (.tl-fold); ketuk kotaknya untuk membuka step-nya lagi. */
+.tl-fold{display:none!important}
+@media (max-width:1023px){
+#summary-card{background:none;border:0;border-radius:0;overflow:visible;margin:0;animation:none}
+#summary-card #summary-card-head,#summary-card .summary-rows{display:none!important}
+#summary-card .summary-warning[style*="flex"]{display:flex!important;margin:0 0 12px}
+.tl-fold{display:block!important;margin:0 0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;animation:summaryIn .25s ease;-webkit-tap-highlight-color:transparent}
+.tl-fold[hidden]{display:none!important}
 .tl-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tl-fold-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:var(--space-4) var(--space-5)}
 .tl-fold-sub{margin-top:3px;font-size:var(--fs-2xs);color:var(--muted2);font-family:'Geist Mono',monospace}
 .tl-fold-chev{flex:none;font-size:var(--fs-xs2);color:var(--muted);transition:transform .2s ease}
 #foto[data-tl-fold=open] .tl-fold-chev{transform:rotate(180deg)}
 #foto[data-tl-fold=closed] .wcard[data-tl]{display:none!important}
-@media (prefers-reduced-motion:reduce){.tl-fold{animation:none}.tl-fold-chev{transition:none}}
+}
+@media (max-width:1023px) and (prefers-reduced-motion:reduce){.tl-fold{animation:none}.tl-fold-chev{transition:none}}
 </style>
 <script id="tl-foto-script">
 (function(){
