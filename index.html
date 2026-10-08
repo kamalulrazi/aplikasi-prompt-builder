@@ -4202,7 +4202,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.59</div>
+  <div class="splash-version" id="splash-version">v11.60</div>
 </div>
 <script>
   (function(){
@@ -6283,7 +6283,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.59 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.60 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13216,6 +13216,8 @@ function _vbUnpackState(json){
       try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
       // Entri Riwayat lama (sebelum fitur "Gaya khas aksen") tidak punya accentStyle — jangan sampai gaya sesi aktif menempel ke entri itu.
       if(!('accentStyle' in obj.VB)){VB.accentStyle='';VB.accentStyleLabel='';VB.accentStyleFor='';}
+      // Entri Riwayat lama (sebelum alur percabangan Kami Bantu Isi / Tulis Manual) tidak punya pbDone/pbPath/pbDefP/pbDefA — jangan sampai nilai sesi aktif menempel.
+      ['pbDone','pbPath','pbDefP','pbDefA'].forEach(function(k){if(!(k in obj.VB))VB[k]=(k==='pbDone'||k==='pbPath')?'':0;});
     }
     if(typeof VB_BULK_ITEMS!=='undefined')VB_BULK_ITEMS=obj.VB_BULK_ITEMS||[];
     if(typeof VB_BULK_PRODUCTS!=='undefined')VB_BULK_PRODUCTS=obj.VB_BULK_PRODUCTS||[];
@@ -16229,6 +16231,8 @@ function vbPickCamConfirmed(val,hookVal){
   let _wasEdit=doneCard('vcam','vacam',_vbCamSummary());
   vbAdvanceStep(_wasEdit,'v5',7,'Script / Dialog');
   vbSyncStep6Mode3();
+  // Pilihan kamera/visual hook harus ikut masuk ke kartu Hook/Story/CTA yang SUDAH ada (mis. diedit lewat Lompat ke step).
+  try{document.querySelectorAll('[id^="vb-bulk-script-"]').forEach(function(t){var m=/^vb-bulk-script-(\d+)$/.exec(t.id);if(m)vbBulkUpdateJson(+m[1]);});}catch(e){}
 }
 // Lewati step Pergerakan Kamera: camMove & camHook kosong -> prompt tanpa baris camera_movement / visual_hook.
 function vbSkipCam(){
@@ -16277,7 +16281,7 @@ function _vbRefreshProgressTotal(){
   let lbl=document.getElementById('vb-progress-label'); if(!lbl)return;
   let sp=lbl.querySelectorAll('span'); if(sp.length<2)return;
   let cur=parseInt(sp[0].textContent,10); if(isNaN(cur))return;
-  let total=_vbHasCam()?7:6;
+  let total=(typeof pbStepTotal==='function')?pbStepTotal():(_vbHasCam()?7:6);
   if(sp[1].textContent===String(total))return;
   sp[1].textContent=String(total);
   let fill=document.getElementById('vb-progress-fill');
@@ -16322,7 +16326,8 @@ function vbAdvanceStep(wasEdit,nextId,stepNum,stepName){
 
 function vbUpdateProgress(stepNum,stepName){
   let total=(typeof pbStepTotal==='function')?pbStepTotal():(_vbHasCam()?7:6);
-  let pct=Math.round((stepNum/total)*100);
+  if(stepNum>total)stepNum=total;
+  let pct=Math.min(100,Math.round((stepNum/total)*100));
   let fill=document.getElementById('vb-progress-fill');
   let label=document.getElementById('vb-progress-label');
   let title=document.getElementById('vb-progress-title');
@@ -17066,7 +17071,7 @@ function vbManualLiveInit(){
     vbManualRenderGroups(count);
   }
   doneCard('v5','va5','Isi manual sendiri');
-  vbUpdateProgress(_vbHasCam()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
+  vbUpdateProgress((typeof pbStepTotal==='function')?pbStepTotal():(_vbHasCam()?7:6),'<svg class="icon"><use href="#ic-check"></use></svg> Isi Manual');
   setTimeout(()=>document.getElementById('vb-multi-output').scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 // Cache PERSISTEN nama produk tiap grup manual (per index produk), bertahan
@@ -21726,7 +21731,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     await _vbRenderBulkOutput(allResults,produkList,true,false);
     _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     doneCard('v5','va5',(allResults.length*3)+' script bulk');
-    vbUpdateProgress(_vbHasCam()?7:6,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+    vbUpdateProgress((typeof pbStepTotal==='function')?pbStepTotal():(_vbHasCam()?7:6),'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     if(allResults.length<produkList.length){
       // FITUR BARU (permintaan user): dulu di sini cuma toast "sisanya bisa
       // dicoba generate ulang" — maksudnya generate ULANG SEMUA dari nol,
@@ -24122,6 +24127,7 @@ const VB_EN_MAP={
   'bercanda':'playful and joking',
   'gaul':'casual and slangy',
   'toxic':'snarky and sassy',
+  'ramah':'warm and friendly',
   'produk (outfit) digantung di hanger lalu dipegang oleh karakter menghadap kamera, belum dikenakan.':'The product (outfit) is hung on a hanger and held by the character facing the camera, not worn yet.',
   'produk diperlihatkan langsung ke arah kamera oleh karakter, dipegang dengan jelas terlihat.':'The character shows the product directly to the camera, holding it so it is clearly visible.'
 };
@@ -29065,7 +29071,11 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
     else if(p==='manual'){if(cam)s.push(['vcam',NAME.vcam]);s.push(['v5','Tulis Script']);}
     return s;
   }
-  window.pbStepTotal=function(){return steps().length;};
+  window.pbStepTotal=function(){
+    /* jalur belum dipilih: pakai total jalur terpanjang (AI) supaya bar tidak penuh lalu turun saat jalur dipilih */
+    if(!path())return 7+(_vbHasCam()?1:0);
+    return steps().length;
+  };
   Object.keys(NAME).forEach(function(id){
     var old=VB_STEP_META[id];
     Object.defineProperty(VB_STEP_META,id,{enumerable:true,configurable:true,get:function(){
@@ -29103,6 +29113,8 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
     if(!p)return;
     var ch=$('vb-script-choose'),a=$('vb-mode-ai-area'),m=$('vb-manual-script-area');
     if(!ch||!a||!m||ch.classList.contains('hidden'))return;
+    /* jalur manual: kartu script baru dibuat SETELAH step kamera selesai, supaya pilihan kamera ikut masuk ke prompt */
+    if(p==='manual'&&_vbHasCam()){var cv=$('vcam');if(cv&&!cv.classList.contains('done'))return;}
     if(p==='ai'?a.classList.contains('hidden'):m.classList.contains('hidden'))vbSelectScriptMode(p);
   }
   window.pbSelectPath=function(p){VB.pbPath=p;render();};
