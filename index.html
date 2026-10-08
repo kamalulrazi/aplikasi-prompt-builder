@@ -5914,9 +5914,11 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <p id="vcam-modehint" style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 12px;line-height:1.7;"></p>
       <div style="font-size:var(--fs-sm);font-weight:700;margin:0 0 8px;">Gerakan Kamera</div>
       <div class="chips" id="vcam-chips"></div>
+      <div id="vcam-id-move" style="display:none;margin:10px 0 0;padding:10px 12px;border:1px solid var(--border,rgba(128,128,128,.3));border-radius:10px;font-size:var(--fs-sm);"></div>
       <div style="font-size:var(--fs-sm);font-weight:700;margin:16px 0 4px;">Visual Hook <span style="font-weight:400;color:var(--muted);">(khusus kartu Hook, 1–3 detik pertama)</span></div>
       <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 8px;line-height:1.6;">Gerakan mendadak di awal video supaya penonton berhenti scroll. Klik lagi untuk batal pilih.</p>
       <div class="chips" id="vcam-hook-chips"></div>
+      <div id="vcam-id-hook" style="display:none;margin:10px 0 0;padding:10px 12px;border:1px solid var(--border,rgba(128,128,128,.3));border-radius:10px;font-size:var(--fs-sm);"></div>
       <button type="button" class="btn sm" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
       <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
     </div>
@@ -15919,6 +15921,102 @@ var VB_CAM_HOOK_OPTS={
     ['kp_h_dollyzoom','Dolly Zoom (ringan)','subtle dolly zoom where the background appears to stretch while the main subject keeps its size']
   ]
 };
+// Terjemahan Indonesia untuk pratinjau di kartu Pergerakan Kamera (HANYA tampilan, tidak masuk ke prompt).
+// Urutan MOVES: [Hook, Story, CTA] sama dengan VB_CAM_OPTS.
+var VB_CAM_ID_MOVES={
+ "satu_pushin": [
+  "Push-in pelan dan halus menuju subjek utama, dimulai persis dari komposisi foto referensi; subjek utama tetap tajam dan stabil.",
+  "Push-in sangat pelan dan lembut, nyaris tak terasa; subjek utama tetap stabil dan terlihat jelas sepanjang video.",
+  "Push-in stabil yang berhenti di subjek utama dan menahan frame akhir yang jelas dan stabil."
+ ],
+ "satu_pullback": [
+  "Pull-back pelan dan halus, dimulai dari crop yang sedikit lebih dekat dari foto referensi, lalu melebar bertahap hingga seluruh komposisi terlihat.",
+  "Pull-back sangat pelan dan lembut; subjek utama tetap jelas dan stabil di dalam frame.",
+  "Pull-back halus yang berhenti di komposisi akhir yang bersih dan di tengah, dengan subjek utama sebagai fokus."
+ ],
+ "satu_handheld": [
+  "Nuansa kamera HP genggam yang halus dengan getaran mikro alami, gaya UGC, dimulai persis dari komposisi foto referensi.",
+  "Ayunan genggam yang sangat ringan dan santai, nuansa UGC alami; subjek utama tetap jelas dan stabil.",
+  "Gerakan genggam ringan yang perlahan menstabil dan menahan subjek utama tetap jelas di dalam frame."
+ ],
+ "satu_arc": [
+  "Gerakan melengkung lembut sekitar 10–15 derajat mengelilingi subjek utama, dimulai dari komposisi foto referensi; subjek tetap di tengah, tidak menampilkan sisi baru yang tidak ada di foto.",
+  "Lengkungan kecil yang sangat pelan ke samping sekitar 10 derajat; subjek utama tetap di tengah dan stabil.",
+  "Lengkungan kecil yang halus dan kembali ke tampilan depan yang di tengah, lalu menahan posisi."
+ ],
+ "satu_slide": [
+  "Geser samping pelan ke kiri atau kanan yang menciptakan kedalaman dan parallax lembut; subjek utama tetap di frame, dimulai dari komposisi foto referensi.",
+  "Meluncur ke samping dengan sangat pelan dan halus, tenang dan stabil; subjek utama tetap terlihat jelas.",
+  "Meluncur ke samping dengan halus dan berakhir dengan subjek utama di tengah dan ditahan stabil."
+ ],
+ "aset_pushpull": [
+  "Dimulai persis di komposisi foto pertama, lalu push-in atau pull-back dengan halus (tergantung jarak antara kedua foto) sampai mendarat di komposisi foto kedua.",
+  "Push-in atau pull-back yang sangat pelan dan lembut, tenang dan stabil, dari komposisi foto pertama ke komposisi foto kedua.",
+  "Push-in atau pull-back halus yang mendarat mantap di komposisi foto kedua dan menahan fokus pada subjek utama."
+ ],
+ "aset_slide": [
+  "Dimulai persis di komposisi foto pertama, lalu bergeser ke samping dalam satu gerakan halus sampai mendarat di komposisi foto kedua.",
+  "Meluncur ke samping sangat pelan dan halus dari komposisi foto pertama ke komposisi foto kedua, tenang dan stabil.",
+  "Meluncur ke samping dengan halus dan berakhir mantap di komposisi foto kedua, menahan fokus pada subjek utama."
+ ],
+ "aset_orbit": [
+  "Dimulai persis di komposisi foto pertama, lalu mengorbit dengan halus dari sudut foto pertama ke sudut foto kedua.",
+  "Orbit yang sangat pelan dan lembut dari sudut foto pertama ke sudut foto kedua, tenang dan stabil.",
+  "Orbit halus yang berakhir mantap di sudut foto kedua dan menahan fokus pada subjek utama."
+ ],
+ "aset_rack": [
+  "Kamera nyaris diam di komposisi foto pertama, lalu fokus berpindah dengan jelas dari subjek utama foto pertama ke subjek utama foto kedua.",
+  "Kamera nyaris diam, perpindahan fokus yang sangat lembut dan pelan dari komposisi foto pertama ke komposisi foto kedua.",
+  "Fokus berpindah dan menetap mantap di subjek utama foto kedua, ditahan tajam di akhir."
+ ],
+ "aset_whip": [
+  "Dimulai persis di komposisi foto pertama, lalu gerakan whip yang cepat dan bersih dengan sedikit motion blur mendarat tepat di komposisi foto kedua.",
+  "Sapuan cepat yang lembut dengan motion blur minimal dari komposisi foto pertama ke komposisi foto kedua, lalu tenang dan stabil.",
+  "Gerakan whip cepat dan bersih yang mendarat mantap di komposisi foto kedua dan menahan fokus pada subjek utama."
+ ],
+ "kp_orbit": [
+  "Orbit halus 90 sampai 180 derajat mengelilingi karakter dan produk; subjek utama tetap di tengah dan tajam.",
+  "Orbit yang sangat pelan dan lembut sekitar 30 derajat mengelilingi karakter dan produk, tenang dan stabil.",
+  "Orbit halus yang berakhir di tampilan depan yang jelas dari karakter dan produk, lalu menahan posisi."
+ ],
+ "kp_tracking": [
+  "Kamera mengikuti karakter saat bergerak, tracking shot halus dengan nuansa vlog alami; subjek utama tetap di frame.",
+  "Tracking shot yang pelan dan stabil mengikuti karakter, tenang dan halus; produk tetap terlihat jelas.",
+  "Tracking shot yang mendekat dan berakhir pada karakter yang menampilkan produk dengan jelas, lalu menahan posisi stabil."
+ ],
+ "kp_dollyin": [
+  "Dolly in dari medium shot menuju produk, halus dan percaya diri; produk tajam dan menonjol.",
+  "Dolly in yang pelan dan lembut dari medium shot; produk dan karakter tetap terlihat jelas.",
+  "Dolly in yang berakhir pada close-up produk, ditahan tajam dan di tengah."
+ ],
+ "kp_crane": [
+  "Kamera naik atau tilt dengan halus untuk mengungkap produk dan karakter secara bertahap, reveal sinematik.",
+  "Tilt yang sangat pelan dan lembut, berpindah dengan tenang antara karakter dan produk.",
+  "Gerakan tilt atau crane yang halus dan berakhir pada produk, ditahan jelas dan stabil."
+ ],
+ "kp_handheld": [
+  "Gerakan genggam yang hidup dan natural, nuansa UGC yang energik; subjek utama tetap di frame dan tajam.",
+  "Ayunan genggam yang ringan dan santai, natural dan tenang; subjek utama tetap jelas.",
+  "Gerakan genggam dengan whip pan ringan yang mendarat di produk lalu menstabil."
+ ]
+};
+var VB_CAM_ID_HOOKS={
+ "satu_h_snapzoom": "Menahan frame pertama sebentar, lalu snap zoom cepat menuju subjek utama yang menetap halus dalam fokus tajam.",
+ "satu_h_fastpullback": "Dimulai dari crop yang sangat dekat pada frame pertama, lalu pull-back cepat mengungkap seluruh komposisi.",
+ "satu_h_ramp": "Push-in cepat menuju subjek utama yang melambat dengan halus di akhir (speed ramp).",
+ "satu_h_focuspop": "Dimulai sedikit tidak fokus, lalu dengan cepat menjadi tajam dan jelas pada subjek utama.",
+ "satu_h_jolt": "Sentakan genggam kecil yang cepat seperti kamera HP yang baru diraih, lalu frame menstabil pada subjek utama.",
+ "aset_h_whip": "Whip pan cepat dengan motion blur, dimulai dari komposisi foto pertama dan mendarat bersih di komposisi foto kedua.",
+ "aset_h_ramp": "Gerakan cepat di awal yang melambat dengan halus tepat di komposisi foto kedua (speed ramp).",
+ "aset_h_orbit": "Orbit cepat dari sudut foto pertama ke sudut foto kedua, berakhir stabil.",
+ "aset_h_rack": "Perpindahan fokus cepat dari subjek utama foto pertama ke subjek utama foto kedua.",
+ "aset_h_snapzoom": "Snap zoom cepat yang berakhir tepat di komposisi foto kedua.",
+ "kp_h_crash": "Crash zoom yang sangat cepat menuju subjek utama dengan snap focus yang tajam.",
+ "kp_h_orbit": "Orbit cepat mengelilingi karakter dan produk, berakhir stabil pada subjek utama.",
+ "kp_h_whip": "Whip pan cepat dengan motion blur yang berhenti tajam pada subjek utama.",
+ "kp_h_crane": "Kamera naik atau turun dengan cepat dan berhenti tajam pada subjek utama.",
+ "kp_h_dollyzoom": "Dolly zoom ringan di mana latar belakang tampak meregang sementara ukuran subjek utama tetap sama."
+};
 // Penjelasan singkat di atas chip, sesuai mode.
 var VB_CAM_HINT={
   satu:'Mode Start Frame: foto kamu jadi frame pertama video, jadi gerakannya halus dan dimulai dari komposisi foto. Isi foto bebas (karakter pegang produk, produk saja, atau produk dipegang tanpa wajah).',
@@ -15979,6 +16077,28 @@ function _vbRenderCamChips(){
     }
     draw(box1,moves,'move',_vbCamPendMove);
     draw(box2,hooks,'hook',_vbCamPendHook);
+    _vbCamPreview();
+  }catch(e){}
+}
+// Pratinjau terjemahan Indonesia di bawah chip yang dipilih (hanya tampilan).
+function _vbCamPreviewHTML(rows){
+  return '<div style="font-size:var(--fs-sm);font-weight:700;margin:0 0 6px;">Hasil prompt (Bahasa Indonesia)</div>'+
+    rows.map(function(r){return '<div style="margin:0 0 6px;line-height:1.6;"><b>'+r[0]+':</b> '+r[1]+'</div>';}).join('')+
+    '<div style="font-size:var(--fs-sm);color:var(--muted);margin-top:6px;">Terjemahan untuk dibaca saja. Prompt yang dikirim tetap bahasa Inggris.</div>';
+}
+function _vbCamPreview(){
+  try{
+    let b1=document.getElementById('vcam-id-move'), b2=document.getElementById('vcam-id-hook');
+    if(b1){
+      let t=_vbCamPendMove&&VB_CAM_ID_MOVES[_vbCamPendMove];
+      if(t){b1.innerHTML=_vbCamPreviewHTML([['Kartu Hook',t[0]],['Kartu Story',t[1]],['Kartu CTA',t[2]]]);b1.style.display='block';}
+      else{b1.innerHTML='';b1.style.display='none';}
+    }
+    if(b2){
+      let h=_vbCamPendHook&&VB_CAM_ID_HOOKS[_vbCamPendHook];
+      if(h){b2.innerHTML=_vbCamPreviewHTML([['Visual Hook (1–3 detik pertama)',h]]);b2.style.display='block';}
+      else{b2.innerHTML='';b2.style.display='none';}
+    }
   }catch(e){}
 }
 // Klik chip = pilih sementara. Klik lagi pada chip yang sama = batal pilih.
@@ -15989,6 +16109,7 @@ function vbPickCam(kind,id,el){
   if(!wasSel)el.classList.add('sel');
   if(kind==='hook')_vbCamPendHook=wasSel?'':id;
   else _vbCamPendMove=wasSel?'':id;
+  _vbCamPreview();
 }
 // Tombol "Lanjut": simpan kedua pilihan (boleh kosong salah satunya, atau keduanya).
 function vbCamConfirm(){
@@ -16007,6 +16128,7 @@ function vbSkipCam(){
   document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
   let cb=document.getElementById('vcam-confirmbar'); if(cb)cb.remove();
   _vbCamPendMove='';_vbCamPendHook='';
+  _vbCamPreview();
   vbPickCamConfirmed('','');
 }
 try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
