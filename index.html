@@ -2339,7 +2339,11 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    selama wizard berjalan. #f-import-toggle-wrap pakai display:contents supaya tombolnya ikut grid
    dan area tempel JSON bisa melebar penuh di bawahnya. */
 #foto-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px;}
-#foto:has(#f0.done) #foto-tools{display:none;}
+#foto:has(#f0.done) #foto-tools:not(:has(#f-import-area.ft-imported:not(.hidden) #f-import-status:not(.hidden))){display:none;}
+/* Setelah impor berhasil: blok ini tinggal strip status (+ tombol Batal), dua tombol & textarea disembunyikan. */
+#foto-tools:has(#f-import-area.ft-imported:not(.hidden) #f-import-status:not(.hidden)){grid-template-columns:1fr;}
+#foto-tools:has(#f-import-area.ft-imported:not(.hidden) #f-import-status:not(.hidden)) .ft-btn{display:none;}
+#f-import-area.ft-imported>:not(#f-import-status){display:none;}
 #f-import-toggle-wrap{display:contents;}
 .ft-btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 12px;width:auto;
   background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted);
@@ -4198,7 +4202,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.55</div>
+  <div class="splash-version" id="splash-version">v11.56</div>
 </div>
 <script>
   (function(){
@@ -4883,6 +4887,16 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
   </div>
 
   <!-- F0: PILIH SUBJEK -->
+  <!-- RINGKASAN BARU: setelah Generate, seluruh alur step dilipat jadi kotak ini. Ketuk untuk lihat/ubah step. -->
+  <div class="tl-fold" id="f-tl-fold" role="button" tabindex="0" aria-expanded="false" hidden onclick="pbToggleTlFold()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();pbToggleTlFold()}">
+    <div class="tl-fold-head">
+      <div>
+        <div class="summary-card-title"><span class="summary-card-title-dot"></span>Ringkasan</div>
+        <div class="tl-fold-sub" id="f-tl-fold-sub"></div>
+      </div>
+      <span class="tl-fold-chev" aria-hidden="true">▾</span>
+    </div>
+  </div>
   <div class="wcard" id="f0">
     <!-- FITUR BARU (permintaan user): thumbnail foto Karakter Sheet yang
          sudah diupload user, ditaruh di pojok kanan-atas kartu ini biar
@@ -6266,7 +6280,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.55 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.56 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -7572,7 +7586,7 @@ function _fSyncImportSubjekState(){
     if(c4b){c4b.classList.remove('done');c4b.classList.add('pending');}
     let fa4b=document.getElementById('fa4'); if(fa4b) fa4b.textContent='';
     fBuildPoseChips();
-    showToast('Foto karakter terdeteksi — prompt ini otomatis dialihkan ke mode ADA KARAKTER. Buka step Pose lewat Ringkasan buat pilih pose sebelum generate.','error');
+    showToast('Foto karakter terdeteksi — prompt ini otomatis dialihkan ke mode ADA KARAKTER. Buka step Pose lewat tombol ubah buat pilih pose sebelum generate.','error');
   }
 }
 
@@ -10351,6 +10365,7 @@ function fImportPrompt(){
   let statusBox = document.getElementById('f-import-status');
   if(errBox){errBox.classList.add('hidden');errBox.textContent='';}
   if(statusBox){statusBox.classList.add('hidden');statusBox.textContent='';}
+  let _impArea0 = document.getElementById('f-import-area'); if(_impArea0) _impArea0.classList.remove('ft-imported');
 
   let raw = document.getElementById('f-import-textarea').value.trim();
   if(!raw){showToast('Paste dulu JSON prompt-nya ya','error');return;}
@@ -10375,6 +10390,17 @@ function fImportPrompt(){
     return;
   }
   scene = scene || {};
+  // VALIDASI ISI (hasil audit): JSON yang valid tapi tidak membawa satu pun isian (mis. cuma {"prompt":"..."})
+  // dulu tetap dianggap "berhasil" — wizard dikosongkan lalu diisi mode Produk Saja yang kosong. Sekarang
+  // ditolak SEBELUM state wizard disentuh, jadi isian yang sedang berjalan tidak hilang percuma.
+  if(!(scene.location||scene.lighting||scene.camera_angle||scene.pose||scene.mood_and_tone||parsed.mood_and_tone||(parsed.product&&parsed.product.name))){
+    if(errBox){
+      errBox.textContent = 'JSON-nya terbaca, tapi tidak ada isian yang bisa diambil (lokasi, cahaya, sudut kamera, pose, mood, atau produk). Pastikan yang ditempel JSON lengkap dari tools ini.';
+      errBox.classList.remove('hidden');
+    }
+    showToast('Tidak ada isian yang bisa diambil dari prompt ini','error');
+    return;
+  }
 
   // FIX BUG HANGER/RIWAYAT NYANGKUT: sebelum ini, field FS (lokasi, cahaya,
   // angle, pose, kamera, mood, hold, holdKey, produkMode, dst) cuma diisi
@@ -10397,7 +10423,13 @@ function fImportPrompt(){
   FS.conflictLevel=0; FS.shotOverrides={};
 
   // isProdukSaja: prompt lama tanpa pose di scene = mode produk-saja
-  FS.importIsProdukSaja = !scene.pose;
+  // FIX (audit): dulu produk-saja = "tidak ada pose" saja, jadi prompt karakter (subject "a woman"/"a man")
+  // yang kebetulan tanpa pose salah diimpor sebagai Produk Saja — hasil generate-nya jadi kontradiktif
+  // ("no person visible" tapi subject: a woman). Sekarang teks subject ikut menentukan; tebakan lama
+  // (tanpa pose) hanya dipakai kalau subject tidak mengenali karakter.
+  let _impSubjTxt = String(parsed.subject || (parsed.prompt ? _fImportExtractField(cleaned,'subject') : '') || '').trim().toLowerCase();
+  let _impIsKarakter = !!_fSUBJECT_TEXT_MAP[_impSubjTxt] && _impSubjTxt !== 'product only, no person';
+  FS.importIsProdukSaja = (_impSubjTxt === 'product only, no person') || (!scene.pose && !_impIsKarakter);
   FS.importActive = true;
   FS.importSubject = parsed.subject || (parsed.prompt ? _fImportExtractField(cleaned,'subject') : '') || '';
   FS.importRefPhotos = Array.isArray(parsed.reference_photos) ? parsed.reference_photos : [];
@@ -10554,10 +10586,19 @@ function fImportPrompt(){
   fSyncMultiShotVisibility();
   if(typeof fRenderSummary === 'function') fRenderSummary();
 
+  let _impMissing = [];
+  if(!FS.lokasi) _impMissing.push('Lokasi');
+  if(!FS.cahaya) _impMissing.push('Cahaya');
+  if(!FS.angle) _impMissing.push('Sudut Kamera');
+  if(!FS.mood) _impMissing.push('Mood & Tone');
   if(statusBox){
-    statusBox.innerHTML = 'Berhasil diimpor: <strong>' + esc(filled.join(', ')) + '</strong>. Tap "ubah" di step manapun buat ganti sebelum generate ulang.<br><button onclick="fCancelImport()" style="background:none;border:none;color:var(--red);font-size:var(--fs-xs);text-decoration:underline;cursor:pointer;padding:4px 0 0;"><svg class="icon"><use href="#ic-close"></use></svg> Batal, mulai dari awal</button>';
+    statusBox.innerHTML = 'Berhasil diimpor: <strong>' + esc(filled.join(', ')) + '</strong>. Tap "ubah" di step manapun buat ganti sebelum generate ulang.' + (_impMissing.length ? '<br><span style="color:var(--red);">Belum terisi: <strong>' + esc(_impMissing.join(', ')) + '</strong> — tap "ubah" dan isi dulu, kalau tidak prompt-nya bolong.</span>' : '') + '<br><button onclick="fCancelImport()" style="background:none;border:none;color:var(--red);font-size:var(--fs-xs);text-decoration:underline;cursor:pointer;padding:4px 0 0;"><svg class="icon"><use href="#ic-close"></use></svg> Batal, mulai dari awal</button>';
     statusBox.classList.remove('hidden');
   }
+  // Setelah impor, area tempel diciutkan jadi strip status saja (lihat CSS .ft-imported) supaya
+  // textarea besar tidak menumpuk di atas Ringkasan; tombol "Batal, mulai dari awal" tetap terlihat.
+  let _impArea = document.getElementById('f-import-area');
+  if(_impArea){ _impArea.classList.remove('hidden'); _impArea.classList.add('ft-imported'); }
   showToast('Prompt lama berhasil diimpor!','success');
   setTimeout(()=>genArea && genArea.scrollIntoView({behavior:'smooth',block:'nearest'}),200);
 }
@@ -10576,6 +10617,7 @@ function fCancelImport(){
   fResetFrom(0);
   let ta = document.getElementById('f-import-textarea'); if(ta) ta.value='';
   let statusBox = document.getElementById('f-import-status'); if(statusBox) statusBox.classList.add('hidden');
+  let _impAreaC = document.getElementById('f-import-area'); if(_impAreaC) _impAreaC.classList.remove('ft-imported');
 }
 
 
@@ -11772,7 +11814,7 @@ function fResetNow(){
     let importTa=document.getElementById('f-import-textarea');if(importTa)importTa.value='';
     let importStatus=document.getElementById('f-import-status');if(importStatus)importStatus.classList.add('hidden');
     let importErr=document.getElementById('f-import-error');if(importErr)importErr.classList.add('hidden');
-    let importArea=document.getElementById('f-import-area');if(importArea)importArea.classList.add('hidden');
+    let importArea=document.getElementById('f-import-area');if(importArea){importArea.classList.add('hidden');importArea.classList.remove('ft-imported');}
 
     // Reset progress bar ke tampilan awal (sebelum user pilih subjek)
     let fill=document.getElementById('f-progress-fill');if(fill)fill.style.width='0%';
@@ -28853,6 +28895,20 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
 #foto .tl-opts[data-tl=cur] .btn{width:100%;min-height:52px;border-radius:14px;font-size:14px;font-weight:600}
 }
 </style>
+<style id="tl-fold-style">
+/* Kartu Ringkasan lama disembunyikan (elemennya tetap ada di DOM karena fRenderSummary & Riwayat masih membacanya).
+   Gantinya: setelah Generate, alur step dilipat jadi satu kotak; ketuk kotaknya untuk membuka step-nya lagi. */
+#summary-card{display:none!important}
+.tl-fold{display:block;margin:0 0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;animation:summaryIn .25s ease;-webkit-tap-highlight-color:transparent}
+.tl-fold[hidden]{display:none}
+.tl-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tl-fold-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:var(--space-4) var(--space-5)}
+.tl-fold-sub{margin-top:3px;font-size:var(--fs-2xs);color:var(--muted2);font-family:'Geist Mono',monospace}
+.tl-fold-chev{flex:none;font-size:var(--fs-xs2);color:var(--muted);transition:transform .2s ease}
+#foto[data-tl-fold=open] .tl-fold-chev{transform:rotate(180deg)}
+#foto[data-tl-fold=closed] .wcard[data-tl]{display:none!important}
+@media (prefers-reduced-motion:reduce){.tl-fold{animation:none}.tl-fold-chev{transition:none}}
+</style>
 <script id="tl-foto-script">
 (function(){
   var IDS=['f0','f1','f3','f4','f5','f7','f8','f9'],OPT={f3:1,f4:1,f5:1,f7:1,f8:1,f9:1},t=0;
@@ -28891,6 +28947,34 @@ html.pb-kb-open #daily-limit-bar{display:none !important;}
   });
   document.addEventListener('click',function(){setTimeout(sched,90);},true);
   sync();
+})();
+</script>
+<script id="tl-fold-script">
+/* Lipat alur step jadi ringkasan setelah klik Generate Prompt Foto. Lepas otomatis begitu ada step yang dibuka lagi (ubah). */
+(function(){
+  var P=document.getElementById('foto'),box=document.getElementById('f-tl-fold'),sub=document.getElementById('f-tl-fold-sub'),t=0;
+  if(!P||!box)return;
+  function info(){var n=0,ok=true;P.querySelectorAll('.wcard[data-tl]').forEach(function(c){var s=c.dataset.tl;if(s==='off')return;n++;if(s!=='done')ok=false;});return{n:n,ok:n>0&&ok};}
+  function set(v){if((P.dataset.tlFold||'')===v)return;if(v)P.dataset.tlFold=v;else delete P.dataset.tlFold;}
+  function sync(){
+    t=0;var i=info(),s=P.dataset.tlFold||'';
+    if(!i.ok&&s){s='';set('');}
+    if(box.hidden!==!s)box.hidden=!s;
+    var ex=s==='open'?'true':'false';
+    if(box.getAttribute('aria-expanded')!==ex)box.setAttribute('aria-expanded',ex);
+    var tx=i.n+' step terisi — ketuk untuk '+(s==='open'?'menutup':'lihat atau ubah');
+    if(sub&&sub.textContent!==tx)sub.textContent=tx;
+  }
+  function sched(){if(!t)t=requestAnimationFrame(function(){requestAnimationFrame(sync);});}
+  window.pbToggleTlFold=function(){var s=P.dataset.tlFold||'';if(s==='closed')set('open');else if(s==='open')set('closed');sync();};
+  var og=window.fGenerate;
+  if(typeof og==='function')window.fGenerate=function(){
+    var r=og.apply(this,arguments);
+    try{var b=document.getElementById('f-gen-btn');if(b&&b.classList.contains('btn-loading')&&info().ok){set('closed');sync();}}catch(e){}
+    return r;
+  };
+  if(window.MutationObserver)new MutationObserver(sched).observe(P,{subtree:true,attributes:true,attributeFilter:['class','style','data-tl']});
+  sched();
 })();
 </script>
 </body>
