@@ -1106,14 +1106,30 @@
       // biasa) supaya admin gampang cari user di Firestore Console pas mau
       // naikkan tier manual setelah cek transfer — id dokumennya sendiri
       // tetap uid (bukan email), jadi ini murni buat pencarian manual.
-      // FIX (Sept 2026): pb_email SEKARANG ditulis SETELAH _pullAll() selesai (dulu sebelum, dan tulisan
-      // tertunda itulah yang memicu dokumen setengah jadi tanpa pb_tier), dan hanya kalau memang beda.
-      await _pullAll();
+      // FIX (Sept 2026): pb_email ditulis SETELAH _pullAll() selesai (dulu sebelum, dan tulisan
+      // tertunda itulah yang memicu dokumen setengah jadi tanpa pb_tier) — urutan ini tetap
+      // dipertahankan di bawah.
+      // FIX BUG (8 Okt 2026, laporan user "ada user lolos, Gmail-nya tidak terdata di admin"):
+      // SEBELUMNYA baris _docRef().set({pb_email:...}) di bawah ada di DALAM try yang sama dengan
+      // `await _pullAll()` — kalau _pullAll() melempar error (network/izin Firestore/dsb, BUKAN hal
+      // langka), eksekusi langsung lompat ke catch paling luar dan baris simpan email ITU SENDIRI
+      // TIDAK PERNAH DIJALANKAN sama sekali untuk sesi itu. Sementara itu pbCloudPushQuota() (tiap
+      // generate) dan sinkron blob (riwayat/halaman tersimpan, lewat pbCloudQueue) SAMA SEKALI TIDAK
+      // bergantung pada _pullAll berhasil — jadi dokumen users/{uid} user itu tetap kebuat LENGKAP
+      // dengan pb_quota/riwayat (makanya tampak aktif & "lolos" di admin), tapi pb_email-nya kosong
+      // selamanya kalau _pullAll kebetulan gagal PERSIS di sesi login pertama mereka (dan tidak ada
+      // percobaan ulang — ini satu-satunya tempat pb_email ditulis). Sekarang _pullAll() dibungkus
+      // try/catch SENDIRI: errornya ditangkap dulu (supaya baris simpan email di bawah tetap jalan),
+      // lalu dilempar ULANG di akhir blok ini — supaya penanganan error yang sudah ada (status sinkron
+      // & jadwal retry tier di catch paling luar) tetap persis seperti sebelumnya.
+      var _pullErr = null;
+      try{ await _pullAll(); }catch(ePull){ _pullErr = ePull; }
       _lastActiveReady = true; _touchLastActive(true); // catat "terakhir aktif" tiap app dibuka
       try{
         var _emForDoc = (firebase.auth().currentUser && firebase.auth().currentUser.email) || (user && user.email) || '';
-        if(_emForDoc && (!_lastDocInfo || _lastDocInfo.email !== _emForDoc)){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(){}); }
+        if(_emForDoc && (!_lastDocInfo || _lastDocInfo.email !== _emForDoc)){ _docRef().set({pb_email:_emForDoc, _updatedAt:Date.now()}, {merge:true}).catch(function(eSet){ console.warn('Simpan pb_email gagal:', eSet); }); }
       }catch(e){}
+      if(_pullErr) throw _pullErr;
     }catch(e){ console.warn('pbCloudInit gagal:', e); _setSyncStatus('error', _syncErrMsg(e), 'pull'); if(window.pbCloudUid && _tierState !== 'ok') _scheduleTierRetry(); else if(_tierState === 'loading') _setTierState('unknown'); }
     finally{
       // FITUR BARU (permintaan user): apapun hasilnya (berhasil, gagal,
