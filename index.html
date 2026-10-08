@@ -2354,6 +2354,12 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .ft-btn:active{background:var(--surface2);border-color:var(--border-hi);color:var(--text);}
 .ft-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .mt8{margin-top:var(--space-3);}.mt12{margin-top:var(--space-5);}.mt16{margin-top:var(--space-7);}
+.v4-style-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px dashed var(--border);background:transparent;color:var(--text);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:background .15s,border-color .15s;}
+.v4-style-toggle:hover{background:var(--surface2);}
+.v4-style-toggle .v4-st-ic{display:inline-block;width:16px;text-align:center;font-weight:700;line-height:1;transition:transform .2s;}
+.v4-style-toggle[aria-expanded="true"] .v4-st-ic{transform:rotate(45deg);}
+.v4-style-toggle .v4-st-opt{font-weight:400;color:var(--muted);}
+.v4-style-toggle .v4-st-sel{font-weight:600;}
 .inp-wrap{position:relative;}
 /* Tombol simpan versi ikon (menggantikan tombol teks "Simpan yang kamu
    isi supaya bisa dipakai berulang") — diletakkan di sisi paling kanan
@@ -4204,7 +4210,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.63</div>
+  <div class="splash-version" id="splash-version">v11.66</div>
 </div>
 <script>
   (function(){
@@ -5963,8 +5969,8 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
         <div class="chip" onclick="vbPickAccent('light Batak accent',this,'Batak')">Batak</div>
       </div>
       <div id="v4-style-wrap" class="hidden mt12">
-        <label class="inplabel">Gaya khas aksen <span style="font-weight:400;color:var(--muted);">(opsional)</span></label>
-        <div class="chips" id="v4-style-chips"></div>
+        <button type="button" class="v4-style-toggle" id="v4-style-toggle" aria-expanded="false" aria-controls="v4-style-chips" onclick="vbToggleAksenStyle()"><span class="v4-st-ic" aria-hidden="true">+</span><span>Gaya khas aksen</span><span class="v4-st-opt">(opsional)</span><span class="v4-st-sel" id="v4-style-sel"></span></button>
+        <div class="chips hidden" id="v4-style-chips" style="margin-top:10px;"></div>
       </div>
       <div class="mt12">
         <label class="inplabel">Atau tulis sendiri</label>
@@ -6284,7 +6290,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.63 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.66 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -16925,7 +16931,7 @@ function vbRenderAksenStyleChips(accentVal,accentLabel){
     if(!wrap||!box)return;
     var list=VB_AKSEN_STYLE[accentVal]||null;
     box.innerHTML='';
-    if(!list){wrap.classList.add('hidden');VB_AKSEN_STYLE_PENDING='';return;}
+    if(!list){wrap.classList.add('hidden');VB_AKSEN_STYLE_PENDING='';vbToggleAksenStyle(false);return;}
     // pilihan sebelumnya ditampilkan lagi kalau aksennya sama
     VB_AKSEN_STYLE_PENDING=(VB.accentStyleFor===accentVal&&VB.accentStyle)?VB.accentStyle:'';
     list.forEach(function(it){
@@ -16937,6 +16943,7 @@ function vbRenderAksenStyleChips(accentVal,accentLabel){
         box.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
         VB_AKSEN_STYLE_PENDING=was?'':it[0];
         if(!was)d.classList.add('sel');
+        _vbAksenStyleSelLabel(list);
         // Kartu Aksen yang dibuka ulang lewat "ubah" tidak punya tombol konfirmasi sampai ada chip dipilih —
         // munculkan lagi supaya perubahan gaya benar-benar tersimpan.
         var _lbl=_vbAksenLabelFor(accentVal,accentLabel);
@@ -16945,7 +16952,24 @@ function vbRenderAksenStyleChips(accentVal,accentLabel){
       box.appendChild(d);
     });
     wrap.classList.remove('hidden');
+    // Gaya khas aksen disembunyikan dulu; baru tampil kalau user klik tombolnya (atau sudah ada pilihan tersimpan).
+    vbToggleAksenStyle(!!VB_AKSEN_STYLE_PENDING);
+    _vbAksenStyleSelLabel(list);
   }catch(e){console.warn('[vbRenderAksenStyleChips]',e);}
+}
+function vbToggleAksenStyle(force){
+  var box=document.getElementById('v4-style-chips'),btn=document.getElementById('v4-style-toggle');
+  if(!box||!btn)return;
+  var open=(typeof force==='boolean')?force:box.classList.contains('hidden');
+  box.classList.toggle('hidden',!open);
+  btn.setAttribute('aria-expanded',open?'true':'false');
+}
+function _vbAksenStyleSelLabel(list){
+  var el=document.getElementById('v4-style-sel');
+  if(!el)return;
+  var t='';
+  (list||[]).forEach(function(it){if(it[0]===VB_AKSEN_STYLE_PENDING)t=it[1];});
+  el.textContent=t?': '+t:'';
 }
 function _vbAksenToneRule(accent,pitch){
   var a=String(accent==null?'':accent).trim(),p=String(pitch==null?'':pitch).trim();
@@ -17364,16 +17388,28 @@ function _vbCharVal(idx,key){
   // Jaring pengaman: preset motion yang tidak cocok dengan gender efektif produk ini
   // (mis. sisa dari Undo/Riwayat) tidak boleh sampai ke prompt.
   if(key==='motion'&&v&&typeof vbMotionValid==='function'&&!vbMotionValid(v,_vbCharVal(idx,'gender')))return '';
+  // Jaring pengaman: gerakan kamera / visual hook yang bukan milik mode aktif (sisa Undo/Riwayat) tidak boleh sampai ke prompt.
+  if((key==='camMove'||key==='camHook')&&v){
+    var _cs=(key==='camHook'?VB_CAM_HOOK_OPTS:VB_CAM_OPTS)[VB.refMode]||[];
+    if(!_cs.some(function(o){return o[0]===v;}))return '';
+  }
   return v;
 }
 function _vbCharFields(){
-  return [
+  var fl=[
     {key:'motion',title:'Pembawaan',none:'Tanpa pembawaan',ph:'Atau isi sendiri, contoh: anggun dan kalem',max:80,chips:VB_MOTION_OPTS.map(function(o){return [o.k,o.label];})},
     {key:'gender',title:'Jenis Kelamin',chips:[['male','Laki-laki'],['female','Perempuan']]},
     {key:'age',title:'Usia',ph:'Atau isi sendiri, contoh: elderly woman, around 65 years old',max:120,chips:[['child, approximately 5-10 years old','Anak-anak'],['teenager, approximately 15-20 years old','Remaja'],['young adult, approximately 20-30 years old','Dewasa Muda'],['adult, approximately 30-45 years old','Dewasa'],['middle-aged adult, approximately 45-60 years old','Paruh Baya']]},
     {key:'pitch',title:'Nada Bicara',ph:'Atau tulis sendiri, contoh: lelah tapi tetap ramah',max:80,chips:[['bercanda','Bercanda'],['gaul','Gaul'],['toxic','Toxic']]},
     {key:'accent',title:'Aksen',ph:'Atau tulis sendiri, contoh: logat Bali yang ramah',max:120,chips:[['neutral standard accent','Netral'],['casual Jakarta accent','Jakarta'],['light Javanese accent','Jawa'],['light Sundanese accent','Sunda'],['light Batak accent','Batak']]}
   ];
+  // Gerakan Kamera & Visual Hook (hanya mode Start Frame / Frame Asset / Raw Asset) — bisa diganti per produk setelah skrip muncul.
+  if(typeof _vbHasCam==='function'&&_vbHasCam()){
+    var _m=VB.refMode;
+    fl.push({key:'camMove',title:'Gerakan Kamera',none:'Tanpa gerakan kamera',chips:(VB_CAM_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
+    fl.push({key:'camHook',title:'Visual Hook · kartu Hook',none:'Tanpa visual hook',chips:(VB_CAM_HOOK_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
+  }
+  return fl;
 }
 function _vbCharHasOvr(prodIdx){
   // Emas hanya kalau ada field yang nilainya BEDA dari default wizard — memilih chip yang sama
@@ -17390,7 +17426,7 @@ function _vbCharBtnState(b,prodIdx){
 function _vbCharMakeBtn(prodIdx,big){
   var b=document.createElement('button');
   b.id='vb-char-btn-'+prodIdx;b.type='button';b.className='copy-btn';
-  b.title='Edit motion, jenis kelamin, usia, nada & aksen';
+  b.title='Edit motion, jenis kelamin, usia, nada, aksen, kamera & visual hook';
   b.setAttribute('aria-label','Edit karakter dan suara');
   b.style.cssText=(big?'font-size:var(--fs-xs2);padding:8px 12px;':'font-size:var(--fs-2xs);padding:3px 8px;')+'flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;';
   b.innerHTML='<svg class="icon"><use href="#ic-edit"></use></svg>';
@@ -17405,7 +17441,7 @@ function _vbCharMakePanel(prodIdx,style){
 }
 var VB_CHAR_PANEL_STYLE_GROUP='padding:9px;background:var(--surface2);border-bottom:1px solid var(--border-hi);display:flex;flex-direction:column;gap:4px;';
 var VB_CHAR_PANEL_STYLE_SINGLE='padding:9px;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-xs);display:flex;flex-direction:column;gap:4px;';
-var VB_CHAR_TAB_NAMES={motion:'Pembawaan',gender:'Gender',age:'Usia',pitch:'Nada',accent:'Aksen',ov:'Teks Hook'};
+var VB_CHAR_TAB_NAMES={motion:'Pembawaan',gender:'Gender',age:'Usia',pitch:'Nada',accent:'Aksen',camMove:'Kamera',camHook:'Visual Hook',ov:'Teks Hook'};
 // Label yang ditampilkan untuk nilai field: nama chip kalau cocok preset, teks sendiri kalau custom.
 function _vbCharLabel(f,v){
   v=String(v||'');
@@ -17420,8 +17456,17 @@ function vbCharTab(prodIdx,i){
   if(!panel)return;
   panel.querySelectorAll('[data-ct]').forEach(function(t){t.classList.toggle('sel',t.dataset.ct===String(i));});
   panel.querySelectorAll('[data-cp]').forEach(function(p){p.classList.toggle('hidden',p.dataset.cp!==String(i));});
+  // Tab makin banyak (ada Kamera & Visual Hook): geser strip tab supaya tab aktif selalu kelihatan.
+  try{
+    var _at=panel.querySelector('[data-ct="'+i+'"]'),_tl=_at&&_at.parentElement;
+    if(_tl&&_tl.scrollWidth>_tl.clientWidth){
+      var _dl=_at.getBoundingClientRect().left-_tl.getBoundingClientRect().left;
+      var _dr=_at.getBoundingClientRect().right-_tl.getBoundingClientRect().right;
+      if(_dl<0)_tl.scrollLeft+=_dl-12;else if(_dr>0)_tl.scrollLeft+=_dr+12;
+    }
+  }catch(e){}
 }
-// Panel pensil bergaya TAB: Motion | Gender | Usia | Nada | Aksen | Teks Hook.
+// Panel pensil bergaya TAB: Motion | Gender | Usia | Nada | Aksen | Kamera | Visual Hook | Teks Hook (Kamera & Visual Hook hanya di mode Start Frame/Frame Asset/Raw Asset).
 // Tiap tab = satu bagian (chip + kolom isi sendiri), ada titik emas di tab yang
 // sudah diubah dari default, dan ringkasan pilihan karakter di bawah tab.
 function _vbCharBuildPanel(prodIdx,panel){
@@ -17436,14 +17481,19 @@ function _vbCharBuildPanel(prodIdx,panel){
     if(f.key==='ov'){
       p+='<div data-ovhost></div>';
     }else{
-      p+='<div class="chips" style="margin:8px 0 6px;"'+(f.key==='motion'?' data-mchips="1"':'')+'>';
+      var _isCam=(f.key==='camMove'||f.key==='camHook');
+      p+='<div class="chips" style="margin:8px 0 6px;"'+(f.key==='motion'?' data-mchips="1"':'')+(_isCam?' data-cchips="'+f.key+'"':'')+'>';
       if(f.key==='motion'){
         p+=_vbCharMotionChipsHtml(prodIdx);
+      }else if(_isCam){
+        p+=_vbCharCamChipsHtml(prodIdx,f.key);
       }else{
         if(f.none)p+='<div class="chip" data-k="'+f.key+'" data-v="" onclick="vbCharPick('+prodIdx+',this)">'+esc(f.none)+'</div>';
         (f.chips||[]).forEach(function(c){p+='<div class="chip" data-k="'+f.key+'" data-v="'+esc(c[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(c[1])+'</div>';});
       }
       p+='</div>';
+      // Frame Asset: kartu Hook yang punya visual hook memakai kamera tenang tetap, jadi beri tahu user (tampil hanya saat relevan).
+      if(f.key==='camMove')p+='<div data-camnote class="hidden" style="font-size:var(--fs-2xs);color:var(--muted);line-height:1.6;padding:6px 8px;border-left:2px solid var(--accent);">Di kartu Hook, kamera mengikuti visual hook yang dipilih, jadi gerakan ini hanya berlaku di kartu Story &amp; CTA. Pilih &quot;Tanpa visual hook&quot; kalau mau dipakai di Hook juga.</div>';
       if(f.ph)p+='<input class="inp" data-k="'+f.key+'" maxlength="'+f.max+'" placeholder="'+esc(f.ph)+'" oninput="vbCharCustom('+prodIdx+',this)" style="font-size:var(--fs-xs2);padding:6px 8px;width:100%;box-sizing:border-box;" />';
     }
     panes+=p+'</div>';
@@ -17466,6 +17516,35 @@ function _vbCharMotionChipsHtml(prodIdx){
   vbMotionOptsFor(g,_vbCharVal(prodIdx*3,'pitch')).forEach(function(o){h+='<div class="chip" data-k="motion" data-v="'+esc(o.k)+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(o.label)+'</div>';});
   return h;
 }
+// Pilihan Gerakan Kamera / Visual Hook di panel pensil: sama dengan wizard (per mode), disaring mengikuti
+// nada & aksen EFEKTIF produk itu (jalur "Kami Bantu Isi" saja), supaya gerak kamera tetap nyambung dengan cara bicaranya.
+function _vbCharCamList(prodIdx,key){
+  var src=(key==='camHook'?VB_CAM_HOOK_OPTS:VB_CAM_OPTS)[VB.refMode]||[];
+  try{
+    if((VB.pbDone||VB.pbPath)!=='ai')return src;
+    var t=String(_vbCharVal(prodIdx*3,'pitch')||'').trim().toLowerCase();
+    var tone=VB_CAM_TONE[t]?t:'',ac=VB_CAM_ACC_CLASS[_vbCharVal(prodIdx*3,'accent')]||'';
+    if(!tone&&!ac)return src;
+    var tl=tone?src.filter(function(o){return VB_CAM_TONE[tone].indexOf(o[0])>-1;}):src;
+    var both=ac?tl.filter(function(o){return VB_CAM_ACC_EXCL[ac].indexOf(o[0])<0;}):tl;
+    if(both.length>=3)return both;
+    return tl.length>=3?tl:src;
+  }catch(e){return src;}
+}
+function _vbCharCamChipsHtml(prodIdx,key){
+  var h='<div class="chip" data-k="'+key+'" data-v="" onclick="vbCharPick('+prodIdx+',this)">'+(key==='camHook'?'Tanpa visual hook':'Tanpa gerakan kamera')+'</div>';
+  _vbCharCamList(prodIdx,key).forEach(function(o){h+='<div class="chip" data-k="'+key+'" data-v="'+esc(o[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(o[1])+'</div>';});
+  return h;
+}
+function _vbCharRenderCamChips(prodIdx,panel){
+  panel.querySelectorAll('[data-cchips]').forEach(function(box){
+    var key=box.dataset.cchips;
+    var sig=_vbCharCamList(prodIdx,key).map(function(o){return o[0];}).join('|');
+    if(box.dataset.sig===sig)return;
+    box.dataset.sig=sig;
+    box.innerHTML=_vbCharCamChipsHtml(prodIdx,key);
+  });
+}
 function _vbCharRenderMotionChips(prodIdx,panel){
   var box=panel.querySelector('[data-mchips]');
   if(!box)return;
@@ -17479,6 +17558,9 @@ function _vbCharSync(prodIdx){
   var panel=document.getElementById('vb-char-panel-'+prodIdx);
   if(panel){
     _vbCharRenderMotionChips(prodIdx,panel);
+    _vbCharRenderCamChips(prodIdx,panel);
+    var _cn=panel.querySelector('[data-camnote]');
+    if(_cn)_cn.classList.toggle('hidden',!(VB.refMode==='aset'&&_vbCharVal(idx0,'camHook')));
     panel.querySelectorAll('.chip[data-k]').forEach(function(c){
       c.classList.toggle('sel',String(_vbCharVal(idx0,c.dataset.k)||'')===String(c.dataset.v));
     });
@@ -17530,6 +17612,16 @@ function vbCharSet(prodIdx,key,val){
       o.motion='';
       try{showToast('Pembawaan disesuaikan dengan nada bicara','info');}catch(e){}
     }
+  }
+  // Ganti Nada / Aksen di pensil: gerakan kamera & visual hook produk ini yang tidak cocok lagi dikosongkan.
+  if(key==='pitch'||key==='accent'){
+    var _camCleared=false;
+    ['camMove','camHook'].forEach(function(ck){
+      var cur=_vbCharVal(prodIdx*3,ck);
+      if(!cur)return;
+      if(!_vbCharCamList(prodIdx,ck).some(function(x){return x[0]===cur;})){o[ck]='';_camCleared=true;}
+    });
+    if(_camCleared){try{showToast('Gerakan kamera disesuaikan dengan nada & aksen — pilih lagi ya','info');}catch(e){}}
   }
   if(!Object.keys(o).length)delete VB_CHAR_OVR[prodIdx];
   _vbCharRefresh(prodIdx);
@@ -24247,19 +24339,21 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // Ditaruh sebelum camera_movement; kalau keduanya dipilih, camera_movement kartu Hook
   // dilanjutkan "setelah visual hook" supaya dua instruksi gerak tidak bertabrakan.
   let _hasVisHook=false;
-  if(_vbHasCam()&&typeof idx==='number'&&idx%3===0&&VB.camHook&&VB_CAM_HOOKS[VB.camHook]){
-    flowText+=' visual_hook: during the first 2 seconds only, '+VB_CAM_HOOKS[VB.camHook]+'. After that the shot continues naturally.';
+  // Nilai efektif per produk: override dari panel pensil kalau ada, kalau tidak ya pilihan wizard.
+  let _cHook=_vbCharVal(idx,'camHook'), _cMove=_vbCharVal(idx,'camMove');
+  if(_vbHasCam()&&typeof idx==='number'&&idx%3===0&&_cHook&&VB_CAM_HOOKS[_cHook]){
+    flowText+=' visual_hook: during the first 2 seconds only, '+VB_CAM_HOOKS[_cHook]+'. After that the shot continues naturally.';
     _hasVisHook=true;
   }
-  if(_vbHasCam()&&VB.camMove&&typeof idx==='number'&&VB_CAM_MOVES[VB.camMove]){
-    let _camVal=VB_CAM_MOVES[VB.camMove][idx%3];
+  if(_vbHasCam()&&_cMove&&typeof idx==='number'&&VB_CAM_MOVES[_cMove]){
+    let _camVal=VB_CAM_MOVES[_cMove][idx%3];
     // Kalau kartu Hook punya visual hook, gerakan kamera yang jalan SETELAH hook memakai versi tenang (Story),
     // supaya dua gerakan tidak bertabrakan. Frame Asset: transisi foto 1 -> foto 2 sudah dikerjakan oleh
     // visual hook, jadi setelahnya kamera cukup tenang di komposisi foto 2.
     if(_hasVisHook&&idx%3===0){
       _camVal=(VB.refMode==='aset')
         ?'the camera stays calm and steady on the composition of the second photo, main subject clearly visible'
-        :VB_CAM_MOVES[VB.camMove][1];
+        :VB_CAM_MOVES[_cMove][1];
     }
     if(_camVal)flowText+=' camera_movement: '+((_hasVisHook&&idx%3===0)?'after the visual hook, ':'')+_camVal;
   }
