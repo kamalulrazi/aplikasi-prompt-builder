@@ -318,7 +318,7 @@
   // TARIK-nya (_pullAll) sekarang di-merge, bukan ditimpa mentah — lihat
   // PB_LOG_MERGE_KEYS & _mergeLogArrays di bawah, dan catatan panjang di
   // dekat PB_COUNTER_SYNC_KEYS kenapa ini perlu.
-  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1'];
+  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1','pb_fixchat_log_v1'];
   // FIX BUG SINKRON (audit lanjutan, Sept 2026): pb_usage_stats_v1 dan
   // pb_wordfix_stats_v1 DICABUT dari PB_SYNC_KEYS di atas (yang sinkronnya
   // "timpa seluruh nilai") karena keduanya cuma kumpulan ANGKA AKUMULASI
@@ -4226,7 +4226,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.66</div>
+  <div class="splash-version" id="splash-version">v11.68</div>
 </div>
 <script>
   (function(){
@@ -6316,7 +6316,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.66 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.68 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11983,7 +11983,7 @@ function fResetNow(){
 // di server sebagai secret, tidak pernah terkirim ke browser user).
 // GANTI URL ini kalau nanti pindah/redeploy Worker-nya.
 const ANTHROPIC_ENDPOINT='https://promptbuilder.vid1hihu.workers.dev';
-const ANTHROPIC_VERSION='2023-06-01';
+// (v11.67: konstanta ANTHROPIC_VERSION dihapus — tidak pernah dipakai; aplikasi ini tidak mengirim header anthropic-version.)
 // Identitas anonim per-perangkat (bukan data pribadi) — dipakai Worker
 // buat menghitung kuota generate per user/device, bukan per-key lagi
 // (karena key sekarang shared/milik pemilik app, bukan per-user).
@@ -12237,7 +12237,7 @@ function pbIsAdmin(){
   em=String(em).toLowerCase();
   return PB_ADMIN_EMAILS.some(function(x){return String(x).toLowerCase()===em;});
 }
-// Model yang BENAR-BENAR dipakai: admin = pilihannya, user lain = Gemini.
+// Model yang BENAR-BENAR dipakai: admin = pilihannya, user lain = PB_DEFAULT_USER_MODEL (sekarang Haiku).
 function pbGetAiModelKey(){return pbIsAdmin()?_pbAiModelKey:PB_DEFAULT_USER_MODEL;}
 function _pbModelId(){return PB_AI_MODELS[pbGetAiModelKey()].id;}
 // THINKING HAIKU DIHAPUS (permintaan user, 30 Sep 2026): Haiku tidak lagi
@@ -12336,7 +12336,7 @@ var VAI={apiKey:'via-proxy',imageBase64:'',imageMime:'',adaProduk:'tidak',produk
 // masih ditandai "generating", anggap proses itu sudah mati beneran &
 // auto-reset supaya user bisa lanjut generate lagi tanpa perlu clear
 // cache/reinstall app.
-var _VB_GEN_STALE_MS=8*60*1000; // 8 menit (audit Okt 2026: total retry kini dibatasi ±4 mnt + 1 request terakhir; _lastGenTime di-refresh tiap batch) — lebih lama dari retry otomatis normal manapun
+var _VB_GEN_STALE_MS=8*60*1000; // 8 menit (audit Okt 2026: total retry kini dibatasi ±4 mnt + 1 request terakhir; _lastGenTime di-refresh tiap batch DAN tiap chunk stream lewat _vbHeartbeat (v11.67) → ini mengukur waktu TANPA PROGRES) — lebih lama dari retry otomatis normal manapun
 function _vbGuardGenerating(){
   if(!VAI._isGenerating)return false;
   if(VAI._lastGenTime && (Date.now()-VAI._lastGenTime)>_VB_GEN_STALE_MS){
@@ -12347,6 +12347,20 @@ function _vbGuardGenerating(){
   }
   return true;
 }
+// DETAK PROGRES (v11.67, 9 Okt 2026): _vbGuardGenerating() menganggap proses 'macet' kalau sudah lewat
+// _VB_GEN_STALE_MS sejak VAI._lastGenTime. Dulu _lastGenTime hanya disegarkan per batch (lihat _vbRunBulkGenerate), jadi
+// SATU panggilan panjang — mis. rantai fallback 3 model yang masing-masing mendekati batas mutlak per percobaan — bisa
+// melewati 8 menit padahal prosesnya masih hidup dan datanya masih mengalir. Guard lalu me-reset _isGenerating, user bisa
+// menekan Generate lagi, dan dua request jalan bersamaan (biaya token dobel). Fungsi ini dipanggil
+// _vbStreamClaudeJSONWithRetryModel di awal tiap percobaan dan tiap chunk masuk, jadi guard benar-benar mengukur waktu
+// TANPA PROGRES (proses mati/beku di background), bukan total lamanya generate.
+function _vbHeartbeat(){try{if(VAI&&VAI._isGenerating)VAI._lastGenTime=Date.now();}catch(e){}}
+// BATAS MUTLAK PER PERCOBAAN STREAM (v11.67, 9 Okt 2026): dulu tetap 180 dtk, jadi stream yang sehat tapi lambat (Sonnet +
+// batch banyak produk, jaringan HP lemah) ikut diputus walau datanya terus mengalir — tokennya tetap ditagih, lalu generate
+// diulang dari nol atau pindah model. Sekarang minimal 180 dtk dan naik untuk output besar: 25 ms per token max_tokens
+// (~40 token/dtk, laju yang masih wajar), maksimal 6 menit. Stream yang MACET (tanpa data) tetap dipotong idle-timeout
+// 45/60 dtk, jadi batas ini hanya jaring pengaman untuk aliran yang terus jalan tapi tak pernah selesai (mis. cuma ping).
+function _vbHardCapMs(maxTok){var t=Number(maxTok)||0;return Math.min(360000,Math.max(180000,t*25));}
 // FIX (Sept 2026 — laporan user "Status 403: Request not allowed"): pesan ini
 // dibalas API Claude (diteruskan apa adanya oleh Worker proxy) dan sifatnya
 // sementara/acak — bukan kuota (kuota pakai type quota_exceeded/login_required
@@ -19152,22 +19166,37 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     let maxTokensWithThinking=cfg.maxOutputTokens;
     const url=ANTHROPIC_ENDPOINT;
     let controller=new AbortController();
-    let timedOut=false;
+    let timedOut=false,hardCapHit=false;
     // TIMEOUT (v11.5, 2 Okt 2026): timer ini IDLE-timeout — direset tiap chunk SSE masuk (lihat _armTimer),
     // jadi stream sehat yang lambat/besar TIDAK terpotong dan besar max_tokens tidak mempengaruhinya.
     // Angka di bawah hanya jatah menunggu chunk PERTAMA (termasuk waktu upload foto base64 di jaringan HP lambat)
     // dan jeda diam antar-chunk: 45 dtk percobaan pertama, 60 dtk percobaan ulang. Jangan dikaitkan ke max_tokens.
-    // Batas mutlak per percobaan = _HARD_CAP_MS (180 dtk). Anggaran waktu terburuk (3 model fallback x ~137 dtk,
-    // lihat _vbGenerateWithFallback) tetap di bawah _VB_GEN_STALE_MS (8 menit); kalau angka ini dinaikkan lagi, hitung ulang.
+    // Batas mutlak per percobaan = _HARD_CAP_MS = _vbHardCapMs(max_tokens): minimal 180 dtk, naik untuk output besar
+    // (v11.67, 9 Okt 2026 — lihat _vbHardCapMs). Anggaran waktu TIDAK lagi dijaga lewat angka ini: _VB_GEN_STALE_MS (8 menit)
+    // sekarang mengukur waktu TANPA PROGRES karena stream ini menyegarkan VAI._lastGenTime lewat _vbHeartbeat() di awal
+    // tiap percobaan dan tiap chunk, jadi total rantai fallback tidak bisa lagi memicu reset 'macet' palsu.
     let timeoutMs=isFirstAttempt?45000:60000;
     let timer=null; // audit Okt 2026: dimulai SETELAH token Firebase didapat
     // AUDIT Okt 2026: timer = IDLE-timeout, direset tiap chunk SSE masuk. Stream yang sehat tapi lambat
     // (Sonnet, batch banyak produk) tidak lagi di-abort sendiri; timeoutMs awal hanya jatah menunggu chunk
     // pertama. Batas mutlak per percobaan (_HARD_CAP_MS) tetap ada sebagai jaring pengaman.
-    const _IDLE_MS=isFirstAttempt?45000:60000,_HARD_CAP_MS=180000;
+    const _IDLE_MS=isFirstAttempt?45000:60000,_HARD_CAP_MS=_vbHardCapMs(maxTokensWithThinking);
     const _armTimer=function(ms){timeoutMs=ms;clearTimeout(timer);timer=setTimeout(function(){timedOut=true;controller.abort();},ms);};
     let streamOk=false,textBuf='',finishReason='',resp=null,rawText='';
     let streamErrType='',streamErrMsg='';
+    // v11.67 (9 Okt 2026): preview live dibatasi ±10x/detik. Dulu _vbTryParsePartialJsonArray (memindai SELURUH teks dari
+    // awal) + onPartial (render DOM) dipanggil di SETIAP potongan teks, jadi kerjanya membengkak kuadratik untuk output
+    // besar dan bisa terasa berat di HP lama. Panggilan terakhir dipaksa (force) begitu stream sukses supaya preview
+    // akhir tetap lengkap; hasil FINAL tetap diparse ulang oleh pemanggil seperti sebelumnya.
+    let _partialAt=0;
+    const _emitPartial=function(force){
+      if(typeof onPartial!=='function')return;
+      let _now=Date.now();
+      if(!force&&_now-_partialAt<100)return;
+      _partialAt=_now;
+      let _arr=_vbTryParsePartialJsonArray(textBuf);
+      if(_arr)try{onPartial(_arr);}catch(e){}
+    };
     // FIX (audit — retry-after header Anthropic tidak pernah dibaca): diisi
     // di bawah begitu ada respons HTTP non-stream (429/503/dst) yang benar-
     // benar sampai, lalu diteruskan ke _vbParseRetryDelayMs supaya jeda
@@ -19199,6 +19228,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
     // sekarang butuh sinyal eksplisit supaya user tidak mengira app macet.
     // waitMs dikirim 0 (bukan hitung mundur beneran) — pemanggil di UI cek
     // status==='thinking' buat nampilkan pesan tanpa embel countdown detik.
+    _vbHeartbeat(); // v11.67: tanda hidup di awal tiap percobaan (lihat _vbHeartbeat)
     if(typeof onWait==='function'){try{onWait(0,attempt,'thinking');}catch(e){}}
     try{
       var _fbTok=await _pbGetFirebaseIdToken();
@@ -19230,7 +19260,8 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
           let{done,value}=await reader.read();
           if(done)break;
           _armTimer(_IDLE_MS); // ada data masuk -> reset batas diam
-          if(Date.now()-_attemptStart>_HARD_CAP_MS){timeoutMs=_HARD_CAP_MS;timedOut=true;controller.abort();}
+          _vbHeartbeat(); // v11.67: data masih mengalir = proses hidup (guard 'macet' mengukur waktu tanpa progres)
+          if(Date.now()-_attemptStart>_HARD_CAP_MS){timeoutMs=_HARD_CAP_MS;timedOut=true;hardCapHit=true;controller.abort();}
           sseBuf+=decoder.decode(value,{stream:true});
           let lines=sseBuf.split('\n');
           sseBuf=lines.pop();
@@ -19250,10 +19281,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
                   let gd=(ch0.delta&&ch0.delta.content)||'';
                   if(gd){
                     textBuf+=gd;
-                    if(typeof onPartial==='function'){
-                      let arr=_vbTryParsePartialJsonArray(textBuf);
-                      if(arr)try{onPartial(arr);}catch(e){}
-                    }
+                    _emitPartial(false);
                   }
                   if(ch0.finish_reason)finishReason=ch0.finish_reason==='stop'?'end_turn':ch0.finish_reason;
                 }
@@ -19276,10 +19304,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
                 let delta=evt.delta.text||'';
                 if(delta){
                   textBuf+=delta;
-                  if(typeof onPartial==='function'){
-                    let arr=_vbTryParsePartialJsonArray(textBuf);
-                    if(arr)try{onPartial(arr);}catch(e){}
-                  }
+                  _emitPartial(false);
                 }
               }else if(evt.type==='content_block_delta'&&evt.delta&&evt.delta.type==='thinking_delta'){
                 thinkChars+=(evt.delta.thinking||'').length;
@@ -19379,7 +19404,8 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       // ikut membesar sesuai cfg.maxOutputTokens (timeoutMs) — kalau tetap
       // pakai angka lama di sini, user salah paham timeout-nya lebih
       // pendek dari yang sebenarnya terjadi.
-      netErrMsg=timedOut?'timeout — server tidak merespons dalam '+(timeoutMs/1000)+' detik'
+      netErrMsg=hardCapHit?'timeout — hasil belum selesai setelah '+(_HARD_CAP_MS/1000)+' detik; data mengalir tapi terlalu lambat'
+        :timedOut?'timeout — server tidak merespons dalam '+(timeoutMs/1000)+' detik'
         :((e&&e.name)?e.name+': ':'')+((e&&e.message)?e.message:String(e));
     }finally{
       clearTimeout(timer);
@@ -19419,6 +19445,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
       rawText=netErrMsg;
     }
     if(streamOk){
+      _emitPartial(true); // v11.67: preview akhir selalu lengkap walau potongan terakhir tertahan throttle
       // LOGGING TOKEN: cetak angka usage ASLI dari API (bukan estimasi)
       // ke console, supaya bisa dicek langsung berapa token beneran
       // dipakai + apakah cache kena HIT (cache_read>0) atau MISS/nulis
@@ -19550,7 +19577,7 @@ async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemT
 // Groq 2x lalu GPT-OSS 1x (VB_GEN_FALLBACK_FIX_CHAIN, dibaca _vbFixPlan lewat _vbFixChainOverride).
 // TIDAK dialihkan untuk: 413 (kebesaran, ditangani pemecahan batch di pemanggil), 401, dan 403 kuota/login/model_not_allowed
 // (bukan salah model; model lain pasti ikut ditolak). Batas tunggu retry per model 45 detik (bukan 3 menit) supaya total
-// 3 model tetap di bawah _VB_GEN_STALE_MS (8 menit; terburuk ~7 menit dgn timeout 45/60 dtk, v11.5). Error sesi login (pbAuthSession) tetap dilempar ke pemanggil.
+// 3 model tetap wajar (idle-timeout 45/60 dtk; sejak v11.67 _VB_GEN_STALE_MS (8 menit) mengukur waktu TANPA progres lewat _vbHeartbeat, jadi total rantai tidak lagi memicu reset 'macet' palsu). Error sesi login (pbAuthSession) tetap dilempar ke pemanggil.
 const VB_GEN_FALLBACK_ENABLED=true;
 // Rantai cadangan per model utama (v11.6, 8 Okt 2026, permintaan user: default user biasa balik ke Haiku —
 // lihat PB_DEFAULT_USER_MODEL). Kunci = model utama yang aktif; model utama yang TIDAK ada di sini = fallback mati
@@ -19624,19 +19651,7 @@ async function _vbGenerateWithFallback(promptParts,onPartial,onWait,systemText,c
   return out;
 }
 
-function _vbFetchWithTimeout(url,options,timeoutMs){
-  let controller=new AbortController();
-  let timedOut=false;
-  let timer=setTimeout(function(){timedOut=true;controller.abort();},timeoutMs);
-  return fetch(url,Object.assign({},options,{signal:controller.signal}))
-    .catch(function(err){
-      if(timedOut||err.name==='AbortError'){
-        throw new Error('Koneksi ke server tidak merespons dalam '+(timeoutMs/1000)+' detik (timeout). Cek koneksi internet, lalu coba lagi.');
-      }
-      throw err;
-    })
-    .finally(function(){clearTimeout(timer);});
-}
+// (v11.67, 9 Okt 2026: _vbFetchWithTimeout dihapus — hanya dipakai jalur non-stream lama yang sudah tidak punya pemanggil.)
 
 // ── PENANGANAN APP DI-BACKGROUND / LAYAR DIKUNCI SAAT GENERATE ──────────
 // Kalau HP di-lock atau tab/app dipindah ke background selagi proses
@@ -19686,158 +19701,8 @@ document.addEventListener('visibilitychange',function(){
 });
 
 
-// ── Retry otomatis kalau server Gemini lagi sibuk (503) atau kena rate
-// limit (429) — error ini biasanya sementara. ──────────────────────────
-// FIX RETRY TANPA BATAS (permintaan user, Agustus 2026): sebelumnya cuma
-// dicoba 3x lalu NYERAH dan lempar error ke user ("sudah dicoba 3x") —
-// padahal limit RPM free-tier Gemini itu SEMENTARA (reset tiap ~1 menit),
-// jadi user sering lihat pesan gagal padahal kalau ditunggu dikit lagi
-// pasti berhasil. Sekarang untuk pemanggilan UTAMA (maxRetries tidak
-// diisi / undefined), fungsi ini TIDAK PERNAH nyerah selama errornya
-// transient (503/429) — terus dicoba ulang dengan jeda, dan callback
-// onWait(waitMs,attempt,status) dipanggil tiap kali mau nunggu supaya
-// pemanggil bisa tampilkan status "⏳ nunggu..." di UI (bukan pesan error).
-// Tempat non-kritis (mis. perbaikan jumlah kata) masih bisa kasih angka
-// maxRetries eksplisit seperti sebelumnya kalau memang boleh nyerah cepat.
-//
-// Catatan jujur (bukan jaminan 100%): retry tanpa batas cuma masuk akal
-// untuk limit PER-MENIT (RPM), yang memang reset sendiri. Kalau ternyata
-// yang kena adalah limit HARIAN (RPD) — itu BENAR-BENAR tidak akan reset
-// cuma dengan nunggu beberapa menit — jadi dikasih jaring pengaman
-// MAX_TOTAL_WAIT_MS: kalau sudah nunggu total ~3 menit dan masih tetap
-// ditolak, baru dianggap gagal & dikasih pesan yang jujur ke user
-// (kemungkinan limit harian, bukan cuma limit per-menit).
-// MAX_TOTAL_WAIT_MS: sebelumnya ~10 menit, diturunkan ke ~3 menit atas
-// permintaan user — lebih cepat kelihatan hasil (berhasil ATAU pesan
-// gagal yang jelas) daripada nunggu lama yang kerasa seperti macet.
-// 3 menit masih cukup longgar untuk limit per-menit (RPM) reset
-// beberapa kali, tapi tidak sampai kerasa "ngagantung".
-async function _vbFetchWithRetry(fetchFn,maxRetries,onWait){
-  let unlimited=(maxRetries===undefined||maxRetries===null);
-  let cap=unlimited?Infinity:maxRetries;
-  const MAX_TOTAL_WAIT_MS=unlimited?3*60*1000:Infinity; // jaring pengaman ~3 menit, cuma berlaku saat unlimited
-  let totalWaited=0;
-  let lastResp,lastRawText;
-  let blocked403Retries=0;
-  for(let attempt=0;;attempt++){
-    let resp=await fetchFn();
-    let rawText=await resp.text();
-    lastResp=resp;lastRawText=rawText;
-    if(resp.ok)return{resp,rawText};
-    let isBlocked403=_vbIsRegionBlock403(resp.status,rawText)&&blocked403Retries<_VB_403_MAX_RETRY;
-    if(isBlocked403)blocked403Retries++;
-    let isTransient=resp.status===503||resp.status===429||resp.status===529||isBlocked403;
-    if(!isTransient||(attempt>=cap&&!isBlocked403)||totalWaited>=MAX_TOTAL_WAIT_MS)return{resp,rawText};
-    // FIX (audit — retry-after header Anthropic tidak pernah dibaca): resp
-    // di sini SELALU Response asli dari fetch() (fungsi ini tidak pernah
-    // menimpanya jadi objek sintetis), jadi headernya aman dibaca langsung.
-    let _retryAfterHeader=null;
-    try{_retryAfterHeader=resp.headers&&typeof resp.headers.get==='function'?resp.headers.get('retry-after'):null;}catch(e){}
-    let waitMs;
-    if(isBlocked403){
-      waitMs=1500*blocked403Retries;
-    }else if(resp.status===429){
-      let suggested=_vbParseRetryDelayMs(rawText,_retryAfterHeader);
-      // BUG FIX (audit lanjutan): cap 45 detik sebelumnya CUMA berlaku untuk
-      // angka hitungan sendiri (fallback), TIDAK untuk 'suggested' (angka
-      // retryDelay yang dikirim Google sendiri di body error 429). Kalau
-      // Google kebetulan menyarankan tunggu lebih dari 45 detik, kode lama
-      // akan patuh nunggu SEPENUHNYA dalam satu jeda — bisa jebol jauh dari
-      // janji "~3 menit total" ke user, karena jaring pengaman
-      // MAX_TOTAL_WAIT_MS cuma dicek SEBELUM mulai nunggu, bukan membatasi
-      // durasi satu kali nunggu. Sekarang 'suggested' ikut di-cap juga.
-      waitMs=suggested?Math.min(suggested,45000):Math.min(9000*(attempt+1),45000);
-    }else{
-      // FIX (audit — retry-after header): status selain 429 (503/529) ikut
-      // dicek juga, baru fallback ke hitungan mundur tebakan kalau memang
-      // tidak ada header-nya.
-      let suggested=_vbParseRetryDelayMs('',_retryAfterHeader);
-      waitMs=suggested?Math.min(suggested,45000):Math.min(1500*(attempt+1),15000);
-    }
-    if(typeof onWait==='function'){try{onWait(waitMs,attempt,resp.status);}catch(e){}}
-    console.log('[_vbFetchWithRetry] status '+resp.status+', coba lagi dalam '+waitMs+'ms (percobaan ke-'+(attempt+2)+', total nunggu ~'+Math.round(totalWaited/1000)+'d)');
-    await new Promise(r=>setTimeout(r,waitMs));
-    totalWaited+=waitMs;
-  }
-}
-
-// ── FALLBACK MODEL untuk panggilan generateContent (non-streaming) ──────
-// Coba CLAUDE_MODEL_PRIMARY lewat _vbFetchWithRetry seperti biasa
-// (429/503/529 tetap di-retry sesuai maxRetries).
-// FIX BUG (audit lanjutan, Sept 2026 — sama seperti
-// _vbStreamClaudeJSONWithRetry, lihat catatan di atas
-// CLAUDE_MODEL_PRIMARY/FALLBACK): siklus percobaan ke-2 dari nol ke
-// CLAUDE_MODEL_FALLBACK DIHAPUS karena sekarang modelnya identik dengan
-// PRIMARY — dulu cuma mengulang percobaan yang sama percuma sambil dobel
-// total waktu tunggu. Kalau nanti CLAUDE_MODEL_FALLBACK diisi model lain
-// yang beneran beda, siklus ke-2 boleh ditambahkan balik secara sadar.
-// bodyObj yang masuk ke sini masih bentuk Gemini ({contents:[{parts:[...]}],
-// generationConfig:{maxOutputTokens,...}}) karena semua pemanggil fungsi
-// ini (tersebar di banyak tempat) tidak diubah. Di dalam sini bodyObj
-// diterjemahkan ke format Claude (Messages API, non-streaming) sebelum
-// dikirim, dan HASILNYA dibungkus BALIK jadi rawText berbentuk Gemini
-// ({candidates:[{content:{parts:[{text}]}}]}) sebelum dikembalikan —
-// supaya semua pemanggil yang melakukan JSON.parse(rawText) lalu baca
-// data.candidates[0]... tetap jalan tanpa perlu diubah satu-satu.
-async function _vbFetchWithClaudeFallback(bodyObj,timeoutMs,maxRetries){
-  const parts=(bodyObj&&bodyObj.contents&&bodyObj.contents[0]&&bodyObj.contents[0].parts)||[];
-  const maxTokens=(bodyObj&&bodyObj.generationConfig&&bodyObj.generationConfig.maxOutputTokens)||2048;
-  const claudeMessages=[{role:'user',content:_vbGeminiPartsToClaudeContent(parts)}];
-  // FIX INKONSISTENSI (audit lanjutan, Sept 2026 — "thinking cuma dipasang di
-  // jalur generate awal, jalur perbaikan kata ketinggalan"): pemanggil fungsi
-  // ini (_vbFixWordCountIfNeeded/_vbFixWordCountBatchIfNeeded) mengirim
-  // generationConfig.thinkingConfig:{thinkingLevel:'minimal'} gaya Gemini
-  // yang TIDAK PERNAH dibaca di sini sama sekali (dead parameter dari
-  // sebelum migrasi ke Claude) — jadi panggilan perbaikan kata, yang justru
-  // tugasnya PERSIS sama (hitung kata), tidak pernah dapat manfaat thinking
-  // resmi Anthropic. Sekarang budget thinking beneran dipasang di sini juga,
-  // independen dari field thinkingConfig lama itu (dibiarkan tetap dikirim
-  // pemanggil supaya tidak perlu ubah signature, tapi memang tidak dibaca).
-  // maxTokens di jalur ini kecil (512/768) jadi 1/4-nya di bawah minimum
-  // 1.024 resmi Anthropic — otomatis kepakai minimum itu lewat Math.max.
-  // THINKING DIMATIKAN (permintaan user, Sept 2026) — lihat catatan di
-  // _vbStreamClaudeJSONWithRetryModel. maxTokensWithThinking dipertahankan
-  // sebagai nama variabel tapi sekarang sama dengan maxTokens biasa.
-  const maxTokensWithThinking=maxTokens;
-  async function callClaude(model){
-    const _isGroq=_pbIsGroqModel(model);
-    let _fbTok=await _pbGetFirebaseIdToken();
-    let r=await _vbFetchWithRetry(()=>_vbFetchWithTimeout(ANTHROPIC_ENDPOINT,{
-      method:'POST',
-      headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':(_pbProviderOf(model)||'groq')}:{}),
-      body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,parts,'',maxTokensWithThinking,false)):JSON.stringify({model:model,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(maxTokens,model),messages:claudeMessages})
-    },timeoutMs),maxRetries);
-    if(r.resp.ok){
-      try{
-        let g=JSON.parse(r.rawText);
-        if(_isGroq){
-          let c0=g.choices&&g.choices[0];
-          let gu=g.usage||{};
-          r.usage=_vbOaiUsageToInfo(gu,model);
-          r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(c0&&c0.message&&c0.message.content)||''}]},finishReason:(c0&&c0.finish_reason==='length')?'length':((c0&&c0.finish_reason)||'')}]});
-          return r;
-        }
-        // Bentuk balasan non-streaming Claude: {content:[{type:'text',text}],
-        // stop_reason:'end_turn'|'max_tokens'|...} — beda dari Groq/OpenAI
-        // yang punya choices[0].message.content. 'max_tokens' disamakan
-        // jadi 'length' biar konsisten dengan cek finishReason di pemanggil.
-        let block=Array.isArray(g.content)?g.content.find(function(c){return c&&c.type==='text';}):null;
-        let stopReason=g.stop_reason==='max_tokens'?'length':(g.stop_reason||'');
-        // TRACKING BIAYA REAL (permintaan user, Sept 2026): field "usage" asli
-        // dari API ({input_tokens,output_tokens,cache_creation_input_tokens,
-        // cache_read_input_tokens}) sebelumnya dibuang begitu saja di sini —
-        // padahal ini panggilan yang dipakai proses perbaikan jumlah kata
-        // (_vbFixWordCountIfNeeded/Batch), jadi biaya asli-nya tidak pernah
-        // kelihatan di badge usage manapun. Sekarang ditempel ke objek r
-        // yang dikembalikan (r.usage) supaya pemanggil bisa mencatatnya.
-        r.usage=g.usage||null;
-        r.rawText=JSON.stringify({candidates:[{content:{parts:[{text:(block&&block.text)||''}]},finishReason:stopReason}]});
-      }catch(e){/* bentuk balasan di luar dugaan — dibiarkan apa adanya */}
-    }
-    return r;
-  }
-  return await callClaude(_pbModelId());
-}
+// (v11.67, 9 Okt 2026: _vbFetchWithRetry & _vbFetchWithClaudeFallback — jalur non-stream lama — dihapus karena tidak punya
+// pemanggil sama sekali. Satu-satunya jalur AI yang aktif = _vbStreamClaudeJSONWithRetryModel (+ _vbGenerateWithFallback).)
 
 // ── STAT REAL PEMAKAIAN "PERBAIKAN JUMLAH KATA" (permintaan user, Sept 2026)
 // Sebelumnya estimasi biaya loop 3x percobaan ini cuma perkiraan kasar
@@ -20729,6 +20594,37 @@ function _vbIsMinimalEdit(oldT,newT){
   if(n.length<o.length)return isSub(n,o);
   return true;
 }
+// ── LOG CHAT PERBAIKAN KATA GEMINI (v11.68, 9 Okt 2026, permintaan user) ──────────────────────────────
+// Tiap sesi perbaikan kata yang berjalan dalam mode Mini chat / Chat penuh dicatat ke 'pb_fixchat_log_v1'
+// (ikut PB_SYNC_KEYS -> users/{uid}/blobs/pb_fixchat_log_v1) supaya admin.html bisa menampilkan isi percakapannya
+// di tab "Chat" per user. Mode chat sendiri tetap khusus admin (lihat pbGeminiFixChatMode) — fungsi ini hanya mencatat.
+// Batas: 30 sesi terakhir, tiap pesan dipotong 6.000 karakter, total maks 600.000 karakter (sesi tertua dibuang dulu).
+var PB_FIXCHAT_LOG_KEY='pb_fixchat_log_v1';
+var PB_FIXCHAT_MAX_SESSIONS=30,PB_FIXCHAT_MAX_MSG=6000,PB_FIXCHAT_MAX_TOTAL=600000;
+function _vbFcTrunc(t){
+  t=String(t==null?'':t);
+  return t.length>PB_FIXCHAT_MAX_MSG?t.slice(0,PB_FIXCHAT_MAX_MSG)+'\n…[dipotong, total '+t.length+' karakter]':t;
+}
+function _vbFcSave(sess){
+  try{
+    var l=[];
+    try{l=JSON.parse(localStorage.getItem(PB_FIXCHAT_LOG_KEY)||'[]')||[];}catch(e){l=[];}
+    if(!Array.isArray(l))l=[];
+    l.push(sess);
+    if(l.length>PB_FIXCHAT_MAX_SESSIONS)l=l.slice(l.length-PB_FIXCHAT_MAX_SESSIONS);
+    var str=JSON.stringify(l);
+    while(str.length>PB_FIXCHAT_MAX_TOTAL&&l.length>1){l.shift();str=JSON.stringify(l);}
+    localStorage.setItem(PB_FIXCHAT_LOG_KEY,str);
+    if(typeof pbCloudQueue==='function')pbCloudQueue(PB_FIXCHAT_LOG_KEY); // SINKRON KE ADMIN
+  }catch(e){console.warn('[fixchat-log] gagal simpan:',e);}
+}
+function _vbFcFinish(sess,left,total,used){
+  try{
+    if(!sess||!sess.steps||!sess.steps.length)return;
+    sess.left=left;sess.fixed=Math.max(0,total-left);sess.used=used;
+    _vbFcSave(sess);
+  }catch(e){console.warn('[fixchat-log] gagal selesai:',e);}
+}
 async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
   const KEYS=['hook','story','cta'];
   const wc=function(t){return String(t||'').trim().split(/\s+/).filter(Boolean).length;};
@@ -20767,7 +20663,10 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
              {role:'assistant',text:JSON.stringify(arr.map(function(o){return o?{produk:o.produk,hook:o.hook,story:o.story,cta:o.cta}:null;}))}];
     }catch(eCtx){_chat=[];}
   }
+  // Catatan sesi untuk tab Chat di admin (hanya saat mode chat aktif).
+  const _fcSess=_chatMode?{id:'fc'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),ts:Date.now(),mode:_chatMode,sesiId:(typeof _vbCurrentSessionId!=='undefined'&&_vbCurrentSessionId)||'',sesiLabel:(typeof _vbCurrentSessionLabel!=='undefined'&&_vbCurrentSessionLabel)||'',range:{min:range.min,max:range.max,target:target},total:all.length,ctxMissing:(_chatMode==='full'&&!_chat.length),ctx:_chat.map(function(m){return{role:m.role,text:_vbFcTrunc(m.text)};}),steps:[]}:null;
   let _lastTransientKey=''; // kunci model yang baru saja kena error sementara (lihat penanganan apiFail di bawah)
+  try{
   for(let si=0;si<plan.length&&pending.length;si++){
     const step=plan[si];
     used++;
@@ -20789,6 +20688,8 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
       }
       chatArg=_chat.concat([{role:'user',text:msg}]);
     }
+    const _st=_fcSess?{n:si+1,model:step.key||'legacy',chat:!!useChat,turn:useChat?(_fixTurns+1):0,sent:useChat?_vbFcTrunc(msg):'',reply:'',api:'ok',http:0,res:[]}:null;
+    if(_st)_fcSess.steps.push(_st);
     // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
     const maxTok=Math.min(8192,600+pending.length*130);
     let fixOut;
@@ -20796,6 +20697,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
     try{fixOut=await _vbFixRunStep(step,msg,maxTok,onWait,chatArg);}
     finally{_vbUsageKindOverride='';}
     if(fixOut.apiFail){
+      if(_st){_st.api='gagal';_st.http=fixOut.status||0;}
       if(step.legacy)break; // perilaku lama: panggilan sudah retry sendiri, jangan buang percobaan lagi
       var _fs=fixOut.status; // v11.5: error sementara (503/529/5xx/koneksi putus=0) -> coba ulang SEKALI di model yang sama (jeda 1,5 dtk); kalau gagal lagi baru lompat. 429 (limit) langsung lompat.
       if(_fs===429){
@@ -20812,6 +20714,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
     }
     _lastTransientKey='';
     let res=fixOut.res;
+    if(_st){_st.http=fixOut.status||200;_st.reply=useChat?_vbFcTrunc(fixOut.replyText||''):'';if(!(Array.isArray(res)&&res.length))_st.api='tidak terbaca';}
     if(useChat){_chat=chatArg.concat([{role:'assistant',text:fixOut.replyText||'(no valid reply)'}]);_fixTurns++;_fb={};}
     if(useChat&&!(Array.isArray(res)&&res.length)){pending.forEach(function(it){_fb[it.id]='Your last reply could not be read as the required JSON array. Reply ONLY with the JSON array.';});}
     if(Array.isArray(res)&&res.length){
@@ -20819,10 +20722,12 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
       res.forEach(function(r){if(r&&typeof r.id==='string'&&typeof r.teks==='string')byId[r.id]=r.teks;});
       pending.forEach(function(it){
         let nt=byId[it.id];
-        if(!nt){if(useChat)_fb[it.id]='Your reply did not include this id.';return;}
+        const _rec=_st?{id:it.id,nama:it.nama,k:it.k,before:wc(arr[it.pi][it.k]),after:null,ok:false,note:''}:null;
+        if(_rec)_st.res.push(_rec);
+        if(!nt){if(useChat)_fb[it.id]='Your reply did not include this id.';if(_rec)_rec.note=useChat?_fb[it.id]:'Balasan tidak memuat id ini.';return;}
         nt=nt.trim().replace(/^["\u201C\u201D]+|["\u201C\u201D]+$/g,'').trim();
         nt=_vbSanitizeAI(nt);
-        if(!nt){if(useChat)_fb[it.id]='Your reply for this id was empty.';return;}
+        if(!nt){if(useChat)_fb[it.id]='Your reply for this id was empty.';if(_rec)_rec.note=useChat?_fb[it.id]:'Balasan untuk id ini kosong.';return;}
         const cur=arr[it.pi][it.k];
         if(useChat){
           const _w=wc(nt);
@@ -20833,11 +20738,14 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
         }
         // Terima hanya kalau benar-benar lebih dekat ke range daripada teks sebelumnya.
         // (4 Okt 2026, permintaan user) DAN hanya kalau ini edit minimal: kata lama utuh & berurutan, AI cuma menyisipkan/menghapus kata.
-        if(dist(wc(nt))<dist(wc(cur))&&_vbIsMinimalEdit(cur,nt)&&!_vbPaddingLooksBad(cur,nt))arr[it.pi][it.k]=nt;
+        const _acc=dist(wc(nt))<dist(wc(cur))&&_vbIsMinimalEdit(cur,nt)&&!_vbPaddingLooksBad(cur,nt);
+        if(_acc)arr[it.pi][it.k]=nt;
+        if(_rec){_rec.after=wc(nt);_rec.ok=!!_acc;_rec.note=useChat?(_fb[it.id]||''):'';}
       });
     }
     pending=pending.filter(function(it){return dist(wc(arr[it.pi][it.k]))>0;});
   }
+  }finally{_vbFcFinish(_fcSess,pending.length,all.length,used);}
   // Catat hasil ke statistik perbaikan kata: jumlah percobaan per teks + apakah masih kependekan.
   try{
     all.forEach(function(it){
@@ -21256,7 +21164,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
         }
         r2.forEach(function(o){if(o&&o._bi!=null)o._bi+=firstHalf.length;});
         let mergedSplit=r1.concat(r2);
-        if(fixShort)await _vbApplyShortFix(mergedSplit,(mergedSplit.length&&mergedSplit.every(function(o){return o&&o._bi!=null;}))?mergedSplit.map(function(o){return batch[o._bi];}):batch,range,onWait);
+        if(fixShort)await _vbApplyShortFix(mergedSplit,(mergedSplit.length&&mergedSplit.every(function(o){return o&&o._bi!=null;}))?mergedSplit.map(function(o){return batch[o._bi];}):batch,range,onWait,{system:_vbEffectiveSystemPrompt,text:(_promptParts&&_promptParts[0]&&_promptParts[0].text)||''});
         return mergedSplit;
       }
       throw new Error('Data yang dikirim kebesaran (413) walau cuma 1 produk — penyebabnya bisa foto referensi produk ini terlalu berat, atau teks "keunggulan"/"arah pembahasan" produk ini kepanjangan. Coba upload ulang fotonya (atau hapus dulu fotonya), persingkat teks keunggulan/arah pembahasan, lalu generate lagi.');
@@ -21285,6 +21193,10 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   if(data.error){console.warn('[_vbCallBulkBatch] data.error dari server: '+(data.error.message||'(tanpa pesan)'));throw new Error('Server kami sedang bermasalah. Coba tap ulang.');}
   let text=(data.candidates?.[0]?.content?.parts?.[0]?.text||'').trim();
   let finishReason=data.candidates?.[0]?.finishReason||'';
+  // v11.67 (9 Okt 2026): Claude menutup stream dengan stop_reason 'refusal' (Groq/Gemini: 'content_filter') kalau AI menolak
+  // menjawab. Itu BUKAN error server dan mengulang dengan teks yang sama hampir pasti ditolak lagi, tapi dulu jatuh ke pesan
+  // generik "Respons kosong" / "belum bisa dibaca" (token tetap terpakai) sehingga user mengira server bermasalah.
+  if(finishReason==='refusal'||finishReason==='content_filter'){console.warn('[_vbCallBulkBatch] AI menolak/menyaring jawaban (finishReason: '+finishReason+')');throw new Error('AI menolak membuat skrip untuk isi ini. Biasanya karena kata-kata di nama produk, keunggulan, atau arah pembahasan. Ubah atau persingkat teksnya dulu, lalu generate lagi — mengulang tanpa mengubah teks hampir pasti ditolak lagi.');}
   if(!text){console.warn('[_vbCallBulkBatch] respons kosong (finishReason: '+(finishReason||'unknown')+')');throw new Error('Respons dari server kosong. Coba lagi.');}
   text=text.replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
   // BUG FIX (Sept 2026 — "Gagal baca hasil AI" padahal kredit sudah kepakai):

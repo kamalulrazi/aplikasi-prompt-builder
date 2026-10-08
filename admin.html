@@ -111,6 +111,18 @@ details.g[open]{border-color:var(--accent)}.g summary{cursor:pointer;list-style:
 .sp>span{display:block;font-weight:600;font-size:13px;margin:12px 0 4px}
 .sc,.sk-x{white-space:pre-wrap;max-width:68ch;background:var(--soft);border-radius:8px;padding:12px 14px;line-height:1.7;font-size:14px}
 .gb .chip{margin-top:12px}
+/* chat perbaikan kata Gemini */
+.fc-b{display:flex;margin:8px 0}.fc-b.u{justify-content:flex-end}
+.fc-m{max-width:min(88%,72ch);white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.6;padding:10px 12px;border-radius:12px;background:var(--soft)}
+.fc-b.u .fc-m{background:var(--accent-soft)}
+.fc-who{display:block;font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:3px}
+.fc-st{font-size:12.5px;color:var(--muted);font-weight:600;margin:14px 0 2px;border-top:1px dashed var(--line2);padding-top:10px}
+.fc-res{font-size:13px;margin:6px 0 0;padding:0;list-style:none}.fc-res li{padding:5px 0;border-bottom:1px solid var(--line)}
+.fc-ctx{margin:12px 0 0;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.g .fc-ctx>summary{display:block;cursor:pointer;font-weight:600;font-size:13.5px;padding:10px 14px}
+.g .fc-ctx>summary::before{content:"▸ ";color:var(--muted)}.g .fc-ctx[open]>summary::before{content:"▾ "}
+.fc-ctx .fc-in{padding:0 12px 8px}
+.fc-ok{color:var(--green)}.fc-no{color:var(--red)}.fc-note{display:block;color:var(--muted);font-size:12px;white-space:pre-wrap}
 .sk summary{display:grid;grid-template-columns:1fr auto;gap:2px 12px;list-style:none}.sk summary::-webkit-details-marker{display:none}
 .sk-t,.sk-c{font-weight:650}.sk-m{grid-column:1/3;color:var(--muted);font-size:12.5px;font-weight:400}
 .sk-b{padding:4px 12px 12px}.sk-call{border-left:2px solid var(--line2);padding:2px 0 12px 12px;margin-left:4px}
@@ -247,7 +259,7 @@ service cloud.firestore {
       allow delete: if isOwner();
       match /blobs/{doc} {
         allow read: if request.auth != null && (request.auth.uid == uid
-          || (isOwner() && (doc.matches('pb_usage_log_v1.*') || doc.matches('pb_history_v1.*'))));
+          || (isOwner() && (doc.matches('pb_usage_log_v1.*') || doc.matches('pb_history_v1.*') || doc.matches('pb_fixchat_log_v1.*'))));
         allow write: if request.auth != null && request.auth.uid == uid;
       }
     }
@@ -643,6 +655,55 @@ async function loadUserLog(uid){
 }
 
 var _detailHist=null,_detailHistErr=null;
+var _detailChat=null,_detailChatErr=null;
+// Chat perbaikan kata Gemini (Mini chat / Chat penuh): users/{uid}/blobs/pb_fixchat_log_v1 (manifest {n} + potongan __0..n-1 {d}).
+async function loadUserFixChat(uid){
+  var c=db.collection('users').doc(uid).collection('blobs');
+  var m=await c.doc('pb_fixchat_log_v1').get({source:'server'});
+  if(!m.exists) return [];
+  var n=_n((m.data()||{}).n), reads=[];
+  for(var i=0;i<n;i++) reads.push(c.doc('pb_fixchat_log_v1__'+i).get({source:'server'}));
+  var snaps=await Promise.all(reads);
+  var txt=snaps.map(function(s){ var d=s.exists?s.data():null; return (d&&typeof d.d==='string')?d.d:''; }).join('');
+  var a=JSON.parse(txt||'[]');
+  return Array.isArray(a)?a:[];
+}
+function fcBub(role,text){ return '<div class="fc-b '+(role==='user'?'u':'a')+'"><div class="fc-m"><span class="fc-who">'+(role==='user'?'Aplikasi → Gemini':'Gemini')+'</span>'+_esc(text)+'</div></div>'; }
+function fcRes(r,rg){
+  var inR=r.after!=null&&r.after>=_n(rg.min)&&r.after<=_n(rg.max);
+  var st=r.after==null?'<b class="fc-no">✗ tidak ada hasil</b>':(r.ok?(inR?'<b class="fc-ok">✓ diterima, pas di rentang</b>':'<b class="fc-ok">↗ diterima, belum pas</b>'):'<b class="fc-no">✗ ditolak</b>');
+  return '<li>'+_esc(r.nama||r.id)+' · '+_esc(r.k)+': '+num(r.before)+' → '+(r.after==null?'–':num(r.after))+' kata '+st+(r.note?'<span class="fc-note">Umpan balik ke Gemini: '+_esc(r.note)+'</span>':'')+'</li>';
+}
+function fcStep(s,rg){
+  var who='Langkah '+_n(s.n)+' · '+tagM(s.model)+(s.chat?' · putaran '+_n(s.turn):' · tanpa chat');
+  var h='<div class="fc-st">'+who+(s.api&&s.api!=='ok'?' <span class="pill exp">'+(s.api==='gagal'?'Panggilan gagal'+(s.http?' (status '+_esc(s.http)+')':''):_esc(s.api))+'</span>':'')+'</div>';
+  if(s.chat){ h+=fcBub('user',s.sent); if(s.reply) h+=fcBub('assistant',s.reply); }
+  if(s.res&&s.res.length) h+='<ul class="fc-res">'+s.res.map(function(r){ return fcRes(r,rg); }).join('')+'</ul>';
+  return h;
+}
+function fcSession(x,i){
+  var rg=x.range||{min:0,max:0}, full=x.mode==='full', steps=x.steps||[];
+  var head='<summary><span class="tm">'+hm(x.ts)+'</span><span class="gl"><b>'+(full?'Chat penuh':'Mini chat')+(x.sesiLabel?' · '+_esc(x.sesiLabel):'')+'</b><small>'+num(x.total)+' teks · rentang '+num(rg.min)+'–'+num(rg.max)+' kata · '+steps.length+' langkah</small></span>'
+    +'<span class="rp">'+(_n(x.left)===0?'<span class="pill standar">Tuntas</span>':'<span class="pill exp">'+num(x.left)+' masih meleset</span>')+'</span></summary>';
+  var body='';
+  if(x.ctxMissing) body+='<div class="req-meta" style="color:var(--amber);margin-top:10px;">Chat penuh dipilih, tapi aturan &amp; hasil generate awal tidak ikut terkirim pada sesi ini — percakapan berjalan seperti Mini chat.</div>';
+  if(x.ctx&&x.ctx.length) body+='<details class="fc-ctx"><summary>Konteks awal Chat penuh ('+x.ctx.length+' pesan)</summary><div class="fc-in">'+x.ctx.map(function(m){ return fcBub(m.role,m.text); }).join('')+'</div></details>';
+  body+=steps.map(function(s){ return fcStep(s,rg); }).join('');
+  return '<details class="g"'+(i===0?' open':'')+'>'+head+'<div class="gb">'+body+'</div></details>';
+}
+function chatFeed(list,err){
+  var head='<div class="bar" style="margin-bottom:8px;"><p class="sub" style="margin:0;max-width:62ch;">Isi percakapan perbaikan kata antara aplikasi dan Gemini. Tersimpan 30 sesi terakhir per user, pesan panjang dipotong 6.000 karakter. Mode chat hanya aktif untuk admin yang memilih Gemini.</p><button class="btn btn-outline btn-small" onclick="dTab(\'chat\')">Muat ulang</button></div>';
+  if(err) return head+'<div class="empty" style="color:var(--red);">Chat belum bisa dibaca: '+_esc(err)+'<br>Tambahkan aturan blobs pb_fixchat_log_v1 di Firestore Rules (lihat komentar di atas script halaman ini), lalu Publish.</div>';
+  if(list===null) return head+'<div class="empty">Memuat chat...</div>';
+  if(!list.length) return head+'<div class="empty">Belum ada chat perbaikan kata untuk user ini.</div>';
+  var rows=list.slice().sort(function(a,b){ return _n(b.ts)-_n(a.ts); }), day='', h='';
+  rows.forEach(function(x,i){
+    var dd=new Date(x.ts).toLocaleDateString('sv-SE');
+    if(dd!==day){ day=dd; h+='<div class="day">'+dLong(x.ts)+'</div>'; }
+    h+=fcSession(x,i);
+  });
+  return head+h;
+}
 // Skrip hasil generate: users/{uid}/blobs/pb_history_v1 (format sama dengan log: manifest {n} + potongan __0..n-1 {d}).
 async function loadUserHist(uid){
   var c=db.collection('users').doc(uid).collection('blobs');
@@ -744,7 +805,7 @@ function logTable(log){
   });
   return h+'</tbody></table></div>';
 }
-function closeUser(){ var b=document.getElementById('user-detail'); b.innerHTML=''; b.dataset.uid=''; _detailSig=''; _detailLog=null; _detailErr=null; _detailHist=null; _detailHistErr=null; document.body.style.overflow=''; }
+function closeUser(){ var b=document.getElementById('user-detail'); b.innerHTML=''; b.dataset.uid=''; _detailSig=''; _detailLog=null; _detailErr=null; _detailHist=null; _detailHistErr=null; _detailChat=null; _detailChatErr=null; document.body.style.overflow=''; }
 function paintDetail(r){
   var box=document.getElementById('user-detail'), top=box.scrollTop;
   var open=[].map.call(box.querySelectorAll('details'),function(d){ return d.open; });
@@ -836,7 +897,15 @@ function rangeDetail(r,log){
   return '<div class="card rng">'+head+'<div class="stat-grid">'+sc('Biaya',idr(usd),'$'+usd.toFixed(4))+sc('Panggilan',Lok.length,(Lok.length-nf)+' generate · '+nf+' perbaikan kata'+(nFail?' · '+nFail+' gagal':''))+sc('Token',num(inT),'keluar '+num(outT))+'</div>'
     +'<h3 class="sec">Model AI</h3>'+modelTable(models,usd)+'<h3 class="sec">Daftar generate</h3>'+genFeed(buildGenRows(L,r.email))+'</div>';
 }
-function dTab(t){ _dTab=t; var r=curRow(document.getElementById('user-detail').dataset.uid); if(r) renderUser(r,_detailLog,_detailErr); }
+function dTab(t){
+  _dTab=t; var box=document.getElementById('user-detail'), uid=box.dataset.uid, r=curRow(uid);
+  if(r) renderUser(r,_detailLog,_detailErr);
+  if(t==='chat'&&uid){
+    loadUserFixChat(uid).then(function(h){ _detailChat=h; _detailChatErr=null; })
+      .catch(function(e){ _detailChatErr=errMsg(e); if(_detailChat===null) _detailChat=[]; })
+      .then(function(){ if(box.dataset.uid===uid&&box.innerHTML){ var rr=curRow(uid); if(rr) paintDetail(rr); } });
+  }
+}
 function renderUser(r,log,err){
   var st=tierStatus(r), ex=st.k==='exp', m=(log===null||err)?null:dayMap(r,log), qt=r.raw.pb_quota, nCall=r.gen+r.fix;
   var pend=(r.raw.pb_upgrade_request&&r.raw.pb_upgrade_request.status==='pending')?r.raw.pb_upgrade_request:null;
@@ -847,10 +916,11 @@ function renderUser(r,log,err){
     +'<div class="req-meta">Terakhir aktif '+(r.updated?dLong(r.updated)+', '+hm(r.updated):'-')+(isOnline(r)?' · <b class="onl">Online sekarang</b>':'')+'</div>'
     +(pend?'<div class="req-meta" style="color:var(--amber);">Ada permintaan upgrade: '+_esc(pend.tier||'-')+' · Rp'+Number(pend.price||0).toLocaleString('id-ID')+' · '+fmtDate(pend.requestedAt)+' (proses di tab Upgrade paket)</div>':'')
     +'<div class="req-meta" style="word-break:break-all;">UID '+_esc(r.uid)+'</div></div>';
-  var tabs='<div class="subtabs">'+[['ringkasan','Ringkasan'],['skrip','Skrip'],['riwayat','Riwayat']].map(function(x){ return '<button class="subtab'+(_dTab===x[0]?' on':'')+'" onclick="dTab(\''+x[0]+'\')">'+x[1]+'</button>'; }).join('')+'</div>';
+  var tabs='<div class="subtabs">'+[['ringkasan','Ringkasan'],['skrip','Skrip'],['chat','Chat'],['riwayat','Riwayat']].map(function(x){ return '<button class="subtab'+(_dTab===x[0]?' on':'')+'" onclick="dTab(\''+x[0]+'\')">'+x[1]+'</button>'; }).join('')+'</div>';
   var bad=err?'<div class="empty" style="color:var(--red);">Gagal baca riwayat: '+_esc(err)+'<br>Pastikan Firestore Rules versi terbaru (bagian blobs) sudah di-Publish.</div>':'';
   var body;
   if(_dTab==='skrip') body=tt('Skrip terakhir','Hook, Cerita, CTA · maks 45 produk terakhir')+scriptCards(_detailHist,rows,_detailHistErr);
+  else if(_dTab==='chat') body=tt('Chat perbaikan kata','Mini chat / Chat penuh dengan Gemini')+chatFeed(_detailChat,_detailChatErr);
   else if(_dTab==='riwayat') body=bad||(log===null?'<div class="empty">Memuat riwayat...</div>':
     tt('Riwayat generate')+genFeed(rows)+tt('Biaya per hari','30 hari terakhir')+dayTable(m)
     +'<details class="mdet" style="margin-top:16px;"><summary>Riwayat per panggilan AI ('+Math.min(log.length,100)+' terbaru, maks 60 hari)</summary>'+logTable(log)+'</details>')
@@ -871,9 +941,12 @@ async function showUser(uid){
   if(!r) return;
   var box=document.getElementById('user-detail');
   box.dataset.uid=uid; _detailSig=JSON.stringify(r.raw); _detailLog=null; _detailErr=null; renderUsers();
-  _detailHist=null; _detailHistErr=null;
+  _detailHist=null; _detailHistErr=null; _detailChat=null; _detailChatErr=null;
   renderUser(r,null,null);
   loadUserHist(uid).then(function(h){ _detailHist=h; }).catch(function(e){ _detailHist=[]; _detailHistErr=errMsg(e); }).then(function(){
+    if(box.dataset.uid===uid&&box.innerHTML) paintDetail(curRow(uid)||r);
+  });
+  loadUserFixChat(uid).then(function(h){ _detailChat=h; }).catch(function(e){ _detailChat=[]; _detailChatErr=errMsg(e); }).then(function(){
     if(box.dataset.uid===uid&&box.innerHTML) paintDetail(curRow(uid)||r);
   });
   document.body.style.overflow='hidden';
