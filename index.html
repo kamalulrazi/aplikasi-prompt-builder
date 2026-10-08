@@ -12191,12 +12191,13 @@ var PB_AI_MODEL_KEY='pb_ai_model_v1';
 var _pbAiModelKey='sonnet';
 try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB_AI_MODELS[_pbSavedModel])_pbAiModelKey=_pbSavedModel;}catch(e){}
 // ── MODEL AI KHUSUS ADMIN (permintaan user, 1 Okt 2026) ─────────────────
-// Picker model HANYA tampil untuk admin. SEMUA user lain dikunci ke Gemini
-// (v11.0, 2 Okt 2026, permintaan user; sebelumnya Haiku) dan tidak bisa menggantinya. Daftar email admin harus sama dengan
+// Picker model HANYA tampil untuk admin. SEMUA user lain dikunci ke Haiku
+// (v11.1, 8 Okt 2026, permintaan user; sempat Gemini sejak 2 Okt 2026, sebelum itu
+// juga Haiku) dan tidak bisa menggantinya. Daftar email admin harus sama dengan
 // OWNER_EMAILS di admin.html. Ini penyaring sisi tampilan/klien; penegakan
 // sungguhan (anti-utak-atik devtools) harus ada di Worker proxy.
 var PB_ADMIN_EMAILS=['vid1hihu@gmail.com'];
-var PB_DEFAULT_USER_MODEL='gemini';
+var PB_DEFAULT_USER_MODEL='haiku';
 function pbIsAdmin(){
   var em='';
   try{em=(firebase.auth().currentUser&&firebase.auth().currentUser.email)||'';}catch(e){}
@@ -12863,11 +12864,11 @@ if(typeof csRenderAll==='function')csRenderAll();
 })();
 
 // ============================================================
-// HISTORY PROMPT — simpan 5 prompt terakhir ke localStorage
+// HISTORY PROMPT — simpan 45 prompt terakhir ke localStorage
 // Dipanggil dari fGenerate() setelah berhasil
 // ============================================================
 const HISTORY_KEY='pb_history_v1'; // sudah ada prefix pb_
-const HISTORY_MAX=6; // 6 produk terakhir (1 entri = 1 produk berisi Hook+Cerita+CTA)
+const HISTORY_MAX=45; // 45 produk terakhir (1 entri = 1 produk berisi Hook+Cerita+CTA) — dinaikkan dari 6 (permintaan user, Okt 2026)
 
 function historyAdd(type,label,promptText){
   try{
@@ -19490,16 +19491,22 @@ async function _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemT
 }
 
 // ── FALLBACK GENERATE UTAMA (v11.2, 2 Okt 2026, permintaan user) ─────────────
-// Kalau model utama = Gemini dan generate-nya GAGAL (error API / limit / timeout setelah retry di dalam
-// _vbStreamClaudeJSONWithRetryModel), tugas generate dialihkan otomatis ke Haiku; kalau Haiku juga gagal -> Groq.
+// Kalau model utama generate-nya GAGAL (error API / limit / timeout setelah retry di dalam
+// _vbStreamClaudeJSONWithRetryModel), tugas generate dialihkan otomatis ke model cadangan berikutnya di rantainya.
 // Perbaikan jumlah kata untuk hasil yang datang dari model cadangan memakai rantai sendiri:
 // Groq 2x lalu GPT-OSS 1x (VB_GEN_FALLBACK_FIX_CHAIN, dibaca _vbFixPlan lewat _vbFixChainOverride).
 // TIDAK dialihkan untuk: 413 (kebesaran, ditangani pemecahan batch di pemanggil), 401, dan 403 kuota/login/model_not_allowed
 // (bukan salah model; model lain pasti ikut ditolak). Batas tunggu retry per model 45 detik (bukan 3 menit) supaya total
 // 3 model tetap di bawah _VB_GEN_STALE_MS (8 menit; terburuk ~7 menit dgn timeout 45/60 dtk, v11.5). Error sesi login (pbAuthSession) tetap dilempar ke pemanggil.
 const VB_GEN_FALLBACK_ENABLED=true;
-const VB_GEN_FALLBACK_FOR_MAIN_MODEL='gemini';          // fallback hanya aktif kalau model utama = ini
-const VB_GEN_FALLBACK_MODELS=['haiku','groq'];           // urutan cadangan (kunci PB_AI_MODELS)
+// Rantai cadangan per model utama (v11.6, 8 Okt 2026, permintaan user: default user biasa balik ke Haiku —
+// lihat PB_DEFAULT_USER_MODEL). Kunci = model utama yang aktif; model utama yang TIDAK ada di sini = fallback mati
+// (dulu cuma 'gemini' yang didaftar, jadi waktu model utama Haiku generate-nya gagal tidak pernah dialihkan ke mana pun).
+// Urutan haiku disamakan dengan pola rantai perbaikan kata yang sudah ada untuk Haiku (VB_FIX_CHAINS_BY_MAIN.haiku: Gemini dulu, baru Groq).
+const VB_GEN_FALLBACK_MODELS_BY_MAIN={
+  gemini:['haiku','groq'],
+  haiku:['gemini','groq']
+};
 const VB_GEN_FALLBACK_STEP_WAIT_MS=45000;                // batas tunggu retry per model
 const VB_GEN_FALLBACK_FIX_CHAIN=[{key:'groq',tries:2,extraTok:0},{key:'gptoss',tries:1,extraTok:1500}];
 var _vbFixChainOverride=null; // diisi _vbGenerateWithFallback kalau hasil generate datang dari model cadangan
@@ -19541,10 +19548,11 @@ function _pbFitPartsToModel(parts,modelId){
 async function _vbGenerateWithFallback(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokens){
   _vbFixChainOverride=null;
   const mainKey=pbGetAiModelKey();
-  if(!VB_GEN_FALLBACK_ENABLED||mainKey!==VB_GEN_FALLBACK_FOR_MAIN_MODEL){
+  const fallbackModels=VB_GEN_FALLBACK_MODELS_BY_MAIN[mainKey];
+  if(!VB_GEN_FALLBACK_ENABLED||!fallbackModels){
     return await _vbStreamClaudeJSONWithRetry(promptParts,onPartial,onWait,systemText,cacheSystem,maxOutputTokens);
   }
-  const keys=[mainKey].concat(VB_GEN_FALLBACK_MODELS);
+  const keys=[mainKey].concat(fallbackModels);
   let out=null;
   for(let i=0;i<keys.length;i++){
     const m=PB_AI_MODELS[keys[i]];
@@ -20948,7 +20956,7 @@ async function _vbExtendShortScriptsPass(arr,batch,range,onWait){
 // (HEAD ke Worker + HEAD ke situs pembanding, tanpa kirim data) lalu pesan hanya
 // memuat hal yang benar-benar terukur; sisanya ditulis jelas sebagai "tidak bisa dipastikan".
 function _pbFallbackActive(){
-  try{return !!VB_GEN_FALLBACK_ENABLED&&pbGetAiModelKey()===VB_GEN_FALLBACK_FOR_MAIN_MODEL;}catch(e){return false;}
+  try{return !!VB_GEN_FALLBACK_ENABLED&&!!VB_GEN_FALLBACK_MODELS_BY_MAIN[pbGetAiModelKey()];}catch(e){return false;}
 }
 function _pbProbeReach(url,ms){
   return new Promise(function(resolve){
@@ -23987,8 +23995,14 @@ function vbPickLokasiCard(idx,key,label){
 function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
   // Riwayat skrip (dibaca halaman admin): 1 entri = 1 produk berisi HOOK + STORY + CTA.
-  // Hanya HISTORY_MAX (6) produk terakhir yang disimpan. Entri ditandai skrip:1 supaya
+  // Hanya HISTORY_MAX (45) produk terakhir yang disimpan. Entri ditandai skrip:1 supaya
   // tidak muncul di daftar Riwayat lama di aplikasi (lihat _historyRenderInto).
+  // FITUR BARU (permintaan user, Okt 2026): selain teks skrip mentah (field `text`,
+  // dipakai untuk tampilan preview yang ringkas & mudah dibaca di admin), tiap bagian
+  // juga disimpan versi PROMPT LENGKAPNYA (field `full`) — persis isi kotak
+  // vb-bulk-json-N, yaitu teks yang sama yang disalin kalau user sendiri klik tombol
+  // "Salin" di kartu Hook/Story/CTA (lihat copyBtn.onclick di _vbBuildEditableCard).
+  // Supaya tombol salin di admin.html bisa menyalin prompt siap-pakai, bukan cuma skrip.
   try{
     let byP={},order=[];
     VB_BULK_ITEMS.forEach(function(it,i){
@@ -23996,15 +24010,18 @@ function _vbBuildCombinedHistoryEntry(sessionLabel){
       let t=String((el&&typeof el.value==='string'?el.value:it.script)||'').trim();
       let k=String(it.role||'').toUpperCase();
       if(k!=='HOOK'&&k!=='STORY'&&k!=='CTA')k=['HOOK','STORY','CTA'][i%3];
-      if(!byP[p]){byP[p]={nama:'',parts:[]};order.push(p);}
+      if(!byP[p]){byP[p]={nama:'',parts:[],full:[]};order.push(p);}
       if(it.produk)byP[p].nama=it.produk;
       if(t)byP[p].parts.push(k+': '+t);
+      let jsonEl=document.getElementById('vb-bulk-json-'+i);
+      let fullTxt=jsonEl?String(jsonEl.textContent||'').trim():'';
+      if(fullTxt)byP[p].full.push(k+': '+fullTxt);
     });
     let now=Date.now(),add=[],names={};
     order.forEach(function(p){
       let o=byP[p];if(!o.parts.length)return;
       let label=o.nama||sessionLabel||'Skrip';names[label]=1;
-      add.push({type:'video',skrip:1,label:label,text:o.parts.join('\n\n'),ts:now+p});
+      add.push({type:'video',skrip:1,label:label,text:o.parts.join('\n\n'),full:o.full.join('\n\n'),ts:now+p});
     });
     if(!add.length)return;
     add.reverse(); // produk terakhir paling atas

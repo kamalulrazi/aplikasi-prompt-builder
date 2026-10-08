@@ -773,20 +773,32 @@ function dLong(t){ return new Date(t).toLocaleDateString('id-ID',{weekday:'long'
 function hm(t){ return new Date(t).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
 function hms(t){ return new Date(t).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
 var _scr=[];
-function cpScript(b){ var x=_scr[b.dataset.i]; if(x&&navigator.clipboard) navigator.clipboard.writeText(x.text||'').then(function(){ b.textContent='Tersalin ✓'; }); }
-// 6 produk terakhir: 1 kartu = 1 produk (Hook + Cerita + CTA). Model & biaya diambil dari panggilan AI terdekat dalam waktu (±10 menit).
+// Tombol salin 1 kartu: salin PROMPT LENGKAPNYA (x.full — persis yang disalin user sendiri
+// lewat tombol "Salin" di kartu Hook/Story/CTA di aplikasi), bukan cuma teks skrip mentah.
+// x.text dipakai sebagai cadangan untuk entri lama (sebelum field `full` ada).
+function cpScript(b){ var x=_scr[b.dataset.i]; if(x&&navigator.clipboard) navigator.clipboard.writeText(x.full||x.text||'').then(function(){ b.textContent='Tersalin ✓'; }); }
+// Tombol salin semua: gabungkan prompt lengkap SEMUA produk yang sedang tampil (maks HISTORY_MAX) jadi satu teks, lalu salin sekaligus.
+function cpAllScripts(b){
+  if(!_scr.length||!navigator.clipboard) return;
+  var out=_scr.map(function(x){ return '=== '+(x.label||'Skrip')+' — '+dLong(x.ts)+' '+hm(x.ts)+' ===\n'+(x.full||x.text||''); }).join('\n\n');
+  navigator.clipboard.writeText(out).then(function(){
+    var label=b.textContent; b.textContent='Tersalin ✓'; setTimeout(function(){ b.textContent=label; },1600);
+  });
+}
+// 45 produk terakhir: 1 kartu = 1 produk (Hook + Cerita + CTA). Model & biaya diambil dari panggilan AI terdekat dalam waktu (±10 menit).
 function scriptCards(hist,rows,err){
   if(err) return '<div class="empty" style="color:var(--red);">Skrip belum bisa dibaca: '+_esc(err)+'<br>Pastikan aturan blobs pb_history_v1 di Firestore Rules sudah di-Publish.</div>';
   if(hist===null) return '<div class="empty">Memuat skrip...</div>';
-  var L=hist.slice().sort(function(a,b){ return _n(b.ts)-_n(a.ts); }).slice(0,6); _scr=L;
+  var L=hist.slice().sort(function(a,b){ return _n(b.ts)-_n(a.ts); }).slice(0,45); _scr=L;
   if(!L.length) return '<div class="empty">Belum ada skrip tersimpan untuk user ini. Skrip baru terekam setelah user generate (bulk) memakai index.html versi terbaru; skrip lama tidak pernah tersimpan di cloud.</div>';
-  return L.map(function(x,i){
+  var top='<div class="bar" style="margin-bottom:14px;"><span class="sub" style="margin:0;">'+L.length+' produk · salin per produk di dalam tiap kartu, atau semuanya sekaligus.</span><button class="btn btn-outline btn-small" onclick="cpAllScripts(this)">Salin semua ('+L.length+' produk)</button></div>';
+  return top+L.map(function(x,i){
     var best=null,bd=6e5; (rows||[]).forEach(function(r){ var d=Math.abs(_n(x.ts)-r.ts); if(d<bd&&r.model!==null){ bd=d; best=r; } });
     var p=String(x.text||'').split(/(?:^|\n+)(HOOK|STORY|CTA):\s*/), body='';
     if(p.length>=3){ for(var j=1;j<p.length;j+=2) body+='<div class="sp"><span>'+({HOOK:'Hook',STORY:'Cerita produk',CTA:'CTA keranjang'}[p[j]])+'</span><div class="sc">'+_esc((p[j+1]||'').trim())+'</div></div>'; }
     else body='<div class="sc">'+_esc(x.text||'')+'</div>';
     return '<details class="g"'+(i===0?' open':'')+'><summary><span class="tm">'+hm(x.ts)+'</span><span class="gl"><b>'+_esc(x.label||'Skrip')+'</b><small>'+_esc(dLong(x.ts))+'</small></span><span class="rp">'+(best?idr(best.usdG+best.usdF):'-')+'</span>'
-      +'<span class="mods">'+(best?'Generate '+tagM(best.model)+' · Perbaikan kata '+fixTags(best.fix):'Model &amp; biaya belum ditemukan di riwayat panggilan')+'</span></summary><div class="gb">'+body+'<button class="chip" data-i="'+i+'" onclick="cpScript(this)">Salin semua</button></div></details>';
+      +'<span class="mods">'+(best?'Generate '+tagM(best.model)+' · Perbaikan kata '+fixTags(best.fix):'Model &amp; biaya belum ditemukan di riwayat panggilan')+'</span></summary><div class="gb">'+body+'<button class="chip" data-i="'+i+'" onclick="cpScript(this)">Salin prompt lengkap</button></div></details>';
   }).join('');
 }
 // Riwayat generate: semua baris terbuka, dikelompokkan per tanggal, lengkap dengan jam, model, perbaikan kata, dan biaya Rupiah.
@@ -838,7 +850,7 @@ function renderUser(r,log,err){
   var tabs='<div class="subtabs">'+[['ringkasan','Ringkasan'],['skrip','Skrip'],['riwayat','Riwayat']].map(function(x){ return '<button class="subtab'+(_dTab===x[0]?' on':'')+'" onclick="dTab(\''+x[0]+'\')">'+x[1]+'</button>'; }).join('')+'</div>';
   var bad=err?'<div class="empty" style="color:var(--red);">Gagal baca riwayat: '+_esc(err)+'<br>Pastikan Firestore Rules versi terbaru (bagian blobs) sudah di-Publish.</div>':'';
   var body;
-  if(_dTab==='skrip') body=tt('Skrip terakhir','6 produk terakhir · Hook, Cerita, CTA')+scriptCards(_detailHist,rows,_detailHistErr);
+  if(_dTab==='skrip') body=tt('Skrip terakhir','Hook, Cerita, CTA · maks 45 produk terakhir')+scriptCards(_detailHist,rows,_detailHistErr);
   else if(_dTab==='riwayat') body=bad||(log===null?'<div class="empty">Memuat riwayat...</div>':
     tt('Riwayat generate')+genFeed(rows)+tt('Biaya per hari','30 hari terakhir')+dayTable(m)
     +'<details class="mdet" style="margin-top:16px;"><summary>Riwayat per panggilan AI ('+Math.min(log.length,100)+' terbaru, maks 60 hari)</summary>'+logTable(log)+'</details>')
