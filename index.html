@@ -6283,7 +6283,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Nama produk spesifik</strong> = hasil lebih akurat dan konsisten<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Compact JSON</strong> kadang lebih baik jika foto referensi banyak<br>
       <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Tab Video</strong> — script otomatis dibatasi 24-27 kata, tapi tetap bisa diedit manual di kartu hasil<br>
-      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Hasil AI bersih</strong> — kata daerah lain (mis. atuh/pisan di logat Jakarta), kata absolut ("sama sekali"), kata tekanan (segera, gercep), dan deretan kata pengisi di akhir kalimat otomatis dibuang. Kalau skrip jadi kurang dari 24 kata, kartu ditandai oranye — lebih baik pendek dan bersih daripada diisi sampah
+      <svg class="icon"><use href="#ic-sparkle"></use></svg> <strong>Kartu oranye</strong> — kalau skrip kurang dari 24 kata, kartu ditandai oranye. Hasil AI tidak diedit otomatis, jadi cek dulu sebelum dipakai
     </p>
   </div>
 
@@ -16555,70 +16555,8 @@ function _vbPersonaLine(gender,age){
   if(!sx&&!BY[b])return '';
   return 'VOICE (the CHARACTER): '+(sx||'person')+(BY[b]?', '+BY[b]:'.')+' Gender and age shape wording, scenes and how the viewer is addressed; no stereotypes.';
 }
-function _vbToneContoh(pitch,accent,def){
-  // v11.26 (5 Okt 2026): contoh kalimat utuh DIBUANG. Sebelumnya Story/CTA nada "gaul" dijiplak AI kata demi kata
-  // ("Makanya gaskeun [produk] ini ... deh, harimu jadi enteng", "Kuy, cek [produk] di keranjang bawah buat lihat detailnya, ya"),
-  // sehingga semua produk terdengar seragam. Sekarang yang dikirim cuma PETUNJUK GAYA (bentuk & irama), tanpa kalimat jadi.
-  // Pembuka & kata daerah tetap diacak/mengikuti logat. Daftar frasa lama disimpan di VB_STOCK_PHRASES buat deteksi jiplakan.
-  var k=String(pitch||'').trim(),a=String(accent||'');
-  var isBt=/Batak/i.test(a),isJw=/Jawa|Javanese/i.test(a),isSu=/Sunda/i.test(a);
-  var OP=isBt?['Bah,','Aduh,','Hei,']:isJw?['Waduh,','Aduh,','Lho,']:isSu?['Aduh atuh,','Waduh,','Duh,']:['Duh,','Eh,','Astaga,','Waduh,'];
-  var h=OP[Math.floor(Math.random()*OP.length)];
-  var w=isBt?'kali':isJw?'tenan':isSu?'pisan':'banget';
-  var q=isBt?'lah':isJw?'wis':isSu?'mah':'deh';
-  // v12.1 (5 Okt 2026, permintaan user: struktur skrip kuat & jelas): petunjuk gaya sekarang PER BEAT (6 kalimat, 2 per bagian) dan memakai
-  // nama beat yang SAMA dengan system prompt: HOOK = STOPPER + REALIZE | STORY = REVEAL + PROOF | CTA = PAYOFF + INVITE. Tetap hanya bentuk & irama, tanpa kalimat jadi.
-  var B; // [STOPPER, REALIZE (+ senggol produk), STORY, CTA]
-  if(k==='toxic'||k==='snarky'){
-    B=[
-      'optional opener ('+h+') then call the viewer out directly for the tacky or careless habit behind the problem, with one put-down word (norak, kampungan, jadul, lebay), at most one slang word, only if it fits (from the product\'s SLANG options if listed, else from the Accent line), intensifier ('+w+') at most once',
-      'rub it in: the plain cause is their own habit or choice, with a sarcastic jab, then drop the product as the obvious fix they should have used long ago, smug and unbothered',
-      'the audience using the product, with a dry jab; particle ('+q+') at most once',
-      'nonchalant, slightly stinging invitation to the keranjang bawah (do not reuse a stock invitation)'
-    ];
-  }else if(k==='bercanda'||k==='joking'){
-    B=[
-      'optional opener ('+h+') then a small exaggerated comparison of the problem, at most one slang word, only if it fits (from the product\'s SLANG options if listed, else from the Accent line)',
-      'the cause as a little drama, funny beat on the last words, never explained, then the product steps in with a playful twist',
-      'the audience using the product, light and playful; particle ('+q+') at most once',
-      'gentle invitation to the keranjang bawah'
-    ];
-  }else if(k==='gaul'||k==='casual slang'){
-    B=[
-      'optional opener ('+h+') then the problem said out loud like venting to a friend, intensifier ('+w+') at most once, at most one slang word, only if it fits from the Accent line',
-      'one short punchy line on the cause and what it costs, then the product as the fix with a trendy casual connector of your own choice',
-      'the audience using the product, casual; particle ('+q+') at most once',
-      'casual invitation to check the keranjang bawah'
-    ];
-  }else{
-    B=[
-      'optional opener ('+h+') then a relatable daily problem in plain spoken words',
-      'the plain cause and the annoying result in one clear sentence, then the product named as the fix',
-      'the audience using the product in a short everyday scenario; particle ('+q+') at most once',
-      'calm invitation to the keranjang bawah'
-    ];
-  }
-  return 'HOOK: STOPPER '+B[0]+'; REALIZE '+B[1]+' | STORY: '+B[2]+' | CTA: PAYOFF a feeling or moment after the problem fades, then '+B[3];
-}
 // v11.26: frasa dari contoh lama yang pernah dijiplak AI. Dipakai _vbStockPhraseParts buat menandai hasil yang masih memuat
 // 3 kata berurutan yang sama (huruf kecil, tanda baca diabaikan).
-// v12.2 (7 Okt 2026): contoh RITME diputar kode (2 dari pool per panggilan). Hanya irama & campuran panjang kalimat; AI dilarang memakai kata/topiknya.
-var VB_RHYTHM_POOL=[
- 'Charger hilang lagi? Padahal semalam jelas ditaruh di meja. Pagi-pagi sudah ubek-ubek kamar, jadwal makin mepet, kepala ikut panas, suasana hati langsung jatuh, hari belum dimulai.',
- 'Bayangin pulang kerja, tas langsung dibuka, semua barang ada tempatnya. Tidak ada lagi acara ngorek-ngorek dasar tas. Tangan tinggal ambil, jalan lanjut, sore jadi lebih lega.',
- 'Sudah kebayang? Rasanya beda, pagi tidak lagi diawali panik cari ini itu. Tombol keranjang bawah bisa dibuka pelan-pelan, lihat dulu, cocok syukur, belum cocok tidak apa.',
- 'Jam tujuh pagi, rambut belum kering, ojek sudah di depan. Panik? Jelas. Makanya butuh yang bisa diandalkan tanpa ribet, apalagi pas buru-buru begini, apalagi hari Senin.',
- 'Tiap sore lantai terasa lengket padahal baru dipel. Capeknya dobel. Coba bayangin sekali sapu langsung beres, sisa waktunya bisa dipakai duduk santai sambil nonton drama favorit.',
- 'Dapur berantakan itu bukan salah orangnya. Wadahnya saja yang tidak pernah muat. Sekarang sendok, spatula, sama bumbu kecil-kecil punya rumah sendiri, rapi tanpa dipikirin lagi.',
- 'Anak rewel pas jalan-jalan, tangan penuh belanjaan. Siapa yang tidak pusing? Nah, di momen kayak gitu, ada satu hal yang bikin semuanya terasa jauh lebih ringan.',
- 'Kaos favorit cepat melar itu menyedihkan. Tapi bayangin yang tetap rapi sampai sore, foto-foto pun percaya diri, tidak sibuk betulin baju tiap lima menit sekali.',
- 'Tinggal satu langkah lagi. Kalau pagi yang lebih tenang sudah kebayang, lihat detailnya lewat keranjang bawah. Tidak harus hari ini, simpan dulu juga boleh, santai saja.',
- 'Bukan soal gaya, ini soal tidak mau repot. Lihat dulu saja lewat keranjang bawah, pilih yang pas buat hari-hari berikutnya, lalu lanjut hidup dengan kepala lebih adem.'
-];
-function _vbRhythmLine(){
-  var p=VB_RHYTHM_POOL.slice().sort(function(){return Math.random()-.5;}).slice(0,2);
-  return 'RHYTHM REFERENCES (rhythm and sentence-length mix only; never reuse their words, topic or product): '+p.join(' / ');
-}
 var VB_STOCK_PHRASES=[
   'Makanya gaskeun [produk] ini, [manfaat], deh, harimu jadi enteng',
   'Kuy, cek [produk] di keranjang bawah buat lihat detailnya, ya',
@@ -19962,114 +19900,9 @@ function _vbSanitizeForbiddenPhrases(text){
   return out;
 }
 
-// ══════════════════════════════════════════════════════════════════
-// v11.24 (5 Okt 2026) — KONSISTENSI LOGAT, KLAIM ABSOLUT, & PERBAIKAN KATA TERKUNCI LOGAT.
-// Masalah: prompt perbaikan kata (VB_TARGETED_FIX_SYSTEM) memberi daftar kata daerah TETAP (bah, kali, lah, wis,
-// tenan, atuh, pisan, mah) untuk SEMUA logat, jadi skrip logat Jakarta diisi ekor "atuh pisan lah tenan euy".
-// Perbaikan: (1) prompt perbaikan mengikuti logat terpilih (_vbFixSystemFor), (2) jaring pengaman lokal tanpa API
-// (_vbStripOffAccent) membuang kata daerah LAIN dari keluaran AI, (3) klaim absolut "sama sekali"/"seharian penuh"
-// dibuang (_vbStripAbsolutes). Ketiganya HANYA untuk keluaran AI (lewat _vbSanitizeAI), bukan ketikan manual user.
-// ══════════════════════════════════════════════════════════════════
-var VB_OFF_JW=['wis','tenan','ora','dhisik','iki','iku','luwih'];
-var VB_OFF_SU=['atuh','pisan','euy','heula','ieu','eta','deui'];
-var VB_OFF_BT=['bah'];
-var VB_OFF_ACCENT_BY_LOGAT={
-  'neutral standard accent':VB_OFF_JW.concat(VB_OFF_SU,VB_OFF_BT),
-  'casual Jakarta accent':VB_OFF_JW.concat(VB_OFF_SU,VB_OFF_BT),
-  'light Javanese accent':VB_OFF_SU.concat(VB_OFF_BT),
-  'light Sundanese accent':VB_OFF_JW.concat(VB_OFF_BT),
-  'light Batak accent':VB_OFF_JW.concat(VB_OFF_SU)
-};
-// Kata 'lah' berdiri sendiri hanya ikut dibuang kalau menempel dengan kata daerah yang dibuang (di Jakarta "udah lah" sah).
-function _vbStripOffAccent(text){
-  return text; /* v11.37: penyaring lokal dimatikan */
-  if(!text||typeof VB==='undefined'||!VB)return text;
-  var acc=String(VB.accent||VB.accentLabel||'').trim();
-  var list=VB_OFF_ACCENT_BY_LOGAT[acc];
-  if(!list)return text; // logat tulis-sendiri / kosong: tidak disentuh
-  var parts=String(text).split(/(\s+)/),words=[];
-  parts.forEach(function(p,i){if(p&&!/^\s+$/.test(p))words.push(i);});
-  var core=function(p){return p.toLowerCase().replace(/[^\p{L}]+/gu,'');};
-  var strong={},any=false;
-  words.forEach(function(i){if(list.indexOf(core(parts[i]))!==-1){strong[i]=1;any=true;}});
-  if(!any)return text;
-  var drop={};
-  words.forEach(function(i,wi){
-    if(strong[i]){drop[i]=1;return;}
-    if(core(parts[i])==='lah'){
-      var pv=words[wi-1],nx=words[wi+1];
-      if((pv!==undefined&&strong[pv])||(nx!==undefined&&strong[nx]))drop[i]=1;
-    }
-  });
-  var kept=[];
-  words.forEach(function(i){
-    var p=parts[i];
-    if(!drop[i]){kept.push(p);return;}
-    var m=p.match(/[.,!?;:]+$/),P=m?m[0]:'';
-    if(P&&kept.length){
-      var last=kept[kept.length-1].replace(/[,;:]+$/,'');
-      kept[kept.length-1]=/[.!?]$/.test(last)?last:last+P;
-    }
-  });
-  var out=kept.join(' ').replace(/\s+([,.!?])/g,'$1').trim();
-  out=out.replace(/([,;:])\s*([.!?])/g,'$2').replace(/^[\s,;:.\-–—]+/,'');
-  out=out.replace(/(^|[.!?]\s+)([a-z])/g,function(_,a,b){return a+b.toUpperCase();});
-  return out;
-}
-function _vbStripAbsolutes(text){
-  return text; /* v11.37: penyaring lokal dimatikan */
-  if(!text)return text;
-  var out=String(text).replace(/\bsama\s+sekali\b/gi,'').replace(/\bseharian\s+penuh\b/gi,'seharian').replace(/\b(?:mending\s+)?(?:gercep|cepetan|segera|amankan)\b(?:\s+(?:dulu|deh|ya|aja))?/gi,'').replace(/\bsekarang\s+juga\b/gi,'');
-  if(out===String(text))return text;
-  out=out.replace(/\s{2,}/g,' ').replace(/\s+([,.!?])/g,'$1').trim();
-  out=out.replace(/([,;:])\s*([.!?])/g,'$2').replace(/^[\s,;:.\-–—]+/,'');
-  out=out.replace(/(^|[.!?]\s+)([a-z])/g,function(_,a,b){return a+b.toUpperCase();});
-  return out;
-}
-// ── v11.25 (5 Okt 2026): ANTI-PADDING. Hasil v11.24 masih berekor "bro, sih, banget, kok, parah, gila, asik, mantap" dan
-// "cuy, dong, banget, nih, yuk, segera, buruan, gercep, siap": AI perbaikan kata MENGISI kekurangan kata dengan slang
-// (prompt v11.24 sendiri menyuruh begitu) dan _vbIsMinimalEdit membolehkan tambahan di ujung teks tanpa cek isinya.
-// Sekarang: (1) prompt perbaikan menyuruh menyisipkan frasa KONKRET di tengah kalimat, bukan slang, (2) tambahan yang
-// isinya slang/interjeksi/kata tekanan DITOLAK (_vbPaddingLooksBad), (3) deret >=3 kata pengisi di ujung teks dibuang
-// lokal (_vbStripFillerTail), (4) kata tekanan (buruan, segera, gercep, cepetan, sekarang juga, amankan) dibuang.
-var VB_FILLER_WORDS=['sih','nih','dong','deh','kok','banget','parah','gila','asik','asyik','mantap','mantul','astaga','aduh','duh','waduh','ampun','cuy','bro','sis','gaes','guys','yuk','kuy','cus','siap','sip','dah','lho','loh','tuh','kan','nah','ya','yaa','fix','auto','gercep','segera','buruan','cepetan','wkwk','euy','atuh','pisan','wis','tenan','bah'];
-var VB_PRESSURE_WORDS=['gercep','cepetan','segera','amankan'];
-function _vbWordCore(w){return String(w||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');}
-// Buang deret >=3 kata pengisi berturut-turut di ujung KALIMAT TERAKHIR (deret 1-2 kata seperti "..., deh." / "..., ya." tetap aman).
-function _vbStripFillerTail(text){
-  return text; /* v11.37: penyaring lokal dimatikan */
-  if(!text)return text;
-  var toks=String(text).trim().split(/\s+/);
-  var n=toks.length,i=n-1,run=0;
-  while(i>=0){
-    var c=_vbWordCore(toks[i]);
-    if(!c||VB_FILLER_WORDS.indexOf(c)===-1)break;
-    // kata pengisi yang menutup kalimat SEBELUMNYA (bertanda . ! ?) bukan bagian ekor kalimat terakhir
-    if(i<n-1&&/[.!?]$/.test(toks[i]))break;
-    run++;
-    i--;
-  }
-  if(run<3)return text;
-  var cut=n-run;
-  var kept=toks.slice(0,cut);
-  if(!kept.length)return text; // seluruh teks pengisi: jangan dikosongkan
-  var endM=String(text).trim().match(/[.!?]+$/),endP=endM?endM[0]:'.';
-  var last=kept[kept.length-1].replace(/[,;:]+$/,'');
-  kept[kept.length-1]=/[.!?]$/.test(last)?last:last+endP;
-  return kept.join(' ');
-}
-// Tolak tambahan perbaikan kata yang isinya slang/interjeksi (>=2 kata) atau mengandung kata tekanan.
-function _vbPaddingLooksBad(oldT,newT){
-  return false; /* v11.37: penyaring lokal dimatikan */
-  var tok=function(t){return String(t||'').toLowerCase().split(/\s+/).map(_vbWordCore).filter(Boolean);};
-  var o=tok(oldT),n=tok(newT);
-  if(n.length<=o.length)return false; // hanya menilai penambahan
-  var ins=[],i=0;
-  for(var j=0;j<n.length;j++){if(i<o.length&&o[i]===n[j])i++;else ins.push(n[j]);}
-  var filler=0,press=0;
-  ins.forEach(function(w){if(VB_FILLER_WORDS.indexOf(w)!==-1)filler++;if(VB_PRESSURE_WORDS.indexOf(w)!==-1)press++;});
-  return filler>=2||press>0;
-}
+// v12.x: penyaring lokal keluaran AI (kata daerah lain, klaim absolut, kata tekanan, kata pengisi di akhir kalimat, tolak padding slang)
+// sudah dimatikan sejak v11.37 dan sekarang DIHAPUS. Kata seperti gercep/cepetan tidak lagi disaring atau dilarang.
+// Yang tetap berlaku: prompt perbaikan kata mengikuti logat terpilih (_vbFixSystemFor) dan aturan sisip frasa konkret (_padRule).
 // Dipakai di SEMUA titik keluaran AI (generate, perbaikan kata). Ketikan manual user tetap memakai _vbSanitizeForbiddenPhrases saja.
 // v11.40 (5 Okt 2026): AI kadang menulis tanda kurung siku/biasa di dialog (mis. [bermotif bunga di atas meja]) atau menjiplak label [Image N].
 // Label [Image N] dibuang total; tanda kurungnya saja dibuang, isinya dipertahankan supaya kalimat tetap utuh.
@@ -20078,7 +19911,7 @@ function _vbStripBrackets(text){
   return text.replace(/\s?\[\s*Image\s*\d+\s*\]/gi,'').replace(/[\[\]()]/g,'').replace(/\s{2,}/g,' ').replace(/\s+([.,!?])/g,'$1').trim();
 }
 function _vbSanitizeAI(text){
-  return _vbStripBrackets(_vbStripFillerTail(_vbStripOffAccent(_vbStripAbsolutes(_vbSanitizeForbiddenPhrases(text)))));
+  return _vbStripBrackets(_vbSanitizeForbiddenPhrases(text));
 }
 var VB_FIX_WORDS_BY_LOGAT={
   'casual Jakarta accent':'Jakarta slang words (banget, sih, nih, dong, deh) and NEVER Javanese, Sundanese or Batak words (no atuh, pisan, euy, wis, tenan, bah)',
@@ -20313,9 +20146,9 @@ function _vbSapaanRule(){
 // Tambah kombinasi lain di VB_REFERENCE_BY_COMBO (kunci: nadaKey+'|'+aksen).
 var VB_REFERENCE_HEAD='REFERENCE (rhythm and structure only; never copy its words, product or place; write every sentence fresh for the product in DATA):\n';
 var VB_REFERENCE_DEFAULT=
-  'hook: piknik tapi bawa kresek? malu - maluin banget loh, mending pakek tas ini aja, estetik, muat banyak, foto piknik juga langsung makin cakep.\n'+
+  'hook: piknik bareng teman tapi bawa kresek? malu-maluin banget loh, mending pakek tas ini aja, estetik, muat banyak barang, foto piknik kamu juga langsung makin cakep.\n'+
   'story: bayangin, kamu piknik sama teman-teman, semua bawa bekal di tas biasa. tapi kamu datang bawa tas ini, langsung semua noleh dan minta foto bareng sama tas-nya.\n'+
-  'cta: yuk buruan cek dulu harganya di keranjang bawah, jangan sampai harganya naik pas kamu mau beli, buruan! siapa tau kamu beruntung bisa dapat harga lebih murah dari yang lain';
+  'cta: buruan cek dulu harganya di keranjang bawah, jangan sampai naik pas kamu mau beli. siapa tau kamu beruntung bisa dapat harga lebih murah dari yang lain.';
 var VB_REFERENCE_BY_COMBO={
   'toxic|light Batak accent':
     'hook: bah, masih pakai botol bocor? alay kali kau, lae! tas basah, dokumen kuyup, sok sibuk pula. cemana pula mau kelihatan profesional? ganti tumbler ini lah, anti bocor.\n'+
@@ -20840,13 +20673,12 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
         if(useChat){
           const _w=wc(nt);
           if(!_vbIsMinimalEdit(cur,nt))_fb[it.id]='REJECTED: your version ('+_w+' words) changed or reordered existing words. Keep every original word in the same order; only insert or delete.';
-          else if(_vbPaddingLooksBad(cur,nt))_fb[it.id]='REJECTED: your version ('+_w+' words) used filler/slang words. Insert natural words that fit the sentence.';
           else if(!(dist(_w)<dist(wc(cur))))_fb[it.id]='REJECTED: your version had '+_w+' words, which is not closer to the allowed range '+range.min+'-'+range.max+'.';
           else if(dist(_w)>0)_fb[it.id]='Accepted but still not in range: it now has '+_w+' words (allowed '+range.min+'-'+range.max+').';
         }
         // Terima hanya kalau benar-benar lebih dekat ke range daripada teks sebelumnya.
         // (4 Okt 2026, permintaan user) DAN hanya kalau ini edit minimal: kata lama utuh & berurutan, AI cuma menyisipkan/menghapus kata.
-        const _acc=dist(wc(nt))<dist(wc(cur))&&_vbIsMinimalEdit(cur,nt)&&!_vbPaddingLooksBad(cur,nt);
+        const _acc=dist(wc(nt))<dist(wc(cur))&&_vbIsMinimalEdit(cur,nt);
         if(_acc)arr[it.pi][it.k]=nt;
         if(_rec){_rec.after=wc(nt);_rec.ok=!!_acc;_rec.note=useChat?(_fb[it.id]||''):'';}
       });
