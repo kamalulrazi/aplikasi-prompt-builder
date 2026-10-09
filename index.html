@@ -4226,7 +4226,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.68</div>
+  <div class="splash-version" id="splash-version">v11.69</div>
 </div>
 <script>
   (function(){
@@ -6255,7 +6255,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     <!-- MODE PERBAIKAN KATA GEMINI (permintaan user, 8 Okt 2026): hanya tampil untuk admin saat model Gemini dipilih. -->
     <div id="pb-gemini-chat-box" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-hi);">
       <div style="font-size:var(--fs-sm);font-weight:700;color:var(--text);">Mode perbaikan kata (semua model)</div>
-      <div style="font-size:var(--fs-xs2);color:var(--muted);margin:2px 0 10px;">Perbaikan kata berjalan sebagai percakapan: model melihat tulisannya sendiri dan alasan penolakannya. Berlaku untuk semua model di rantai perbaikan (Gemini, Groq, GPT-OSS, Haiku). Klik lagi pilihan yang aktif untuk mematikan (kembali seperti biasa).</div>
+      <div style="font-size:var(--fs-xs2);color:var(--muted);margin:2px 0 10px;">Perbaikan kata berjalan sebagai percakapan: model melihat tulisannya sendiri dan alasan penolakannya. Berlaku untuk semua model di rantai perbaikan (Gemini, Groq, GPT-OSS, Haiku). Default semua user: Chat penuh. Klik lagi pilihan yang aktif untuk mematikan (kembali seperti biasa).</div>
       <div style="display:flex;gap:8px;">
         <button type="button" class="chip pb-gfix-btn" data-mode="mini" onclick="pbSetGeminiFixChat('mini')" style="flex:1;">Mini chat</button>
         <button type="button" class="chip pb-gfix-btn" data-mode="full" onclick="pbSetGeminiFixChat('full')" style="flex:1;">Chat penuh</button>
@@ -6316,7 +6316,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.68 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.69 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -12229,7 +12229,8 @@ try{var _pbSavedModel=localStorage.getItem(PB_AI_MODEL_KEY);if(_pbSavedModel&&PB
 // OWNER_EMAILS di admin.html. Ini penyaring sisi tampilan/klien; penegakan
 // sungguhan (anti-utak-atik devtools) harus ada di Worker proxy.
 var PB_ADMIN_EMAILS=['vid1hihu@gmail.com'];
-var PB_DEFAULT_USER_MODEL='haiku';
+// 9 Okt 2026 (permintaan user): model utama user biasa = Gemini (sebelumnya Haiku). Cadangan otomatis: Haiku, lalu Groq (VB_GEN_FALLBACK_MODELS_BY_MAIN.gemini).
+var PB_DEFAULT_USER_MODEL='gemini';
 function pbIsAdmin(){
   var em='';
   try{em=(firebase.auth().currentUser&&firebase.auth().currentUser.email)||'';}catch(e){}
@@ -12237,7 +12238,7 @@ function pbIsAdmin(){
   em=String(em).toLowerCase();
   return PB_ADMIN_EMAILS.some(function(x){return String(x).toLowerCase()===em;});
 }
-// Model yang BENAR-BENAR dipakai: admin = pilihannya, user lain = PB_DEFAULT_USER_MODEL (sekarang Haiku).
+// Model yang BENAR-BENAR dipakai: admin = pilihannya, user lain = PB_DEFAULT_USER_MODEL (sekarang Gemini).
 function pbGetAiModelKey(){return pbIsAdmin()?_pbAiModelKey:PB_DEFAULT_USER_MODEL;}
 function _pbModelId(){return PB_AI_MODELS[pbGetAiModelKey()].id;}
 // THINKING HAIKU DIHAPUS (permintaan user, 30 Sep 2026): Haiku tidak lagi
@@ -12254,15 +12255,17 @@ function _pbThinkingParam(answerMaxTokens,modelId){
 }
 // ── MODE PERBAIKAN KATA GEMINI BERBASIS PERCAKAPAN (permintaan user, 8 Okt 2026) ──
 // '' = mati (perilaku lama), 'mini' = hanya prompt perbaikan + balasan AI + koreksi, 'full' = ditambah
-// aturan & data generate awal + hasil generate. Hanya admin; berlaku untuk SEMUA langkah model di rantai perbaikan (Gemini, Groq, GPT-OSS, Haiku).
+// aturan & data generate awal + hasil generate. Default 'full' untuk semua user (hanya admin yang bisa mengganti); berlaku untuk SEMUA langkah model di rantai perbaikan (Gemini, Groq, GPT-OSS, Haiku).
 var PB_GFIX_KEY='pb_gemini_fix_chat_v1';
-var _pbGeminiFixChat='';
-try{var _pbSvG=localStorage.getItem(PB_GFIX_KEY);if(_pbSvG==='mini'||_pbSvG==='full')_pbGeminiFixChat=_pbSvG;}catch(e){}
-function pbGeminiFixChatMode(){return pbIsAdmin()?_pbGeminiFixChat:'';} // nama lama dipertahankan; sejak v11.69 berlaku untuk SEMUA model di rantai perbaikan
+// DEFAULT 'full' UNTUK SEMUA USER (permintaan user, 9 Okt 2026): user biasa SELALU Chat penuh (tidak bisa diubah, tidak ada UI-nya).
+// Admin juga default Chat penuh, tapi tetap boleh ganti lewat panduan; pilihan 'biasa' (mati) disimpan sebagai 'off' supaya tidak balik ke default.
+var _pbGeminiFixChat='full';
+try{var _pbSvG=localStorage.getItem(PB_GFIX_KEY);if(_pbSvG==='mini'||_pbSvG==='full')_pbGeminiFixChat=_pbSvG;else if(_pbSvG==='off')_pbGeminiFixChat='';}catch(e){}
+function pbGeminiFixChatMode(){return pbIsAdmin()?_pbGeminiFixChat:'full';} // nama lama dipertahankan; berlaku untuk SEMUA model di rantai perbaikan
 function pbSetGeminiFixChat(m){
   if(!pbIsAdmin())return;
   _pbGeminiFixChat=(m===_pbGeminiFixChat||(m!=='mini'&&m!=='full'))?'':m;
-  try{if(_pbGeminiFixChat)localStorage.setItem(PB_GFIX_KEY,_pbGeminiFixChat);else localStorage.removeItem(PB_GFIX_KEY);}catch(e){}
+  try{localStorage.setItem(PB_GFIX_KEY,_pbGeminiFixChat||'off');}catch(e){}
   pbRenderAiModelPicker();
   try{if(typeof showToast==='function')showToast('Perbaikan kata (semua model): '+(_pbGeminiFixChat==='mini'?'Mini chat':(_pbGeminiFixChat==='full'?'Chat penuh':'biasa')));}catch(e){}
 }
@@ -20625,7 +20628,7 @@ function _vbIsMinimalEdit(oldT,newT){
 // ── LOG CHAT PERBAIKAN KATA GEMINI (v11.68, 9 Okt 2026, permintaan user) ──────────────────────────────
 // Tiap sesi perbaikan kata yang berjalan dalam mode Mini chat / Chat penuh dicatat ke 'pb_fixchat_log_v1'
 // (ikut PB_SYNC_KEYS -> users/{uid}/blobs/pb_fixchat_log_v1) supaya admin.html bisa menampilkan isi percakapannya
-// di tab "Chat" per user. Mode chat sendiri tetap khusus admin (lihat pbGeminiFixChatMode) — fungsi ini hanya mencatat.
+// di tab "Chat" per user. Mode chat default 'full' untuk semua user (lihat pbGeminiFixChatMode) — fungsi ini hanya mencatat.
 // Batas: 30 sesi terakhir, tiap pesan dipotong 6.000 karakter, total maks 600.000 karakter (sesi tertua dibuang dulu).
 var PB_FIXCHAT_LOG_KEY='pb_fixchat_log_v1';
 var PB_FIXCHAT_MAX_SESSIONS=30,PB_FIXCHAT_MAX_MSG=6000,PB_FIXCHAT_MAX_TOTAL=600000;
@@ -20681,7 +20684,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
   // masih di luar rentang -> lanjut ke langkah berikutnya (mis. Gemini, Gemini, lalu GPT-OSS).
   const plan=_vbFixPlan();
   let used=0; // jumlah panggilan yang benar-benar dijalankan (buat statistik)
-  // MODE PERCAKAPAN (admin saja, lihat pbGeminiFixChatMode): SEMUA langkah model berjalan sebagai chat user/assistant (riwayat dibawa antar langkah/model).
+  // MODE PERCAKAPAN (default 'full' semua user, lihat pbGeminiFixChatMode): SEMUA langkah model berjalan sebagai chat user/assistant (riwayat dibawa antar langkah/model).
   // Jumlah kata dihitung kode ini (bukan model); umpan balik putaran berikutnya berisi angka & alasan penolakan.
   const _chatMode=(typeof pbGeminiFixChatMode==='function')?pbGeminiFixChatMode():'';
   let _chat=[],_fixTurns=0,_fb={};
