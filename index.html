@@ -1892,10 +1892,14 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    kecil di atas, Video AI (hasil akhirnya) di bawahnya, menggantikan gaya
    tiket/sobekan lama. Lebar kolom kiri
    ngikutin chip terpanjang (flex:0 0 auto), semua chip dibuat sama lebar. */
-.vb-mode-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:6px;}
-.chips.vb-mode-list{flex:0 0 auto;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:var(--space-2);}
-.chips.vb-mode-list .chip{white-space:nowrap;}
-#vb-mode-preview,#vb-mode-preview-aset,#vb-mode-preview-kp,#vb-mode-preview-ms{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:stretch;animation:vbModePreviewIn .28s ease;}
+/* OKT 2026 (permintaan user, "Opsi C" dari preview rapikan tampilan): mode
+   sekarang jadi grid pill 3 kolom di ATAS (full width, ga keremet lagi
+   sama preview), deskripsi mode + preview Video AI di BAWAHNYA, bukan lagi
+   2 kolom menyamping (chip kiri sempit, preview kanan kecil 74px). */
+.vb-mode-row{display:flex;flex-direction:column;gap:10px;margin-bottom:6px;}
+.chips.vb-mode-list{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-2);}
+.chips.vb-mode-list .chip{text-align:center;white-space:normal;line-height:1.2;}
+#vb-mode-preview,#vb-mode-preview-aset,#vb-mode-preview-kp,#vb-mode-preview-ms{min-width:0;display:flex;flex-direction:column;align-items:stretch;animation:vbModePreviewIn .28s ease;}
 @keyframes vbModePreviewIn{from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:none;}}
 /* GAYA "CHECKLIST SYARAT" (Sept 2026, opsi C yang dipilih user dari preview
    "klarifikasi butuh 1 foto" — ganti dari gaya tiket/sobekan lama). Kartu
@@ -1917,7 +1921,7 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vbc-minis{display:flex;gap:4px;flex-shrink:0;}
 .vbc-mini img{width:100%;height:100%;object-fit:cover;display:block;}
 .vbc-res{padding:10px 9px 11px;display:flex;flex-direction:column;align-items:center;}
-#vb-mode-preview .pb-flow-thumb.vbc-thumb,#vb-mode-preview-aset .pb-flow-thumb.vbc-thumb,#vb-mode-preview-kp .pb-flow-thumb.vbc-thumb,#vb-mode-preview-ms .pb-flow-thumb.vbc-thumb{width:min(74px,100%);height:auto;aspect-ratio:1/1;border-radius:8px;}
+#vb-mode-preview .pb-flow-thumb.vbc-thumb,#vb-mode-preview-aset .pb-flow-thumb.vbc-thumb,#vb-mode-preview-kp .pb-flow-thumb.vbc-thumb,#vb-mode-preview-ms .pb-flow-thumb.vbc-thumb{width:min(220px,100%);height:auto;aspect-ratio:1/1;border-radius:8px;}
 .vbc-label{font-size:12px;font-weight:700;color:var(--text);line-height:1.25;margin-top:4px;}
 .vbc-sub{font-size:10px;line-height:1.35;color:var(--muted2);margin-top:-1px;}
 .vbc-sub-ai{color:var(--accent);font-weight:700;}
@@ -5830,6 +5834,15 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
                Tetap lanjut ke wizard V2-V5 (Gender/Usia, Nada, Pembawaan, Aksen, Script). -->
           <div class="chip" id="vb-mode-percobaan" onclick="vbPickRefMode('percobaan')">Percobaan</div>
         </div>
+        <!-- BUG FIX: elemen ini sebelumnya tidak ada sama sekali di HTML, padahal
+             vbPickRefMode() sudah lama mencoba mengisi teks penjelasan tiap mode
+             (VB_REF_MODE_DESC) ke sini lewat document.getElementById('vb-mode-desc').
+             Karena elemennya tidak ada, pengisian teks itu selalu gagal diam-diam
+             (dilindungi if(desc) jadi tidak error, tapi juga tidak pernah tampil) —
+             user tidak pernah melihat penjelasan mode yang dipilih. Ditambahkan di sini.
+             OKT 2026: dipindah ke sini (antara pills & kartu preview) supaya urutan
+             bacanya logis — pilih mode, baca penjelasannya, baru lihat previewnya. -->
+        <div id="vb-mode-desc" style="margin-bottom:2px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.45;"></div>
         <!-- PERMINTAAN USER (Okt 2026): pratinjau mode Frame Asset — tampilannya sama
              dengan Start Frame (checklist syarat -> Video AI) tapi syaratnya 2 foto.
              Media diisi lazy dari PB_IMG_VBASET_* lewat vbSyncAsetPreview(). -->
@@ -5902,14 +5915,6 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           </div>
         </div>
       </div>
-      <!-- BUG FIX: elemen ini sebelumnya tidak ada sama sekali di HTML, padahal
-           vbPickRefMode() sudah lama mencoba mengisi teks penjelasan tiap mode
-           (VB_REF_MODE_DESC) ke sini lewat document.getElementById('vb-mode-desc').
-           Karena elemennya tidak ada, pengisian teks itu selalu gagal diam-diam
-           (dilindungi if(desc) jadi tidak error, tapi juga tidak pernah tampil) —
-           user tidak pernah melihat penjelasan mode yang dipilih. Ditambahkan di sini. -->
-      <div id="vb-mode-desc" style="margin-bottom:10px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.45;"></div>
-
       <!-- MODE 4: kotak hasil siap-salin — tidak ada step lanjutan -->
       <div id="vb-mode4-area" class="hidden" style="margin-bottom:14px;">
         <!-- FITUR BARU (permintaan user): "Atur Detail" → Teks Overlay, sama
@@ -16047,15 +16052,18 @@ var VB_CAM_OPTS={
 var VB_CAM_HOOK_OPTS={
   satu:[
     ["satu_h_close","Wajah Dekat ke Kamera","the character brings their face very close to the camera, then at the third second moves back to the original position"],
-    ["satu_h_pat","Tepuk Produk Keras","the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"]
+    ["satu_h_pat","Tepuk Produk Keras","the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"],
+    ["satu_h_tap","Ketuk Lensa","the video starts immediately with a covered view because of the character's finger. From second 0 to 2, the character taps the lens twice with their index finger while staring at the camera. At the third second, the character steps back and points at the product"]
   ],
   aset:[
     ["aset_h_close","Wajah Dekat ke Kamera","the character brings their face very close to the camera, then at the third second moves back to the original position"],
-    ["aset_h_pat","Tepuk Produk Keras","the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"]
+    ["aset_h_pat","Tepuk Produk Keras","the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"],
+    ["aset_h_tap","Ketuk Lensa","the video starts immediately with a covered view because of the character's finger. From second 0 to 2, the character taps the lens twice with their index finger while staring at the camera. At the third second, the character steps back and points at the product"]
   ],
   kp:[
     ["kp_h_close","Wajah Dekat ke Kamera","the character brings their face very close to the camera, then at the third second moves back to the original position"],
-    ["kp_h_pat","Tepuk Produk Keras","the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"]
+    ["kp_h_pat","Tepuk Produk Keras","the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"],
+    ["kp_h_tap","Ketuk Lensa","the video starts immediately with a covered view because of the character's finger. From second 0 to 2, the character taps the lens twice with their index finger while staring at the camera. At the third second, the character steps back and points at the product"]
   ]
 };
 // Terjemahan Indonesia untuk pratinjau di kartu Pergerakan Kamera (HANYA tampilan, tidak masuk ke prompt).
@@ -16080,10 +16088,13 @@ var VB_CAM_ID_MOVES={
 var VB_CAM_ID_HOOKS={
  "satu_h_close": "Karakter mendekatkan wajahnya ke kamera dengan sangat dekat, lalu pada detik ketiga mundur ke posisi semula.",
  "satu_h_pat": "Karakter menepuk-nepuk produk dengan sangat keras dan berulang dari detik 0 sampai detik 3, penuh tenaga dan tegas; produk tetap utuh dan terlihat jelas.",
+ "satu_h_tap": "Video langsung dimulai dengan tampilan tertutup karena jari karakter. Detik 0 sampai 2, karakter mengetuk lensa dua kali dengan jari telunjuk sambil menatap kamera. Detik ketiga, karakter mundur dan menunjuk produk.",
  "aset_h_close": "Karakter mendekatkan wajahnya ke kamera dengan sangat dekat, lalu pada detik ketiga mundur ke posisi semula.",
  "aset_h_pat": "Karakter menepuk-nepuk produk dengan sangat keras dan berulang dari detik 0 sampai detik 3, penuh tenaga dan tegas; produk tetap utuh dan terlihat jelas.",
+ "aset_h_tap": "Video langsung dimulai dengan tampilan tertutup karena jari karakter. Detik 0 sampai 2, karakter mengetuk lensa dua kali dengan jari telunjuk sambil menatap kamera. Detik ketiga, karakter mundur dan menunjuk produk.",
  "kp_h_close": "Karakter mendekatkan wajahnya ke kamera dengan sangat dekat, lalu pada detik ketiga mundur ke posisi semula.",
- "kp_h_pat": "Karakter menepuk-nepuk produk dengan sangat keras dan berulang dari detik 0 sampai detik 3, penuh tenaga dan tegas; produk tetap utuh dan terlihat jelas."
+ "kp_h_pat": "Karakter menepuk-nepuk produk dengan sangat keras dan berulang dari detik 0 sampai detik 3, penuh tenaga dan tegas; produk tetap utuh dan terlihat jelas.",
+ "kp_h_tap": "Video langsung dimulai dengan tampilan tertutup karena jari karakter. Detik 0 sampai 2, karakter mengetuk lensa dua kali dengan jari telunjuk sambil menatap kamera. Detik ketiga, karakter mundur dan menunjuk produk."
 };
 // Penjelasan singkat di atas chip, sesuai mode.
 var VB_CAM_HINT={
