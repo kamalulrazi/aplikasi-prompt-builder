@@ -18287,6 +18287,9 @@ var _vbCurrentCallMode='unknown';
 // Penanda: kalau 'fix', pemakaian token panggilan yang sedang jalan dicatat sebagai PERBAIKAN KATA
 // (statistik & riwayat kind 'fix'), bukan generate biasa. Diisi hanya oleh _vbExtendShortScriptsOnce.
 var _vbUsageKindOverride='';
+// Penanda mode chat perbaikan kata Gemini ('mini' / 'full' / ''), diisi hanya selama satu panggilan perbaikan berjalan,
+// supaya baris riwayat biaya bisa diberi label Mini chat / Chat penuh (untuk membandingkan biayanya).
+var _vbUsageChatModeOverride='';
 // ── SESI GENERATE (permintaan user, Sept 2026, "statistik dipisah per
 // generate"): kelompokkan semua panggilan AI yang berasal dari SATU aksi
 // generate user (misal 1x klik "Generate Semua" utk 8 produk sebenarnya
@@ -18535,6 +18538,7 @@ function _vbLogUsageEvent(kind,mode,tok,outTok,extra){ // extra: {model,outEstTo
     model:_vbValidModelKey(extra&&extra.model)||undefined,
     outEstTok:(extra&&extra.outEstTok>0)?extra.outEstTok:undefined,
     interrupted:(extra&&extra.interrupted)?true:undefined,
+    chatMode:(extra&&(extra.chatMode==='mini'||extra.chatMode==='full'))?extra.chatMode:undefined,
     failed:(extra&&extra.failed)?true:undefined,status:(extra&&extra.status)||undefined,to:(extra&&extra.to)||undefined});
   l=_vbCompactUsageLog(l);
   _vbSaveUsageLog(l);
@@ -18984,6 +18988,28 @@ function _vbRenderUsageBadge(s){
   var allT=_vbPeriodTotals(0,now+1,archiveData,logAll);
   var modeHtml='Generate — Single: '+allT.generate.single+'x, Bulk: '+allT.generate.bulk+'x ($'+_vbBucketUsd(allT.generate).toFixed(4)+')'
     +'<br>Perbaikan Kata — Single: '+allT.fix.single+'x, Bulk: '+allT.fix.bulk+'x ($'+_vbBucketUsd(allT.fix).toFixed(4)+')';
+  // PERBANDINGAN MINI CHAT vs CHAT PENUH (permintaan user, 9 Okt 2026): dihitung dari baris riwayat perbaikan kata
+  // yang punya label chatMode. Panggilan sebelum update ini tidak punya label, jadi tidak ikut.
+  var cmAgg={mini:{calls:0,sesi:{},nc:0,cr:0,out:0,usd:0},full:{calls:0,sesi:{},nc:0,cr:0,out:0,usd:0}};
+  logAll.forEach(function(e){
+    if(e.failed||e.kind!=='fix'||(e.chatMode!=='mini'&&e.chatMode!=='full'))return;
+    var a=cmAgg[e.chatMode];
+    a.calls++;a.sesi[e.sesiId||('x'+e.ts)]=1;
+    a.nc+=e.noCacheInTok||0;a.cr+=e.cacheReadInTok||0;a.out+=e.outTok||0;
+    a.usd+=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,e.model);
+  });
+  var cmHtml=['mini','full'].map(function(k){
+    var a=cmAgg[k],nSesi=Object.keys(a.sesi).length;
+    var lbl=k==='mini'?'Mini chat':'Chat penuh';
+    if(!a.calls)return '<b>'+lbl+'</b>: belum ada data';
+    var inAll=a.nc+a.cr;
+    var cachePct=inAll>0?((a.cr/inAll)*100).toFixed(0):'0';
+    return '<b>'+lbl+'</b>: '+a.calls+' panggilan di '+nSesi+' sesi — $'+a.usd.toFixed(4)
+      +'<br>&nbsp;&nbsp;rata-rata $'+(a.usd/a.calls).toFixed(5)+' per panggilan, $'+(a.usd/nSesi).toFixed(4)+' per sesi'
+      +'<br>&nbsp;&nbsp;input '+inAll.toLocaleString('id-ID')+' token ('+cachePct+'% dari cache), output '+a.out.toLocaleString('id-ID')+' token';
+  }).join('<br>');
+  modeHtml+='<br><br><b>Perbandingan Mini chat vs Chat penuh (perbaikan kata Gemini):</b><br>'+cmHtml
+    +'<br><span style="opacity:0.65">Hanya dari panggilan sesudah update ini. Bandingkan angka "per sesi", bukan total.</span>';
   // RIWAYAT PER-SESI GENERATE (permintaan user, Sept 2026, "statistik
   // dipisah per generate"): dulu setiap baris riwayat mentah (1 per
   // panggilan batch) tampil sendiri-sendiri, bikin bingung mana yang 1x
@@ -19012,7 +19038,7 @@ function _vbRenderUsageBadge(s){
         detailHtml='<div style="margin-top:8px;padding:8px 10px;border-radius:var(--radius-xs,8px);background:var(--bg-subtle,rgba(127,127,127,0.08));">'
           +g.entries.map(function(e){
             var modeLabel=e.mode==='bulk'?'Bulk':(e.mode==='single'?'Single':'?');
-            var kindLabel=e.kind==='fix'?'Perbaikan Kata':'Generate';
+            var kindLabel=e.kind==='fix'?('Perbaikan Kata'+(e.chatMode==='mini'?' · Mini chat':(e.chatMode==='full'?' · Chat penuh':''))):'Generate';
             var cacheLabel=e.cacheReadInTok>0?'cache HIT (diskon ~90%)':(e.cacheWriteInTok>0?'nulis cache baru (+25%)':'tanpa cache');
             var evUsd=_vbCalcUsd(e.noCacheInTok,e.cacheWriteInTok,e.cacheReadInTok,e.outTok,e.model);
             var modelLbl=esc(_vbModelLabel(e.model||''));
@@ -19814,7 +19840,7 @@ function _vbTrackFixCall(usage,meta){
   // di total lifetime di atas) — sekarang ikut tercatat, jadi breakdown
   // per-tanggal/grafik/CSV juga mencakup biaya perbaikan kata, bukan cuma
   // biaya generate utama.
-  _vbLogUsageEvent('fix',_vbCurrentCallMode,tok,outTok,{model:mKey,outEstTok:estOut,interrupted:!!meta.interrupted});
+  _vbLogUsageEvent('fix',_vbCurrentCallMode,tok,outTok,{model:mKey,outEstTok:estOut,interrupted:!!meta.interrupted,chatMode:_vbUsageChatModeOverride});
   _vbRenderFixBadgeIfExpanded();
 }
 // Dipanggil sekali per SCRIPT/PRODUK setelah loop attempt berhenti (baik
@@ -20694,8 +20720,9 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
     const maxTok=Math.min(8192,600+pending.length*130);
     let fixOut;
     _vbUsageKindOverride='fix';
+    _vbUsageChatModeOverride=useChat?_chatMode:'';
     try{fixOut=await _vbFixRunStep(step,msg,maxTok,onWait,chatArg);}
-    finally{_vbUsageKindOverride='';}
+    finally{_vbUsageKindOverride='';_vbUsageChatModeOverride='';}
     if(fixOut.apiFail){
       if(_st){_st.api='gagal';_st.http=fixOut.status||0;}
       if(step.legacy)break; // perilaku lama: panggilan sudah retry sendiri, jangan buang percobaan lagi
