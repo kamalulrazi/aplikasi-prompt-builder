@@ -6254,8 +6254,8 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </div>
     <!-- MODE PERBAIKAN KATA GEMINI (permintaan user, 8 Okt 2026): hanya tampil untuk admin saat model Gemini dipilih. -->
     <div id="pb-gemini-chat-box" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-hi);">
-      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--text);">Mode perbaikan kata Gemini</div>
-      <div style="font-size:var(--fs-xs2);color:var(--muted);margin:2px 0 10px;">Perbaikan kata berjalan sebagai percakapan: Gemini melihat tulisannya sendiri dan alasan penolakannya. Klik lagi pilihan yang aktif untuk mematikan (kembali seperti biasa).</div>
+      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--text);">Mode perbaikan kata (semua model)</div>
+      <div style="font-size:var(--fs-xs2);color:var(--muted);margin:2px 0 10px;">Perbaikan kata berjalan sebagai percakapan: model melihat tulisannya sendiri dan alasan penolakannya. Berlaku untuk semua model di rantai perbaikan (Gemini, Groq, GPT-OSS, Haiku). Klik lagi pilihan yang aktif untuk mematikan (kembali seperti biasa).</div>
       <div style="display:flex;gap:8px;">
         <button type="button" class="chip pb-gfix-btn" data-mode="mini" onclick="pbSetGeminiFixChat('mini')" style="flex:1;">Mini chat</button>
         <button type="button" class="chip pb-gfix-btn" data-mode="full" onclick="pbSetGeminiFixChat('full')" style="flex:1;">Chat penuh</button>
@@ -12181,8 +12181,8 @@ function _pbBuildGroqBody(model,parts,systemText,maxTokens,stream,chatMsgs){
   var pv=_pbOaiCfg(model);
   var b={model:model,max_completion_tokens:Math.min(pv.maxOut,maxTokens||2048),messages:_pbGroqMessages(parts,systemText,pv.maxImages)};
   if(pv.reasoning)b.reasoning_effort=pv.reasoning;
-  // Mode percakapan (khusus Gemini): daftar pesan bergantian user/assistant menggantikan satu pesan user.
-  if(chatMsgs&&chatMsgs.length&&_pbProviderOf(model)==='gemini'){
+  // Mode percakapan (semua model OpenAI-compatible: Gemini, Groq, GPT-OSS): daftar pesan bergantian user/assistant menggantikan satu pesan user.
+  if(chatMsgs&&chatMsgs.length){
     var _cm=[];if(systemText)_cm.push({role:'system',content:systemText});
     chatMsgs.forEach(function(m){_cm.push({role:m.role,content:m.text});});
     b.messages=_cm;
@@ -12254,17 +12254,17 @@ function _pbThinkingParam(answerMaxTokens,modelId){
 }
 // ── MODE PERBAIKAN KATA GEMINI BERBASIS PERCAKAPAN (permintaan user, 8 Okt 2026) ──
 // '' = mati (perilaku lama), 'mini' = hanya prompt perbaikan + balasan AI + koreksi, 'full' = ditambah
-// aturan & data generate awal + hasil generate. HANYA admin yang memilih Gemini; hanya langkah Gemini di rantai.
+// aturan & data generate awal + hasil generate. Hanya admin; berlaku untuk SEMUA langkah model di rantai perbaikan (Gemini, Groq, GPT-OSS, Haiku).
 var PB_GFIX_KEY='pb_gemini_fix_chat_v1';
 var _pbGeminiFixChat='';
 try{var _pbSvG=localStorage.getItem(PB_GFIX_KEY);if(_pbSvG==='mini'||_pbSvG==='full')_pbGeminiFixChat=_pbSvG;}catch(e){}
-function pbGeminiFixChatMode(){return(pbIsAdmin()&&pbGetAiModelKey()==='gemini')?_pbGeminiFixChat:'';}
+function pbGeminiFixChatMode(){return pbIsAdmin()?_pbGeminiFixChat:'';} // nama lama dipertahankan; sejak v11.69 berlaku untuk SEMUA model di rantai perbaikan
 function pbSetGeminiFixChat(m){
   if(!pbIsAdmin())return;
   _pbGeminiFixChat=(m===_pbGeminiFixChat||(m!=='mini'&&m!=='full'))?'':m;
   try{if(_pbGeminiFixChat)localStorage.setItem(PB_GFIX_KEY,_pbGeminiFixChat);else localStorage.removeItem(PB_GFIX_KEY);}catch(e){}
   pbRenderAiModelPicker();
-  try{if(typeof showToast==='function')showToast('Perbaikan kata Gemini: '+(_pbGeminiFixChat==='mini'?'Mini chat':(_pbGeminiFixChat==='full'?'Chat penuh':'biasa')));}catch(e){}
+  try{if(typeof showToast==='function')showToast('Perbaikan kata (semua model): '+(_pbGeminiFixChat==='mini'?'Mini chat':(_pbGeminiFixChat==='full'?'Chat penuh':'biasa')));}catch(e){}
 }
 function pbRenderAiModelPicker(){
   try{
@@ -12276,7 +12276,7 @@ function pbRenderAiModelPicker(){
       b.classList.toggle('sel',b.getAttribute('data-model')===cur);
     });
     var gbox=document.getElementById('pb-gemini-chat-box');
-    if(gbox)gbox.style.display=(admin&&cur==='gemini')?'':'none';
+    if(gbox)gbox.style.display=admin?'':'none';
     document.querySelectorAll('#pb-gemini-chat-box .pb-gfix-btn').forEach(function(b){
       b.classList.toggle('sel',b.getAttribute('data-mode')===_pbGeminiFixChat);
     });
@@ -19008,7 +19008,7 @@ function _vbRenderUsageBadge(s){
       +'<br>&nbsp;&nbsp;rata-rata $'+(a.usd/a.calls).toFixed(5)+' per panggilan, $'+(a.usd/nSesi).toFixed(4)+' per sesi'
       +'<br>&nbsp;&nbsp;input '+inAll.toLocaleString('id-ID')+' token ('+cachePct+'% dari cache), output '+a.out.toLocaleString('id-ID')+' token';
   }).join('<br>');
-  modeHtml+='<br><br><b>Perbandingan Mini chat vs Chat penuh (perbaikan kata Gemini):</b><br>'+cmHtml
+  modeHtml+='<br><br><b>Perbandingan Mini chat vs Chat penuh (perbaikan kata, semua model):</b><br>'+cmHtml
     +'<br><span style="opacity:0.65">Hanya dari panggilan sesudah update ini. Bandingkan angka "per sesi", bukan total.</span>';
   // RIWAYAT PER-SESI GENERATE (permintaan user, Sept 2026, "statistik
   // dipisah per generate"): dulu setiap baris riwayat mentah (1 per
@@ -19263,7 +19263,7 @@ async function _vbStreamClaudeJSONWithRetryModel(model,promptParts,onPartial,onW
         method:'POST',
         headers:Object.assign({'Content-Type':'application/json','X-Device-Id':_pbGetDeviceId(),'X-Firebase-Token':_fbTok},_isGroq?{'X-AI-Provider':(_pbProviderOf(model)||'groq')}:{}),
         body:_isGroq?JSON.stringify(_pbBuildGroqBody(model,promptParts,systemText,maxTokensWithThinking,true,chatMsgs)):JSON.stringify(Object.assign(
-          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(cfg.maxOutputTokens,model),messages:[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
+          {model:model,stream:true,max_tokens:maxTokensWithThinking,thinking:_pbThinkingParam(cfg.maxOutputTokens,model),messages:(chatMsgs&&chatMsgs.length)?chatMsgs.map(function(m){return{role:m.role,content:m.text};}):[{role:'user',content:_vbGeminiPartsToClaudeContent(promptParts)}]},
           // FIX HEMAT BIAYA (permintaan user, Sept 2026): cache_control cuma
           // ditempel kalau cacheSystem true. System prompt generate pertama
           // mode single (_vbScript3SystemPrompt) TIDAK PERNAH tembus syarat
@@ -20598,7 +20598,9 @@ async function _vbFixRunStep(step,msg,maxTok,onWait,chatMsgs){
   let out=null;
   if(step.legacy){
     // Perilaku lama: model yang sedang dipilih, batas tunggu retry 30 dtk.
-    out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,_vbFixSystemFor(VB_TARGETED_FIX_SYSTEM),false,maxTok,30000);
+    // v11.69: kalau mode chat aktif (chatMsgs terisi), panggil versi Model langsung supaya riwayat ikut terkirim; tanpa chatMsgs perilaku sama persis dengan sebelumnya.
+    if(chatMsgs&&chatMsgs.length)out=await _vbStreamClaudeJSONWithRetryModel(_pbModelId(),[{text:msg}],undefined,onWait,_vbFixSystemFor(VB_TARGETED_FIX_SYSTEM),false,maxTok,30000,undefined,chatMsgs);
+    else out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,_vbFixSystemFor(VB_TARGETED_FIX_SYSTEM),false,maxTok,30000);
   }else{
     const m=PB_AI_MODELS[step.key];
     const stepMaxTok=Math.min(8192,maxTok+(step.extraTok||0));
@@ -20679,7 +20681,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
   // masih di luar rentang -> lanjut ke langkah berikutnya (mis. Gemini, Gemini, lalu GPT-OSS).
   const plan=_vbFixPlan();
   let used=0; // jumlah panggilan yang benar-benar dijalankan (buat statistik)
-  // MODE PERCAKAPAN GEMINI (admin saja, lihat pbGeminiFixChatMode): langkah Gemini berjalan sebagai chat user/assistant.
+  // MODE PERCAKAPAN (admin saja, lihat pbGeminiFixChatMode): SEMUA langkah model berjalan sebagai chat user/assistant (riwayat dibawa antar langkah/model).
   // Jumlah kata dihitung kode ini (bukan model); umpan balik putaran berikutnya berisi angka & alasan penolakan.
   const _chatMode=(typeof pbGeminiFixChatMode==='function')?pbGeminiFixChatMode():'';
   let _chat=[],_fixTurns=0,_fb={};
@@ -20703,7 +20705,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
       const diff=target-n;
       return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+cur+'\nCurrently '+n+' words'+(withFb?' (allowed range '+range.min+'-'+range.max+', aim for '+target+')':'')+', '+(diff>0?'add '+diff+' (only insert words, keep all existing words unchanged)':'remove '+(-diff)+' (only delete words, keep all other words unchanged)')+(withFb&&_fb[it.id]?'\nFeedback on your last reply: '+_fb[it.id]:'');
     };
-    const useChat=!!_chatMode&&!step.legacy&&step.key==='gemini';
+    const useChat=!!_chatMode;
     let msg=pending.map(function(it){return _itemLine(it,false);}).join('\n\n');
     let chatArg;
     if(useChat){
