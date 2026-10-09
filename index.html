@@ -85,6 +85,14 @@
     apply();
     return changed;
   };
+  // v11.70: restart otomatis setelah upgrade membuka app dengan penanda ?_pbup=... di alamat
+  // (supaya dianggap "buka baru" -> splash tampil, bukan "reload" -> splash dilewati). Dibersihkan di sini.
+  try{
+    if(location.search.indexOf('_pbup=')>-1){
+      var _u=new URL(location.href); _u.searchParams.delete('_pbup');
+      history.replaceState(history.state,'',_u.pathname+_u.search+_u.hash);
+    }
+  }catch(x){}
   apply();
   document.addEventListener('visibilitychange',function(){if(!document.hidden)apply();});
 })();
@@ -830,7 +838,112 @@
       _tierAt = Date.now(); _tierRetryN = 0; _setTierState('ok');
       if(typeof window.pbApplyTheme === 'function') window.pbApplyTheme();
       try{ if(typeof dlRenderBar === 'function') dlRenderBar(); }catch(x){}
+      try{ _pbTierUpgradeCheck(t); }catch(x){}
     }catch(x){}
+  }
+
+  // ══ RESTART OTOMATIS SETELAH UPGRADE (v11.70, 9 Okt 2026, permintaan user) ══════════════════════
+  // Begitu admin menyetujui upgrade (pb_tier di Firestore naik: Gratis->Standar/Premium atau
+  // Standar->Premium) dan app sedang terbuka, app otomatis dimuat ulang dan splash logo P tampil
+  // dengan tema paket baru (tema diambil dari pb_tier_v1 di localStorage lewat pbApplyTheme di <head>).
+  // Cara kerja:
+  //  1) PINTU BEL: _tierWatchStart() memasang pendengar realtime (onSnapshot) ke dokumen user.
+  //     Pendengar ini TIDAK memutuskan apa-apa sendiri; kalau tier di server lebih tinggi dari yang
+  //     tersimpan lokal, ia cuma memanggil pbRefreshTier() (jalur baca server yang sudah teruji,
+  //     lengkap dengan perlindungan dokumen setengah jadi).
+  //  2) _applyCloudTier -> _pbTierUpgradeCheck membandingkan dengan tier pembacaan server SEBELUMNYA
+  //     di sesi ini. Pembacaan server PERTAMA hanya jadi patokan (buka app biasa tidak memicu restart).
+  //  3) Kalau naik: tunggu proses generate selesai (kalau ada), kirim data yang belum tersinkron,
+  //     lalu buka ulang app lewat alamat yang sama + ?_pbup=... Ini sengaja BUKAN location.reload():
+  //     reload dianggap "refresh" -> splash DILEWATI dan draft wizard DIHAPUS. Buka-baru -> splash
+  //     tampil dan draft wizard tetap dipulihkan.
+  //  Pengaman: restart maks 1x per 2 menit (anti-loop), dan tidak dipicu dalam 20 dtk pertama sesi.
+  var _PB_TIER_RANK = {free:0, standar:1, premium:2};
+  var _lastServerTier = null, _tierBaselineAt = 0, _upgRestarting = false;
+  var _tierWatchUnsub = null, _tierWatchUid = null;
+  function _tierWatchStop(){
+    if(_tierWatchUnsub){ try{ _tierWatchUnsub(); }catch(x){} }
+    _tierWatchUnsub = null; _tierWatchUid = null;
+  }
+  function _localTierNow(){
+    var t = 'free', e = 0;
+    try{ t = localStorage.getItem('pb_tier_v1') || 'free'; e = Number(localStorage.getItem('pb_tier_expiry_v1')) || 0; }catch(x){}
+    if(t !== 'free' && e && Date.now() > e) t = 'free';
+    return _PB_TIER_RANK.hasOwnProperty(t) ? t : 'free';
+  }
+  function _tierWatchStart(){
+    try{
+      if(!_fbReady || !window.pbCloudUid) return;
+      if(_tierWatchUnsub && _tierWatchUid === window.pbCloudUid) return;
+      _tierWatchStop();
+      var ref = _docRef(); if(!ref) return;
+      _tierWatchUid = window.pbCloudUid;
+      _tierWatchUnsub = ref.onSnapshot(function(snap){
+        try{
+          if(!snap || !snap.exists || snap.metadata.fromCache || snap.metadata.hasPendingWrites) return;
+          var d = snap.data() || {};
+          var t = (typeof d.pb_tier === 'string') ? d.pb_tier.trim().toLowerCase() : '';
+          if(!t || !window.PB_TIER_CONFIG || !window.PB_TIER_CONFIG[t]) return;
+          var ex = _pbNormExpiry(d.pb_tier_expiry);
+          if(ex < 0 || (ex > 0 && Date.now() > ex)) return; // kedaluwarsa/tak terbaca: bukan upgrade
+          if((_PB_TIER_RANK[t] || 0) > (_PB_TIER_RANK[_localTierNow()] || 0)) window.pbRefreshTier();
+        }catch(x){}
+      }, function(err){ console.warn('Pantau paket berhenti:', err); _tierWatchStop(); });
+    }catch(x){}
+  }
+  function _pbTierUpgradeCheck(t){
+    var prev = _lastServerTier;
+    _lastServerTier = t;
+    if(prev === null){ _tierBaselineAt = Date.now(); }      // pembacaan server pertama = patokan
+    else if((_PB_TIER_RANK[t] || 0) > (_PB_TIER_RANK[prev] || 0)
+            && Date.now() - _tierBaselineAt > 20000){        // naik paket -> restart
+      _pbRestartAfterUpgrade(t);
+    }
+    if(t === 'premium') _tierWatchStop(); else _tierWatchStart(); // premium tidak ada tingkat di atasnya
+  }
+  function _pbUpgBusy(){
+    try{ return (typeof _vbGuardGenerating === 'function') && !!_vbGuardGenerating(); }catch(x){ return false; }
+  }
+  function _pbRestartAfterUpgrade(t){
+    if(_upgRestarting) return;
+    try{
+      var last = Number(localStorage.getItem('pb_upg_restart_v1')) || 0;
+      if(Date.now() - last < 120000) return; // anti-loop
+    }catch(x){}
+    _upgRestarting = true;
+    var C = window.PB_TIER_CONFIG || {};
+    var label = (C[t] && C[t].label) || t;
+    var told = false;
+    function step(){
+      if(_pbUpgBusy()){ // jangan putus proses generate yang sedang jalan
+        if(!told){ told = true; try{ showToast('Upgrade ' + label + ' berhasil! Aplikasi dimuat ulang setelah proses generate selesai.', 'success'); }catch(x){} }
+        setTimeout(step, 1500); return;
+      }
+      if(!told){ try{ showToast('Upgrade ' + label + ' berhasil! Memuat ulang aplikasi…', 'success'); }catch(x){} }
+      setTimeout(function(){ if(_pbUpgBusy()) step(); else _pbDoUpgradeRestart(); }, 1400);
+    }
+    step();
+  }
+  function _pbDoUpgradeRestart(){
+    try{ localStorage.setItem('pb_upg_restart_v1', String(Date.now())); }catch(x){}
+    window._pbSkipUnloadWarn = true; // jangan munculkan dialog "yakin keluar?" bawaan
+    var done = false;
+    function nav(){
+      if(done) return; done = true;
+      try{
+        var u = new URL(location.href); u.searchParams.set('_pbup', String(Date.now()));
+        location.replace(u.toString());
+      }catch(x){ try{ location.reload(); }catch(y){} }
+      // Jaring pengaman: kalau navigasi macet diam-diam, pakai reload biasa (splash dilewati, tapi tema tetap baru).
+      setTimeout(function(){ try{ location.reload(); }catch(x){} }, 5000);
+    }
+    try{
+      Promise.race([
+        Promise.resolve(typeof window.pbCloudFlush === 'function' ? window.pbCloudFlush() : null),
+        new Promise(function(r){ setTimeout(r, 2000); })
+      ]).then(nav, nav); // kirim data yang belum tersinkron dulu (maks 2 dtk)
+    }catch(x){ nav(); }
+    setTimeout(nav, 2500);
   }
 
   // FIX (audit auth #3/#5, Sept 2026): status muat paket + retry + normalisasi expiry.
@@ -1205,6 +1318,7 @@
   };
   window.pbCloudSignOut = function(){
     clearTimeout(_tierRetryT); _tierState = 'unknown';
+    _tierWatchStop(); _lastServerTier = null; _tierBaselineAt = 0; // v11.70: hentikan pantau upgrade
     window.pbCloudUid = null;
     _setSyncStatus('off');
     // FIX (Sept 2026): kembalikan promise-nya supaya logout bisa MENUNGGU
@@ -4226,7 +4340,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.69</div>
+  <div class="splash-version" id="splash-version">v11.70</div>
 </div>
 <script>
   (function(){
@@ -6316,7 +6430,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.69 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.70 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
