@@ -20307,6 +20307,42 @@ function _vbSapaanRule(){
   else if(pr==='ak')r+=' Speak with aku/kamu, never gue/lo/gw.';
   return r;
 }
+// ── CONTOH REFERENSI PER NADA+AKSEN (permintaan user, 9 Okt 2026) ───────────────────────────
+// Default: contoh tas piknik (netral). Kalau nada = toxic DAN aksen = Batak, contoh diganti skrip tumbler anti bocor
+// berlogat Batak & nada toxic (hinaan ke kebiasaan, bukan fisik/suku). Label "irama & struktur saja" TIDAK diubah.
+// Tambah kombinasi lain di VB_REFERENCE_BY_COMBO (kunci: nadaKey+'|'+aksen).
+var VB_REFERENCE_HEAD='REFERENCE (rhythm and structure only; never copy its words, product or place; write every sentence fresh for the product in DATA):\n';
+var VB_REFERENCE_DEFAULT=
+  'hook: piknik tapi bawa kresek? malu - maluin banget loh, mending pakek tas ini aja, estetik, muat banyak, foto piknik juga langsung makin cakep.\n'+
+  'story: bayangin, kamu piknik sama teman-teman, semua bawa bekal di tas biasa. tapi kamu datang bawa tas ini, langsung semua noleh dan minta foto bareng sama tas-nya.\n'+
+  'cta: yuk buruan cek dulu harganya di keranjang bawah, jangan sampai harganya naik pas kamu mau beli, buruan! siapa tau kamu beruntung bisa dapat harga lebih murah dari yang lain';
+var VB_REFERENCE_BY_COMBO={
+  'toxic|light Batak accent':
+    'hook: bah, masih pakai botol bocor? alay kali kau, lae! tas basah, dokumen kuyup, sok sibuk pula. cemana pula mau kelihatan profesional? ganti tumbler ini lah, anti bocor.\n'+
+    'story: bayangin, kau rapat, botolmu bocor, kawan-kawan lap meja sambil geleng, kampungan kali kau, bah. sekarang bawa tumbler ini, tas kering, air dingin, baru kau tau rasanya tenang.\n'+
+    'cta: cepat kali kau cek harganya di keranjang bawah, lae, jangan lelet, nanti naik kau nangis. siapa tau kau mujur, dapat harga lebih murah dari yang lain.',
+  'toxic|light Sundanese accent':
+    'hook: aduh atuh, naha masih pakai botol bocor wae? ceroboh pisan, tas basah, dokumen kuyup, tapi sok sibuk mah. ganti tumbler ieu atuh, anti bocor, jangan kampungan wae.\n'+
+    'story: bayangin, kamu rapat, botol bocor deui, teman-teman geus lap meja sambil ngeledek, lebay pisan mah. bawa tumbler ieu atuh, tas kering, air dingin, jangan bikin malu wae.\n'+
+    'cta: buruan atuh cek harganya di keranjang bawah, ulah lelet kayak siput, engke naik nangis pisan kamu. siapa tau kamu beruntung, dapat harga lebih murah ti nu lain.',
+  'toxic|casual Jakarta accent':
+    'hook: payung patah mulu, otak lo ditaruh mana sih? basah kuyup tiap hujan, norak banget, udah ceroboh, sok sibuk lagi. ganti payung lipat ini dong, jangan bikin malu.\n'+
+    'story: bayangin, di halte semua kering, lo doang kuyup nutupin kepala pakai tas, diketawain orang, kampungan banget sih. bawa payung lipat ini dong, jangan jadi tontonan terus.\n'+
+    'cta: buruan dong cek harganya di keranjang bawah, udah ceroboh jangan lelet lagi, nanti naik lo nangis, rasain sendiri. siapa tau lo beruntung, dapat harga lebih murah.',
+  'toxic|light Javanese accent':
+    'hook: wis tenan, hp mati terus kok ora kapok. ceroboh tenan kamu, ora tau ngecas, tapi sok sibuk. bawa power bank iki wae, ora ribet, jangan bikin malu.\n'+
+    'story: bayangin, kamu nunggu ojek, hp mati, kawan-kawan wis pamit pulang, kamu dewekan, ndeso tenan. bawa power bank iki dhisik, hp urip terus, ora ngrepoti wong.\n'+
+    'cta: cepetan cek dhisik harganya di keranjang bawah, aja lelet kayak keong, engko naik kamu nyesel dewe. siapa tau kamu beruntung, dapat harga lebih murah dari yang lain.',
+  'toxic|neutral standard accent':
+    'hook: sepatu numpuk di depan pintu, masih bilang rumah rapi? jorok banget sih, ceroboh lagi. pakai rak sepatu lipat ini aja, muat banyak, jangan bikin malu tamu.\n'+
+    'story: bayangin, tamu datang, sepatu berantakan, kamu buru-buru nendang ke kolong sofa, norak banget loh. pasang rak sepatu lipat ini dulu, rapi, lega, tamu juga nggak ilfeel.\n'+
+    'cta: buruan cek harganya di keranjang bawah, jangan lelet kayak biasa, nanti naik kamu nyesel sendiri, rasain. siapa tau kamu beruntung, dapat harga lebih murah dari yang lain.'
+};
+function _vbReferenceBlock(pitch,accent){
+  var p=String(pitch==null?'':pitch).trim(),a=String(accent==null?'':accent).trim();
+  var pk=(p==='toxic'||p==='snarky')?'toxic':(p==='bercanda'||p==='joking')?'joking':(p==='gaul'||p==='casual slang')?'gaul':p;
+  return VB_REFERENCE_HEAD+(VB_REFERENCE_BY_COMBO[pk+'|'+a]||VB_REFERENCE_DEFAULT);
+}
 function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age){
   // v11.47 (6 Okt 2026, permintaan user: prompt dirapikan) — 6 kalimat kini bernomor 1-6, produk disebut sekali di kalimat 2 (REALIZE),
   //   STYLE -> SPEAKING STYLE (nada tetap TONE; label DATA 'Style:' -> 'Tone:'), RULES dipecah (FORMAT/LENGTH/PRODUCT NAME/IMAGES/PRODUCT FACTS), "and so on" dihapus.
@@ -20389,7 +20425,7 @@ function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age){
   return [
     'TASK\nWrite the CHARACTER spoken Indonesian monologue (see DATA) for EACH product in DATA, as 3 parts: hook, story, cta.'+(count>1?' Write each product separately; the situation must truly fit that product.':'')+'\nEach part is one 8-second clip of the CHARACTER talking to camera, like a voice note to a close friend, never like ad copy.',
     'HOOK: open with a relatable everyday situation as a short question or complaint, so the viewer feels a little embarrassed, annoyed or curious. The first five words must already stop the scroll. Then bring in the product as the better choice (like mending pakai ini aja) with two or three short benefits the viewer can picture. Follow the HOOK style in DATA if any.\nSTORY: open with a scene starter (like bayangin, coba deh) and put the viewer in one real moment with other people. First the ordinary situation, then the viewer shows up with the product and gets a visible reaction (people look, ask, want a photo). Show it, never list specs, never claim to have used the product.\nCTA: invite the viewer to check the price in the "keranjang bawah" (the cart button on screen, not a physical object), warn lightly that the price may go up, then tease the hope of a cheaper price than others. Urgency is allowed only in this form. Never invent discounts or numbers, never mention limited stock, checkout or keranjang kuning.',
-    'REFERENCE (rhythm and structure only; never copy its words, product or place; write every sentence fresh for the product in DATA):\nhook: piknik tapi bawa kresek? malu - maluin banget loh, mending pakek tas ini aja, estetik, muat banyak, foto piknik juga langsung makin cakep.\nstory: bayangin, kamu piknik sama teman-teman, semua bawa bekal di tas biasa. tapi kamu datang bawa tas ini, langsung semua noleh dan minta foto bareng sama tas-nya.\ncta: yuk buruan cek dulu harganya di keranjang bawah, jangan sampai harganya naik pas kamu mau beli, buruan! siapa tau kamu beruntung bisa dapat harga lebih murah dari yang lain',
+    _vbReferenceBlock(pitch,accent),
     'SPEAKING STYLE: Ngomong kayak voice note ke satu teman, boleh nyeletuk. Spoken, not written. '+_lg.gaya,
     _pv,
     _nd,
