@@ -4340,7 +4340,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.72</div>
+  <div class="splash-version" id="splash-version">v11.74</div>
 </div>
 <script>
   (function(){
@@ -6218,7 +6218,9 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           <div class="inp-wrap" style="margin-bottom:12px;">
             <input class="inp" id="vb-bulk-target" maxlength="200" placeholder="Contoh: perempuan usia 20-30 tahun yang suka belanja online" oninput="vbBulkTargetInput('vb-bulk-target',this)" />
           </div>
-          <label class="inplabel">Sapaan ke penonton <span style="font-weight:400;color:var(--muted);">(opsional)</span></label>
+          <!-- Sapaan ke penonton: tersembunyi secara default (permintaan user, Okt 2026); klik judulnya untuk membuka. -->
+          <label class="inplabel" id="vb-sapaan-toggle" role="button" tabindex="0" aria-expanded="false" onclick="vbToggleSapaan()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();vbToggleSapaan();}" style="cursor:pointer;display:flex;align-items:center;gap:6px;">Sapaan ke penonton <span style="font-weight:400;color:var(--muted);">(opsional)</span><span id="vb-sapaan-sum" style="font-weight:600;color:var(--accent);"></span><span id="vb-sapaan-chev" style="margin-left:auto;color:var(--muted);">▾</span></label>
+          <div id="vb-sapaan-body" class="hidden">
           <div id="vb-sapaan-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">
             <div class="chip" onclick="vbPickSapaan('kak',this)">kak</div>
             <div class="chip" onclick="vbPickSapaan('kalian',this)">kalian</div>
@@ -6227,6 +6229,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           </div>
           <div class="inp-wrap" style="margin-bottom:12px;">
             <input class="inp" id="vb-sapaan-input" maxlength="20" placeholder="Atau isi sendiri, contoh: kakak semua" oninput="vbSapaanInput(this)" />
+          </div>
           </div>
           <button id="vb-bulk-btn" class="btn" onclick="vbBulkMainAction()" style="font-size:var(--fs-md);padding:13px;">Generate Prompt</button>
           <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">Tiap produk otomatis dapat 3 script dengan alur tetap: Hook (stop scroll + sadarkan masalah), Cerita (produk jadi solusi), CTA (ajak cek keranjang). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
@@ -6430,7 +6433,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.72 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.74 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -20009,6 +20012,18 @@ function _vbSapaanPronoun(val){
   });
   return hit;
 }
+function vbToggleSapaan(){
+  let b=document.getElementById('vb-sapaan-body'),t=document.getElementById('vb-sapaan-toggle'),c=document.getElementById('vb-sapaan-chev');
+  if(!b)return;
+  let open=b.classList.toggle('hidden')===false;
+  if(t)t.setAttribute('aria-expanded',open?'true':'false');
+  if(c)c.textContent=open?'▴':'▾';
+}
+// Ringkasan pilihan sapaan di sebelah judul, supaya tetap kelihatan walau bagian ini ditutup.
+function _vbSapaanSumSync(){
+  let e=document.getElementById('vb-sapaan-sum');
+  if(e)e.textContent=VB_SAPAAN?('· '+VB_SAPAAN):'';
+}
 function vbRenderSapaanChips(){
   try{
     var wrap=document.getElementById('vb-sapaan-chips');
@@ -20019,6 +20034,7 @@ function vbRenderSapaanChips(){
       list.forEach(function(it){if(it[0]===VB_SAPAAN)keep=true;});
       if(!keep){VB_SAPAAN='';VB_SAPAAN_FROM_CHIP=false;}
     }
+    _vbSapaanSumSync();
     wrap.innerHTML='';
     list.forEach(function(it){
       var d=document.createElement('div');
@@ -20034,13 +20050,15 @@ function vbPickSapaan(val,el){
   let inp=document.getElementById('vb-sapaan-input');
   let already=(VB_SAPAAN===val&&el&&el.classList.contains('sel'));
   if(wrap)wrap.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
-  if(already){VB_SAPAAN='';VB_SAPAAN_FROM_CHIP=false;return;}
+  if(already){VB_SAPAAN='';VB_SAPAAN_FROM_CHIP=false;_vbSapaanSumSync();return;}
   VB_SAPAAN=val;VB_SAPAAN_FROM_CHIP=true;
   if(el)el.classList.add('sel');
   if(inp)inp.value='';
+  _vbSapaanSumSync();
 }
 function vbSapaanInput(el){
   VB_SAPAAN=String(el.value||'').replace(/[\r\n"]+/g,' ').trim();VB_SAPAAN_FROM_CHIP=false;
+  _vbSapaanSumSync();
   let wrap=document.getElementById('vb-sapaan-chips');
   if(wrap&&el.value.length>0)wrap.querySelectorAll('.chip').forEach(function(c){c.classList.remove('sel');});
 }
@@ -24201,9 +24219,9 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     if(tampilOverride)instructionText+=_vbEn(tampilOverride)+' ';
   }else{
     instructionText=VB_REF_MODE_TEXT[VB.refMode]||VB_REF_MODE_TEXT.satu;
-    // Jalur "Tulis Manual" (Start Frame / Frame Asset / Percobaan): Nama Produk WAJIB diisi
-    // (permintaan user, Okt 2026) dan otomatis masuk ke prompt. Mode AI & Bulk tidak berubah.
-    if((VB.pbDone||VB.pbPath)==='manual'){
+    // Nama Produk (yang diisi user) otomatis masuk ke prompt di SEMUA jalur (Kami Bantu Isi, Tulis Manual, Bulk)
+    // untuk Start Frame / Frame Asset / Percobaan. Hanya namanya, tanpa detail produk lain. Di Tulis Manual wajib diisi.
+    {
       let _pn=String(produkOverride||'').replace(/["\r\n]+/g,' ').replace(/\s+/g,' ').trim();
       if(_pn)instructionText=instructionText.replace(/\s+$/,'')+' The product being promoted is '+_pn+'.';
     }
