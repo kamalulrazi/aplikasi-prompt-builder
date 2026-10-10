@@ -4353,7 +4353,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.76</div>
+  <div class="splash-version" id="splash-version">v11.77</div>
 </div>
 <script>
   (function(){
@@ -6447,7 +6447,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.76 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.77 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -16929,10 +16929,13 @@ var VB_MOTION_OPTS=[
   {k:'cuek stylish',label:'Cuek & Stylish',g:'fm',en:'effortlessly cool and a little nonchalant: relaxed half-smile, slow head tilt, casual adjustment of hair or collar, laid-back eye contact'},
   {k:'curhat ke temen',label:'Curhat ke Temen',g:'fm',en:'confiding in a close friend: leaning slightly toward the camera, animated eyebrows, small expressive hand movements, a you-have-to-try-this energy'},
   // Nada TOXIC
-  {k:'sinis nyinyir',label:'Sinis & Nyinyir',g:'fm',en:'sarcastic and judgmental: a slow eye-roll, one raised eyebrow, a smirk of mild disdain, dismissive hand flicks'},
-  {k:'sarkas dingin',label:'Sarkas Dingin',g:'fm',en:'cold deadpan sarcasm: flat unimpressed expression, steady eye contact with the camera, minimal movement, a slow tilt of the head'},
-  {k:'nyolot kesal',label:'Nyolot Pura-pura Kesal',g:'fm',en:'feigned exasperation: an audible sigh, hand on hip, narrowed eyes, a scolding finger pointed at the camera'},
-  {k:'songong',label:'Songong & Pede',g:'fm',en:'smug and self-assured: chin slightly raised, a confident smirk, slow knowing nods, a dismissive flick of the hand'}
+  // Nada TOXIC: 10 Okt 2026, permintaan user — semua pembawaan toxic lama dihapus dari pilihan, diganti SATU pembawaan ini (teks dari user apa adanya, diterjemahkan ke Inggris).
+  // 4 entri lama di bawah ditandai legacy:true: tidak tampil lagi, hanya disimpan agar entri Riwayat lama yang memakai key-nya tetap menghasilkan prompt yang sama.
+  {k:'meremehkan sinis',label:'Meremehkan & Sinis',g:'fm',nadaOnly:'toxic',en:'belittling the audience and showing a cynical face without smiling'},
+  {k:'sinis nyinyir',label:'Sinis & Nyinyir',g:'fm',legacy:true,en:'sarcastic and judgmental: a slow eye-roll, one raised eyebrow, a smirk of mild disdain, dismissive hand flicks'},
+  {k:'sarkas dingin',label:'Sarkas Dingin',g:'fm',legacy:true,en:'cold deadpan sarcasm: flat unimpressed expression, steady eye contact with the camera, minimal movement, a slow tilt of the head'},
+  {k:'nyolot kesal',label:'Nyolot Pura-pura Kesal',g:'fm',legacy:true,en:'feigned exasperation: an audible sigh, hand on hip, narrowed eyes, a scolding finger pointed at the camera'},
+  {k:'songong',label:'Songong & Pede',g:'fm',legacy:true,en:'smug and self-assured: chin slightly raised, a confident smirk, slow knowing nods, a dismissive flick of the hand'}
 ];
 function vbMotionOpt(val){
   for(var i=0;i<VB_MOTION_OPTS.length;i++)if(VB_MOTION_OPTS[i].k===val)return VB_MOTION_OPTS[i];
@@ -16947,7 +16950,8 @@ function vbMotionAllowed(o,gender){
 // Filter pembawaan: gender SELALU, nada (pitch) kalau ada daftarnya di VB_MOTION_BY_NADA.
 // Nada tulis-sendiri / belum dipilih / pitch tidak dikirim -> hanya disaring gender. Kalau hasil saringan kosong, jatuh ke saringan gender saja.
 function vbMotionOptsFor(gender,pitch){
-  var byG=VB_MOTION_OPTS.filter(function(o){return vbMotionAllowed(o,gender);});
+  var _pn=String(pitch||'').trim().toLowerCase();
+  var byG=VB_MOTION_OPTS.filter(function(o){return !o.legacy&&(!o.nadaOnly||o.nadaOnly===_pn)&&vbMotionAllowed(o,gender);});
   var list=vbMotionNadaList(pitch);
   if(!list)return byG;
   var both=byG.filter(function(o){return list.indexOf(o.k)>-1;});
@@ -16963,7 +16967,7 @@ function vbMotionValid(val,gender){var o=vbMotionOpt(val);return !o||vbMotionAll
 var VB_MOTION_BY_NADA={
   'bercanda':['ngelawak receh','jahil usil','ketawa ngakak','sok serius','kocak slengean','heboh nemu barang bagus','lebay banget','gemes imut'],
   'gaul':['santai nongkrong','asik kekinian','cuek stylish','curhat ke temen','hype host live','energik semangat','kocak slengean','natural santai'],
-  'toxic':['sinis nyinyir','sarkas dingin','nyolot kesal','songong','cool tegas']
+  'toxic':['meremehkan sinis']
 };
 // Daftar key pembawaan yang cocok untuk nada ini, atau null kalau nada tidak punya daftar (tulis-sendiri/kosong).
 function vbMotionNadaList(pitch){
@@ -17603,7 +17607,7 @@ function _vbCharVal(idx,key){
 }
 function _vbCharFields(){
   var fl=[
-    {key:'motion',title:'Pembawaan',none:'Tanpa pembawaan',ph:'Atau isi sendiri, contoh: anggun dan kalem',max:80,chips:VB_MOTION_OPTS.map(function(o){return [o.k,o.label];})},
+    {key:'motion',title:'Pembawaan',none:'Tanpa pembawaan',ph:'Atau isi sendiri, contoh: anggun dan kalem',max:80,chips:VB_MOTION_OPTS.filter(function(o){return !o.legacy&&!o.nadaOnly;}).map(function(o){return [o.k,o.label];})},
     {key:'gender',title:'Jenis Kelamin',chips:[['male','Laki-laki'],['female','Perempuan']]},
     {key:'age',title:'Usia',ph:'Atau isi sendiri, contoh: elderly woman, around 65 years old',max:120,chips:[['child, approximately 5-10 years old','Anak-anak'],['teenager, approximately 15-20 years old','Remaja'],['young adult, approximately 20-30 years old','Dewasa Muda'],['adult, approximately 30-45 years old','Dewasa'],['middle-aged adult, approximately 45-60 years old','Paruh Baya']]},
     {key:'pitch',title:'Nada Bicara',ph:'Atau tulis sendiri, contoh: lelah tapi tetap ramah',max:80,chips:[['bercanda','Bercanda'],['gaul','Gaul'],['toxic','Toxic']]},
