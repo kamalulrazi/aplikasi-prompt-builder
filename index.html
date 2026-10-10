@@ -6050,10 +6050,19 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     <div class="whead"><div class="wnum">3</div><div class="wtitle">Nada Bicara</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va3"></div></div>
     <div class="wbody">
       <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Emosi/energi karakter saat ngomong — apakah terdengar semangat, kalem, atau jenaka.</p>
-      <div class="chips">
-        <div class="chip" onclick="vbPickPitch('bercanda',this,'Bercanda')">Bercanda</div>
-        <div class="chip" onclick="vbPickPitch('gaul',this,'Gaul')">Gaul</div>
-        <div class="chip" onclick="vbPickPitch('toxic',this,'Toxic')">Toxic</div>
+      <!-- NADA BICARA — tampilan "Pelat Geser" 3 baris (opsi A dari preview-nada-bicara, 10 Okt 2026): satu panel kaca, pelat emas meluncur ke baris terpilih.
+           Pakai gaya .cp yang sama dengan Cara Bikin Script (ikut tier Gratis/Standar/Premium). Logika: vbPitchPlate() di dekat vbPickPitch. -->
+      <div class="cp cp3" id="v3-box" role="radiogroup" aria-label="Nada bicara">
+        <span class="plate" aria-hidden="true"></span>
+        <button type="button" class="pb-fk" role="radio" aria-checked="false" data-v="bercanda" onclick="vbPickPitch('bercanda',this,'Bercanda')">
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.3"/><path d="M9 10.2c.4-.9 1.1-.9 1.5 0M13.5 10.2c.4-.9 1.1-.9 1.5 0"/><path d="M8.2 13.6c1 2.3 2.5 3.4 3.8 3.4s2.8-1.1 3.8-3.4"/></svg><span class="pb-fk-text"><b>Bercanda</b><small>Lucu &amp; santai</small></span><span class="mk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        </button>
+        <button type="button" class="pb-fk" role="radio" aria-checked="false" data-v="gaul" onclick="vbPickPitch('gaul',this,'Gaul')">
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21.5c-4.1 0-6.8-2.7-6.8-6.4 0-2.4 1.1-4.1 2.3-5.7.2 1.1.8 1.7 1.7 2-.6-3.4.6-6.3 3.5-8.4-.3 2.1.4 3.9 1.9 5.1 1.9 1.6 3.9 3.3 3.9 6.9 0 3.7-2.6 6.5-6.5 6.5z"/></svg><span class="pb-fk-text"><b>Gaul</b><small>Kayak chat ke temen</small></span><span class="mk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        </button>
+        <button type="button" class="pb-fk" role="radio" aria-checked="false" data-v="toxic" onclick="vbPickPitch('toxic',this,'Toxic')">
+          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.7 4.7c.8-.9 2-1.1 3-.5"/><path d="M9.9 5c3 .4 5.5 2.7 5.2 6.1-.4 4.4-4 8.8-7.4 8.5-2.6-.2-4.3-2.4-4-5 .3-3.6 2.9-6.3 6.2-9.6z"/></svg><span class="pb-fk-text"><b>Toxic</b><small>Nyelekit, blak-blakan</small></span><span class="mk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        </button>
       </div>
       <div class="mt12">
         <label class="inplabel">Atau tulis sendiri</label>
@@ -16886,9 +16895,35 @@ function vbPickAgeCustom(){
   vbCheckV2Done();
 }
 
+// Pelat Geser Nada Bicara (10 Okt 2026): tandai baris terpilih + geser pelat. val kosong = tidak ada pilihan (pelat hilang).
+function vbPitchPlate(val){
+  var bx=document.getElementById('v3-box'); if(!bx)return;
+  bx.querySelectorAll('.pb-fk').forEach(function(b){
+    var on=!!val&&b.getAttribute('data-v')===val;
+    b.classList.toggle('sel',on);
+    b.setAttribute('aria-checked',on?'true':'false');
+    b.tabIndex=(!val||on)?0:-1;
+  });
+  var cur=bx.getAttribute('data-sel')||'';
+  if(val===cur)return;
+  if(val&&!cur){ // pilihan pertama: pelat muncul (fade) di barisnya, tidak meluncur dari atas
+    bx.classList.add('nt');bx.setAttribute('data-sel',val);void bx.offsetWidth;
+    requestAnimationFrame(function(){bx.classList.remove('nt');});
+  }else if(val)bx.setAttribute('data-sel',val);
+  else bx.removeAttribute('data-sel');
+}
+// navigasi panah (radiogroup) untuk Nada Bicara
+document.addEventListener('keydown',function(e){
+  var t=e.target; if(!t||!t.closest||!t.closest('#v3-box'))return;
+  var k=e.key,d=(k==='ArrowDown'||k==='ArrowRight')?1:((k==='ArrowUp'||k==='ArrowLeft')?-1:0);
+  if(!d)return;
+  var rows=Array.prototype.slice.call(document.querySelectorAll('#v3-box .pb-fk')),i=rows.indexOf(t);
+  if(i<0)return;
+  e.preventDefault();
+  var n=rows[(i+d+rows.length)%rows.length]; n.focus(); n.click();
+});
 function vbPickPitch(val,el,label){
-  document.querySelectorAll('#v3 .chip').forEach(c=>c.classList.remove('sel'));
-  el.classList.add('sel');
+  vbPitchPlate(val);
   fShowConfirm('v3', el, function(){ vbPickPitchConfirmed(val,label); });
 }
 function vbPickPitchConfirmed(val,label){
@@ -16901,7 +16936,7 @@ function vbPickPitchConfirmed(val,label){
 function vbPickPitchCustom(){
   let val=document.getElementById('v3-custom').value.trim();
   if(!val){showToast('Isi dulu ya','error');return;}
-  document.querySelectorAll('#v3 .chip').forEach(c=>c.classList.remove('sel'));
+  vbPitchPlate('');
   vbPickPitchConfirmed(val,val.length>24?val.substring(0,24)+'...':val);
 }
 
@@ -24638,7 +24673,7 @@ function vbResetNow(){
     // tidak pernah disentuh, jadi chip lama tetap kelihatan ke-highlight
     // walau datanya sudah kosong. Tambahkan pembersihan untuk ketiganya.
     document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
-    document.querySelectorAll('#v3 .chips .chip').forEach(c=>c.classList.remove('sel'));
+    try{vbPitchPlate('');}catch(eP){} // Nada Bicara (pelat geser)
     document.querySelectorAll('#v4 .chips .chip').forEach(c=>c.classList.remove('sel'));
     try{VB_AKSEN_STYLE_PENDING='';vbRenderAksenStyleChips('');}catch(eAs){} // chip "Gaya khas aksen" ikut disembunyikan
     // Step 4 Motion Karakter (id vmotion, di luar daftar v1-v5 di atas): reset kartu,
@@ -29254,6 +29289,17 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 .cp .pb-fk.sel .mk svg{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){.cp .plate,.cp .pb-fk,.cp .mk::before,.cp .mk svg,.cp .gi{transition:none!important}}
 #pb-fk-go:disabled{opacity:.4;cursor:not-allowed}
+/* NADA BICARA — varian 3 baris dari "Pelat Geser" (opsi A, 10 Okt 2026): baris punya deskripsi singkat; pelat meluncur sesuai pilihan. */
+.cp3{--rh:80px}
+.cp3[data-sel="bercanda"] .plate{opacity:1}
+.cp3[data-sel="gaul"] .plate{opacity:1;transform:translateY(var(--rh))}
+.cp3[data-sel="toxic"] .plate{opacity:1;transform:translateY(calc(var(--rh) * 2))}
+.cp3 .pb-fk{padding:0 14px 0 20px}
+.cp3 .pb-fk:hover{background:rgba(255,255,255,.02)}
+.cp3 .pb-fk-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cp3 .pb-fk .pb-fk-text b{flex:none;font:600 15.5px/1.25 'Geist',system-ui,sans-serif;letter-spacing:-.2px;color:var(--text)}
+.cp3 .pb-fk .pb-fk-text small{font:400 11px/1.3 'Geist',system-ui,sans-serif;color:var(--muted)}
+.cp3 .pb-fk.sel .pb-fk-text b{color:var(--accent-2)}
 #vb-script-choose{display:none!important}
 @media (prefers-reduced-motion:reduce){.pb-tl .pop{animation:none}}
 </style>
@@ -29326,7 +29372,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
     v2:function(){VB.gender='';VB.genderLabel='';VB.age='';VB.ageLabel='';off('#vb-gender-chips .chip,#vb-age-chips .chip');val('v2-custom','');cnt('v2-counter','Maks. 120 tahun');},
     vcam:function(){VB.camMove='';VB.camHook='';off('#vcam .chip');try{_vbCamPendMove='';_vbCamPendHook='';}catch(e){}},
     vfork:function(){if(window.pbSelectPath)window.pbSelectPath('');},
-    v3:function(){VB.pitch='';VB.pitchLabel='';off('#v3 .chip');val('v3-custom','');cnt('v3-counter','0 / 80');},
+    v3:function(){VB.pitch='';VB.pitchLabel='';off('#v3 .chip');try{vbPitchPlate('');}catch(e){}val('v3-custom','');cnt('v3-counter','0 / 80');},
     vmotion:function(){VB.motion='';off('#vmotion .chip');val('vmotion-custom','');cnt('vmotion-counter','0 / 80');try{_vbMotionDrawChips();}catch(e){}},
     v4:function(){VB.accent='';VB.accentLabel='';VB.accentStyle='';VB.accentStyleLabel='';VB.accentStyleFor='';off('#v4 .chip');val('v4-custom','');cnt('v4-counter','0 / 120');try{VB_AKSEN_STYLE_PENDING='';vbRenderAksenStyleChips('');}catch(e){}},
     /* Script/Info Produk: kosongkan isian teks, audiens, sapaan. Foto produk & jumlah produk dibiarkan. */
