@@ -2363,7 +2363,11 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 
 /* TOAST */
 /* FIX (laporan user: setelah error 403, klik Panduan lalu Video tidak bisa): toast dulu TIDAK punya pointer-events:none. Toast error yang panjang & sudah hilang (opacity:0) tetap menutupi tab nav bawah dan mencegat klik, jadi tab Video/Riwayat tidak bisa ditekan. */
-#toast{pointer-events:none;position:fixed;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);padding:var(--space-3) var(--space-7);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:500;font-family:'Geist',sans-serif;z-index:9999;transition:transform 0.25s,opacity 0.25s;opacity:0;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+/* FIX: toast harus di ATAS semua overlay (hasil prompt Karakter Sheet, modal, tur: semuanya
+   z-index 9990-10050). Dulu 9999 = sama dengan hasil prompt, jadi pesan error (mis. gagal
+   salin) tertutup dan tidak kelihatan. Aman karena pointer-events:none. Tetap di bawah
+   login gate (999999). */
+#toast{pointer-events:none;position:fixed;bottom:calc(20px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);padding:var(--space-3) var(--space-7);border-radius:var(--radius);font-size:var(--fs-sm);font-weight:500;font-family:'Geist',sans-serif;z-index:100000;transition:transform 0.25s,opacity 0.25s;opacity:0;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
 /* PROGRESS INDICATOR */
 .progress-wrap{padding:9px var(--space-7);background:var(--surface2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:99;}
 /* v6.83: Opsi 2 — titik glow di ujung fill. overflow:hidden di track
@@ -4954,7 +4958,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
         </div>
         <div id="cs-usia-box" class="hidden" style="margin-top:8px;">
           <div class="inp-wrap">
-            <input class="inp" type="number" min="1" max="100" id="cs-usia-input" placeholder="Contoh: 25" />
+            <input class="inp" type="number" min="18" max="70" step="1" id="cs-usia-input" placeholder="Contoh: 25" />
           </div>
         </div>
         <button type="button" class="btn" onclick="csGoPage(2)">Lanjut</button>
@@ -11653,9 +11657,34 @@ let csLastPromptText='';
 // kapan tombol back (‹) ditampilkan.
 let csCurrentPage=1;
 const CS_TOTAL_PAGES=4;
+// Batas usia karakter (bilangan bulat). Samakan dengan atribut min/max pada
+// input #cs-usia-input di HTML. Mau rentang lain? Ubah dua angka ini saja.
+const CS_USIA_MIN=18, CS_USIA_MAX=70;
+// Chip terakhir yang dipilih per kolom. Dipakai csRestoreChipValue(): begitu
+// kolom "isi sendiri" dikosongkan lagi, csState balik ke nilai chip ini,
+// bukan tertinggal huruf sisa dari ketikan yang dihapus ("T" dari "Turki").
+let csChipMemo={negara:null,penampilan:null,outfit:null};
+// true kalau modal dibuka dari tur Langkah 3 (pbOpenCharacterSheetFromTour).
+// Di luar tur, salin prompt TIDAK boleh melempar user ke kartu tur.
+let csFromTour=false;
+// Nomor "generasi" modal: naik tiap modal dibuka/ditutup dan tiap klik Buat
+// Prompt. Animasi 2 detik yang modalnya keburu ditutup jadi tahu dirinya
+// sudah basi dan tidak memunculkan hasil prompt di layar utama.
+let csGenToken=0;
+// Penjaga ketukan ganda pada tombol "Salin prompt" (lihat csCopyPrompt()).
+let csCopyBusy=false;
 
 function csOpenModal(){
   document.getElementById('cs-modal').style.display='flex';
+  // Selalu mulai dari "bukan dari tur"; pbOpenCharacterSheetFromTour()
+  // baru menyalakan csFromTour SESUDAH fungsi ini selesai.
+  csFromTour=false;
+  csGenToken++;
+  csCopyBusy=false;
+  // Samakan chip & kolom isian dengan csState. csState ikut tersimpan di
+  // draft/undo, tapi class 'sel' pada chip tidak, jadi tanpa ini layar bisa
+  // menunjukkan Wanita/Indonesia padahal prompt-nya "laki-laki asal Mesir".
+  csSyncUiFromState();
   // Setiap modal dibuka (baik dari luar tur maupun dari tur), wizard SELALU
   // mulai lagi dari halaman 1 (Karakter) — bukan nyangkut di halaman
   // terakhir yang sempat dibuka sebelumnya.
@@ -11668,6 +11697,86 @@ function csOpenModal(){
 }
 function csCloseModal(){
   document.getElementById('cs-modal').style.display='none';
+  // Batalkan animasi "Buat Prompt" yang mungkin masih berjalan.
+  csGenToken++;
+}
+// Tampilan modal <- csState (lihat komentar di csOpenModal()). Urutannya
+// penting: semua 'sel' chip dilepas dulu karena csRelabelPenampilan() &
+// csRelabelOutfit() MENIMPA csState kalau menemukan chip ber-'sel', padahal
+// nilai yang dipulihkan itulah yang benar.
+function csSyncUiFromState(){
+  let isLaki=csState.gender==='laki-laki';
+  let gW=document.getElementById('cs-gender-wanita');
+  let gL=document.getElementById('cs-gender-lakilaki');
+  if(gW)gW.classList.toggle('sel',!isLaki);
+  if(gL)gL.classList.toggle('sel',isLaki);
+  ['negara','penampilan','outfit'].forEach(function(f){
+    document.querySelectorAll('#cs-'+f+'-chips .chip').forEach(function(c){c.classList.remove('sel');});
+  });
+  csRelabelPenampilan();
+  csRelabelOutfit();
+  ['negara','penampilan','outfit'].forEach(function(f){
+    let inp=document.getElementById('cs-'+f+'-custom');
+    let cur=csState[f];
+    if(!cur){ if(inp)inp.value=''; csRestoreChipValue(f); return; }
+    let hit=null;
+    document.querySelectorAll('#cs-'+f+'-chips .chip').forEach(function(c){
+      if(c.textContent.trim()===cur)hit=c;
+    });
+    if(hit){
+      hit.classList.add('sel');
+      csChipMemo[f]=hit;
+      if(inp)inp.value='';
+    } else if(inp){
+      inp.value=cur;
+    }
+  });
+  let uBox=document.getElementById('cs-usia-box');
+  let uInp=document.getElementById('cs-usia-input');
+  let uBtn=document.getElementById('cs-usia-toggle');
+  if(uBox&&uInp&&uBtn&&csState.usia!=null&&csState.usia!==''){
+    uInp.value=csState.usia;
+    uBox.classList.remove('hidden');
+    uBtn.textContent='– Sembunyikan usia';
+  }
+}
+// Lepas 'sel' dari semua chip satu kolom, tapi ingat dulu chip mana yang
+// sedang terpilih (untuk csRestoreChipValue()).
+function csDeselectChips(f){
+  let cur=document.querySelector('#cs-'+f+'-chips .chip.sel');
+  if(cur)csChipMemo[f]=cur;
+  document.querySelectorAll('#cs-'+f+'-chips .chip').forEach(function(c){c.classList.remove('sel');});
+}
+// Kolom "isi sendiri" dikosongkan: csState balik ke chip terakhir yang dipilih
+// (atau chip pertama kalau belum pernah ada) dan chip itu menyala lagi.
+function csRestoreChipValue(f){
+  let chips=Array.prototype.slice.call(document.querySelectorAll('#cs-'+f+'-chips .chip'));
+  if(!chips.length)return;
+  let el=(csChipMemo[f]&&chips.indexOf(csChipMemo[f])>=0)?csChipMemo[f]:chips[0];
+  csState[f]=el.textContent.trim();
+  chips.forEach(function(c){c.classList.toggle('sel',c===el);});
+}
+// Usia yang boleh masuk prompt: bilangan bulat CS_USIA_MIN..CS_USIA_MAX.
+// Atribut min/max di HTML TIDAK berlaku di sini (input bukan bagian <form>),
+// jadi 0, -5, 999, 2.5, "1e2" dst harus dicegat manual. Kotak usia
+// tersembunyi atau kosong = tanpa usia (sah).
+function csReadUsia(){
+  let box=document.getElementById('cs-usia-box');
+  let inp=document.getElementById('cs-usia-input');
+  if(!box||!inp||box.classList.contains('hidden'))return {ok:true,val:null};
+  let raw=(inp.value||'').trim();
+  if(!raw)return (inp.validity&&inp.validity.badInput)?{ok:false}:{ok:true,val:null};
+  if(!/^\d+$/.test(raw))return {ok:false};
+  let n=parseInt(raw,10);
+  if(n<CS_USIA_MIN||n>CS_USIA_MAX)return {ok:false};
+  return {ok:true,val:n};
+}
+// Usia tidak sah: balik ke halaman 1 (tempat kolom usia), fokuskan, kasih tahu.
+function csUsiaInvalid(){
+  csGoPage(1);
+  let inp=document.getElementById('cs-usia-input');
+  if(inp){inp.focus();try{inp.select();}catch(e){}}
+  showToast('Usia harus antara '+CS_USIA_MIN+' dan '+CS_USIA_MAX+' tahun','error');
 }
 // ── FITUR BARU (permintaan user): navigasi wizard satu-halaman-per-langkah.
 // Sembunyikan semua .cs-page lalu tampilkan cs-page-<n> saja, update label
@@ -11753,12 +11862,13 @@ function csPickNegara(val,el){
   document.getElementById('cs-negara-custom').value='';
   document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  csChipMemo.negara=el;
 }
 // Begitu user tap ke kolom "isi sendiri", langsung lepas warna kuning dari
 // chip Negara — sebelum sempat ngetik apa pun — supaya gak kelihatan kayak
 // dua-duanya (chip + isian sendiri) bakal dipakai bareng di prompt.
 function csNegaraCustomFocus(){
-  document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>c.classList.remove('sel'));
+  csDeselectChips('negara');
 }
 // Kalau user keluar dari kolom tanpa ngetik apa-apa, kembalikan warna
 // kuning ke chip yang sesuai csState.negara (biar gak kelihatan kosong).
@@ -11774,13 +11884,14 @@ function csNegaraCustomBlur(){
 // diketik, dan chip Indonesia/Mesir/Arab Saudi yang lagi aktif langsung
 // kehilangan warna kuningnya (menjawab keluhan: kelihatan seolah masih
 // pakai Indonesia padahal user sudah mau isi sendiri). Kalau field
-// dikosongkan lagi, nilai negara TIDAK direset — tetap pakai isian
-// terakhir yang sempat diketik supaya prompt tidak pernah kosong.
+// dikosongkan lagi, nilai negara BALIK ke chip yang terakhir dipilih
+// (csRestoreChipValue) — bukan tertinggal huruf sisa dari ketikan yang
+// dihapus, dan prompt tetap tidak pernah kosong.
 function csNegaraCustomInput(){
   let v=(document.getElementById('cs-negara-custom').value||'').trim();
-  if(!v)return;
+  if(!v){csRestoreChipValue('negara');return;}
   csState.negara=v;
-  document.querySelectorAll('#cs-negara-chips .chip').forEach(c=>c.classList.remove('sel'));
+  csDeselectChips('negara');
 }
 // ── Penampilan — field baru, sama pola dengan Negara di atas: pilih chip
 // ATAU isi sendiri (live lewat oninput, tanpa tombol "Pakai"). Nilainya
@@ -11791,11 +11902,12 @@ function csPickPenampilan(el){
   document.getElementById('cs-penampilan-custom').value='';
   document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  csChipMemo.penampilan=el;
 }
 // Sama seperti Negara: lepas warna kuning chip Penampilan begitu kolom
 // "isi sendiri" difokus, dan kembalikan kalau ditinggal kosong.
 function csPenampilanCustomFocus(){
-  document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
+  csDeselectChips('penampilan');
 }
 function csPenampilanCustomBlur(){
   let v=(document.getElementById('cs-penampilan-custom').value||'').trim();
@@ -11806,9 +11918,9 @@ function csPenampilanCustomBlur(){
 }
 function csPenampilanCustomInput(){
   let v=(document.getElementById('cs-penampilan-custom').value||'').trim();
-  if(!v)return;
+  if(!v){csRestoreChipValue('penampilan');return;}
   csState.penampilan=v;
-  document.querySelectorAll('#cs-penampilan-chips .chip').forEach(c=>c.classList.remove('sel'));
+  csDeselectChips('penampilan');
 }
 // ── Outfit — field BARU (permintaan user): pola sama dengan Negara/
 // Penampilan (pilih chip ATAU isi sendiri, live lewat oninput, tanpa
@@ -11820,9 +11932,10 @@ function csPickOutfit(el){
   document.getElementById('cs-outfit-custom').value='';
   document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  csChipMemo.outfit=el;
 }
 function csOutfitCustomFocus(){
-  document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>c.classList.remove('sel'));
+  csDeselectChips('outfit');
 }
 function csOutfitCustomBlur(){
   let v=(document.getElementById('cs-outfit-custom').value||'').trim();
@@ -11833,9 +11946,9 @@ function csOutfitCustomBlur(){
 }
 function csOutfitCustomInput(){
   let v=(document.getElementById('cs-outfit-custom').value||'').trim();
-  if(!v)return;
+  if(!v){csRestoreChipValue('outfit');return;}
   csState.outfit=v;
-  document.querySelectorAll('#cs-outfit-chips .chip').forEach(c=>c.classList.remove('sel'));
+  csDeselectChips('outfit');
 }
 // ── Klik "Buat Prompt" — tombol diganti sementara jadi animasi logo "P"
 // (sama persis dengan loading Generate Prompt Foto di f-gen-btn: pecah
@@ -11850,6 +11963,10 @@ function csOutfitCustomInput(){
 // animasi logo), dan dipasang lagi tiap kali user balik ke halaman Outfit
 // lewat csGoPage(). ─────────────────────────────────────────────────
 function csGeneratePrompt(){
+  // Usia dicek DULU sebelum animasi 2 detik jalan — jangan bikin user
+  // menunggu dulu baru ditolak.
+  if(!csReadUsia().ok){csUsiaInvalid();return;}
+  let myGen=++csGenToken;
   let genBtn=document.getElementById('cs-generate-btn');
   let genBtnOrigHTML=genBtn?genBtn.innerHTML:'';
   if(genBtn){
@@ -11872,20 +11989,25 @@ function csGeneratePrompt(){
     },650);
   }
   setTimeout(function(){
-    _csDoGeneratePrompt();
+    // Modal ditutup (atau dibuka ulang) selama animasi: jangan munculkan
+    // hasil prompt di layar utama. Tombol tetap dipulihkan seperti biasa.
+    if(myGen===csGenToken) _csDoGeneratePrompt();
     if(genBtn){genBtn.disabled=false;genBtn.classList.remove('btn-loading');genBtn.innerHTML=genBtnOrigHTML;}
   },2000);
 }
 function _csDoGeneratePrompt(){
-  // Baca usia langsung dari input (jaga-jaga kalau user isi tanpa toggle ke off dulu)
-  let usiaBox=document.getElementById('cs-usia-box');
-  let usiaVal=(!usiaBox.classList.contains('hidden'))?(document.getElementById('cs-usia-input').value||'').trim():'';
-  csState.usia=usiaVal?usiaVal:null;
+  // Baca usia langsung dari input (jaga-jaga kalau user isi tanpa toggle ke
+  // off dulu) dan VALIDASI: bilangan bulat CS_USIA_MIN..CS_USIA_MAX, kalau
+  // tidak prompt tidak dibuat. csGeneratePrompt() sudah mencegat lebih awal;
+  // ini jaring pengaman kalau fungsi ini dipanggil dari tempat lain.
+  let usia=csReadUsia();
+  if(!usia.ok){csUsiaInvalid();return;}
+  csState.usia=usia.val;
 
   let outfitTxt=(csState.outfit||(csState.gender==='laki-laki'?'Outfit casual':"Setelan abaya syar'i")).toLowerCase();
   let usiaClause=csState.usia?('berusia '+csState.usia+' tahun '):'';
   let penampilanTxt=(csState.penampilan||'Cantik, Putih').toLowerCase();
-  let text='buatkan aku foto karakter sheet multi angel lengkap dengan ekspresi dan beberapa angel mulai dari depan samping low angel, high angel, serta eye level. Karakter nya adalah seorang '
+  let text='buatkan aku foto karakter sheet multi angle lengkap dengan ekspresi dan beberapa angle mulai dari depan samping low angle, high angle, serta eye level. Karakter nya adalah seorang '
     +csState.gender+' '+usiaClause+'dengan penampilan '+penampilanTxt+' asal '+csState.negara
     +', memakai '+outfitTxt+' dengan background putih bersih';
 
@@ -11902,6 +12024,7 @@ function _csDoGeneratePrompt(){
 function csShowResultNotif(text){
   let old=document.getElementById('cs-result-notif');
   if(old)old.remove();
+  csCopyBusy=false; // hasil baru = tombol Salin boleh dipakai lagi
   let overlay=document.createElement('div');
   overlay.className='confirm-overlay cs-result-page';
   overlay.id='cs-result-notif';
@@ -11915,7 +12038,10 @@ function csShowResultNotif(text){
   label.textContent='Hasil Prompt';
   let textBox=document.createElement('div');
   textBox.id='cs-result-text';
-  textBox.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:var(--fs-xs);color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:12px;max-height:55vh;overflow-y:auto;';
+  textBox.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:var(--fs-xs);color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:12px;max-height:55vh;overflow-y:auto;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;';
+  // Teks hasil WAJIB bisa dipilih/ditahan: aturan global body *{user-select:none}
+  // membuatnya tak bisa dipilih, padahal itu satu-satunya jalan salin manual
+  // kalau clipboard diblokir (WebView TikTok/Instagram).
   textBox.textContent=text;
   let copyBtn=document.createElement('button');
   copyBtn.id='cs-copy-btn';
@@ -11947,7 +12073,10 @@ function csShowResultNotif(text){
 // aksen emas (bukan merah seperti .confirm-ok) karena ini bukan aksi
 // destruktif. ───────────────────────────────────────────────────────
 function csShowSavedNotif(onDone){
+  // Jaga-jaga dobel: kalau dialog ini sudah tampil, jangan bikin yang kedua.
+  if(document.getElementById('cs-saved-notif'))return;
   let overlay=document.createElement('div');
+  overlay.id='cs-saved-notif';
   overlay.className='confirm-overlay pb-tour-notif';
   let box=document.createElement('div');box.className='confirm-box';
   let p=document.createElement('p');
@@ -11965,34 +12094,96 @@ function csCopyPrompt(){
   let btn=document.getElementById('cs-copy-btn');
   let text=csLastPromptText||'';
   if(!text){showToast('Buat prompt-nya dulu ya','error');return;}
-  function onOk(){
-    btn.classList.remove('cs-pulse-btn');
-    btn.textContent='Tersalin!';
-    setTimeout(()=>{btn.textContent='Salin prompt';},2000);
-    // Prompt karakter sheet sudah tersalin — tutup notifikasi hasil prompt +
-    // modal Karakter Sheet, kasih tahu lewat notifikasi tengah bahwa yang
-    // disalin itu "prompt" dan bakal dipakai di langkah berikutnya, lalu
-    // begitu "Mengerti" ditekan baru tur BALIK ke Langkah 3 (buka butir
-    // no.1: install Google Flow) — bukan langsung lompat ke Langkah 4.
+  // Ketukan kedua selagi proses salin masih jalan DIABAIKAN. Tanpa ini tiap
+  // ketukan memasang timer 600ms sendiri sehingga dialog "Mengerti" muncul dobel.
+  if(csCopyBusy)return;
+  csCopyBusy=true;
+  if(btn)btn.disabled=true;
+  // Dibaca sekarang: csFromTour dinyalakan pbOpenCharacterSheetFromTour() dan
+  // di-nol-kan tiap csOpenModal(). Dialog "Mengerti" tetap tampil di luar tur,
+  // tapi HANYA di dalam tur user dibawa balik ke Langkah 3 (pbBackToStep3).
+  // Dulu selalu dipanggil, jadi user yang memakai tombol Karakter Sheet biasa
+  // tiba-tiba dilempar ke kartu tur "Install Google Flow".
+  let dariTur=csFromTour;
+  // Lanjutan sesudah prompt tersalin. Dipakai salin otomatis yang sukses DAN
+  // tombol "Sudah kusalin manual" (jalan keluar kalau clipboard diblokir).
+  // Prompt sudah tersalin — tutup notifikasi hasil prompt + modal Karakter
+  // Sheet, kasih tahu lewat notifikasi tengah bahwa yang disalin itu "prompt"
+  // dan bakal dipakai di langkah berikutnya, lalu begitu "Mengerti" ditekan
+  // baru (kalau dari tur) tur BALIK ke Langkah 3 (buka butir no.1: install
+  // Google Flow) — bukan langsung lompat ke Langkah 4.
+  function lanjut(delay){
     setTimeout(function(){
       let notif=document.getElementById('cs-result-notif');
       if(notif)notif.remove();
       csCloseModal();
-      csShowSavedNotif(function(){ pbBackToStep3(); });
-    },600);
+      csShowSavedNotif(function(){ if(dariTur) pbBackToStep3(); });
+    },delay);
+  }
+  function onOk(){
+    if(btn){
+      btn.classList.remove('cs-pulse-btn');
+      btn.textContent='Tersalin!';
+      setTimeout(()=>{btn.textContent='Salin prompt';},2000);
+    }
+    lanjut(600);
+  }
+  // Salin otomatis gagal total: kunci dibuka lagi (boleh coba lagi) dan user
+  // ditawari salin manual. Tanpa ini user di dalam tur BUNTU: tombol "Tutup"
+  // modal sengaja disembunyikan di tur, dan toast error dulu tertutup hasil prompt.
+  function onGagal(){
+    csCopyBusy=false;
+    if(btn)btn.disabled=false;
+    showToast('Gagal salin otomatis','error');
+    csShowManualCopy(function(){ csCopyBusy=true; lanjut(0); });
   }
   function onFail(){
     let ta=document.createElement('textarea');ta.value=text;
     ta.style.cssText='position:fixed;top:-9999px;left:-9999px;opacity:0;';
     document.body.appendChild(ta);ta.focus();ta.select();
-    try{let ok=document.execCommand('copy');if(ok)onOk();else showToast('Gagal salin — coba select manual','error');}catch(e){showToast('Gagal salin — coba select manual','error');}
+    let ok=false;
+    try{ok=document.execCommand('copy');}catch(e){ok=false;}
     document.body.removeChild(ta);
+    if(ok)onOk();else onGagal();
   }
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(text).then(onOk).catch(onFail);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    try{navigator.clipboard.writeText(text).then(onOk,onFail);}catch(e){onFail();}
   } else {
     onFail();
   }
+}
+// Pilih (blok) seluruh teks hasil prompt supaya bisa langsung disalin lewat
+// menu tahan-lalu-"Salin" milik HP.
+function csSelectResultText(){
+  let el=document.getElementById('cs-result-text');
+  if(!el)return;
+  try{
+    let r=document.createRange();r.selectNodeContents(el);
+    let sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);
+  }catch(e){}
+}
+// Jalan keluar kalau salin otomatis gagal (mis. WebView TikTok/Instagram yang
+// memblokir clipboard): teks hasil prompt dipilih otomatis, lalu tombol "Sudah
+// kusalin manual" meneruskan alur yang sama seperti salin sukses (termasuk
+// lanjut tur).
+function csShowManualCopy(onDone){
+  csSelectResultText();
+  if(document.getElementById('cs-manual-copy'))return;
+  let box=document.querySelector('#cs-result-notif .confirm-box');
+  if(!box)return;
+  let wrap=document.createElement('div');
+  wrap.id='cs-manual-copy';
+  wrap.style.cssText='margin-top:14px;text-align:center;';
+  let hint=document.createElement('p');
+  hint.style.cssText='color:var(--muted);font-size:var(--fs-xs2);line-height:1.5;margin:0 0 8px;';
+  hint.textContent='Salin otomatis gagal. Tahan teks prompt di atas, pilih "Salin", lalu ketuk tombol di bawah ini.';
+  let doneBtn=document.createElement('button');
+  doneBtn.type='button';
+  doneBtn.textContent='Sudah kusalin manual';
+  doneBtn.style.cssText="width:auto;min-width:118px;max-width:100%;margin:0 auto;display:block;background:var(--surface2);color:var(--accent);border:1px solid var(--border-hi);padding:8px 18px;border-radius:var(--radius-md);font-size:var(--fs-xs2);font-weight:700;cursor:pointer;font-family:'Geist',sans-serif;text-align:center;";
+  doneBtn.onclick=function(){doneBtn.disabled=true;onDone();};
+  wrap.appendChild(hint);wrap.appendChild(doneBtn);
+  box.insertBefore(wrap,box.lastChild); // sebelum link "Buat ulang"
 }
 
 function fCopy(){
@@ -26777,6 +26968,10 @@ function pbOpenCharacterSheetFromTour(){
   pbTourProgressShow(0);
   pbHideOverlay();
   csOpenModal();
+  // Tandai: modal ini dibuka dari tur, jadi csCopyPrompt() boleh membawa user
+  // balik ke Langkah 3 sesudah salin. Harus SESUDAH csOpenModal() (yang
+  // me-nol-kan penanda ini tiap modal dibuka).
+  csFromTour=true;
   // Khusus dibuka dari Langkah 3 no.1: sembunyikan tombol "Tutup" biar
   // user gak sengaja nutup modal ini tanpa isi & salin prompt-nya —
   // satu-satunya jalan keluar dari sini adalah beneran salin prompt
@@ -27190,12 +27385,35 @@ function pbStep4PhotoPicked(input){
   let file=input.files&&input.files[0];
   if(!file)return;
   input.value='';
+  // FIX: pujian dulu muncul PERSIS 1,4 detik sesudah foto dipilih, tak peduli
+  // fotonya sudah/gagal terbaca — foto gagal dibaca tetap dipuji padahal tur
+  // menganggap fotonya belum ada (pbKsFotoUploaded=false), dan di HP lambat
+  // pujian bisa muncul SEBELUM foto selesai dibaca. Sekarang pujian baru
+  // muncul kalau animasi logo tuntas DAN foto sudah terbaca. Kalau gagal
+  // dibaca: animasi dibatalkan, tombol kamera kembali, user pilih foto lagi.
+  let animSelesai=false, fotoTerbaca=false, fotoGagal=false, beres=false;
+  function tuntaskan(){
+    if(beres)return;
+    if(fotoGagal){
+      beres=true;
+      let lw=document.getElementById('pb-step4-logo-wrap');
+      if(lw){lw.classList.add('hidden');lw.classList.remove('merged');}
+      let cb=document.getElementById('pb-step4-photo-btn');
+      if(cb)cb.classList.remove('hidden');
+      showToast('Foto gagal dibaca. Coba pilih foto lagi ya.','error');
+      return;
+    }
+    if(animSelesai&&fotoTerbaca){beres=true;pbStep4ShowSuccessNotif();}
+  }
   let reader=new FileReader();
   reader.onload=function(e){
     pbKsFotoDataUrl=e.target.result;
     pbKsFotoUploaded=true;
-    pbF0KsThumbSync();
+    fotoTerbaca=true;
+    try{pbF0KsThumbSync();}catch(err){}
+    tuntaskan();
   };
+  reader.onerror=reader.onabort=function(){fotoGagal=true;tuntaskan();};
   reader.readAsDataURL(file);
   let camBtn=document.getElementById('pb-step4-photo-btn');
   if(camBtn) camBtn.classList.add('hidden');
@@ -27210,11 +27428,9 @@ function pbStep4PhotoPicked(input){
     setTimeout(function(){ logoWrap.classList.add('merged'); },300);
   }
   // Transisi p-layer 1.1s + jeda 300ms sebelum "merged" ditambahkan =
-  // animasi beneran tuntas nyatu di ~1400ms — baru di situ kartu
-  // Langkah 4 disembunyikan & notifikasi premium ditampilkan.
-  setTimeout(function(){
-    pbStep4ShowSuccessNotif();
-  },1400);
+  // animasi beneran tuntas nyatu di ~1400ms — baru di situ (kalau foto juga
+  // sudah terbaca) kartu Langkah 4 disembunyikan & notifikasi premium tampil.
+  setTimeout(function(){ animSelesai=true; tuntaskan(); },1400);
 }
 // Menyembunyikan kartu tur Langkah 4 (beserta backdrop & spotlight-nya)
 // lalu menampilkan notifikasi premium bermerek berisi tulisan pujian.
