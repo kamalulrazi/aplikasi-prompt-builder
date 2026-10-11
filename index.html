@@ -6718,17 +6718,32 @@ document.addEventListener('keydown', function(e){
       // tombol "next" di keyboard HP) — Generate cuma ke-trigger dari Enter
       // di field paling akhir (Target Audience), sama seperti niat awal
       // shortcut ini (submit setelah SEMUA field selesai).
+      // FIX: lompat hanya ke kolom yang TERLIHAT. Target Audience ada di tab Penonton
+      // (pindah tab dulu), keunggulan bisa tersembunyi di kotak "Atur detail" yang tertutup.
+      let vbGo=function(el){
+        if(!el)return false;
+        if(el.id==='vb-bulk-target'){try{vbInfoTab('penonton');}catch(_e){}}
+        if(el.offsetParent===null)return false;
+        e.preventDefault();el.focus();el.select&&el.select();return true;
+      };
+      // FIX: Enter di kolom jumlah produk dulu jatuh ke handler generik dan mengklik Generate
+      // (tombolnya cuma beberapa level di atas). Sekarang cuma mengesahkan jumlah lalu pindah ke Nama Produk 1.
+      if(ae.id==='vb-bulk-count'){
+        try{vbBulkSetCount();}catch(_e){}
+        if(!vbGo(document.getElementById('vb-bulk-nama-0')))e.preventDefault();
+        return;
+      }
       if(ae.id&&ae.id.indexOf('vb-bulk-nama-')===0){
         let rowIdx=parseInt(ae.id.slice('vb-bulk-nama-'.length),10);
-        let next=document.getElementById('vb-bulk-keunggulan-'+rowIdx);
-        if(next){e.preventDefault();next.focus();next.select&&next.select();}
+        if(vbGo(document.getElementById('vb-bulk-keunggulan-'+rowIdx)))return;
+        if(vbGo(document.getElementById('vb-bulk-nama-'+(rowIdx+1))))return;
+        vbGo(document.getElementById('vb-bulk-target'));
         return;
       }
       if(ae.id&&ae.id.indexOf('vb-bulk-keunggulan-')===0){
         let rowIdx=parseInt(ae.id.slice('vb-bulk-keunggulan-'.length),10);
-        let nextRow=document.getElementById('vb-bulk-nama-'+(rowIdx+1));
-        let next=nextRow||document.getElementById('vb-bulk-target');
-        if(next){e.preventDefault();next.focus();next.select&&next.select();}
+        if(vbGo(document.getElementById('vb-bulk-nama-'+(rowIdx+1))))return;
+        vbGo(document.getElementById('vb-bulk-target'));
         return;
       }
       if(ae.id==='vb-bulk-target'||ae.id==='vb-sapaan-input'){
@@ -20500,6 +20515,7 @@ function vbToggleSapaan(){
   let open=b.classList.toggle('hidden')===false;
   if(t)t.setAttribute('aria-expanded',open?'true':'false');
   if(c)c.textContent=open?'▴':'▾';
+  try{fFitWbody(b);}catch(_e){}
 }
 // Ringkasan pilihan sapaan di sebelah judul, supaya tetap kelihatan walau bagian ini ditutup.
 function _vbSapaanSumSync(){
@@ -24963,6 +24979,7 @@ function vbResetNow(){
     let bulkTarget=document.getElementById('vb-bulk-target'); if(bulkTarget)bulkTarget.value='';
     VB_TA_PRESET={};
     vbResetSapaan();
+    try{vbInfoReset();}catch(_e){}
     document.querySelectorAll('#vb-bulk-area .chip.sel').forEach(function(c){if(c.getAttribute('onclick')&&c.getAttribute('onclick').indexOf('vbPickTargetAudiencePreset')===0)c.classList.remove('sel');});
     let bulkArea=document.getElementById('vb-bulk-area'); if(bulkArea)bulkArea.classList.remove('hidden');
     let bulkErr=document.getElementById('vb-bulk-error'); if(bulkErr){bulkErr.classList.add('hidden');bulkErr.textContent='';}
@@ -29651,7 +29668,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
       [].forEach.call(qa('#v5 input[type=text],#v5 input:not([type]),#v5 textarea'),function(e){e.value='';});
       [].forEach.call(qa('#v5 .chip.sel'),function(c){if((c.getAttribute('onclick')||'').indexOf('vbPickTa')>=0)c.classList.remove('sel');});
       VB.bulkTargetAudience='';
-      try{VB_TA_PRESET={};}catch(e){}try{vbResetSapaan();}catch(e){}try{VB_BULK_ROW_CACHE=[];VB_MANUAL_ROW_CACHE=[];}catch(e){}
+      try{VB_TA_PRESET={};}catch(e){}try{vbResetSapaan();}catch(e){}try{vbInfoReset();}catch(e){}try{VB_BULK_ROW_CACHE=[];VB_MANUAL_ROW_CACHE=[];}catch(e){}
     }
   };
   function clearStep(id){try{if(CLR[id])CLR[id]();}catch(e){console.warn('pbw clear',e);}var cb=$(id+'-confirmbar');if(cb)cb.remove();}
@@ -30093,10 +30110,16 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 function vbInfoTab(k){
   var box=document.getElementById('vb-info-tabs');if(!box)return;
   box.setAttribute('data-sel',k);
-  [].forEach.call(box.querySelectorAll('.vt'),function(b){var on=b.getAttribute('data-p')===k;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');});
+  [].forEach.call(box.querySelectorAll('.vt'),function(b){var on=b.getAttribute('data-p')===k;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');b.setAttribute('tabindex',on?'0':'-1');});
   [].forEach.call(box.querySelectorAll('.vt-pane'),function(p){p.classList.toggle('on',p.id==='vb-pane-'+k);});
   vbInfoSum();
   try{fFitWbody(box);}catch(e){}
+}
+// Balik ke tab Produk dan tutup akordeon Sapaan (dipanggil saat reset / Kembali).
+function vbInfoReset(){
+  var b=document.getElementById('vb-sapaan-body');
+  if(b&&!b.classList.contains('hidden')&&typeof vbToggleSapaan==='function')vbToggleSapaan();
+  vbInfoTab('produk');
 }
 // Ringkasan isi di bawah tab. Sapaan hanya muncul kalau memang diisi.
 function vbInfoSum(){
@@ -30104,18 +30127,33 @@ function vbInfoSum(){
     var out=document.getElementById('vb-info-sum');if(!out)return;
     var n=parseInt((document.getElementById('vb-bulk-count')||{}).value,10)||1;
     var e0=document.getElementById('vb-bulk-nama-0'),nm=e0?e0.value.trim():'';
+    var gap=-1;// indeks produk pertama yang masih kosong (sama seperti validasi Generate)
+    for(var i=0;i<n;i++){var ei=document.getElementById('vb-bulk-nama-'+i);if(!ei||!ei.value.trim()){gap=i;break;}}
     var tg=((document.getElementById('vb-bulk-target')||{}).value||'').trim();
-    if(!tg&&VB_TA_PRESET&&VB_TA_PRESET['vb-bulk-target'])tg='Gen Z Perempuan';
+    var pk=VB_TA_PRESET&&VB_TA_PRESET['vb-bulk-target'];
+    if(!tg&&pk)tg=({'genz-perempuan':'Gen Z Perempuan'})[pk]||VB_TARGET_AUDIENCE_PRESETS[pk]||'';
     var sp=(typeof VB_SAPAAN==='string')?VB_SAPAAN:'';
     var t=function(x,e){return '<span class="vt-tg'+(e?' e':'')+'">'+esc(x)+'</span>';};
-    out.innerHTML=(nm?t(nm+(n>1?' +'+(n-1)+' lainnya':'')):t('Produk belum diisi',1))+(tg?t(tg):t('Penonton belum diisi',1))+(sp?t('Sapaan: '+sp):'');
+    var html=(gap<0?t(nm+(n>1?' +'+(n-1)+' lainnya':'')):(gap===0&&n===1?t('Produk belum diisi',1):t('Produk '+(gap+1)+' belum diisi',1)))+(tg?t(tg):t('Penonton belum diisi',1))+(sp?t('Sapaan: '+sp):'');
+    if(out._h!==html){out._h=html;out.innerHTML=html;try{fFitWbody(out);}catch(_e){}}
     var box=document.getElementById('vb-info-tabs');
-    box.querySelector('.vt[data-p="produk"]').classList.toggle('dn',!!nm);
+    box.querySelector('.vt[data-p="produk"]').classList.toggle('dn',gap<0);
     box.querySelector('.vt[data-p="penonton"]').classList.toggle('dn',!!tg);
   }catch(e){}
 }
 (function(){
   var box=document.getElementById('vb-info-tabs');if(!box)return;
+  // Pola ARIA Tabs: aria-controls/aria-labelledby, roving tabindex, panah kiri/kanan + Home/End.
+  var tabs=[].slice.call(box.querySelectorAll('.vt'));
+  tabs.forEach(function(b){var k=b.getAttribute('data-p');b.id=b.id||'vb-tab-'+k;b.setAttribute('aria-controls','vb-pane-'+k);b.setAttribute('tabindex',b.classList.contains('on')?'0':'-1');});
+  [].forEach.call(box.querySelectorAll('.vt-pane'),function(pn){pn.setAttribute('aria-labelledby','vb-tab-'+pn.id.replace('vb-pane-',''));});
+  var bar=box.querySelector('.vt-bar');
+  if(bar)bar.addEventListener('keydown',function(e){
+    var k=e.key;if(k!=='ArrowLeft'&&k!=='ArrowRight'&&k!=='Home'&&k!=='End')return;
+    var i=tabs.indexOf(document.activeElement);if(i<0)return;
+    var j=k==='Home'?0:(k==='End'?tabs.length-1:(i+(k==='ArrowRight'?1:-1)+tabs.length)%tabs.length);
+    e.preventDefault();vbInfoTab(tabs[j].getAttribute('data-p'));tabs[j].focus();
+  });
   ['input','change','click','focusout'].forEach(function(ev){box.addEventListener(ev,function(){setTimeout(vbInfoSum,0);});});
   if(window.MutationObserver){
     var rows=document.getElementById('vb-bulk-rows');if(rows)new MutationObserver(function(){vbInfoSum();}).observe(rows,{childList:true});
