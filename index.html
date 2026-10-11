@@ -4456,7 +4456,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     // guard tambahan di sini jadi redundan (malah merugikan) untuk mereka.
     // Di luar elemen-elemen itu (scroll area, teks, dsb.), guard anti-zoom
     // yang asli tetap jalan seperti biasa.
-    if(e.target&&e.target.closest&&e.target.closest('.chip,.subjek-card,.ftype-btn,.catcard,.vstyle-card,.produk-choice,.suara-card,#vmotion-chips .pb-fk,#v4-box .pb-fk'))return;
+    if(e.target&&e.target.closest&&e.target.closest('.chip,.subjek-card,.ftype-btn,.catcard,.vstyle-card,.produk-choice,.suara-card,#vmotion-chips .pb-fk,#v4-box .pb-fk,#vcam-chips .pb-fk,#vcam-hook-chips .pb-fk'))return;
     let now = Date.now();
     if (now - _lastTouchEnd <= 300) e.preventDefault();
     _lastTouchEnd = now;
@@ -6189,11 +6189,11 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <p id="vcam-modehint" style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 12px;line-height:1.7;"></p>
       <p id="vcam-adapt" class="hidden" style="font-size:var(--fs-sm);color:var(--accent);margin:0 0 12px;line-height:1.6;"></p>
       <label class="inplabel">Gerakan Kamera</label>
-      <div class="chips" id="vcam-chips"></div>
+      <div class="cp cp3 cpc" id="vcam-chips" role="radiogroup" aria-label="Gerakan kamera"></div>
       <div id="vcam-id-move" style="display:none;margin:10px 0 0;padding:10px 12px;border:1px solid var(--border,rgba(128,128,128,.3));border-radius:10px;font-size:var(--fs-sm);"></div>
       <p style="font-size:var(--fs-sm);color:var(--muted);margin:16px 0 0;line-height:1.6;">Aksi karakter di awal video supaya penonton berhenti scroll. Kalau fotomu tanpa orang, aksinya dilakukan tangan atau produk. Klik lagi untuk batal pilih.</p>
       <label class="inplabel">Visual Hook <span style="font-weight:400;color:var(--muted);">(khusus kartu Hook, 1–3 detik pertama)</span></label>
-      <div class="chips" id="vcam-hook-chips"></div>
+      <div class="cp cp3 cpc" id="vcam-hook-chips" role="radiogroup" aria-label="Visual Hook"></div>
       <div id="vcam-id-hook" style="display:none;margin:10px 0 0;padding:10px 12px;border:1px solid var(--border,rgba(128,128,128,.3));border-radius:10px;font-size:var(--fs-sm);"></div>
       <button type="button" class="btn sm" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
       <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
@@ -6599,10 +6599,10 @@ function closeApiKeyModal(){
 // ============================================================
 let CHIP_UNDO_STACK=[];
 document.addEventListener('click',function(e){
-  let chip=e.target.closest?e.target.closest('.chip'):null;
+  let chip=e.target.closest?e.target.closest('.chip,#vcam-chips .pb-fk,#vcam-hook-chips .pb-fk'):null;
   if(!chip||!chip.parentElement)return;
   // Cari chip lain yang sedang 'sel' dalam grup yang sama (sibling langsung)
-  let siblings=chip.parentElement.querySelectorAll(':scope > .chip.sel');
+  let siblings=chip.parentElement.querySelectorAll(':scope > .chip.sel,:scope > .pb-fk.sel');
   let prevSel=null;
   siblings.forEach(function(s){if(s!==chip)prevSel=s;});
   // Hanya catat undo kalau memang ada pilihan sebelumnya di grup ini,
@@ -16474,6 +16474,25 @@ function _vbCamAdaptSync(){
     if(ch){try{showToast('Pergerakan kamera disesuaikan dengan nada & aksen — pilih lagi ya','info');}catch(e){}}
   }catch(e){}
 }
+// Tampilan baris Pelat Geser (opsi A, 11 Okt 2026): [deskripsi singkat, isi ikon SVG] per jenis pilihan (kunci = id tanpa awalan mode). HANYA tampilan.
+var VB_CAM_UI={
+  other:['Kamera HP genggam, ayunan natural','<rect x="7" y="3.5" width="10" height="17" rx="2.5"/><path d="M11 17.5h2"/>'],
+  cuts:['Beberapa cut di tiap scene','<rect x="3" y="6" width="8" height="12" rx="2"/><rect x="13" y="6" width="8" height="12" rx="2"/>'],
+  h_close:['Mendekat, lalu mundur di detik ke-3','<circle cx="12" cy="12" r="8.3"/><path d="M9 10.2h.01M15 10.2h.01M9 14.5c1 1.2 2 1.7 3 1.7s2-.5 3-1.7"/>'],
+  h_pat:['Menepuk produk berulang, detik 0–3','<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/>'],
+  h_tap:['Ketuk lensa 2×, lalu mundur dan tunjuk produk','<circle cx="12" cy="12" r="8.3"/><circle cx="12" cy="12" r="3.8"/><path d="M12 12h.01"/>']
+};
+// Posisikan pelat ke baris terpilih (tinggi/posisi diukur). Kalau kartu masih tersembunyi (tinggi 0), ResizeObserver memanggil ulang saat tampil.
+function _vbCamPlate(cp){
+  let s=cp.querySelector('.pb-fk.sel'), p=cp.querySelector('.plate'); if(!p)return;
+  if(s)cp.setAttribute('data-sel','1'); else cp.removeAttribute('data-sel');
+  if(!s){p.style.opacity=0;return;}
+  if(!s.offsetHeight)return;
+  let first=p.style.opacity!=='1';
+  if(first)cp.classList.add('nt');
+  p.style.opacity=1; p.style.height=s.offsetHeight+'px'; p.style.transform='translateY('+s.offsetTop+'px)';
+  if(first){void p.offsetWidth;requestAnimationFrame(function(){cp.classList.remove('nt');});}
+}
 // Gambar ulang chip sesuai mode yang sedang aktif. Aman dipanggil kapan saja (termasuk saat app baru dimuat).
 function _vbRenderCamChips(){
   try{
@@ -16491,14 +16510,18 @@ function _vbRenderCamChips(){
       ad.classList.toggle('hidden',!bits.length);
     }
     function draw(box,list,kind,cur){
-      box.innerHTML='';
+      box.innerHTML='<span class="plate" aria-hidden="true"></span>';
       list.forEach(function(o){
-        let d=document.createElement('div');
-        d.className='chip'+(cur===o[0]?' sel':'');
-        d.textContent=o[1];
-        d.onclick=function(){vbPickCam(kind,o[0],d);};
-        box.appendChild(d);
+        let u=VB_CAM_UI[String(o[0]).replace(/^(satu|aset|kp)_/,'')]||['','<circle cx="12" cy="12" r="8.3"/>'], on=(cur===o[0]);
+        let b=document.createElement('button');
+        b.type='button'; b.dataset.k=o[0]; b.className='pb-fk'+(on?' sel':''); b.setAttribute('role','radio'); b.setAttribute('aria-checked',on?'true':'false');
+        b.innerHTML='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+u[1]+'</svg><span class="pb-fk-text"><b></b>'+(u[0]?'<small></small>':'')+'</span><span class="mk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>';
+        b.querySelector('b').textContent=o[1]; if(u[0])b.querySelector('small').textContent=u[0];
+        b.onclick=function(){vbPickCam(kind,o[0],b);};
+        box.appendChild(b);
       });
+      box.classList.add('nt'); _vbCamPlate(box); requestAnimationFrame(function(){_vbCamPlate(box);});
+      if(window.ResizeObserver&&!box._ro){box._ro=new ResizeObserver(function(){_vbCamPlate(box);});box._ro.observe(box);}
     }
     draw(box1,moves,'move',_vbCamPendMove);
     draw(box2,hooks,'hook',_vbCamPendHook);
@@ -16528,10 +16551,13 @@ function _vbCamPreview(){
 }
 // Klik chip = pilih sementara. Klik lagi pada chip yang sama = batal pilih.
 function vbPickCam(kind,id,el){
+  // Ctrl+Z bisa membawa baris lama yang sudah dilepas saat panel digambar ulang -> cari baris hidup dengan id yang sama.
+  if(!el||!el.isConnected){el=document.querySelector('#'+(kind==='hook'?'vcam-hook-chips':'vcam-chips')+' .pb-fk[data-k="'+id+'"]');if(!el)return;}
   let box=el.parentNode;
   let wasSel=el.classList.contains('sel');
-  box.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
-  if(!wasSel)el.classList.add('sel');
+  box.querySelectorAll('.pb-fk,.chip').forEach(c=>{c.classList.remove('sel');c.setAttribute('aria-checked','false');});
+  if(!wasSel){el.classList.add('sel');el.setAttribute('aria-checked','true');}
+  _vbCamPlate(box);
   if(kind==='hook')_vbCamPendHook=wasSel?'':id;
   else _vbCamPendMove=wasSel?'':id;
   _vbCamPreview();
@@ -16555,6 +16581,7 @@ function vbSkipCam(){
   document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
   let cb=document.getElementById('vcam-confirmbar'); if(cb)cb.remove();
   _vbCamPendMove='';_vbCamPendHook='';
+  try{_vbRenderCamChips();}catch(e){}
   _vbCamPreview();
   vbPickCamConfirmed('','');
 }
@@ -16584,6 +16611,7 @@ function _vbReconcileCamStep(){
       cam.classList.add('pending');
       document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
       let cb=document.getElementById('vcam-confirmbar'); if(cb)cb.remove();
+      try{_vbCamPendMove='';_vbCamPendHook='';_vbRenderCamChips();}catch(e){}
       if(idx>=0)stack[idx]='v5';
       if(v5.classList.contains('pending')){
         v5.classList.remove('pending');
@@ -24863,6 +24891,7 @@ function vbResetNow(){
       let ccb=document.getElementById('vcam-confirmbar'); if(ccb)ccb.remove();
       document.querySelectorAll('#vcam .chip').forEach(c=>c.classList.remove('sel'));
       _vbCamPendMove='';_vbCamPendHook='';
+      try{_vbRenderCamChips();}catch(e){}
     })();
     vbPickRefMode('satu');
     let m3lc=document.getElementById('vb-mode3-lokasi-custom'); if(m3lc)m3lc.value='';
@@ -29465,6 +29494,10 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 .cp3 .pb-fk .pb-fk-text b{flex:none;font:600 15.5px/1.25 'Geist',system-ui,sans-serif;letter-spacing:-.2px;color:var(--text)}
 .cp3 .pb-fk .pb-fk-text small{font:400 11px/1.3 'Geist',system-ui,sans-serif;color:var(--muted)}
 .cp3 .pb-fk.sel .pb-fk-text b{color:var(--accent-2)}
+/* PERGERAKAN KAMERA — dua panel "Pelat Geser" (opsi A, 11 Okt 2026): tinggi baris menyesuaikan teks, pelat diposisikan JS (_vbCamPlate), klik lagi = batal pilih. */
+.cpc{margin:0 0 4px}
+.cpc .pb-fk{height:auto;min-height:var(--rh);padding-block:12px;touch-action:manipulation}
+.cpc .plate{transition:transform .42s cubic-bezier(.22,.9,.28,1),height .3s ease,opacity .25s}
 /* PEMBAWAAN — varian "Akordeon" dari "Pelat Geser" (opsi B, 11 Okt 2026): baris ringkas 56px; baris terpilih melebar ke 80px dan membuka deskripsi.
    Pelat (80px) meluncur ke baris terpilih; jumlah pilihan bisa banyak (8-12) tapi panel tetap pendek. */
 .cpB{--rh:56px;--rhs:80px}
@@ -29571,7 +29604,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
   function cnt(i,t){var e=$(i);if(e){e.textContent=t;e.className='inp-counter';}}
   var CLR={
     v2:function(){VB.gender='';VB.genderLabel='';VB.age='';VB.ageLabel='';off('#vb-gender-chips .chip,#vb-age-chips .chip');val('v2-custom','');cnt('v2-counter','Maks. 120 tahun');},
-    vcam:function(){VB.camMove='';VB.camHook='';off('#vcam .chip');try{_vbCamPendMove='';_vbCamPendHook='';}catch(e){}},
+    vcam:function(){VB.camMove='';VB.camHook='';off('#vcam .chip');try{_vbCamPendMove='';_vbCamPendHook='';_vbRenderCamChips();}catch(e){}},
     vfork:function(){if(window.pbSelectPath)window.pbSelectPath('');},
     v3:function(){VB.pitch='';VB.pitchLabel='';off('#v3 .chip');try{vbPitchPlate('');}catch(e){}val('v3-custom','');cnt('v3-counter','0 / 80');},
     vmotion:function(){VB.motion='';off('#vmotion .chip');val('vmotion-custom','');cnt('vmotion-counter','0 / 80');try{_vbMotionDrawChips();}catch(e){}},
@@ -29887,7 +29920,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 </style>
 <style id="pb-c-look">
 /* TAMPILAN "SKALA" (opsi C dari preview, permintaan user 10 Okt 2026): step video 2..akhir tanpa kotak/panel. Step 1 (#v1 Mode Referensi Foto) TIDAK disentuh. Semua id & onclick lama tetap; chip usia asli disembunyikan (bukan display:none) dan diketuk lewat titik skala. */
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inplabel:has(+ .chips),#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.inplabel{margin:30px 0 14px;padding:0;background:none;border:0;border-radius:0;text-align:center;font:500 13px 'Geist',sans-serif;letter-spacing:0;text-transform:none;color:var(--muted)}
+#video #vcam .wbody .inplabel:has(+ .cp),#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inplabel:has(+ .chips),#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.inplabel{margin:30px 0 14px;padding:0;background:none;border:0;border-radius:0;text-align:center;font:500 13px 'Geist',sans-serif;letter-spacing:0;text-transform:none;color:var(--muted)}
 #video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inplabel:has(+ .chips)+.chips,#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips:not(.vb-mode-list):not(.hidden){display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:0;background:none;border:0;border-radius:0}
 #video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip:not(.context-highlight){flex-direction:row;align-items:baseline;justify-content:center;gap:8px;min-height:0;padding:13px 22px!important;border-radius:999px!important;background:rgba(255,255,255,.025)!important;border:1px solid var(--border-hi)!important;font-weight:500;transition:.3s}
 #video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip>span{display:inline;font:400 12px 'Geist Mono',monospace;color:var(--muted);opacity:1!important}
