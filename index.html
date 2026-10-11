@@ -6200,10 +6200,14 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <div class="vcam-pane on" id="vcam-pane-move" role="tabpanel" aria-labelledby="vcam-tab-kamera">
       <label class="inplabel">Gerakan Kamera</label>
       <div class="cp cp3 cpc" id="vcam-chips" role="radiogroup" aria-label="Gerakan kamera"></div>
+      <label class="inplabel" for="vcam-move-custom" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
+      <input class="inp" type="text" id="vcam-move-custom" maxlength="200" autocomplete="off" placeholder="Contoh: slow zoom out from the product to the character" oninput="vbCamCustom('move',this)" onkeydown="vbCamKey(event,'move')" style="width:100%;box-sizing:border-box;" />
       </div>
       <div class="vcam-pane" id="vcam-pane-hook" role="tabpanel" aria-labelledby="vcam-tab-hook">
       <label class="inplabel">Visual Hook</label>
       <div class="cp cp3 cpc" id="vcam-hook-chips" role="radiogroup" aria-label="Visual Hook"></div>
+      <label class="inplabel" for="vcam-hook-custom" style="margin-bottom:6px;margin-top:10px;">Atau isi sendiri</label>
+      <input class="inp" type="text" id="vcam-hook-custom" maxlength="200" autocomplete="off" placeholder="Contoh: the character gasps and points at the product" oninput="vbCamCustom('hook',this)" onkeydown="vbCamKey(event,'hook')" style="width:100%;box-sizing:border-box;" />
       </div>
       <button type="button" class="btn sm" id="vcam-next-btn" style="width:100%;margin-top:16px;" onclick="vbCamTab('hook')">Lanjut →</button>
       <button type="button" class="btn sm hidden" id="vcam-confirm-btn" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
@@ -13716,7 +13720,7 @@ function _vbUnpackState(json){
       if(!('camMove' in obj.VB))VB.camMove='';
       if(!('camHook' in obj.VB))VB.camHook='';
       // Pilihan kamera / visual hook yang sudah dihapus dari daftar (mis. "Ketuk Lensa" di entri lama) dikosongkan supaya tidak muncul sebagai kode mentah.
-      try{if(VB.camHook&&!VB_CAM_HOOKS[VB.camHook])VB.camHook='';if(VB.camMove&&!VB_CAM_MOVES[VB.camMove])VB.camMove='';}catch(e){}
+      try{if(VB.camHook&&!VB_CAM_HOOKS[VB.camHook]&&!_vbCamIsCustom(VB.camHook))VB.camHook='';if(VB.camMove&&!VB_CAM_MOVES[VB.camMove]&&!_vbCamIsCustom(VB.camMove))VB.camMove='';}catch(e){}
       try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
       // Entri Riwayat lama (sebelum fitur "Gaya khas aksen") tidak punya accentStyle — jangan sampai gaya sesi aktif menempel ke entri itu.
       if(!('accentStyle' in obj.VB)){VB.accentStyle='';VB.accentStyleLabel='';VB.accentStyleFor='';}
@@ -16167,8 +16171,8 @@ function vbPickRefMode(mode){
         let _okM=(VB_CAM_OPTS[mode]||[]).some(function(o){return o[0]===VB.camMove;});
         let _okH=(VB_CAM_HOOK_OPTS[mode]||[]).some(function(o){return o[0]===VB.camHook;});
         let _cleared=false;
-        if(VB.camMove&&!_okM){VB.camMove='';_cleared=true;}
-        if(VB.camHook&&!_okH){VB.camHook='';_cleared=true;}
+        if(VB.camMove&&!_okM&&!_vbCamIsCustom(VB.camMove)){VB.camMove='';_cleared=true;}
+        if(VB.camHook&&!_okH&&!_vbCamIsCustom(VB.camHook)){VB.camHook='';_cleared=true;}
         _vbCamSyncPend();
         let _cc=document.getElementById('vcam');
         if(_cleared&&_cc&&_cc.classList.contains('done')){let _ca=document.getElementById('vacam');if(_ca)_ca.textContent=_vbCamSummary();}
@@ -16438,6 +16442,14 @@ var VB_CAM_LABELS={satu_h_snapzoom:"Snap Zoom",satu_h_fastpullback:"Fast Pull-Ba
     VB_CAM_HOOK_OPTS[m].forEach(function(o){VB_CAM_HOOKS[o[0]]=o[2];VB_CAM_LABELS[o[0]]=o[1];});
   });
 })();
+// ISI SENDIRI (permintaan user, 11 Okt 2026): Gerakan Kamera & Visual Hook boleh ditulis sendiri.
+// Disimpan sebagai 'custom:<teks>' di VB.camMove / VB.camHook (dan override panel pensil), jadi tidak bentrok dengan id preset.
+function _vbCamIsCustom(v){return typeof v==='string'&&v.indexOf('custom:')===0&&v.slice(7).trim().length>0;}
+function _vbCamCustomText(v){return _vbCamIsCustom(v)?v.slice(7).trim():'';}
+function _vbCamLabel(v){
+  if(_vbCamIsCustom(v)){var t=_vbCamCustomText(v);return t.length>36?t.slice(0,35).trim()+'\u2026':t;} // ringkasan kartu: dipendekkan
+  return VB_CAM_LABELS[v]||v;
+}
 // Pilihan sementara (belum dikonfirmasi) — baru masuk VB.camMove / VB.camHook saat klik "Lanjut".
 var _vbCamPendMove='', _vbCamPendHook='';
 function _vbCamSyncPend(){
@@ -16445,8 +16457,8 @@ function _vbCamSyncPend(){
 }
 // Ringkasan yang tampil di kepala kartu setelah selesai (dari nilai yang SUDAH dikonfirmasi di VB).
 function _vbCamSummary(){
-  let mv=VB.camMove?(VB_CAM_LABELS[VB.camMove]||VB.camMove):'';
-  let hk=VB.camHook?(VB_CAM_LABELS[VB.camHook]||VB.camHook):'';
+  let mv=VB.camMove?_vbCamLabel(VB.camMove):'';
+  let hk=VB.camHook?_vbCamLabel(VB.camHook):'';
   if(!mv&&!hk)return 'Tanpa gerakan kamera';
   let parts=[]; if(mv)parts.push(mv); if(hk)parts.push('Hook: '+hk);
   return parts.join(' · ');
@@ -16479,10 +16491,10 @@ function _vbCamAdaptSync(){
     let mode=VB.refMode, ch=false;
     let mv=_vbCamAllowed(VB_CAM_OPTS[mode]||[]).map(function(o){return o[0];});
     let hk=_vbCamAllowed(VB_CAM_HOOK_OPTS[mode]||[]).map(function(o){return o[0];});
-    if(_vbCamPendMove&&mv.indexOf(_vbCamPendMove)<0)_vbCamPendMove='';
-    if(_vbCamPendHook&&hk.indexOf(_vbCamPendHook)<0)_vbCamPendHook='';
-    if(VB.camMove&&mv.indexOf(VB.camMove)<0){VB.camMove='';ch=true;}
-    if(VB.camHook&&hk.indexOf(VB.camHook)<0){VB.camHook='';ch=true;}
+    if(_vbCamPendMove&&!_vbCamIsCustom(_vbCamPendMove)&&mv.indexOf(_vbCamPendMove)<0)_vbCamPendMove='';
+    if(_vbCamPendHook&&!_vbCamIsCustom(_vbCamPendHook)&&hk.indexOf(_vbCamPendHook)<0)_vbCamPendHook='';
+    if(VB.camMove&&!_vbCamIsCustom(VB.camMove)&&mv.indexOf(VB.camMove)<0){VB.camMove='';ch=true;}
+    if(VB.camHook&&!_vbCamIsCustom(VB.camHook)&&hk.indexOf(VB.camHook)<0){VB.camHook='';ch=true;}
     let cc=document.getElementById('vcam'), ca=document.getElementById('vacam');
     if(ch&&cc&&ca&&cc.classList.contains('done'))ca.textContent=_vbCamSummary();
     _vbRenderCamChips();
@@ -16530,6 +16542,9 @@ function _vbRenderCamChips(){
     }
     draw(box1,moves,'move',_vbCamPendMove);
     draw(box2,hooks,'hook',_vbCamPendHook);
+    var _i1=document.getElementById('vcam-move-custom'),_i2=document.getElementById('vcam-hook-custom');
+    if(_i1&&document.activeElement!==_i1)_i1.value=_vbCamCustomText(_vbCamPendMove);
+    if(_i2&&document.activeElement!==_i2)_i2.value=_vbCamCustomText(_vbCamPendHook);
     _vbCamPreview();
   }catch(e){}
 }
@@ -16548,6 +16563,24 @@ function vbPickCam(kind,id,el){
   _vbCamPlate(box);
   if(kind==='hook')_vbCamPendHook=wasSel?'':id;
   else _vbCamPendMove=wasSel?'':id;
+  var _ci=document.getElementById(kind==='hook'?'vcam-hook-custom':'vcam-move-custom'); if(_ci)_ci.value='';
+  _vbCamPreview();
+}
+// Enter di kolom isi sendiri: tab Kamera -> pindah ke tab Visual Hook; tab Visual Hook -> Lanjut. stopPropagation supaya handler Enter global tidak ikut jalan.
+function vbCamKey(e,kind){
+  if(e.key!=='Enter'||e.isComposing)return;
+  e.preventDefault();e.stopPropagation();
+  if(kind==='hook')vbCamConfirm(); else vbCamTab('hook');
+}
+// Ketik di kolom "Atau isi sendiri": chip dilepas, teks jadi pilihan sementara. Dikosongkan = tanpa pilihan.
+function vbCamCustom(kind,inp){
+  var v=String(inp.value||'').trim(), val=v?('custom:'+v):'';
+  var box=document.getElementById(kind==='hook'?'vcam-hook-chips':'vcam-chips');
+  if(val&&box){
+    box.querySelectorAll('.pb-fk').forEach(function(c){c.classList.remove('sel');c.setAttribute('aria-checked','false');});
+    try{_vbCamPlate(box);}catch(e){}
+  }
+  if(kind==='hook')_vbCamPendHook=val; else _vbCamPendMove=val;
   _vbCamPreview();
 }
 // Tombol "Lanjut": simpan kedua pilihan (boleh kosong salah satunya, atau keduanya).
@@ -17827,7 +17860,7 @@ function _vbCharVal(idx,key){
   // Jaring pengaman: gerakan kamera / visual hook yang bukan milik mode aktif (sisa Undo/Riwayat) tidak boleh sampai ke prompt.
   if((key==='camMove'||key==='camHook')&&v){
     var _cs=(key==='camHook'?VB_CAM_HOOK_OPTS:VB_CAM_OPTS)[VB.refMode]||[];
-    if(!_cs.some(function(o){return o[0]===v;}))return '';
+    if(!_vbCamIsCustom(v)&&!_cs.some(function(o){return o[0]===v;}))return '';
   }
   return v;
 }
@@ -17842,8 +17875,8 @@ function _vbCharFields(){
   // Gerakan Kamera & Visual Hook (hanya mode Start Frame / Frame Asset / Raw Asset) — bisa diganti per produk setelah skrip muncul.
   if(typeof _vbHasCam==='function'&&_vbHasCam()){
     var _m=VB.refMode;
-    fl.push({key:'camMove',title:'Gerakan Kamera',none:'Tanpa gerakan kamera',chips:(VB_CAM_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
-    fl.push({key:'camHook',title:'Visual Hook · kartu Hook',none:'Tanpa visual hook',chips:(VB_CAM_HOOK_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
+    fl.push({key:'camMove',title:'Gerakan Kamera',none:'Tanpa gerakan kamera',ph:'Atau isi sendiri, contoh: slow zoom out from the product to the character',max:200,chips:(VB_CAM_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
+    fl.push({key:'camHook',title:'Visual Hook · kartu Hook',none:'Tanpa visual hook',ph:'Atau isi sendiri, contoh: the character gasps and points at the product',max:200,chips:(VB_CAM_HOOK_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
   }
   return fl;
 }
@@ -17881,6 +17914,7 @@ var VB_CHAR_TAB_NAMES={motion:'Pembawaan',gender:'Gender',age:'Usia',pitch:'Nada
 // Label yang ditampilkan untuk nilai field: nama chip kalau cocok preset, teks sendiri kalau custom.
 function _vbCharLabel(f,v){
   v=String(v||'');
+  if(_vbCamIsCustom(v))return _vbCamCustomText(v);
   if(!v)return f.none||(f.key==='ov'?'Kosong':'Default');
   var all=(f.none?[['',f.none]]:[]).concat(f.chips||[]);
   for(var i=0;i<all.length;i++)if(String(all[i][0])===v)return all[i][1];
@@ -18001,6 +18035,7 @@ function _vbCharSync(prodIdx){
     panel.querySelectorAll('input[data-k]').forEach(function(inp){
       if(document.activeElement===inp)return; // jangan ganggu yang lagi diketik
       var cur=String(_vbCharVal(idx0,inp.dataset.k)||'');
+      if(_vbCamIsCustom(cur))cur=_vbCamCustomText(cur);
       var isPreset=Array.prototype.some.call(panel.querySelectorAll('.chip[data-k="'+inp.dataset.k+'"]'),function(c){return c.dataset.v===cur;});
       inp.value=isPreset?'':cur;
     });
@@ -18052,7 +18087,7 @@ function vbCharSet(prodIdx,key,val){
     var _camCleared=false;
     ['camMove','camHook'].forEach(function(ck){
       var cur=_vbCharVal(prodIdx*3,ck);
-      if(!cur)return;
+      if(!cur||_vbCamIsCustom(cur))return;
       if(!_vbCharCamList(prodIdx,ck).some(function(x){return x[0]===cur;})){o[ck]='';_camCleared=true;}
     });
     if(_camCleared){try{showToast('Gerakan kamera disesuaikan dengan nada & aksen — pilih lagi ya','info');}catch(e){}}
@@ -18066,6 +18101,7 @@ function _vbCharSnap(){try{if(typeof pbForceSaveDraftNow==='function')pbForceSav
 function vbCharPick(prodIdx,el){vbCharSet(prodIdx,el.dataset.k,el.dataset.v);_vbCharSnap();}
 function vbCharCustom(prodIdx,inp){
   var v=inp.value.trim();
+  if(v&&(inp.dataset.k==='camMove'||inp.dataset.k==='camHook'))v='custom:'+v; // kamera / visual hook tulis sendiri
   vbCharSet(prodIdx,inp.dataset.k,v?v:null); // kosong = balik ke default wizard
 }
 function vbCharReset(prodIdx){
@@ -24758,19 +24794,22 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   let _hasVisHook=false;
   // Nilai efektif per produk: override dari panel pensil kalau ada, kalau tidak ya pilihan wizard.
   let _cHook=_vbCharVal(idx,'camHook'), _cMove=_vbCharVal(idx,'camMove');
-  if(_vbHasCam()&&typeof idx==='number'&&idx%3===0&&_cHook&&VB_CAM_HOOKS[_cHook]){
-    flowText+=' visual_hook: during the first 3 seconds only, '+VB_CAM_HOOKS[_cHook]+'. After that the shot continues naturally.';
+  if(_vbHasCam()&&typeof idx==='number'&&idx%3===0&&_cHook&&(VB_CAM_HOOKS[_cHook]||_vbCamIsCustom(_cHook))){
+    let _hookTxt=_vbCamIsCustom(_cHook)?_vbCamCustomText(_cHook).replace(/[.\s]+$/,''):VB_CAM_HOOKS[_cHook];
+    flowText+=' visual_hook: during the first 3 seconds only, '+_hookTxt+'. After that the shot continues naturally.';
     _hasVisHook=true;
   }
-  if(_vbHasCam()&&_cMove&&typeof idx==='number'&&VB_CAM_MOVES[_cMove]){
-    let _camVal=VB_CAM_MOVES[_cMove][idx%3];
+  if(_vbHasCam()&&_cMove&&typeof idx==='number'&&(VB_CAM_MOVES[_cMove]||_vbCamIsCustom(_cMove))){
+    // Isi sendiri: teks user dipakai apa adanya di kartu Hook, Story, dan CTA.
+    let _camVal=_vbCamIsCustom(_cMove)?_vbCamCustomText(_cMove):VB_CAM_MOVES[_cMove][idx%3];
     // Kalau kartu Hook punya visual hook, gerakan kamera yang jalan SETELAH hook memakai versi tenang (Story),
     // supaya dua gerakan tidak bertabrakan. Frame Asset: transisi foto 1 -> foto 2 sudah dikerjakan oleh
     // visual hook, jadi setelahnya kamera cukup tenang di komposisi foto 2.
-    if(_hasVisHook&&idx%3===0){
-      _camVal=(VB.refMode==='aset')
-        ?'the camera stays calm and steady on the composition of the second photo, main subject clearly visible'
-        :VB_CAM_MOVES[_cMove][1];
+    if(_hasVisHook&&idx%3===0&&!_vbCamIsCustom(_cMove)){
+      if(VB.refMode==='aset'){
+        // Hook tulis sendiri belum tentu mengerjakan transisi foto 1 -> foto 2, jadi gerakan kamera aslinya dipertahankan.
+        if(!_vbCamIsCustom(_cHook))_camVal='the camera stays calm and steady on the composition of the second photo, main subject clearly visible';
+      }else _camVal=VB_CAM_MOVES[_cMove][1];
     }
     if(_camVal)flowText+=' camera_movement: '+((_hasVisHook&&idx%3===0)?'after the visual hook, ':'')+_camVal;
   }
