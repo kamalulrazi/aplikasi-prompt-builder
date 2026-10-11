@@ -13713,6 +13713,8 @@ function _vbUnpackState(json){
       // jangan sampai nilai camMove dari sesi yang sedang aktif ikut menempel ke entri itu.
       if(!('camMove' in obj.VB))VB.camMove='';
       if(!('camHook' in obj.VB))VB.camHook='';
+      // Pilihan kamera / visual hook yang sudah dihapus dari daftar (mis. "Ketuk Lensa" di entri lama) dikosongkan supaya tidak muncul sebagai kode mentah.
+      try{if(VB.camHook&&!VB_CAM_HOOKS[VB.camHook])VB.camHook='';if(VB.camMove&&!VB_CAM_MOVES[VB.camMove])VB.camMove='';}catch(e){}
       try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
       // Entri Riwayat lama (sebelum fitur "Gaya khas aksen") tidak punya accentStyle — jangan sampai gaya sesi aktif menempel ke entri itu.
       if(!('accentStyle' in obj.VB)){VB.accentStyle='';VB.accentStyleLabel='';VB.accentStyleFor='';}
@@ -17924,8 +17926,6 @@ function _vbCharBuildPanel(prodIdx,panel){
         (f.chips||[]).forEach(function(c){p+='<div class="chip" data-k="'+f.key+'" data-v="'+esc(c[0])+'" onclick="vbCharPick('+prodIdx+',this)">'+esc(c[1])+'</div>';});
       }
       p+='</div>';
-      // Frame Asset: kartu Hook yang punya visual hook memakai kamera tenang tetap, jadi beri tahu user (tampil hanya saat relevan).
-      if(f.key==='camMove')p+='<div data-camnote class="hidden" style="font-size:var(--fs-2xs);color:var(--muted);line-height:1.6;padding:6px 8px;border-left:2px solid var(--accent);">Di kartu Hook, kamera mengikuti visual hook yang dipilih, jadi gerakan ini hanya berlaku di kartu Story &amp; CTA. Pilih &quot;Tanpa visual hook&quot; kalau mau dipakai di Hook juga.</div>';
       if(f.ph)p+='<input class="inp" data-k="'+f.key+'" maxlength="'+f.max+'" placeholder="'+esc(f.ph)+'" oninput="vbCharCustom('+prodIdx+',this)" style="font-size:var(--fs-xs2);padding:6px 8px;width:100%;box-sizing:border-box;" />';
     }
     panes+=p+'</div>';
