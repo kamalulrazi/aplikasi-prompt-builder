@@ -6304,6 +6304,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           <label class="inplabel" for="vb-bulk-target">Target Audience (penonton)</label>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">
             <div class="chip" onclick="vbPickTargetAudiencePreset('vb-bulk-target','genz-perempuan',this)">Gen Z Perempuan</div>
+            <div class="chip" onclick="vbPickTargetAudiencePreset('vb-bulk-target','bunda-bunda',this)">Bunda-bunda</div>
           </div>
           <div class="inp-wrap" style="margin-bottom:12px;">
             <input class="inp" id="vb-bulk-target" maxlength="200" placeholder="Contoh: perempuan usia 20-30 tahun yang suka belanja online" oninput="vbBulkTargetInput('vb-bulk-target',this)" />
@@ -20486,8 +20487,11 @@ function _vbHardEnforceMaxWords(text,max,min){
 // mulai mengetik, supaya status "terpilih"-nya tidak nyangkut kelihatan
 // aktif padahal isi kolom sudah beda.
 var VB_TARGET_AUDIENCE_PRESETS={
-  'genz-perempuan':'Gen Z women'
+  'genz-perempuan':'Gen Z women',
+  'bunda-bunda':'bunda' // permintaan user (11 Okt 2026): kirim apa adanya "bunda", tanpa tambahan apa pun
 };
+// Label yang tampil ke user (toast & ringkasan). HANYA tampilan, tidak dikirim ke AI.
+var VB_TARGET_AUDIENCE_LABELS={'genz-perempuan':'Gen Z Perempuan','bunda-bunda':'Bunda-bunda'};
 var VB_TA_PRESET={};
 // FITUR BARU: sapaan ke penonton (opsional). Disimpan global supaya SEMUA
 // jalur generate/regenerate/revisi/lanjutkan yang lewat _vbCallBulkBatch
@@ -20586,13 +20590,13 @@ function vbPickTargetAudiencePreset(inputId,presetKey,el){
   if(el)el.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
   if(already){
     delete VB_TA_PRESET[inputId];
-    if(typeof showToast==='function') showToast('Preset Gen Z Perempuan dibatalkan','success');
+    if(typeof showToast==='function') showToast('Preset '+(VB_TARGET_AUDIENCE_LABELS[presetKey]||presetKey)+' dibatalkan','success');
     return;
   }
   VB_TA_PRESET[inputId]=presetKey;
   if(el)el.classList.add('sel');
   if(field)field.value='';
-  if(typeof showToast==='function') showToast('Target audience: Gen Z Perempuan dipakai (kolom tetap kosong)','success');
+  if(typeof showToast==='function') showToast('Target audience: '+(VB_TARGET_AUDIENCE_LABELS[presetKey]||presetKey)+' dipakai (kolom tetap kosong)','success');
 }
 // Dipanggil dari oninput kolom Target Audience — begitu user mulai
 // ngetik manual, preset chip yang mungkin lagi aktif dibatalkan otomatis
@@ -30259,7 +30263,7 @@ function vbInfoSum(){
     for(var i=0;i<n;i++){var ei=document.getElementById('vb-bulk-nama-'+i);if(!ei||!ei.value.trim()){gap=i;break;}}
     var tg=((document.getElementById('vb-bulk-target')||{}).value||'').trim();
     var pk=VB_TA_PRESET&&VB_TA_PRESET['vb-bulk-target'];
-    if(!tg&&pk)tg=({'genz-perempuan':'Gen Z Perempuan'})[pk]||VB_TARGET_AUDIENCE_PRESETS[pk]||'';
+    if(!tg&&pk)tg=VB_TARGET_AUDIENCE_LABELS[pk]||VB_TARGET_AUDIENCE_PRESETS[pk]||'';
     var sp=(typeof VB_SAPAAN==='string')?VB_SAPAAN:'';
     var t=function(x,e){return '<span class="vt-tg'+(e?' e':'')+'">'+esc(x)+'</span>';};
     var html=(gap<0?t(nm+(n>1?' +'+(n-1)+' lainnya':'')):(gap===0&&n===1?t('Produk belum diisi',1):t('Produk '+(gap+1)+' belum diisi',1)))+(tg?t(tg):t('Penonton belum diisi',1))+(sp?t('Sapaan: '+sp):'');
