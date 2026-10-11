@@ -6188,15 +6188,30 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
       <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Pilih gaya pergerakan kamera dan/atau Visual Hook, atau lewati kalau tidak perlu. Prompt Hook, Story, dan CTA otomatis dapat tambahan <code>camera_movement</code> sendiri-sendiri. Visual Hook hanya masuk ke prompt Hook. Hasilnya cuma muncul di prompt video, tidak dikirim ke AI penulis skrip.</p>
       <p id="vcam-modehint" style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 12px;line-height:1.7;"></p>
       <p id="vcam-adapt" class="hidden" style="font-size:var(--fs-sm);color:var(--accent);margin:0 0 12px;line-height:1.6;"></p>
+      <!-- PERMINTAAN USER (11 Okt 2026): Pergerakan Kamera & Visual Hook jadi DUA TAB terpisah (gaya sama seperti Produk | Penonton).
+           Tab kiri = Kamera, tab kanan = Visual Hook. Tombol "Lanjut" di tab Kamera pindah ke tab Visual Hook; "Kembali" di tab Visual Hook
+           balik ke tab Kamera. Logika: vbCamTab() di dekat akhir file. Semua id chip & fungsi lama tidak diubah. -->
+      <div class="cp cpT" id="vcam-tabs" data-sel="kamera">
+        <span class="plate" aria-hidden="true"></span>
+        <div class="vt-bar" role="tablist" aria-label="Pergerakan kamera dan visual hook">
+          <button type="button" class="vt on" role="tab" id="vcam-tab-kamera" aria-selected="true" aria-controls="vcam-pane-move" data-p="kamera" onclick="vbCamTab('kamera')"><i></i><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="12.5" height="11" rx="2.5"/><path d="M15.5 10.5l5-2.5v8l-5-2.5"/></svg>Kamera</button>
+          <button type="button" class="vt" role="tab" id="vcam-tab-hook" tabindex="-1" aria-selected="false" aria-controls="vcam-pane-hook" data-p="hook" onclick="vbCamTab('hook')"><i></i><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/></svg>Visual Hook</button>
+        </div>
+      </div>
+      <div class="vcam-pane on" id="vcam-pane-move" role="tabpanel" aria-labelledby="vcam-tab-kamera">
       <label class="inplabel">Gerakan Kamera</label>
       <div class="cp cp3 cpc" id="vcam-chips" role="radiogroup" aria-label="Gerakan kamera"></div>
       <div id="vcam-id-move" style="display:none;margin:10px 0 0;padding:10px 12px;border:1px solid var(--border,rgba(128,128,128,.3));border-radius:10px;font-size:var(--fs-sm);"></div>
-      <p style="font-size:var(--fs-sm);color:var(--muted);margin:16px 0 0;line-height:1.6;">Aksi karakter di awal video supaya penonton berhenti scroll. Kalau fotomu tanpa orang, aksinya dilakukan tangan atau produk. Klik lagi untuk batal pilih.</p>
+      </div>
+      <div class="vcam-pane" id="vcam-pane-hook" role="tabpanel" aria-labelledby="vcam-tab-hook">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin:0 0 4px;line-height:1.6;">Aksi karakter di awal video supaya penonton berhenti scroll. Kalau fotomu tanpa orang, aksinya dilakukan tangan atau produk. Klik lagi untuk batal pilih.</p>
       <label class="inplabel">Visual Hook <span style="font-weight:400;color:var(--muted);">(khusus kartu Hook, 1–3 detik pertama)</span></label>
       <div class="cp cp3 cpc" id="vcam-hook-chips" role="radiogroup" aria-label="Visual Hook"></div>
       <div id="vcam-id-hook" style="display:none;margin:10px 0 0;padding:10px 12px;border:1px solid var(--border,rgba(128,128,128,.3));border-radius:10px;font-size:var(--fs-sm);"></div>
-      <button type="button" class="btn sm" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
-      <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()">Lewati, tanpa gerakan kamera</button>
+      </div>
+      <button type="button" class="btn sm" id="vcam-next-btn" style="width:100%;margin-top:16px;" onclick="vbCamTab('hook')">Lanjut →</button>
+      <button type="button" class="btn sm hidden" id="vcam-confirm-btn" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
+      <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()" title="Melewati kamera DAN visual hook sekaligus">Lewati semua, tanpa kamera &amp; visual hook</button>
     </div>
   </div>
 
@@ -16598,6 +16613,7 @@ function _vbCamPreview(){
       if(h){b2.innerHTML=_vbCamPreviewHTML([['Visual Hook (1–3 detik pertama)',h]]);b2.style.display='block';}
       else{b2.innerHTML='';b2.style.display='none';}
     }
+    try{vbCamDots();}catch(_e){}
   }catch(e){}
 }
 // Klik chip = pilih sementara. Klik lagi pada chip yang sama = batal pilih.
@@ -29573,6 +29589,12 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 .cpT .vt-tg{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:500;background:var(--accent-dim-bg);color:var(--accent-2);border:1px solid rgba(var(--pulse-rgb),.25)}
 .cpT .vt-tg.e{background:none;color:var(--muted2);border-color:var(--border)}
 @media (prefers-reduced-motion:reduce){.cpT .vt,.cpT .vt i{transition:none!important}}
+/* PERGERAKAN KAMERA — tab Kamera | Visual Hook (11 Okt 2026), memakai gaya .cpT yang sama dengan Produk | Penonton. */
+.cpT[data-sel="kamera"] .plate{opacity:1}
+.cpT[data-sel="hook"] .plate{opacity:1;transform:translateX(100%)}
+#vcam-tabs{margin:0 0 14px}
+.vcam-pane{display:none}
+.vcam-pane.on{display:block}
 /* PERGERAKAN KAMERA — dua panel "Pelat Geser" (opsi A, 11 Okt 2026): tinggi baris menyesuaikan teks, pelat diposisikan JS (_vbCamPlate), klik lagi = batal pilih. */
 .cpc{margin:0 0 4px}
 .cpc .pb-fk{height:auto;min-height:var(--rh);padding-block:12px;touch-action:manipulation}
@@ -29683,7 +29705,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
   function cnt(i,t){var e=$(i);if(e){e.textContent=t;e.className='inp-counter';}}
   var CLR={
     v2:function(){VB.gender='';VB.genderLabel='';VB.age='';VB.ageLabel='';off('#vb-gender-chips .chip,#vb-age-chips .chip');val('v2-custom','');cnt('v2-counter','Maks. 120 tahun');},
-    vcam:function(){VB.camMove='';VB.camHook='';off('#vcam .chip');try{_vbCamPendMove='';_vbCamPendHook='';_vbRenderCamChips();}catch(e){}},
+    vcam:function(){VB.camMove='';VB.camHook='';off('#vcam .chip');try{_vbCamPendMove='';_vbCamPendHook='';_vbRenderCamChips();}catch(e){}try{vbCamTab('kamera',true);}catch(e){}},
     vfork:function(){if(window.pbSelectPath)window.pbSelectPath('');},
     v3:function(){VB.pitch='';VB.pitchLabel='';off('#v3 .chip');try{vbPitchPlate('');}catch(e){}val('v3-custom','');cnt('v3-counter','0 / 80');},
     vmotion:function(){VB.motion='';off('#vmotion .chip');val('vmotion-custom','');cnt('vmotion-counter','0 / 80');try{_vbMotionDrawChips();}catch(e){}},
@@ -30217,6 +30239,79 @@ function vbInfoSum(){
     var v5=document.getElementById('v5');if(v5)new MutationObserver(function(){vbInfoSum();}).observe(v5,{attributes:true,attributeFilter:['class']});
   }
   vbInfoSum();
+})();
+</script>
+<script>
+/* PERGERAKAN KAMERA — tab Kamera | Visual Hook (11 Okt 2026). Tab kiri Kamera, tab kanan Visual Hook.
+   "Lanjut" di tab Kamera -> pindah ke tab Visual Hook; "Kembali" di tab Visual Hook -> balik ke tab Kamera (tidak menghapus pilihan).
+   "Lanjut" di tab Visual Hook -> simpan kedua pilihan & lanjut ke step berikutnya (vbCamConfirm). */
+function vbCamTab(k,quiet){
+  var box=document.getElementById('vcam-tabs');if(!box)return;
+  var hook=(k==='hook'),sel=hook?'hook':'kamera';
+  box.setAttribute('data-sel',sel);
+  [].forEach.call(box.querySelectorAll('.vt'),function(b){var on=b.getAttribute('data-p')===sel;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');b.setAttribute('tabindex',on?'0':'-1');});
+  var pm=document.getElementById('vcam-pane-move'),ph=document.getElementById('vcam-pane-hook');
+  if(pm)pm.classList.toggle('on',!hook);
+  if(ph)ph.classList.toggle('on',hook);
+  var nx=document.getElementById('vcam-next-btn'),cf=document.getElementById('vcam-confirm-btn');
+  if(nx)nx.classList.toggle('hidden',hook);
+  if(cf)cf.classList.toggle('hidden',!hook);
+  // Pelat emas di dalam panel chip baru bisa diukur setelah panelnya tampil.
+  var place=function(){['vcam-chips','vcam-hook-chips'].forEach(function(id){var c=document.getElementById(id);if(c){try{_vbCamPlate(c);}catch(e){}}});};
+  place();try{requestAnimationFrame(place);}catch(e){}
+  try{vbCamDots();}catch(e){}
+  try{fFitWbody(box);}catch(e){}
+  // Gulir hanya kalau user yang pindah tab; pindah otomatis (step dibuka / di-reset / Undo) tidak boleh menggeser halaman.
+  if(!quiet){try{if(box.scrollIntoView)box.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}}
+}
+// Titik kecil di tab = ada pilihan (belum dikonfirmasi) di tab itu.
+function vbCamDots(){
+  var box=document.getElementById('vcam-tabs');if(!box)return;
+  var a=box.querySelector('.vt[data-p="kamera"]'),b=box.querySelector('.vt[data-p="hook"]');
+  if(a)a.classList.toggle('dn',!!_vbCamPendMove);
+  if(b)b.classList.toggle('dn',!!_vbCamPendHook);
+}
+(function(){
+  var box0=document.getElementById('vcam-tabs');if(!box0)return;
+  var $=function(i){return document.getElementById(i);};
+  // Elemen selalu dicari ulang (bukan disimpan) supaya tetap benar kalau DOM-nya pernah digambar ulang.
+  var tabBox=function(){return $('vcam-tabs');};
+  var curTab=function(){var b=tabBox();return b?b.getAttribute('data-sel'):'';};
+  // ARIA Tabs: panah kiri/kanan + Home/End.
+  var bar=box0.querySelector('.vt-bar');
+  if(bar)bar.addEventListener('keydown',function(e){
+    var k=e.key;if(k!=='ArrowLeft'&&k!=='ArrowRight'&&k!=='Home'&&k!=='End')return;
+    var tabs=[].slice.call(tabBox().querySelectorAll('.vt'));
+    var i=tabs.indexOf(document.activeElement);if(i<0)return;
+    var j=k==='Home'?0:(k==='End'?tabs.length-1:(i+(k==='ArrowRight'?1:-1)+tabs.length)%tabs.length);
+    e.preventDefault();vbCamTab(tabs[j].getAttribute('data-p'));tabs[j].focus();
+  });
+  // KEMBALI di tab Visual Hook = balik ke tab Kamera (bukan mundur ke step sebelumnya & tidak menghapus apa pun).
+  // Tombol Kembali wizard dibuat pbw-js dengan handler sendiri, jadi dicegat di fase capture.
+  document.addEventListener('click',function(e){
+    var t=e.target&&e.target.closest?e.target.closest('.pbw-bk'):null;if(!t)return;
+    var h=$('pbw-head');
+    if(h&&h.dataset.cid==='vcam'&&curTab()==='hook'){
+      e.stopImmediatePropagation();e.preventDefault();
+      vbCamTab('kamera');
+    }
+  },true);
+  // Klik chip yang BUKAN dari jari/mouse user (mis. Ctrl+Z mengembalikan pilihan chip sebelumnya) -> ikut pindah ke tab pemilik chip itu,
+  // supaya perubahannya kelihatan dan tidak terjadi diam-diam di tab yang tersembunyi.
+  document.addEventListener('click',function(e){
+    if(e.isTrusted)return;
+    var c=e.target&&e.target.closest?e.target.closest('#vcam-chips .pb-fk,#vcam-hook-chips .pb-fk'):null;if(!c)return;
+    var want=c.closest('#vcam-hook-chips')?'hook':'kamera';
+    if(curTab()!==want)vbCamTab(want,true);
+  },true);
+  // Setiap kali step Pergerakan Kamera dibuka (baru, atau dibuka ulang lewat chip ringkasan), mulai dari tab Kamera.
+  var card=$('vcam');
+  if(card&&window.MutationObserver){
+    var act=function(){var c=$('vcam');return !!c&&!c.classList.contains('done')&&!c.classList.contains('pending')&&!c.classList.contains('hidden');};
+    var was=act();
+    new MutationObserver(function(){var n=act();if(n&&!was){try{vbCamTab('kamera',true);}catch(e){}}was=n;}).observe(card,{attributes:true,attributeFilter:['class']});
+  }
+  try{vbCamDots();}catch(e){}
 })();
 </script>
 </body>
