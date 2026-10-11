@@ -11546,7 +11546,7 @@ function _fDoGenerateMultiShot(checkedEls){
       let card = document.createElement('div');
       card.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;';
       let head = document.createElement('div');
-      head.style.cssText='background:var(--surface3);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);';
+      head.style.cssText='background:var(--surface3);padding:10px 14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid var(--border);';
       head.innerHTML = '<div style="font-size:var(--fs-sm);font-weight:700;">'+(i+1)+'. '+r.label+'</div>';
       // FIX (audit susulan #3 — Riwayat): daftar "foto yang perlu diupload"
       // untuk kartu ini dihitung & DITITIPKAN di sini sebagai teks polos
@@ -12081,12 +12081,28 @@ function _csDoGeneratePrompt(){
   if(!usia.ok){csUsiaInvalid();return;}
   csState.usia=usia.val;
 
-  let outfitTxt=(csState.outfit||(csState.gender==='laki-laki'?'Outfit casual':"Setelan abaya syar'i")).toLowerCase();
-  let usiaClause=csState.usia?('berusia '+csState.usia+' tahun '):'';
-  let penampilanTxt=(csState.penampilan||'Cantik, Putih').toLowerCase();
-  let text='buatkan aku foto karakter sheet multi angle lengkap dengan ekspresi dan beberapa angle mulai dari depan samping low angle, high angle, serta eye level. Karakter nya adalah seorang '
-    +csState.gender+' '+usiaClause+'dengan penampilan '+penampilanTxt+' asal '+csState.negara
-    +', memakai '+outfitTxt+' dengan background putih bersih';
+  // Prompt karakter sheet dibuat dalam BAHASA INGGRIS. Pilihan chip (gender, negara, penampilan,
+  // outfit) berlabel Indonesia, jadi diterjemahkan lewat peta di bawah. Isian "isi sendiri" yang
+  // tidak ada di peta dipakai apa adanya (sesuai ketikan user).
+  let _csEn=function(map,val,fallback){
+    let k=String(val||'').trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(map,k)?map[k]:(String(val||'').trim()||fallback);
+  };
+  let isLaki=csState.gender==='laki-laki';
+  let genderEn=isLaki?'man':'woman';
+  let negaraEn=_csEn({'indonesia':'Indonesia','mesir':'Egypt','arab saudi':'Saudi Arabia'},csState.negara,'Indonesia');
+  let penampilanEn=_csEn({
+    'cantik, putih':'beautiful, fair-skinned','ganteng, putih':'handsome, fair-skinned',
+    'cantik, sawo matang':'beautiful, tan-skinned','ganteng, sawo matang':'handsome, tan-skinned',
+    'biasa aja':'average-looking','jelek':'plain, unattractive'
+  },csState.penampilan,isLaki?'handsome, fair-skinned':'beautiful, fair-skinned').toLowerCase();
+  let outfitEn=_csEn({
+    "setelan abaya syar'i":"a modest syar'i abaya set",'outfit casual':'a casual outfit'
+  },csState.outfit||(isLaki?'outfit casual':"setelan abaya syar'i"),'a casual outfit');
+  let usiaClause=csState.usia?('aged '+csState.usia+' '):'';
+  let text='Create a complete multi-angle character sheet photo with various expressions and several angles: front, side, low angle, high angle, and eye level. The character is a '
+    +genderEn+' '+usiaClause+'with '+(/^[aeiou]/i.test(penampilanEn)?'an ':'a ')+penampilanEn+' appearance, from '+negaraEn
+    +', wearing '+outfitEn+', on a clean white background. Make sure the character is a realistic human, not an animated image.';
 
   csLastPromptText=text;
   csShowResultNotif(text);
@@ -14215,6 +14231,8 @@ function _pbInjectPerCardCopyButtons(root){
     if(head.querySelector('.pb-percard-copy'))return; // jangan dobel
     let txt=pre.textContent||'';
     if(!txt.trim())return;
+    // FIX: header kartu tersimpan (snapshot lama) tidak punya flex-wrap -> tombol bisa terpotong. Paksa wrap.
+    head.style.flexWrap='wrap';
     let btn=document.createElement('button');
     btn.type='button';
     btn.className='copy-btn pb-percard-copy';
@@ -14548,7 +14566,7 @@ function _pbRefreshVideoCard(c,fromScript){
 function _pbMkHeadBtn(html){
   let b=document.createElement('button');
   b.type='button';b.className='copy-btn';
-  b.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+  b.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:1;max-width:100%;text-align:left;';
   b.innerHTML=html;
   return b;
 }
@@ -14615,7 +14633,8 @@ function _pbEnhanceVideoContent(content){
       let idx=c.idx;
       let right=document.createElement('div');
       right.setAttribute('data-pb-ui','1');
-      right.style.cssText='display:flex;align-items:center;gap:5px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;';
+      right.style.cssText='display:flex;align-items:center;gap:5px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%;';
+      c.head.style.flexWrap='wrap'; // FIX: header snapshot lama tidak wrap -> Salin bisa terpotong
       let salin=c.head.querySelector('.pb-percard-copy');
 
       let tampilBtn=_pbMkHeadBtn(_PB_CAM_ICON+(VB_CARD_TAMPIL[idx]?VB_CARD_TAMPIL[idx].label:'Tampilan'));
