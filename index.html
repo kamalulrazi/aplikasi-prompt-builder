@@ -6308,6 +6308,8 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           <div class="vt-sum" id="vb-info-sum" aria-live="polite"></div>
           </div>
           <button id="vb-bulk-btn" class="btn" onclick="vbBulkMainAction()" style="font-size:var(--fs-md);padding:13px;">Generate Prompt</button>
+          <!-- PERMINTAAN USER (Okt 2026): di tab Produk tombolnya "Lanjut" (pindah ke tab Penonton); "Generate Prompt" baru muncul di tab Penonton. Lihat vbInfoSyncBtns(). -->
+          <button id="vb-bulk-next-btn" type="button" class="btn hidden" onclick="vbInfoNext()" style="font-size:var(--fs-md);padding:13px;">Lanjut</button>
           <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">Tiap produk otomatis dapat 3 script dengan alur tetap: Hook (stop scroll + sadarkan masalah), Cerita (produk jadi solusi), CTA (ajak cek keranjang). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
           <div id="vb-bulk-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
         </div>
@@ -22367,6 +22369,7 @@ function _vbSyncBulkMainButton(){
     btn.dataset.vbMode='generate';
     btn.classList.remove('cs-pulse-btn');
   }
+  try{if(typeof vbInfoSyncBtns==='function')vbInfoSyncBtns();}catch(_e){}
 }
 // Handler tombol utama bulk — otomatis pilih antara generate dari awal
 // (kalau tidak ada sesi menggantung) atau lanjutkan sisa produk saja
@@ -30135,7 +30138,38 @@ function vbInfoTab(k){
   [].forEach.call(box.querySelectorAll('.vt'),function(b){var on=b.getAttribute('data-p')===k;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');b.setAttribute('tabindex',on?'0':'-1');});
   [].forEach.call(box.querySelectorAll('.vt-pane'),function(p){p.classList.toggle('on',p.id==='vb-pane-'+k);});
   vbInfoSum();
+  try{vbInfoSyncBtns();}catch(e){}
   try{fFitWbody(box);}catch(e){}
+}
+// Tombol bawah form: tab Produk -> "Lanjut" (pindah ke tab Penonton), tab Penonton -> "Generate Prompt".
+// Pengecualian: kalau ada sesi generate yang menggantung ("Lanjutkan N Produk yang Belum", mode resume)
+// atau proses AI sedang jalan, tombol utama tetap tampil di kedua tab supaya tidak tersembunyi.
+function vbInfoSyncBtns(){
+  var box=document.getElementById('vb-info-tabs');
+  var gen=document.getElementById('vb-bulk-btn'),nx=document.getElementById('vb-bulk-next-btn');
+  if(!box||!gen||!nx)return;
+  var sel=box.getAttribute('data-sel');
+  var special=gen.dataset.vbMode==='resume'||gen.classList.contains('btn-loading');
+  var showNext=(sel==='produk')&&!special;
+  nx.classList.toggle('hidden',!showNext);
+  gen.classList.toggle('hidden',showNext);
+}
+function vbInfoNext(){
+  // PERMINTAAN USER (Okt 2026): nama produk wajib diisi dulu. Kalau ada yang kosong, kasih tahu user
+  // dan TETAP di tab Produk (tidak pindah ke Penonton). Pesannya sama dengan validasi Generate.
+  var cnt=parseInt((document.getElementById('vb-bulk-count')||{}).value,10)||1;
+  for(var i=0;i<cnt;i++){
+    var ne=document.getElementById('vb-bulk-nama-'+i);
+    if(!ne||!ne.value.trim()){
+      try{showToast('Nama Produk '+(i+1)+' belum diisi','error');}catch(_e){}
+      try{vbInfoTab('produk');}catch(_e){}
+      if(ne){try{ne.focus();}catch(_e){}}
+      return;
+    }
+  }
+  try{vbInfoTab('penonton');}catch(e){}
+  var box=document.getElementById('vb-info-tabs');
+  try{if(box&&box.scrollIntoView)box.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}
 }
 // Balik ke tab Produk dan tutup akordeon Sapaan (dipanggil saat reset / Kembali).
 function vbInfoReset(){
@@ -30145,6 +30179,7 @@ function vbInfoReset(){
 }
 // Ringkasan isi di bawah tab. Sapaan hanya muncul kalau memang diisi.
 function vbInfoSum(){
+  try{vbInfoSyncBtns();}catch(_e){}
   try{
     var out=document.getElementById('vb-info-sum');if(!out)return;
     var n=parseInt((document.getElementById('vb-bulk-count')||{}).value,10)||1;
