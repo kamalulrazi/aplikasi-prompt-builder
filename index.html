@@ -4353,7 +4353,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.79</div>
+  <div class="splash-version" id="splash-version">v11.80</div>
 </div>
 <script>
   (function(){
@@ -4456,7 +4456,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     // guard tambahan di sini jadi redundan (malah merugikan) untuk mereka.
     // Di luar elemen-elemen itu (scroll area, teks, dsb.), guard anti-zoom
     // yang asli tetap jalan seperti biasa.
-    if(e.target&&e.target.closest&&e.target.closest('.chip,.subjek-card,.ftype-btn,.catcard,.vstyle-card,.produk-choice,.suara-card'))return;
+    if(e.target&&e.target.closest&&e.target.closest('.chip,.subjek-card,.ftype-btn,.catcard,.vstyle-card,.produk-choice,.suara-card,#vmotion-chips .pb-fk'))return;
     let now = Date.now();
     if (now - _lastTouchEnd <= 300) e.preventDefault();
     _lastTouchEnd = now;
@@ -6089,12 +6089,14 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     <div class="whead"><div class="wnum">4</div><div class="wtitle">Pembawaan</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vamotion"></div></div>
     <div class="wbody">
       <p id="vmotion-hint" style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Harap pilih pembawaan yang sesuai dengan nada bicara, supaya hasil video tidak kontradiktif.</p>
-      <div class="chips" id="vmotion-chips"></div>
+      <!-- PEMBAWAAN — tampilan "Akordeon" (opsi B dari preview-pembawaan, 11 Okt 2026): satu panel kaca, baris ringkas 56px; baris terpilih membuka deskripsinya
+           dan pelat emas meluncur ke sana. Baris digambar oleh _vbMotionDrawChips() (disaring gender & nada). Logika pelat: vbMotionPlate(). -->
+      <div class="cp cpB" id="vmotion-chips" role="radiogroup" aria-label="Pembawaan"></div>
       <button type="button" class="btn sm ghost" style="width:100%;margin-top:12px;" onclick="vbSkipMotion()">Lewati, tanpa pembawaan</button>
       <div class="mt12">
         <label class="inplabel">Atau isi sendiri</label>
         <div class="inp-wrap">
-          <input class="inp" id="vmotion-custom" maxlength="80" placeholder="Contoh: anggun dan kalem" oninput="fCountInp(this,'vmotion-counter')" />
+          <input class="inp" id="vmotion-custom" maxlength="80" placeholder="Contoh: anggun dan kalem" oninput="fCountInp(this,'vmotion-counter');vbMotionTypeClear(this)" />
           <div class="inp-counter" id="vmotion-counter">0 / 80</div>
         </div>
         <button class="btn sm" data-role="mt12-confirm" onclick="vbPickMotionCustom()">Konfirmasi →</button>
@@ -6463,7 +6465,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.79 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.80 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -6623,7 +6625,7 @@ document.addEventListener('click',function(e){
 let _fastPickLastEl=null,_fastPickLastTime=0;
 const FAST_PICK_THRESHOLD_MS=400;
 document.addEventListener('click',function(e){
-  let el=e.target&&e.target.closest?e.target.closest('.chip,.subjek-card,.ftype-btn,.catcard,.vstyle-card,.produk-choice,.suara-card'):null;
+  let el=e.target&&e.target.closest?e.target.closest('.chip,.subjek-card,.ftype-btn,.catcard,.vstyle-card,.produk-choice,.suara-card,#vmotion-chips .pb-fk'):null;
   if(!el)return;
   let now=Date.now();
   let isFastRepeat=(el===_fastPickLastEl)&&(now-_fastPickLastTime<FAST_PICK_THRESHOLD_MS);
@@ -16912,12 +16914,13 @@ function vbPitchPlate(val){
   }else if(val)bx.setAttribute('data-sel',val);
   else bx.removeAttribute('data-sel');
 }
-// navigasi panah (radiogroup) untuk Nada Bicara
+// navigasi panah (radiogroup) untuk Nada Bicara & Pembawaan
 document.addEventListener('keydown',function(e){
-  var t=e.target; if(!t||!t.closest||!t.closest('#v3-box'))return;
+  var t=e.target; if(!t||!t.closest)return;
+  var grp=t.closest('#v3-box,#vmotion-chips'); if(!grp)return; // Nada Bicara + Pembawaan
   var k=e.key,d=(k==='ArrowDown'||k==='ArrowRight')?1:((k==='ArrowUp'||k==='ArrowLeft')?-1:0);
   if(!d)return;
-  var rows=Array.prototype.slice.call(document.querySelectorAll('#v3-box .pb-fk')),i=rows.indexOf(t);
+  var rows=Array.prototype.slice.call(grp.querySelectorAll('.pb-fk')),i=rows.indexOf(t);
   if(i<0)return;
   e.preventDefault();
   var n=rows[(i+d+rows.length)%rows.length]; n.focus(); n.click();
@@ -17027,18 +17030,113 @@ function vbMotionFitsNada(val,pitch){
   var list=vbMotionNadaList(pitch);
   return !list||list.indexOf(val)>-1;
 }
+// ── TAMPILAN "AKORDEON" PEMBAWAAN (opsi B dari preview-pembawaan, 11 Okt 2026) ──
+// Ikon wajah garis (24x24, stroke 1.7, gaya sama dengan ikon Nada Bicara) disusun dari 4 bagian: mata, alis, mulut, tambahan.
+// VB_MOTION_UI: deskripsi singkat + resep ikon [mata,alis,mulut,tambahan] per key preset di VB_MOTION_OPTS.
+// Preset yang belum punya entri di sini tetap tampil (ikon & deskripsi bawaan) — jadi aman menambah preset baru di VB_MOTION_OPTS.
+// Teks deskripsi masih draf: ubah di sini kalau mau.
+var VB_FACE={
+  eye:{
+    dot:'<path d="M9.1 10.6h.01M14.9 10.6h.01" stroke-width="2.6"/>',
+    arc:'<path d="M8.1 11.2c.5-1.2 1.4-1.2 1.9 0M14 11.2c.5-1.2 1.4-1.2 1.9 0"/>',
+    lid:'<path d="M7.7 10.3q1.4 1.5 2.8 0M13.5 10.3q1.4 1.5 2.8 0"/>',
+    wide:'<circle cx="9.1" cy="10.6" r="1.55" stroke-width="1.3"/><circle cx="14.9" cy="10.6" r="1.55" stroke-width="1.3"/>',
+    flat:'<path d="M7.9 10.8h2.5M13.6 10.8h2.5"/>',
+    wink:'<path d="M8.1 11.2c.5-1.2 1.4-1.2 1.9 0"/><path d="M14.9 10.6h.01" stroke-width="2.6"/>',
+    squint:'<path d="M8.3 9.4l2.2 1.2-2.2 1.2M15.7 9.4l-2.2 1.2 2.2 1.2"/>',
+    shades:'<path d="M6.8 9.7h4.4v1.8c0 .9-.7 1.6-1.6 1.6H8.4c-.9 0-1.6-.7-1.6-1.6zM12.8 9.7h4.4v1.8c0 .9-.7 1.6-1.6 1.6h-1.2c-.9 0-1.6-.7-1.6-1.6z"/><path d="M11.2 10.5h1.6"/>'
+  },
+  brow:{
+    up:'<path d="M7.8 7.2c.8-.6 1.8-.7 2.6-.3M13.6 6.9c.8-.4 1.8-.3 2.6.3"/>',
+    one:'<path d="M7.9 7.4h2.5M13.6 6.8c.8-.6 1.9-.6 2.7 0"/>',
+    ang:'<path d="M7.8 6.9l2.6.8M16.2 6.9l-2.6.8"/>',
+    flat:'<path d="M7.9 7.3h2.5M13.6 7.3h2.5"/>'
+  },
+  mouth:{
+    smile:'<path d="M8.6 14.5c.9 1.7 2 2.5 3.4 2.5s2.5-.8 3.4-2.5"/>',
+    tiny:'<path d="M9.9 15.4c.7.7 1.4 1.1 2.1 1.1s1.4-.4 2.1-1.1"/>',
+    grin:'<path d="M8.3 14.2h7.4c0 2.4-1.6 3.9-3.7 3.9s-3.7-1.5-3.7-3.9z"/>',
+    smirk:'<path d="M9.2 15.9h4.3c.8 0 1.5-.4 1.9-1.3"/>',
+    flat:'<path d="M9.3 16h5.4"/>',
+    o:'<circle cx="12" cy="16" r="1.4" stroke-width="1.5"/>',
+    down:'<path d="M9 17c.9-1.1 1.9-1.6 3-1.6s2.1.5 3 1.6"/>',
+    tongue:'<path d="M8.8 14.5c.8 1.6 1.9 2.3 3.2 2.3s2.4-.7 3.2-2.3"/><path d="M12.6 16.7v1c0 .7.5 1.1 1.1 1.1s1-.4 1-1.1v-1.2"/>',
+    slip:'<path d="M9.2 16h4.7c.6 0 1-.3 1.3-.9"/>'
+  },
+  extra:{
+    blush:'<path d="M6.5 13.4h1.5M16 13.4h1.5"/>',
+    spark:'<path d="M20.2 2.2v3.2M18.6 3.8h3.2"/>'
+  }
+};
+var VB_MOTION_UI={
+  'lebay banget':{d:'Ekspresif & dramatis, tetap natural',ic:['wide','','grin']},
+  'gemes imut':{d:'Kepala miring, senyum manis',ic:['arc','','tiny','blush']},
+  'energik semangat':{d:'Lincah, sering mengangguk',ic:['arc','','grin']},
+  'anggun kalem':{d:'Gerak halus, senyum lembut',ic:['lid','','tiny']},
+  'cool tegas':{d:'Gerak singkat, percaya diri',ic:['flat','ang','flat']},
+  'ramah humble':{d:'Senyum tulus, gerak sederhana',ic:['dot','','smile']},
+  'bro rekomendasi':{d:'Kayak ngasih rekomendasi ke temen',ic:['wink','','smile']},
+  'natural santai':{d:'Gerak kecil, senyum santai',ic:['dot','','tiny']},
+  'heboh nemu barang bagus':{d:'Kaget senang, mata melebar',ic:['wide','','o','spark']},
+  'hype host live':{d:'Gaya host live shopping',ic:['dot','up','grin']},
+  'kocak slengean':{d:'Ekspresi jenaka, gerak santai',ic:['dot','','tongue']},
+  'ngelawak receh':{d:'Senyum jahil, nahan ketawa',ic:['dot','one','smirk']},
+  'jahil usil':{d:'Nyengir, lirik ke kamera',ic:['wink','','smirk']},
+  'ketawa ngakak':{d:'Ketawa lepas di tengah kalimat',ic:['squint','','grin']},
+  'sok serius':{d:'Muka datar, senyum bocor',ic:['dot','flat','slip']},
+  'santai nongkrong':{d:'Rileks kayak lagi di kafe',ic:['lid','','smirk']},
+  'asik kekinian':{d:'Gaya kreator, anggukan cepat',ic:['arc','','smile','spark']},
+  'cuek stylish':{d:'Tenang, cuek, tetap keren',ic:['shades','','smirk']},
+  'curhat ke temen':{d:'Condong ke kamera, gaya curhat',ic:['dot','up','smile']},
+  'meremehkan sinis':{d:'Meremehkan penonton, tanpa senyum',ic:['flat','one','down']}
+};
+function vbMotionDesc(k){var u=VB_MOTION_UI[k];return u?u.d:'';}
+function vbMotionIcon(k){
+  var u=VB_MOTION_UI[k],c=u?u.ic:['dot','','smile'];
+  return '<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.3"/>'+
+    (VB_FACE.eye[c[0]]||'')+(VB_FACE.brow[c[1]]||'')+(VB_FACE.mouth[c[2]]||'')+(VB_FACE.extra[c[3]]||'')+'</svg>';
+}
+// Pelat geser Pembawaan: tandai baris terpilih + luncurkan pelat. val kosong = tidak ada pilihan (pelat hilang).
+// Baris biasa setinggi --rh (56px); baris terpilih membuka deskripsinya (--rhs, 80px) — posisi pelat = index x --rh.
+function vbMotionPlate(val,instant){
+  var bx=document.getElementById('vmotion-chips'); if(!bx)return;
+  var rows=Array.prototype.slice.call(bx.querySelectorAll('.pb-fk')),idx=-1;
+  rows.forEach(function(b,i){
+    var on=!!val&&b.getAttribute('data-k')===val;
+    if(on)idx=i;
+    b.classList.toggle('sel',on);
+    b.setAttribute('aria-checked',on?'true':'false');
+    b.tabIndex=(idx<0&&!val)||on?0:-1;
+  });
+  if(idx<0){bx.removeAttribute('data-sel');rows.forEach(function(b){b.tabIndex=0;});return;}
+  var pl=bx.querySelector('.plate'),rh=parseFloat(getComputedStyle(bx).getPropertyValue('--rh'))||56;
+  var first=!bx.hasAttribute('data-sel'),quiet=first||instant;
+  if(quiet)bx.classList.add('nt'); // pilihan pertama / gambar ulang: pelat & baris tidak meluncur dari posisi lama
+  if(pl)pl.style.transform='translateY('+(idx*rh)+'px)';
+  void bx.offsetWidth;
+  bx.setAttribute('data-sel','1');
+  if(quiet)requestAnimationFrame(function(){requestAnimationFrame(function(){bx.classList.remove('nt');});});
+}
+// Mulai mengetik di kolom "Atau isi sendiri" = lepas sorotan pilihan preset (sama seperti perilaku chip sebelumnya).
+function vbMotionTypeClear(inp){ if(inp&&inp.value.length>0)vbMotionPlate(''); }
 function _vbMotionDrawChips(){
   var box=document.getElementById('vmotion-chips');
   if(!box)return;
-  box.innerHTML='';
+  box.removeAttribute('data-sel');
+  box.innerHTML='<span class="plate" aria-hidden="true"></span>';
   vbMotionOptsFor(VB.gender,VB.pitch).forEach(function(o){
-    var c=document.createElement('div');
-    c.className='chip'+(VB.motion===o.k?' sel':'');
-    c.textContent=o.label;
-    c.dataset.k=o.k;
-    c.onclick=function(){vbPickMotion(o.k,c,o.label);};
-    box.appendChild(c);
+    var b=document.createElement('button');
+    b.type='button';
+    b.className='pb-fk';
+    b.setAttribute('role','radio');
+    b.setAttribute('aria-checked','false');
+    b.dataset.k=o.k;
+    b.innerHTML=vbMotionIcon(o.k)+'<span class="pb-fk-text"><b>'+esc(o.label)+'</b><small>'+esc(vbMotionDesc(o.k))+'</small></span>'+
+      '<span class="mk" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>';
+    b.onclick=function(){vbPickMotion(o.k,b,o.label);};
+    box.appendChild(b);
   });
+  if(VB.motion)vbMotionPlate(VB.motion,true); // pilihan yang sudah ada tetap tersorot (tanpa animasi)
   var hint=document.getElementById('vmotion-hint');
   if(hint){
     hint.textContent=vbMotionNadaList(VB.pitch)
@@ -17099,11 +17197,10 @@ function vbPickMotion(val,el,label){
   if(!vbMotionValid(val,VB.gender))return;
   if(!el||!el.isConnected){
     el=null;
-    document.querySelectorAll('#vmotion-chips .chip').forEach(function(c){if(c.dataset.k===val)el=c;});
+    document.querySelectorAll('#vmotion-chips .pb-fk').forEach(function(c){if(c.dataset.k===val)el=c;});
     if(!el)return;
   }
-  document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
-  el.classList.add('sel');
+  vbMotionPlate(val); // sorot baris + luncurkan pelat
   fShowConfirm('vmotion', el, function(){ vbPickMotionConfirmed(val,label); });
 }
 function vbPickMotionConfirmed(val,label){
@@ -17114,12 +17211,12 @@ function vbPickMotionConfirmed(val,label){
 function vbPickMotionCustom(){
   let val=document.getElementById('vmotion-custom').value.trim();
   if(!val){showToast('Isi dulu ya','error');return;}
-  document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
+  vbMotionPlate('');
   vbPickMotionConfirmed(val,val.length>24?val.substring(0,24)+'...':val);
 }
 function vbSkipMotion(){
   let old=document.getElementById('vmotion-confirmbar');if(old)old.remove();
-  document.querySelectorAll('#vmotion .chip').forEach(c=>c.classList.remove('sel'));
+  vbMotionPlate('');
   let inp=document.getElementById('vmotion-custom');
   if(inp){inp.value='';fCountInp(inp,'vmotion-counter');}
   vbPickMotionConfirmed('','Tanpa pembawaan');
@@ -29300,6 +29397,21 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 .cp3 .pb-fk .pb-fk-text b{flex:none;font:600 15.5px/1.25 'Geist',system-ui,sans-serif;letter-spacing:-.2px;color:var(--text)}
 .cp3 .pb-fk .pb-fk-text small{font:400 11px/1.3 'Geist',system-ui,sans-serif;color:var(--muted)}
 .cp3 .pb-fk.sel .pb-fk-text b{color:var(--accent-2)}
+/* PEMBAWAAN — varian "Akordeon" dari "Pelat Geser" (opsi B, 11 Okt 2026): baris ringkas 56px; baris terpilih melebar ke 80px dan membuka deskripsi.
+   Pelat (80px) meluncur ke baris terpilih; jumlah pilihan bisa banyak (8-12) tapi panel tetap pendek. */
+.cpB{--rh:56px;--rhs:80px}
+.cpB .plate{height:var(--rhs);transition:transform .42s cubic-bezier(.22,.9,.28,1),opacity .25s}
+.cpB[data-sel] .plate{opacity:1}
+.cpB .pb-fk{touch-action:manipulation;padding:0 14px 0 20px;transition:height .42s cubic-bezier(.22,.9,.28,1),transform .12s}
+.cpB .pb-fk.sel{height:var(--rhs)}
+.cpB .pb-fk:hover{background:rgba(255,255,255,.02)}
+.cpB .pb-fk-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
+.cpB .pb-fk .pb-fk-text b{flex:none;font:600 15.5px/1.25 'Geist',system-ui,sans-serif;letter-spacing:-.2px;color:var(--text)}
+.cpB .pb-fk.sel .pb-fk-text b{color:var(--accent-2)}
+.cpB .pb-fk-text small{display:block;max-height:0;opacity:0;overflow:hidden;margin-top:0;font:400 11px/1.3 'Geist',system-ui,sans-serif;color:var(--muted);transition:max-height .3s ease,opacity .25s ease,margin-top .3s ease}
+.cpB .pb-fk.sel .pb-fk-text small{max-height:32px;opacity:1;margin-top:2px}
+.cpB.nt .pb-fk,.cpB.nt .pb-fk-text small{transition:none}
+@media (prefers-reduced-motion:reduce){.cpB .plate,.cpB .pb-fk,.cpB .pb-fk-text small{transition:none!important}}
 #vb-script-choose{display:none!important}
 @media (prefers-reduced-motion:reduce){.pb-tl .pop{animation:none}}
 </style>
