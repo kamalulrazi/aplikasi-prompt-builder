@@ -4353,7 +4353,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.80</div>
+  <div class="splash-version" id="splash-version">v11.81</div>
 </div>
 <script>
   (function(){
@@ -6267,11 +6267,23 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
              dihapus total — sekarang cuma ada Bulk (#vb-bulk-area di bawah).
              Isi 1 produk di form bulk itulah yang jadi "mode single". -->
         <div id="vb-bulk-area" style="margin-top:0;">
+          <!-- INFO PRODUK & AUDIENS — tampilan "Tab Ringkas" (opsi C dari preview-info-produk-audiens, 11 Okt 2026): satu panel kaca, dua tab (Produk dan Penonton),
+               pelat emas pindah antar tab, ringkasan isi di bawah. Sapaan TIDAK jadi tab (permintaan user): tetap tersembunyi di dalam tab Penonton (klik judulnya untuk membuka).
+               Semua id & fungsi lama (vb-bulk-*, vb-sapaan-*) tidak diubah, cuma dibungkus tab. Logika: vbInfoTab() dan vbInfoSum() di dekat akhir file. Pakai gaya .cp (ikut tier Gratis/Standar/Premium). -->
+          <div class="cp cpT" id="vb-info-tabs" data-sel="produk">
+            <span class="plate" aria-hidden="true"></span>
+            <div class="vt-bar" role="tablist" aria-label="Info produk dan audiens">
+              <button type="button" class="vt on" role="tab" aria-selected="true" data-p="produk" onclick="vbInfoTab('produk')"><i></i><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.2v9.6L12 21l-8-4.2V7.2L12 3z"/><path d="M4 7.2l8 4.3 8-4.3M12 11.5V21"/></svg>Produk</button>
+              <button type="button" class="vt" role="tab" aria-selected="false" data-p="penonton" onclick="vbInfoTab('penonton')"><i></i><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.4-3 2.6-4.8 5.5-4.8s5.1 1.8 5.5 4.8M16 5.6a3 3 0 0 1 0 5.8M17.5 14.6c2 .5 3.2 2 3.5 4.4"/></svg>Penonton</button>
+            </div>
+            <div class="vt-pane on" id="vb-pane-produk" role="tabpanel">
           <label class="inplabel" id="vb-bulk-count-label">Mau generate berapa produk? <span style="font-weight:400;color:var(--muted);">(isi 1 kalau cuma 1 produk)</span></label>
           <div id="vb-bulk-count-row" style="display:flex;gap:8px;margin-bottom:12px;">
             <input type="number" id="vb-bulk-count" min="1" max="30" value="1" inputmode="numeric" class="inp" style="width:70px;flex:none;text-align:center;" oninput="vbBulkCountInput()" onblur="vbBulkSetCount()" />
           </div>
           <div id="vb-bulk-rows"></div>
+          </div>
+          <div class="vt-pane" id="vb-pane-penonton" role="tabpanel">
           <label class="inplabel">Target Audience (penonton)</label>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">
             <div class="chip" onclick="vbPickTargetAudiencePreset('vb-bulk-target','genz-perempuan',this)">Gen Z Perempuan</div>
@@ -6291,6 +6303,9 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
           <div class="inp-wrap" style="margin-bottom:12px;">
             <input class="inp" id="vb-sapaan-input" maxlength="20" placeholder="Atau isi sendiri, contoh: kakak semua" oninput="vbSapaanInput(this)" />
           </div>
+          </div>
+          </div>
+          <div class="vt-sum" id="vb-info-sum" aria-live="polite"></div>
           </div>
           <button id="vb-bulk-btn" class="btn" onclick="vbBulkMainAction()" style="font-size:var(--fs-md);padding:13px;">Generate Prompt</button>
           <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.6;">Tiap produk otomatis dapat 3 script dengan alur tetap: Hook (stop scroll + sadarkan masalah), Cerita (produk jadi solusi), CTA (ajak cek keranjang). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
@@ -6494,7 +6509,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.80 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.81 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -21798,7 +21813,7 @@ async function vbGenerateBulkAI(){
     let nama=namaEl?namaEl.value.trim():'';
     if(!nama){
       showToast('Nama Produk '+(i+1)+' belum diisi','error');
-      if(namaEl)namaEl.focus();
+      if(namaEl){try{vbInfoTab('produk');}catch(_e){}namaEl.focus();}
       return;
     }
     let cachedFoto=VB_BULK_ROW_CACHE[i]||{};
@@ -21817,7 +21832,7 @@ async function vbGenerateBulkAI(){
   if(!targetAudience && VB_TA_PRESET['vb-bulk-target']){
     targetAudience=VB_TARGET_AUDIENCE_PRESETS[VB_TA_PRESET['vb-bulk-target']]||'';
   }
-  if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');document.getElementById('vb-bulk-target').focus();return;}
+  if(!targetAudience){showToast('Target Audience wajib diisi dulu','error');try{vbInfoTab('penonton');}catch(_e){}document.getElementById('vb-bulk-target').focus();return;}
   VB.bulkTargetAudience=targetAudience;
   // v11.26: peringatan (tidak memblokir) kalau karakter di bawah 20 tahun tapi target audiens ibu/mama. Skrip jadi ngaco
   // (karakter remaja bicara soal "anak"-nya sendiri). Saran: naikkan umur karakter atau ganti target audiens.
@@ -29494,6 +29509,28 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 .cp3 .pb-fk .pb-fk-text b{flex:none;font:600 15.5px/1.25 'Geist',system-ui,sans-serif;letter-spacing:-.2px;color:var(--text)}
 .cp3 .pb-fk .pb-fk-text small{font:400 11px/1.3 'Geist',system-ui,sans-serif;color:var(--muted)}
 .cp3 .pb-fk.sel .pb-fk-text b{color:var(--accent-2)}
+/* INFO PRODUK & AUDIENS — "Tab Ringkas" (opsi C, 11 Okt 2026): panel kaca .cp dengan 2 tab; pelat emas bergeser horizontal antar tab. Sapaan bukan tab (tersembunyi di tab Penonton). */
+.cpT{--rh:64px}
+.cpT .plate{right:auto;width:calc((100% - var(--pad) * 2) / 2)}
+.cpT[data-sel="produk"] .plate{opacity:1}
+.cpT[data-sel="penonton"] .plate{opacity:1;transform:translateX(100%)}
+.cpT .vt-bar{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr}
+.cpT .vt{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:var(--rh);margin:0;padding:0;border:0;border-radius:22px;background:none;color:var(--muted);font:600 13px/1.2 'Geist',system-ui,sans-serif;cursor:pointer;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;transition:color .25s,transform .12s}
+.cpT .vt:active{transform:scale(.98)}
+.cpT .vt:focus-visible{outline:2px solid rgba(var(--pulse-rgb),.85);outline-offset:3px}
+.cpT .vt .gi{color:inherit}
+.cpT .vt.on{color:var(--accent-2)}
+.cpT .vt i{position:absolute;top:10px;left:calc(50% + 16px);width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:0;transition:opacity .25s}
+.cpT .vt.dn i{opacity:1}
+.cpT .vt-pane{display:none;position:relative;z-index:1;padding:10px 12px 4px}
+.cpT .vt-pane.on{display:block}
+.cpT .vt-pane>.inplabel:first-child{margin-top:2px}
+.cpT #vb-sapaan-toggle{margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+.cpT #vb-bulk-rows>div{border-radius:16px!important;padding:12px!important;margin-bottom:8px!important}
+.cpT .vt-sum{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px;margin:8px 4px 4px;padding:12px;border-radius:18px;border:1px solid var(--border);background:rgba(0,0,0,.22)}
+.cpT .vt-tg{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:500;background:var(--accent-dim-bg);color:var(--accent-2);border:1px solid rgba(var(--pulse-rgb),.25)}
+.cpT .vt-tg.e{background:none;color:var(--muted2);border-color:var(--border)}
+@media (prefers-reduced-motion:reduce){.cpT .vt,.cpT .vt i{transition:none!important}}
 /* PERGERAKAN KAMERA — dua panel "Pelat Geser" (opsi A, 11 Okt 2026): tinggi baris menyesuaikan teks, pelat diposisikan JS (_vbCamPlate), klik lagi = batal pilih. */
 .cpc{margin:0 0 4px}
 .cpc .pb-fk{height:auto;min-height:var(--rh);padding-block:12px;touch-action:manipulation}
@@ -30049,6 +30086,42 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   };
   if(window.MutationObserver)new MutationObserver(sched).observe(P,{subtree:true,attributes:true,attributeFilter:['class','style','data-tl']});
   sched();
+})();
+</script>
+<script>
+/* INFO PRODUK & AUDIENS — tab Produk | Penonton (opsi C, 11 Okt 2026). Sapaan tidak jadi tab: tetap tersembunyi di tab Penonton. */
+function vbInfoTab(k){
+  var box=document.getElementById('vb-info-tabs');if(!box)return;
+  box.setAttribute('data-sel',k);
+  [].forEach.call(box.querySelectorAll('.vt'),function(b){var on=b.getAttribute('data-p')===k;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false');});
+  [].forEach.call(box.querySelectorAll('.vt-pane'),function(p){p.classList.toggle('on',p.id==='vb-pane-'+k);});
+  vbInfoSum();
+  try{fFitWbody(box);}catch(e){}
+}
+// Ringkasan isi di bawah tab. Sapaan hanya muncul kalau memang diisi.
+function vbInfoSum(){
+  try{
+    var out=document.getElementById('vb-info-sum');if(!out)return;
+    var n=parseInt((document.getElementById('vb-bulk-count')||{}).value,10)||1;
+    var e0=document.getElementById('vb-bulk-nama-0'),nm=e0?e0.value.trim():'';
+    var tg=((document.getElementById('vb-bulk-target')||{}).value||'').trim();
+    if(!tg&&VB_TA_PRESET&&VB_TA_PRESET['vb-bulk-target'])tg='Gen Z Perempuan';
+    var sp=(typeof VB_SAPAAN==='string')?VB_SAPAAN:'';
+    var t=function(x,e){return '<span class="vt-tg'+(e?' e':'')+'">'+esc(x)+'</span>';};
+    out.innerHTML=(nm?t(nm+(n>1?' +'+(n-1)+' lainnya':'')):t('Produk belum diisi',1))+(tg?t(tg):t('Penonton belum diisi',1))+(sp?t('Sapaan: '+sp):'');
+    var box=document.getElementById('vb-info-tabs');
+    box.querySelector('.vt[data-p="produk"]').classList.toggle('dn',!!nm);
+    box.querySelector('.vt[data-p="penonton"]').classList.toggle('dn',!!tg);
+  }catch(e){}
+}
+(function(){
+  var box=document.getElementById('vb-info-tabs');if(!box)return;
+  ['input','change','click','focusout'].forEach(function(ev){box.addEventListener(ev,function(){setTimeout(vbInfoSum,0);});});
+  if(window.MutationObserver){
+    var rows=document.getElementById('vb-bulk-rows');if(rows)new MutationObserver(function(){vbInfoSum();}).observe(rows,{childList:true});
+    var v5=document.getElementById('v5');if(v5)new MutationObserver(function(){vbInfoSum();}).observe(v5,{attributes:true,attributeFilter:['class']});
+  }
+  vbInfoSum();
 })();
 </script>
 </body>
