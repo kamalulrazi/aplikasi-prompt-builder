@@ -4355,7 +4355,7 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v11.85</div>
+  <div class="splash-version" id="splash-version">v11.86</div>
 </div>
 <script>
   (function(){
@@ -6564,7 +6564,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.85 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.86 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -20122,7 +20122,7 @@ const VB_GEN_FALLBACK_MODELS_BY_MAIN={
   haiku:['gemini','groq']
 };
 const VB_GEN_FALLBACK_STEP_WAIT_MS=45000;                // batas tunggu retry per model
-const VB_GEN_FALLBACK_FIX_CHAIN=[{key:'groq',tries:2,extraTok:0},{key:'gptoss',tries:1,extraTok:1500}];
+const VB_GEN_FALLBACK_FIX_CHAIN=[{key:'groq',tries:3,extraTok:0},{key:'gptoss',tries:2,extraTok:1500}];
 var _vbFixChainOverride=null; // diisi _vbGenerateWithFallback kalau hasil generate datang dari model cadangan
 // Catat percobaan generate yang GAGAL (tanpa token/biaya) supaya admin bisa lihat "Gemini gagal -> dialihkan ke Haiku".
 function _vbLogFailedAttempt(mKey,out,toKey){
@@ -20980,7 +20980,7 @@ const VB_AUTO_SHORTFIX_ENABLED=false;
 // Tidak pernah melempar error — kalau panggilan gagal, teks asli dipakai apa adanya.
 const VB_TARGETED_FIX_ENABLED=true;                 // sakelar utama
 const VB_TARGETED_FIX_SKIP_MODELS=['sonnet'];       // kunci PB_AI_MODELS yang TIDAK dikenai perbaikan ini
-const VB_TARGETED_FIX_MAX_ATTEMPTS=2;               // maksimal percobaan per bagian — HANYA untuk perilaku lama tanpa rantai (model utama bukan Gemini)
+const VB_TARGETED_FIX_MAX_ATTEMPTS=4;               // maksimal percobaan per bagian — HANYA untuk perilaku lama tanpa rantai (model utama bukan Gemini)
 const VB_TARGETED_FIX_INCLUDE_LONG=true;             // true = bagian KEPANJANGAN juga ditulis ulang ("remove N"); false = hanya kependekan. 2 Okt 2026 (permintaan user): true. Potong lokal (_vbHardEnforceMaxWords) tetap jadi cadangan.
 const VB_TARGETED_FIX_SYSTEM=
   'Indonesian short-video script editor. Fix each text\'s word count with the SMALLEST edit: keep every existing word in order and wording; to add, only INSERT the missing words (or short phrases); to cut, only DELETE the extra words, preferring filler or the least important detail. Never rephrase, replace or reorder. Inserted words must match the text\'s character: regional words (bah, kali, lah, wis, tenan, atuh, pisan, mah) or a jab/joking reaction if it has them, otherwise slang matching its tone; never fake stock urgency (stok terbatas). Keep it smooth and spoken. Keep "keranjang bawah" in a CTA, and keep any price or buruan wording there. Indonesian only. NEVER mention product material, limited stock, or keranjang kuning.\n\n'
@@ -21009,11 +21009,11 @@ function _vbTargetedFixActive(){
 // ikut makan jatah max_completion_tokens, jadi tanpa tambahan ini JSON balasan bisa terpotong. Batas akhir
 // tetap 8192 (lihat _vbFixRunStep). Biaya tercatat per model asli.
 const VB_FIX_CHAIN_ENABLED=true;                       // sakelar: false = perilaku lama untuk semua model
-const VB_FIX_CHAIN=[{key:'gemini',tries:4,extraTok:0},{key:'groq',tries:2,extraTok:0}]; // urutan model + jumlah langkah (model utama Gemini: user biasa & admin yang memilih Gemini) — 4 Gemini lalu 2 Groq (permintaan user, 4 Okt 2026)
+const VB_FIX_CHAIN=[{key:'gemini',tries:6,extraTok:0},{key:'groq',tries:3,extraTok:0}]; // urutan model + jumlah langkah (model utama Gemini: user biasa & admin yang memilih Gemini) — 4 Gemini lalu 2 Groq (permintaan user, 4 Okt 2026)
 // Rantai per model utama. Kunci = kunci PB_AI_MODELS dari model yang dipilih/aktif. Model utama yang tidak ada di sini = perilaku lama.
 const VB_FIX_CHAINS_BY_MAIN={
   gemini:VB_FIX_CHAIN,
-  haiku:[{key:'gemini',tries:2,extraTok:0},{key:'groq',tries:2,extraTok:0}]
+  haiku:[{key:'gemini',tries:4,extraTok:0},{key:'groq',tries:3,extraTok:0}]
 };
 function _vbParseFixJson(rawText){
   let res=null;
@@ -21253,12 +21253,7 @@ async function _vbApplyShortFix(arr,batch,range,onWait,genCtx){
   // PERBAIKAN TERARAH (v9.3): kode hitung kata, AI tulis ulang hanya yang meleset (urutan model: rantai VB_FIX_CHAIN). Sonnet dilewati.
   try{if(_vbTargetedFixActive())await _vbRepairOutOfRange(arr,batch,range,onWait,genCtx);}
   catch(eTgt){console.warn('[_vbApplyShortFix] perbaikan terarah dilewati:',eTgt);}
-  for(let ei=0;ei<arr.length;ei++){
-    const ep=arr[ei];if(!ep)continue;
-    if(ep.hook)ep.hook=_vbHardEnforceMaxWords(ep.hook,range.max,range.min);
-    if(ep.story)ep.story=_vbHardEnforceMaxWords(ep.story,range.max,range.min);
-    if(ep.cta)ep.cta=_vbHardEnforceMaxWords(ep.cta,range.max,range.min);
-  }
+  // (12 Okt 2026, permintaan user) potong lokal DIMATIKAN: kelebihan kata hanya diperbaiki lewat panggilan AI (rantai perbaikan di atas).
   // v11.28: register konsisten (netral jumlah kata) lalu pengecekan pasca-generate (tidak mengubah teks, hanya menandai).
   try{for(let ri=0;ri<arr.length;ri++){if(arr[ri])_vbFixRegister(arr[ri]);}}catch(eReg){console.warn('[_vbApplyShortFix] register dilewati:',eReg);}
   try{_vbPostChecks(arr,batch);}catch(eChk){console.warn('[_vbApplyShortFix] pengecekan pasca-generate dilewati:',eChk);}
@@ -21814,9 +21809,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // Fungsi _vbFixWordCountBatchIfNeeded SENGAJA tidak dihapus (lihat
     // definisinya) — dibiarkan sebagai referensi kalau suatu saat perlu
     // diaktifkan lagi, sama seperti pola *_FULL_DISABLED lain di file ini.
-    if(prod.hook)prod.hook=_vbHardEnforceMaxWords(prod.hook,range.max,range.min);
-    if(prod.story)prod.story=_vbHardEnforceMaxWords(prod.story,range.max,range.min);
-    if(prod.cta)prod.cta=_vbHardEnforceCta(prod.cta,range.max,range.min);
+    // (12 Okt 2026, permintaan user) potong lokal DIMATIKAN: kelebihan kata diperbaiki AI (_vbApplyShortFix), bukan dipotong kode.
   }
   return arr;
 }
