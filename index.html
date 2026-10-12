@@ -16174,6 +16174,8 @@ function vbSyncIkutiPreview(show){
         vt.setAttribute('data-explain','Untuk menghasilkan video AI dibutuhkan 2\u00A0bahan: Foto AI dan Video Referensi (sumber gerakan)');
         if(window.PB_IMG_VBIKUTI_FOTO){vt.setAttribute('data-sub1-src',window.PB_IMG_VBIKUTI_FOTO);vt.setAttribute('data-sub1-label','Foto AI');}
         if(window.PB_IMG_VBIKUTI_REFPOSTER){vt.setAttribute('data-sub2-src',window.PB_IMG_VBIKUTI_REFPOSTER);vt.setAttribute('data-sub2-label','Video Referensi');}
+        // Video Referensi di lightbox diputar (bergerak), poster hanya tampilan sementara sebelum video siap.
+        if(window.PB_IMG_VBIKUTI_REF){vt.setAttribute('data-sub2-video',window.PB_IMG_VBIKUTI_REF);}
       }
       try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
     }
@@ -27989,12 +27991,16 @@ function pbFlowLightboxOpen(el){
       if(!src)continue;
       subsHtml+='<div class="pb-flow-lightbox-subcol">'
         +'<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span></div>'
-        +'<img class="pb-flow-lightbox-subimg" src="'+src+'" alt="'+(label||'')+'">'
+        +(el.getAttribute('data-sub'+i+'-video')
+          ? '<video class="pb-flow-lightbox-subimg" src="'+el.getAttribute('data-sub'+i+'-video')+'" poster="'+src+'" muted loop autoplay playsinline></video>'
+          : '<img class="pb-flow-lightbox-subimg" src="'+src+'" alt="'+(label||'')+'">')
         +'<div class="pb-flow-lightbox-sublabel">'+(label||'')+'</div>'
         +'</div>';
     }
     subwrapEl.innerHTML=subsHtml;
     subwrapEl.style.display='flex';
+    // Bahan berupa video (mis. Video Referensi Motion Control) harus ikut bergerak, bukan beku.
+    subwrapEl.querySelectorAll('video').forEach(function(v){ v.muted=true; try{ var pp=v.play(); if(pp&&pp.catch)pp.catch(function(){}); }catch(e){} });
   }else{
     explainEl.style.display='none';
     subwrapEl.style.display='none';
@@ -28014,6 +28020,8 @@ function pbFlowLightboxToggleMute(e){
 function pbFlowLightboxClose(){
   document.getElementById('pb-flow-lightbox').classList.remove('show');
   document.getElementById('pb-flow-lightbox-video').pause();
+  let _sw=document.getElementById('pb-flow-lightbox-subwrap');
+  if(_sw) _sw.querySelectorAll('video').forEach(function(v){ try{ v.pause(); }catch(e){} });
 }
 // ── LANGKAH 5+6 (DIGABUNG) — user pilih subjek foto (f0), lalu LANGSUNG
 // lanjut isi foto referensi (f1), TANPA kartu instruksi tur & TANPA
