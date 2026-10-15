@@ -4558,7 +4558,7 @@ body:not(.pb-tour-active) #foto.pfa-open.pfa-keep .wrap{justify-content:flex-sta
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v12.3</div>
+  <div class="splash-version" id="splash-version">v12.4</div>
 </div>
 <script>
   (function(){
@@ -6712,7 +6712,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.3 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.4 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -30245,7 +30245,8 @@ function stateOf(c){
 function cards(){
   return IDS.map($).filter(function(c){return c&&stateOf(c)!=='off';});
 }
-var lastCur='',lastSum='';
+var lastCur='',lastSum='',lastStepKey='';
+function fin0(cs,doneN,total){return doneN>=total;}
 function steps(){
   var cs=cards(),cur=0,curId='',doneN=0;
   cs.forEach(function(c,i){
@@ -30255,6 +30256,8 @@ function steps(){
   });
   var total=cs.length;
   if(!cur)cur=Math.min(doneN+1,total);
+  var stepKey=curId+(fin0(cs,doneN,total)?'|fin':'');
+  if(stepKey!==lastStepKey){lastStepKey=stepKey;recenterSoon();}
   if(curId&&curId!==lastCur){
     var fo=$('foto');
     if(lastCur&&fo&&fo.classList.contains('pfa-open')){try{fo.scrollTo({top:0,behavior:'smooth'});}catch(e){fo.scrollTop=0;}}
@@ -30290,22 +30293,30 @@ function sum(cs,all){
   });
   if(html===lastSum)return;lastSum=html;box.innerHTML=html;
 }
-/* Buka/tutup panel tanpa menggeser posisi tombolnya: layar HP tinggi memusatkan isi secara vertikal,
-   jadi isi yang bertambah akan mengangkat semuanya. Posisi tombol dikunci, sisanya tumbuh ke bawah. */
-function anchorToggle(btn,fn){
+/* v12.4: di HP tinggi isi halaman dipusatkan vertikal. Supaya isi yang bertambah di tengah langkah
+   (bar konfirmasi, banner, panel live/ringkasan) tumbuh ke BAWAH dan tidak mengangkat kartu, posisi
+   tengahnya dihitung sekali tiap pindah langkah lalu dikunci sebagai jarak dari atas. */
+var CENTER_MQ='(max-width:899px) and (min-height:700px)';
+function recenter(){
   var f=$('foto'),w=f&&f.querySelector('.wrap');
-  if(!w){fn();return;}
-  var t0=btn.getBoundingClientRect().top;
+  if(!w||!f.classList.contains('pfa-open'))return;
   w.style.paddingTop='';f.classList.remove('pfa-keep');
-  fn();
-  var lv=$('pfa-live'),sm=$('pfa-sum');
-  var anyOpen=(lv&&lv.classList.contains('open'))||(sm&&sm.classList.contains('open'));
-  if(!anyOpen)return; /* semua tertutup: kembali ke tata letak terpusat semula */
+  if(!(window.matchMedia&&window.matchMedia(CENTER_MQ).matches))return;
+  var kid=null;
+  for(var i=0;i<w.children.length;i++){var r=w.children[i].getBoundingClientRect();if(r.height>0){kid=w.children[i];break;}}
+  if(!kid)return;
+  var gap=kid.getBoundingClientRect().top-w.getBoundingClientRect().top
+    -(parseFloat(getComputedStyle(w).borderTopWidth)||0)-(parseFloat(getComputedStyle(kid).marginTop)||0);
   f.classList.add('pfa-keep');
-  var t1=btn.getBoundingClientRect().top;
-  var pt=parseFloat(getComputedStyle(w).paddingTop)||0;
-  w.style.paddingTop=Math.max(0,pt+t0-t1)+'px';
+  w.style.paddingTop=Math.max(0,Math.round(gap))+'px';
 }
+var rcT=0;
+function recenterSoon(){
+  if(rcT)cancelAnimationFrame(rcT);
+  rcT=requestAnimationFrame(function(){rcT=requestAnimationFrame(function(){rcT=0;recenter();});});
+}
+window.pfaRecenter=recenter;
+function anchorToggle(btn,fn){fn();}
 function setSumOpen(on){
   var sm=$('pfa-sum');if(!sm)return;
   sm.classList.toggle('open',!!on);
@@ -30379,7 +30390,7 @@ function sched(muts){
 window.pfaOpen=function(){
   var f=$('foto');if(!f)return;
   f.classList.add('pfa-open');document.body.classList.add('pfa-on');
-  window.pfaView('pilih');f.scrollTop=0;deco();refresh();
+  window.pfaView('pilih');f.scrollTop=0;deco();lastStepKey='';refresh();recenterSoon();
 };
 window.pfaClose=function(){var f=$('foto');if(f){f.classList.remove('pfa-open','pfa-v-prompt','pfa-keep');var w0=f.querySelector('.wrap');if(w0)w0.style.paddingTop='';}document.body.classList.remove('pfa-on');};
 
@@ -30421,8 +30432,9 @@ if(f){
   }
   new MutationObserver(sched).observe(f,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
 }
+window.addEventListener('orientationchange',function(){setTimeout(recenterSoon,300);});
 var rn=window.fResetNow;
-if(typeof rn==='function'){window.fResetNow=function(){var r=rn.apply(this,arguments);try{lastCur='';window.pfaView('pilih');}catch(e){}return r;};}
+if(typeof rn==='function'){window.fResetNow=function(){var r=rn.apply(this,arguments);try{lastCur='';lastStepKey='';window.pfaView('pilih');recenterSoon();}catch(e){}return r;};}
 var sp=window.switchPage;
 if(typeof sp==='function'){window.switchPage=function(){window.pfaClose();return sp.apply(this,arguments);};}
 deco();refresh();
