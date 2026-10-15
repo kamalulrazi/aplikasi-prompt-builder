@@ -4301,6 +4301,11 @@ body:not(.pb-tour-active) #foto.pfa-open #f-progress-wrap{display:block!importan
 body:not(.pb-tour-active) #foto.pfa-open #f-progress-wrap :is(.pb-bar-title,.progress-bar-track,.progress-label,.progress-jump-hint,#f0-tour-process-badge){display:none!important;}
 body:not(.pb-tour-active) #foto.pfa-open #f-progress-wrap .progress-steps{display:block;padding:0;margin:0;}
 #pfa-bar .pfa-row{padding-right:56px;}
+/* v11.95: HP tinggi — panel Prompt live tampil di bawah kartu langkah (tanpa tab Pilih/Prompt), jadi separuh layar bawah tidak kosong */
+@media (max-width:899px) and (min-height:700px){
+  body:not(.pb-tour-active) #foto.pfa-open #pfa-seg{display:none;}
+  body:not(.pb-tour-active) #foto.pfa-open #f-right-col{display:flex;}
+}
 </style>
 </head>
 <body>
@@ -6712,7 +6717,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.94 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.95 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -30953,6 +30958,13 @@ function live(){
 /* ── tampilan HP: segmen Pilih / Prompt ── */
 window.pfaView=function(v){
   var f=$('foto');if(!f)return;
+  if(window.matchMedia&&window.matchMedia('(max-width:899px) and (min-height:700px)').matches){
+    /* v11.95: HP tinggi — kartu & panel Prompt satu layar; 'prompt' = gulir ke panel hasil */
+    f.classList.remove('pfa-v-prompt');
+    var rc=$('f-right-col'),bar=$('pfa-bar');
+    f.scrollTop=(v==='prompt'&&rc)?Math.max(0,rc.offsetTop-(bar?bar.offsetHeight:0)-8):0;
+    return;
+  }
   f.classList.toggle('pfa-v-prompt',v==='prompt');
   var seg=$('pfa-seg');if(seg)seg.querySelectorAll('button').forEach(function(b){b.classList.toggle('on',b.dataset.v===v);});
   f.scrollTop=0;
