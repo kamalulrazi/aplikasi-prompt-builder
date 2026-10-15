@@ -4331,6 +4331,21 @@ body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools .ft-btn:not(#pfa-entr
   body:not(.pb-tour-active) #foto.pfa-open .wrap{display:flex;flex-direction:column;justify-content:center;flex:1 0 auto;width:100%;padding-bottom:32px;}
   body:not(.pb-tour-active) #foto.pfa-open .wrap>*{flex-shrink:0;}
 }
+/* v11.99: ringkasan langkah (pengganti strip langkah) — di posisi panel Prompt live; panel live disembunyikan saat ringkasan tampil */
+#pfa-sum{display:none;border:1px solid var(--border);border-radius:16px;background:var(--surface);overflow:hidden;flex-shrink:0;}
+body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-live{display:none;}
+body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-sum{display:block;}
+#pfa-sum .sh{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);font-size:var(--fs-md);font-weight:600;color:var(--text);}
+#pfa-sum .sh em{margin-left:auto;font-style:normal;font-weight:400;font-size:var(--fs-xs);color:var(--muted2);}
+#pfa-sum .sr{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:10px 14px;background:none;border:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
+#pfa-sum .sr+.sr{border-top:1px solid var(--border);}
+#pfa-sum .sr:active{background:var(--surface2);}
+#pfa-sum .sr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+#pfa-sum .sm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+#pfa-sum .st{font-size:var(--fs-xs);color:var(--muted);}
+#pfa-sum .sa{font-size:var(--fs-md);line-height:1.35;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+#pfa-sum .sb{flex:none;padding:6px 13px;border-radius:999px;border:1px solid var(--border-hi);font-size:var(--fs-xs2);color:var(--accent);}
+@media (min-width:900px){body:not(.pb-tour-active) #foto.pfa-open .wrap>#f-right-col{top:84px;max-height:calc(100vh - 102px);}}
 </style>
 </head>
 <body>
@@ -6743,7 +6758,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.98 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v11.99 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -30918,34 +30933,38 @@ function stateOf(c){
 function cards(){
   return IDS.map($).filter(function(c){return c&&stateOf(c)!=='off';});
 }
-var lastSteps='',lastCur='';
+var lastCur='',lastSum='';
 function steps(){
-  var bar=$('pfa-steps');if(!bar)return;
-  var cs=cards(),html='',cur=0,doneN=0;
+  var cs=cards(),cur=0,curId='',doneN=0;
   cs.forEach(function(c,i){
     var st=stateOf(c);
-    if(st==='act'&&!cur)cur=i+1;
+    if(st==='act'&&!cur){cur=i+1;curId=c.id;}
     if(st==='done')doneN++;
-    var t=(c.querySelector('.wtitle')||{}).textContent||'';
-    var a=(c.querySelector('.wanswer')||{}).textContent||'';
-    a=a.replace(/\s+/g,' ').trim();if(a.length>22)a=a.slice(0,21)+'…';
-    html+='<button type="button" class="pfa-pill '+(st==='pend'?'':st)+'" data-id="'+c.id+'"'+(st==='done'?'':' tabindex="-1"')+'>'+
-      '<span class="n">'+(st==='done'?CHECK:(i+1))+'</span><span class="t">'+esc(t.trim())+(st==='done'&&a?'<i>'+esc(a)+'</i>':'')+'</span></button>';
   });
   var total=cs.length;
   if(!cur)cur=Math.min(doneN+1,total);
-  var ac=bar.querySelector('.pfa-pill.act'),curId=ac?ac.dataset.id:'';
   if(curId&&curId!==lastCur){
     var fo=$('foto');
     if(lastCur&&fo&&fo.classList.contains('pfa-open')){try{fo.scrollTo({top:0,behavior:'smooth'});}catch(e){fo.scrollTop=0;}}
     lastCur=curId;
   }
-  var key=html+'|'+cur+'|'+total;
-  if(key===lastSteps)return;lastSteps=key;
-  bar.innerHTML=html;
-  var ct=$('pfa-ctr');if(ct)ct.innerHTML=doneN>=total?'<b>Siap</b> dibuat':'Langkah <b>'+cur+'</b> dari '+total;
-  var act=bar.querySelector('.act');
-  if(act&&act.scrollIntoView){try{bar.scrollLeft=Math.max(0,act.offsetLeft-24);}catch(e){}}
+  var fin=doneN>=total,ct=$('pfa-ctr');
+  var h=fin?'<b>Siap</b> dibuat':'Langkah <b>'+cur+'</b> dari '+total;
+  if(ct&&ct.dataset.k!==h){ct.dataset.k=h;ct.innerHTML=h;}
+  sum(cs,fin&&total>0);
+}
+/* v11.99: ringkasan menggantikan strip langkah — tampil di posisi panel live setelah semua langkah selesai; tiap baris bisa diubah */
+function sum(cs,all){
+  var f=$('foto'),box=$('pfa-sum-body');
+  if(f&&f.classList.contains('pfa-done')!==all)f.classList.toggle('pfa-done',all);
+  if(!all||!box)return;
+  var html='';
+  cs.forEach(function(c){
+    var t=((c.querySelector('.wtitle')||{}).textContent||'').trim();
+    var a=((c.querySelector('.wanswer')||{}).textContent||'').replace(/\s+/g,' ').trim();
+    html+='<button type="button" class="sr" data-id="'+c.id+'"><span class="sm"><span class="st">'+esc(t)+'</span><span class="sa">'+esc(a||'—')+'</span></span><span class="sb">Ubah</span></button>';
+  });
+  if(html===lastSum)return;lastSum=html;box.innerHTML=html;
 }
 
 /* ── panel Prompt live: ringkasan pilihan dari state FS (tidak mengubah logika generate) ── */
@@ -31009,7 +31028,7 @@ function watchOutput(){
 function refresh(){steps();live();watchOutput();}
 var q=0;
 function sched(muts){
-  if(muts&&muts.length&&muts.every(function(m){var t=m.target.nodeType===1?m.target:m.target.parentNode;return t&&t.closest&&t.closest('#pfa-bar,#pfa-live');}))return;
+  if(muts&&muts.length&&muts.every(function(m){var t=m.target.nodeType===1?m.target:m.target.parentNode;return t&&t.closest&&t.closest('#pfa-bar,#pfa-live,#pfa-sum');}))return;
   if(q)return;q=requestAnimationFrame(function(){q=0;deco();refresh();});
 }
 window.pfaOpen=function(){
@@ -31024,20 +31043,24 @@ if(f){
   if(!$('pfa-bar')){
     var b=document.createElement('div');b.id='pfa-bar';
     b.innerHTML='<div class="pfa-row"><button type="button" class="pfa-back" aria-label="Kembali" onclick="pfaClose()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><div class="pfa-title">Prompt Foto AI</div><div class="pfa-ctr" id="pfa-ctr"></div></div>'+
-      '<div id="pfa-steps" role="list"></div>'+
       '<div id="pfa-seg" role="tablist"><button type="button" class="on" data-v="pilih" onclick="pfaView(\'pilih\')">Pilih</button><button type="button" data-v="prompt" onclick="pfaView(\'prompt\')">Prompt</button></div>';
     f.insertBefore(b,f.firstChild);
-    b.addEventListener('click',function(e){
-      var p=e.target.closest&&e.target.closest('.pfa-pill.done');if(!p)return;
-      var c=$(p.dataset.id),h=c&&c.querySelector('.whead');
-      if(h){h.click();window.pfaView('pilih');f.scrollTop=0;}
-    });
   }
   var rc=$('f-right-col');
   if(rc&&!$('pfa-live')){
     var l=document.createElement('div');l.id='pfa-live';
     l.innerHTML='<div class="lh"><i></i>Prompt · live<em id="pfa-live-n"></em></div><pre id="pfa-live-body"></pre>';
     rc.insertBefore(l,rc.firstChild);
+  }
+  if(rc&&!$('pfa-sum')){
+    var sm=document.createElement('div');sm.id='pfa-sum';
+    sm.innerHTML='<div class="sh">Ringkasan<em>Ketuk baris untuk mengubah</em></div><div id="pfa-sum-body"></div>';
+    rc.insertBefore(sm,rc.firstChild);
+    sm.addEventListener('click',function(e){
+      var r=e.target.closest&&e.target.closest('.sr');if(!r)return;
+      var c=$(r.dataset.id),h=c&&c.querySelector('.whead');
+      if(h){h.click();window.pfaView('pilih');f.scrollTop=0;}
+    });
   }
   new MutationObserver(sched).observe(f,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
 }
