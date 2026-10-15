@@ -4346,6 +4346,8 @@ body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-sum{display:block;}
 #pfa-sum.open .sh svg{transform:rotate(180deg);}
 #pfa-sum:not(.open) .sh{border-bottom-color:transparent;}
 #pfa-sum:not(.open) #pfa-sum-body{display:none;}
+/* v12.3: saat Prompt live / Ringkasan dibuka, tata letak berhenti dipusatkan vertikal supaya isinya tumbuh ke bawah, bukan menggeser kartu ke atas */
+body:not(.pb-tour-active) #foto.pfa-open.pfa-keep .wrap{justify-content:flex-start!important;}
 #pfa-sum .sh em{margin-left:auto;font-style:normal;font-weight:400;font-size:var(--fs-xs);color:var(--muted2);}
 #pfa-sum .sr{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:10px 14px;background:none;border:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
 #pfa-sum .sr+.sr{border-top:1px solid var(--border);}
@@ -4556,7 +4558,7 @@ body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-sum{display:block;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v12.2</div>
+  <div class="splash-version" id="splash-version">v12.3</div>
 </div>
 <script>
   (function(){
@@ -6710,7 +6712,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.2 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.3 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -30288,6 +30290,22 @@ function sum(cs,all){
   });
   if(html===lastSum)return;lastSum=html;box.innerHTML=html;
 }
+/* Buka/tutup panel tanpa menggeser posisi tombolnya: layar HP tinggi memusatkan isi secara vertikal,
+   jadi isi yang bertambah akan mengangkat semuanya. Posisi tombol dikunci, sisanya tumbuh ke bawah. */
+function anchorToggle(btn,fn){
+  var f=$('foto'),w=f&&f.querySelector('.wrap');
+  if(!w){fn();return;}
+  var t0=btn.getBoundingClientRect().top;
+  w.style.paddingTop='';f.classList.remove('pfa-keep');
+  fn();
+  var lv=$('pfa-live'),sm=$('pfa-sum');
+  var anyOpen=(lv&&lv.classList.contains('open'))||(sm&&sm.classList.contains('open'));
+  if(!anyOpen)return; /* semua tertutup: kembali ke tata letak terpusat semula */
+  f.classList.add('pfa-keep');
+  var t1=btn.getBoundingClientRect().top;
+  var pt=parseFloat(getComputedStyle(w).paddingTop)||0;
+  w.style.paddingTop=Math.max(0,pt+t0-t1)+'px';
+}
 function setSumOpen(on){
   var sm=$('pfa-sum');if(!sm)return;
   sm.classList.toggle('open',!!on);
@@ -30363,7 +30381,7 @@ window.pfaOpen=function(){
   f.classList.add('pfa-open');document.body.classList.add('pfa-on');
   window.pfaView('pilih');f.scrollTop=0;deco();refresh();
 };
-window.pfaClose=function(){var f=$('foto');if(f)f.classList.remove('pfa-open','pfa-v-prompt');document.body.classList.remove('pfa-on');};
+window.pfaClose=function(){var f=$('foto');if(f){f.classList.remove('pfa-open','pfa-v-prompt','pfa-keep');var w0=f.querySelector('.wrap');if(w0)w0.style.paddingTop='';}document.body.classList.remove('pfa-on');};
 
 var f=$('foto');
 if(f){
@@ -30378,10 +30396,13 @@ if(f){
     var l=document.createElement('div');l.id='pfa-live';
     l.innerHTML='<button type="button" class="lh" id="pfa-live-toggle" aria-expanded="false" aria-controls="pfa-live-body"><i></i>Prompt · live<em id="pfa-live-n"></em><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><pre id="pfa-live-body"></pre>';
     l.addEventListener('click',function(e){
-      if(!(e.target.closest&&e.target.closest('#pfa-live-toggle')))return;
-      var on=!l.classList.contains('open');
-      l.classList.toggle('open',on);
-      $('pfa-live-toggle').setAttribute('aria-expanded',on?'true':'false');
+      var tg=e.target.closest&&e.target.closest('#pfa-live-toggle');
+      if(!tg)return;
+      anchorToggle(tg,function(){
+        var on=!l.classList.contains('open');
+        l.classList.toggle('open',on);
+        tg.setAttribute('aria-expanded',on?'true':'false');
+      });
     });
     rc.insertBefore(l,rc.firstChild);
   }
@@ -30391,7 +30412,7 @@ if(f){
     rc.insertBefore(sm,rc.firstChild);
     sm.addEventListener('click',function(e){
       var tg=e.target.closest&&e.target.closest('#pfa-sum-toggle');
-      if(tg){setSumOpen(!sm.classList.contains('open'));return;}
+      if(tg){anchorToggle(tg,function(){setSumOpen(!sm.classList.contains('open'));});return;}
       var r=e.target.closest&&e.target.closest('.sr');if(!r)return;
       var c=$(r.dataset.id),h=c&&c.querySelector('.whead');
       if(c&&c.classList.contains('hidden')&&r.dataset.id==='f3'&&typeof window.fSummaryEdit==='function'){window.fSummaryEdit(3);window.pfaView('pilih');f.scrollTop=0;return;}
