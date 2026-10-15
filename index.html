@@ -4394,6 +4394,28 @@ body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-lb{display:block;f
   body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-lb{font-size:12px;}
 }
 @media (prefers-reduced-motion:reduce){#f0-frame .sil{transition:none;}}
+/* v12.6: STRIP FILM di langkah Foto Referensi (hanya layar Prompt Foto AI, bukan saat tur) — bingkai F1/F2/F3 terisi sesuai FS.refs; 3 kartu bahan jadi baris tombol ringkas */
+#f1-strip,#f1-strip-sub{display:none;}
+body:not(.pb-tour-active) #foto.pfa-open #f1-strip-sub{display:block;margin:0 2px 12px;font-size:var(--fs-sm);line-height:1.55;color:var(--muted);}
+body:not(.pb-tour-active) #foto.pfa-open #f1-strip{display:block;margin:0 0 18px;border-radius:14px;background:#06050B;border:1px solid var(--border);overflow:hidden;}
+#f1-strip .f1s-perf{height:16px;background:radial-gradient(circle,var(--surface) 3px,transparent 3.6px) 0 50%/18px 16px repeat-x;}
+#f1-strip .f1s-frs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px;padding:2px 8px;}
+#f1-strip .f1s-fr{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;aspect-ratio:3/4;border-radius:8px;border:1px dashed var(--border-hi);color:var(--muted2);font-size:var(--fs-xs2);text-align:center;}
+#f1-strip .f1s-fr svg.icon{width:32px;height:32px;font-size:32px;}
+#f1-strip .f1s-fr.on{border:1px solid var(--accent-dim,var(--accent));background:linear-gradient(170deg,rgba(227,194,126,.24),rgba(227,194,126,.04));color:var(--accent);cursor:pointer;}
+#f1-strip .f1s-fr.on b{font-size:var(--fs-sm);font-weight:600;color:var(--text);}
+#f1-strip .f1s-n{position:absolute;left:7px;top:7px;font-size:var(--fs-xs2);font-weight:600;color:var(--accent);}
+#f1-strip .f1s-x{position:absolute;right:3px;top:3px;width:32px;height:32px;display:grid;place-items:center;border:0;background:none;padding:0;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+#f1-strip .f1s-x i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.35);}
+#f1-strip .f1s-x svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;}
+#f1-strip .f1s-fr:focus-visible,#f1-strip .f1s-x:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special){flex-direction:row;align-items:center;justify-content:center;gap:7px;min-height:52px;padding:0 6px;border-radius:14px;}
+body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .col-tight{flex:0 1 auto;width:auto;}
+body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .f1chip-sub,
+body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .f1chip-badge{display:none!important;}
+body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special)>svg.icon{color:var(--accent);opacity:1;font-size:20px!important;}
+body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special).has{background-color:var(--accent-dim-bg);background-image:none;border-color:var(--accent);}
+@media (prefers-reduced-motion:reduce){#f1-strip *{transition:none!important;}}
 </style>
 </head>
 <body>
@@ -4594,7 +4616,7 @@ body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-lb{display:block;f
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v12.5</div>
+  <div class="splash-version" id="splash-version">v12.6</div>
 </div>
 <script>
   (function(){
@@ -5364,6 +5386,9 @@ body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-lb{display:block;f
         <div id="f1-tour-hint" style="display:none;padding:8px 10px;margin-bottom:12px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.45;">
           Tap bahan yang udah kakak siapkan, yaitu: karakter sheet dan produk.
         </div>
+        <!-- v12.6: STRIP FILM (tampilan 3 dari preview-foto-referensi, 15 Okt 2026) — hanya tampil di layar Prompt Foto AI; diisi fStripSync() dari FS.refs -->
+        <p id="f1-strip-sub">Susun bahan fotonya. Urutannya jadi F1, F2, F3.</p>
+        <div id="f1-strip"><div class="f1s-perf"></div><div class="f1s-frs" id="f1-strip-frs"></div><div class="f1s-perf"></div></div>
         <div class="f1-grp-lab"><span>Pilih bahan foto</span><em id="f1-chips-count"></em></div>
         <div id="f1-type-chips" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px;">
 
@@ -6753,7 +6778,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.5 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.6 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -8198,6 +8223,55 @@ function fSyncF1Divider(){
     mo.observe(list,{childList:true});
     mo.observe(chips,{attributes:true,attributeFilter:['class','style'],subtree:true});
     fSyncF1Divider();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+
+// STRIP FILM FOTO REFERENSI (v12.6) — bingkai F1/F2/F3 di atas pilihan bahan, mengikuti FS.refs.
+// Pola sama dengan pemisah di atas: MutationObserver pada #foto-ref-list, jadi fAddRef/fRemoveRef/fRenderList tidak diubah.
+// Ketuk bingkai = lompat ke baris detail fotonya; tombol × = fRemoveRef (konfirmasi reset tetap jalan seperti biasa).
+var _F1S_ICON={wajah:'ic-face',outfit:'ic-outfit',produk:'ic-box',objek:'ic-search',outfit_random:'ic-shuffle'};
+var _F1S_LABEL={wajah:'Wajah',outfit:'Outfit',produk:'Produk',objek:'Objek',outfit_random:'Outfit AI'};
+function fStripSync(){
+  try{
+    let box=document.getElementById('f1-strip-frs');
+    if(!box||typeof FS==='undefined'||!FS.refs)return;
+    let refs=fSortRefsForOrder(FS.refs),n=0,h='',shown=0;
+    refs.forEach(function(r){
+      if(!FTYPE[r.type])return;
+      let rnd=r.type==='outfit_random';
+      if(!rnd)n++;
+      shown++;
+      let lab=_F1S_LABEL[r.type]||String(FTYPE[r.type].label||'Foto').split(' ')[0];
+      h+='<div class="f1s-fr on" data-id="'+r.id+'" role="button" tabindex="0" aria-label="'+lab+', lihat detail">'
+        +'<span class="f1s-n">'+(rnd?'AI':'F'+n)+'</span>'
+        +'<button type="button" class="f1s-x" data-rm="'+r.id+'" aria-label="Lepas '+lab+'"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></i></button>'
+        +'<svg class="icon"><use href="#'+(_F1S_ICON[r.type]||'ic-outfit')+'"></use></svg><b>'+lab+'</b></div>';
+    });
+    for(let i=shown;i<3;i++)h+='<div class="f1s-fr"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg><span>kosong</span></div>';
+    if(box.dataset.sig===h)return;
+    box.dataset.sig=h;
+    box.innerHTML=h;
+  }catch(e){}
+}
+(function(){
+  function init(){
+    let list=document.getElementById('foto-ref-list');
+    let strip=document.getElementById('f1-strip');
+    if(!list||!strip||typeof MutationObserver==='undefined')return;
+    new MutationObserver(fStripSync).observe(list,{childList:true});
+    strip.addEventListener('click',function(e){
+      let x=e.target.closest('[data-rm]');
+      if(x){e.stopPropagation();fRemoveRef(x.getAttribute('data-rm'));return;}
+      let fr=e.target.closest('.f1s-fr.on');
+      if(fr){let row=document.getElementById('pc-'+fr.getAttribute('data-id'));if(row)row.scrollIntoView({behavior:'smooth',block:'nearest'});}
+    });
+    strip.addEventListener('keydown',function(e){
+      if(e.key!=='Enter'&&e.key!==' ')return;
+      let fr=e.target.closest&&e.target.closest('.f1s-fr.on');
+      if(fr&&e.target===fr){e.preventDefault();fr.click();}
+    });
+    fStripSync();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
