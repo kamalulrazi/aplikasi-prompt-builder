@@ -4244,7 +4244,12 @@ body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=cur] [id$="-confirmbar"]
 /* panel kanan = konsol Prompt (desktop: sticky di kanan, HP: tab "Prompt") */
 body:not(.pb-tour-active) #foto.pfa-open .wrap{display:block;}
 #pfa-live{display:none;border:1px solid var(--border);border-radius:16px;background:var(--surface);overflow:hidden;flex-shrink:0;}
-#pfa-live .lh{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+#pfa-live .lh{display:flex;align-items:center;gap:8px;width:100%;margin:0;background:none;border:none;font-family:inherit;text-align:left;cursor:pointer;padding:11px 14px;border-bottom:1px solid var(--border);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+#pfa-live .lh:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+#pfa-live .lh svg{flex:none;width:16px;height:16px;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s ease;}
+#pfa-live.open .lh svg{transform:rotate(180deg);}
+#pfa-live:not(.open) .lh{border-bottom-color:transparent;}
+#pfa-live:not(.open) pre{display:none;}
 #pfa-live .lh i{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-dim-bg);}
 #pfa-live .lh em{margin-left:auto;font-style:normal;letter-spacing:0;text-transform:none;color:var(--muted2);}
 #pfa-live pre{margin:0;padding:12px 14px 14px;font:12.5px/1.75 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);white-space:pre-wrap;word-break:break-word;overflow:hidden;}
@@ -4551,7 +4556,7 @@ body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-sum{display:block;}
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v12.0</div>
+  <div class="splash-version" id="splash-version">v12.1</div>
 </div>
 <script>
   (function(){
@@ -6705,7 +6710,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.0 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v12.1 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -30371,7 +30376,13 @@ if(f){
   var rc=$('f-right-col');
   if(rc&&!$('pfa-live')){
     var l=document.createElement('div');l.id='pfa-live';
-    l.innerHTML='<div class="lh"><i></i>Prompt · live<em id="pfa-live-n"></em></div><pre id="pfa-live-body"></pre>';
+    l.innerHTML='<button type="button" class="lh" id="pfa-live-toggle" aria-expanded="false" aria-controls="pfa-live-body"><i></i>Prompt · live<em id="pfa-live-n"></em><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button><pre id="pfa-live-body"></pre>';
+    l.addEventListener('click',function(e){
+      if(!(e.target.closest&&e.target.closest('#pfa-live-toggle')))return;
+      var on=!l.classList.contains('open');
+      l.classList.toggle('open',on);
+      $('pfa-live-toggle').setAttribute('aria-expanded',on?'true':'false');
+    });
     rc.insertBefore(l,rc.firstChild);
   }
   if(rc&&!$('pfa-sum')){
