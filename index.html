@@ -29162,9 +29162,16 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   var frontLayer = document.getElementById('ptr-p-front');
   if(!appShell || !indicator || !backLayer || !frontLayer) return;
 
-  var THRESHOLD = 58;   // px tarikan sampai logo menyatu penuh & refresh "bersenjata"
-  var MAX_PULL  = 88;   // px maksimum #app-shell boleh ikut turun (biar tidak berlebihan)
-  var RESISTANCE = 0.5; // makin kecil = makin "berat"/pelan responnya terhadap jari
+  // FIX (refresh terlalu sensitif): dulu THRESHOLD 58 + RESISTANCE 0.5 = cukup geser jari
+  // ~116px sudah refresh, dan refresh menghapus draft wizard. Sekarang jari harus menarik
+  // ~225px (90 / 0.4), SECARA SENGAJA (bukan lemparan cepat), dan tidak tepat setelah scroll.
+  var THRESHOLD = 90;   // px tarikan sampai logo menyatu penuh & refresh "bersenjata"
+  var MAX_PULL  = 120;  // px maksimum #app-shell boleh ikut turun (biar tidak berlebihan)
+  var RESISTANCE = 0.4; // makin kecil = makin "berat"/pelan responnya terhadap jari
+  var MIN_PULL_MS = 450;     // tarikan harus berlangsung minimal segini lama (flick cepat = scroll biasa, bukan refresh)
+  var SCROLL_SETTLE_MS = 400; // jangan mulai tarikan sesaat setelah scroll/momentum berhenti
+  var pullT0 = 0, lastScrollAt = 0;
+  appShell.addEventListener('scroll', function(){ lastScrollAt = Date.now(); }, {passive:true, capture:true});
 
   // Titik pisah awal logo P — SAMA persis dengan .p-layer-back/.p-layer-front
   // di CSS (state "pecah" default sebelum di-merge), supaya progres 0 pas
@@ -29179,6 +29186,8 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   function canStartPull(target){
     if(refreshing) return false;
     if(appShell.scrollTop > 0) return false;
+    // FIX: baru saja scroll (momentum / scroll balik ke atas) -> jangan dianggap awal tarikan refresh
+    if(Date.now() - lastScrollAt < SCROLL_SETTLE_MS) return false;
     // Jangan ganggu drag teks di textarea/input/elemen contenteditable
     if(target && target.closest && target.closest('textarea, input, [contenteditable="true"]')) return false;
     // FIX BUG "modal ikut kena": #apikey-modal-overlay & #cs-modal ada di
@@ -29291,6 +29300,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     startX = e.touches[0].clientX;
     pulling = true;
     axisLocked = false;
+    pullT0 = 0;
     appShell.classList.remove('ptr-settling');
   }, {passive:true});
 
@@ -29321,6 +29331,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       return;
     }
     if(e.cancelable) e.preventDefault(); // FIX: hindari warning "Ignored attempt to cancel a touchmove" di Chrome
+    if(!pullT0) pullT0 = Date.now();
     currentPull = Math.min(deltaY * RESISTANCE, MAX_PULL);
     renderPull(currentPull);
   }, {passive:false});
@@ -29347,6 +29358,11 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       // membuat #app-shell jadi containing block untuk elemen position:fixed di
       // dalamnya (modal yang dibuka lewat tap itu sempat kedip/loncat).
       if(appShell.style.transform){ appShell.classList.remove('ptr-settling'); appShell.style.transform = ''; }
+      return;
+    }
+    // FIX: tarikan terlalu cepat (flick) tidak dihitung sebagai niat refresh
+    if(currentPull >= THRESHOLD && (Date.now() - pullT0) < MIN_PULL_MS){
+      resetPull(true);
       return;
     }
     if(currentPull >= THRESHOLD){
