@@ -4654,7 +4654,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v13.3</div>
+  <div class="splash-version" id="splash-version">v13.4</div>
 </div>
 <script>
   (function(){
@@ -6833,7 +6833,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v13.3 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v13.4 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -20620,13 +20620,36 @@ function _vbPickReferenceOption(){
   var L=VB_REFERENCE_OPTIONS;
   return L[Math.floor(Math.random()*L.length)]||L[0];
 }
+// v13.4 (16 Okt 2026, permintaan user): generate banyak produk sekaligus -> contoh referensi DIACAK PER PRODUK (Opsi 1/2/3 dibagi rata,
+// tidak berulang berurutan lewat _vbDeal). Ketiga opsi yang terpakai ditulis SEKALI di system prompt (hemat token), tiap baris produk
+// di DATA diberi tanda 'REF: Opsi N'. Produk tunggal tetap memakai satu opsi acak seperti sebelumnya.
+function _vbRefKey(pitch,accent){
+  var p=String(pitch==null?'':pitch).trim(),a=String(accent==null?'':accent).trim();
+  var pk=(p==='toxic'||p==='snarky')?'toxic':(p==='bercanda'||p==='joking')?'joking':(p==='gaul'||p==='casual slang')?'gaul':p;
+  return pk+'|'+a;
+}
+function _vbRefText(opt,k){
+  var base=VB_REFERENCE_OPTIONS[0];
+  return (opt.combo&&opt.combo[k])||base.combo[k]||opt.def||base.def;
+}
+function _vbPlanReferences(n){
+  var idx=[];for(var i=0;i<VB_REFERENCE_OPTIONS.length;i++)idx.push(i);
+  return _vbDeal(idx,n);
+}
+function _vbReferenceBlockMulti(pitch,accent,plan){
+  var k=_vbRefKey(pitch,accent),used=[];
+  plan.forEach(function(i){if(used.indexOf(i)<0)used.push(i);});
+  used.sort();
+  return VB_REFERENCE_HEAD.replace(/:\n$/,'. Each product in DATA names its own reference (REF: Opsi N); for that product follow ONLY that option, never mix them.\n')
+    +used.map(function(i){var o=VB_REFERENCE_OPTIONS[i];return '['+o.nama+']\n'+_vbRefText(o,k);}).join('\n\n');
+}
 function _vbReferenceBlock(pitch,accent){
   var p=String(pitch==null?'':pitch).trim(),a=String(accent==null?'':accent).trim();
   var pk=(p==='toxic'||p==='snarky')?'toxic':(p==='bercanda'||p==='joking')?'joking':(p==='gaul'||p==='casual slang')?'gaul':p;
   var opt=_vbPickReferenceOption(),base=VB_REFERENCE_OPTIONS[0],k=pk+'|'+a;
   return VB_REFERENCE_HEAD+((opt.combo&&opt.combo[k])||base.combo[k]||opt.def||base.def);
 }
-function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age){
+function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age,refPlan){
   // v11.47 (6 Okt 2026, permintaan user: prompt dirapikan) — 6 kalimat kini bernomor 1-6, produk disebut sekali di kalimat 2 (REALIZE),
   //   STYLE -> SPEAKING STYLE (nada tetap TONE; label DATA 'Style:' -> 'Tone:'), RULES dipecah (FORMAT/LENGTH/PRODUCT NAME/IMAGES/PRODUCT FACTS), "and so on" dihapus.
   //   Kunci JSON, rentang kata, aturan keranjang bawah & larangan promo TIDAK berubah.
@@ -20708,7 +20731,7 @@ function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age){
   return [
     'TASK\nWrite the CHARACTER spoken Indonesian monologue (see DATA) for EACH product in DATA, as 3 parts: hook, story, cta.'+(count>1?' Write each product separately; the situation must truly fit that product.':'')+'\nEach part is one 8-second clip of the CHARACTER talking to camera, like a voice note to a close friend, never like ad copy.',
     'HOOK: open with a relatable everyday situation as a short question or complaint, so the viewer feels a little embarrassed, annoyed or curious. The first five words must already stop the scroll. Then bring in the product as the better choice (like mending pakai ini aja) with two or three short benefits the viewer can picture. Follow the HOOK style in DATA if any.\nSTORY: open with a scene starter (like bayangin, coba deh) and put the viewer in one real moment with other people. First the ordinary situation, then the viewer shows up with the product and gets a visible reaction (people look, ask, want a photo). Show it, never list specs, never claim to have used the product.\nCTA: invite the viewer to check the price in the "keranjang bawah" (the cart button on screen, not a physical object), warn lightly that the price may go up, then tease the hope of a cheaper price than others. Never invent discounts or numbers, never mention limited stock, checkout or keranjang kuning.',
-    _vbReferenceBlock(pitch,accent),
+    (count>1&&refPlan&&refPlan.length===count?_vbReferenceBlockMulti(pitch,accent,refPlan):_vbReferenceBlock(pitch,accent)),
     'SPEAKING STYLE: Ngomong kayak voice note ke satu teman, boleh nyeletuk. Spoken, not written. '+_lg.gaya,
     _pv,
     _nd,
@@ -21359,6 +21382,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   const _maxImgThisCall=_pbMaxImages(); // FIX: label [Image N] & lampiran foto dibatasi sesuai batas model (Groq 3 / Gemini 16)
   
   const _vbVar=(VB_RANDOM_DIRECTIONS&&!extraNote)?_vbPickVariation(batch.length):null; // v10: sudut Hook & momen Story diundi kode (hanya generate baru, bukan revisi)
+  const _vbRefPlan=batch.length>1?_vbPlanReferences(batch.length):null; // v13.4: contoh referensi diacak per produk
   let produkListText=batch.map((p,i)=>{
     let line=(i+1)+'. '+_vbCleanField(p.nama,160)+(p.keunggulan?' — advantages: '+_vbCleanField(p.keunggulan,400):'')+(p.topik?' — STORY focus: '+_vbCleanField(p.topik,400):'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
@@ -21372,6 +21396,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       if(!p.topik&&_vbVar[i].form)line+=' — FORM: '+_vbVar[i].form;
       if(_vbVar[i].invite)line+=' — INVITE angle: '+_vbVar[i].invite;
     }
+    if(_vbRefPlan)line+=' — REF: '+VB_REFERENCE_OPTIONS[_vbRefPlan[i]].nama;
     if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
       line+=' [Image '+_imgCounter+']';
@@ -21419,7 +21444,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   // (kalau disediakan pemanggil) — sama seperti mode single, hasil
   // streaming ini cuma PREVIEW. Retry/fallback thinkingConfig tetap sama
   // persis seperti sebelumnya, dibungkus di _vbStreamClaudeJSONWithRetry.
-  let _vbEffectiveSystemPrompt=_vbBuildSingleModeSystemPrompt(range,batch.length,VB.accent||VB.accentLabel,VB.pitch||VB.pitchLabel,VB.gender||VB.genderLabel,VB.age||VB.ageLabel);
+  let _vbEffectiveSystemPrompt=_vbBuildSingleModeSystemPrompt(range,batch.length,VB.accent||VB.accentLabel,VB.pitch||VB.pitchLabel,VB.gender||VB.genderLabel,VB.age||VB.ageLabel,_vbRefPlan);
   // BUG FIX KRITIS (audit Sept 2026, lihat catatan lengkap di deklarasi
   // cfg.maxOutputTokens di _vbStreamClaudeJSONWithRetryModel): batch
   // sekarang bisa berisi sampai 30 produk dalam 1 panggilan API — jatah
