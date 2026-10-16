@@ -6324,16 +6324,49 @@ Important rules:
         </div>
       </div>
 
-      <!-- MODE BARU tess: kotak prompt siap salin (tidak ada step lanjutan) -->
+      <!-- MODE BARU tess (revisi: alur bertahap) — begitu chip diklik TIDAK
+           langsung muncul prompt. Urutannya: (1) tombol "Lanjut →" biasa →
+           (2) wajib isi Nama Produk (cuma catatan, TIDAK ikut masuk ke
+           prompt) → begitu nama terisi muncul tombol "Generate Prompt" →
+           (3) klik tombol itu → loading sebentar → (4) tampil 2 prompt
+           sekaligus: Prompt 1 = VB_TESS_PROMPT_TEXT (sudah ada sebelumnya),
+           Prompt 2 = VB_TESS_PROMPT_TEXT_2 (baru). Lihat vbTessLanjut(),
+           vbTessNamaInput(), vbTessGenerate(), vbCopyTessPrompt(n) &
+           pemanggilan reset-nya di vbPickRefMode()/vbResetNow(). -->
       <div id="vb-mode-tess-area" class="hidden" style="margin-bottom:14px;">
-        <div class="out-card">
-          <div class="out-head">
-            <div class="out-label">Prompt — tess</div>
-            <div style="display:flex;align-items:center;gap:7px;">
-              <button class="copy-btn" onclick="vbCopyTessPrompt()">Salin</button>
-            </div>
+        <div id="vb-tess-step-lanjut">
+          <div style="text-align:right;">
+            <button class="btn sm" onclick="vbTessLanjut()" style="width:auto;padding:8px 18px;">Lanjut →</button>
           </div>
-          <div class="out-body"><pre id="vb-mode-tess-prompt-text" style="white-space:pre-wrap;"></pre></div>
+        </div>
+        <div id="vb-tess-step-nama" class="hidden">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Nama Produk <span style="color:var(--accent);">*wajib</span></label>
+          <div class="inp-wrap"><input class="inp" id="vb-tess-nama-input" maxlength="60" placeholder="Contoh: Tas Kulit Hitam" oninput="vbTessNamaInput()" /></div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 10px;">Nama produk cuma buat catatan kamu — tidak akan dimasukkan ke dalam prompt.</p>
+          <div style="text-align:right;">
+            <button class="btn sm hidden" id="vb-tess-generate-btn" onclick="vbTessGenerate()" style="width:auto;padding:8px 18px;">Generate Prompt</button>
+          </div>
+        </div>
+        <div id="vb-tess-loading" class="hidden" style="text-align:center;padding:18px 0;color:var(--muted2);font-size:var(--fs-xs2);">⏳ Membuat prompt…</div>
+        <div id="vb-tess-result" class="hidden">
+          <div class="out-card">
+            <div class="out-head">
+              <div class="out-label">Prompt 1 — tess</div>
+              <div style="display:flex;align-items:center;gap:7px;">
+                <button class="copy-btn" onclick="vbCopyTessPrompt(1)">Salin</button>
+              </div>
+            </div>
+            <div class="out-body"><pre id="vb-mode-tess-prompt-text" style="white-space:pre-wrap;"></pre></div>
+          </div>
+          <div class="out-card" style="margin-top:10px;">
+            <div class="out-head">
+              <div class="out-label">Prompt 2 — tess</div>
+              <div style="display:flex;align-items:center;gap:7px;">
+                <button class="copy-btn" onclick="vbCopyTessPrompt(2)">Salin</button>
+              </div>
+            </div>
+            <div class="out-body"><pre id="vb-mode-tess-prompt-text-2" style="white-space:pre-wrap;"></pre></div>
+          </div>
         </div>
       </div>
 
@@ -15734,8 +15767,64 @@ const VB_REF_MODE_DESC={
 // (V2 dst tidak relevan buat mode ini).
 const VB_MODE4_PROMPT_TEXT='Use the two attached materials with strictly separated roles.\n\nREFERENCE PHOTO is the only source of identity and appearance: face, body shape, hair, outfit with all its details and accessories, location, lighting, color palette, and atmosphere. All of it must match the photo exactly, with no changes, at every second of the video.\n\nREFERENCE VIDEO is the only source of motion. Take only these things from it: the character\'s body movement, expressions, and gestures; camera movement (direction, speed, distance, angle, and rhythm); transitions between scenes; and duration and tempo. Do not take the face, outfit, location, lighting, or colors from the video.\n\nGenerate a new video in which the character from the reference photo performs every movement of the character in the reference video, with the same order, timing, and tempo. Also follow the camera movement and all transitions in full, from start to finish.\n\nImportant rules:\n1. The character\'s face must stay identical to the reference photo in every frame, including when turning, smiling, or moving fast.\n2. The outfit must not change in shape, color, or material, and no accessories may be added or removed.\n3. If the reference video moves to a different location or atmosphere, still perform the transition in the same style (cut, whip pan, zoom, or otherwise), but the final result must stay in the location and lighting of the reference photo. Do not move to the video\'s location.\n4. If the camera moves to an area that is not visible in the photo, continue that environment naturally and consistently with the location, architecture, and light in the photo.\n5. Movement must be natural and smooth: correct body proportions, intact hands and fingers, no stretching bodies, no flicker, and no character changing form.\n6. No text, subtitles, watermarks, or extra logos.';
 const VB_TESS_PROMPT_TEXT='Luxury product ad video from a single reference photo. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a dark room with a glossy black surface.\n\nScene 1 (0-3 seconds): The frame is almost dark, a thin beam of light slowly sweeps from left to right and reveals the silhouette of the product. The camera moves in very slowly (slow push-in).\nScene 2 (3-6 seconds): Macro on the most prominent part visible in the photo. Rim light makes the material shine, fine dust particles float in the air, shallow focus, soft bokeh.\nScene 3 (6-10 seconds): The camera slowly pulls back to a hero composition, with the product centered in the frame and its silhouette emphasized by rim light. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo. No humans, hands, wearers, or mannequins in the frame; if the photo contains a person, show only the product. No text or watermark.';
-function vbCopyTessPrompt(){
-  _copyTextRobust(VB_TESS_PROMPT_TEXT,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+// Prompt 2 — tess (permintaan user, Okt 2026): terjemahan Inggris APA ADANYA
+// dari teks Indonesia yang dikirim user, tanpa mengubah isi/strukturnya sama
+// sekali (cuma dialihbahasakan). Ditampilkan berdampingan dengan Prompt 1
+// (VB_TESS_PROMPT_TEXT di atas, versi lama) lewat alur vbTessGenerate().
+const VB_TESS_PROMPT_TEXT_2='Luxury product ad video from a single reference photo. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a dark room with a glossy black surface.\n\nScene 1 (0-3 seconds): The frame is almost dark, a thin beam of light slowly sweeps from left to right and reveals the silhouette of the product. The camera moves in very slowly (slow push-in).\n\nScene 2 (3-6 seconds): Macro shot on the most prominent part visible in the photo. Rim light makes the material shine, fine dust particles float in the air, shallow focus, soft bokeh.\n\nScene 3 (6-10 seconds): The camera slowly pulls back to a hero composition, with the product centered in the frame and its silhouette emphasized by rim light. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo. No humans, hands, or wearers; if the photo contains a person, show only the product. No text or watermark.\n\nAudio: adjust it to whatever fits best.';
+// ── Alur bertahap mode tess (permintaan user, Okt 2026): chip "tess" diklik
+// → tombol "Lanjut →" → wajib isi Nama Produk (TIDAK ikut masuk ke prompt,
+// cuma catatan) → begitu nama terisi muncul tombol "Generate Prompt" → klik
+// → loading sebentar → tampil 2 prompt (Prompt 1 lama + Prompt 2 baru).
+function vbTessResetFlow(){
+  let stepLanjut=document.getElementById('vb-tess-step-lanjut');
+  let stepNama=document.getElementById('vb-tess-step-nama');
+  let loading=document.getElementById('vb-tess-loading');
+  let result=document.getElementById('vb-tess-result');
+  let namaInp=document.getElementById('vb-tess-nama-input');
+  let genBtn=document.getElementById('vb-tess-generate-btn');
+  if(stepLanjut)stepLanjut.classList.remove('hidden');
+  if(stepNama)stepNama.classList.add('hidden');
+  if(loading)loading.classList.add('hidden');
+  if(result)result.classList.add('hidden');
+  if(namaInp)namaInp.value='';
+  if(genBtn)genBtn.classList.add('hidden');
+}
+function vbTessLanjut(){
+  let stepLanjut=document.getElementById('vb-tess-step-lanjut');
+  let stepNama=document.getElementById('vb-tess-step-nama');
+  if(stepLanjut)stepLanjut.classList.add('hidden');
+  if(stepNama)stepNama.classList.remove('hidden');
+  let namaInp=document.getElementById('vb-tess-nama-input');
+  if(namaInp)namaInp.focus();
+}
+function vbTessNamaInput(){
+  let namaInp=document.getElementById('vb-tess-nama-input');
+  let genBtn=document.getElementById('vb-tess-generate-btn');
+  if(!namaInp||!genBtn)return;
+  genBtn.classList.toggle('hidden',!namaInp.value.trim());
+}
+function vbTessGenerate(){
+  let namaInp=document.getElementById('vb-tess-nama-input');
+  if(!namaInp||!namaInp.value.trim())return;
+  let stepNama=document.getElementById('vb-tess-step-nama');
+  let loading=document.getElementById('vb-tess-loading');
+  let result=document.getElementById('vb-tess-result');
+  if(stepNama)stepNama.classList.add('hidden');
+  if(result)result.classList.add('hidden');
+  if(loading)loading.classList.remove('hidden');
+  setTimeout(function(){
+    if(loading)loading.classList.add('hidden');
+    let p1=document.getElementById('vb-mode-tess-prompt-text');
+    let p2=document.getElementById('vb-mode-tess-prompt-text-2');
+    if(p1)p1.textContent=VB_TESS_PROMPT_TEXT;
+    if(p2)p2.textContent=VB_TESS_PROMPT_TEXT_2;
+    if(result)result.classList.remove('hidden');
+  },900);
+}
+function vbCopyTessPrompt(n){
+  let txt=(n===2)?VB_TESS_PROMPT_TEXT_2:VB_TESS_PROMPT_TEXT;
+  _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
 }
 // Pratinjau mode tess (1 foto produk -> Video AI). Pola sama dengan vbSyncMsPreview(); media diisi lazy.
 function vbSyncTessPreview(show){
@@ -15751,7 +15840,7 @@ function vbSyncTessPreview(show){
       vid.muted=true;
       let vt=document.getElementById('vb-mode-preview-tess-video-thumb');
       if(vt && window.PB_IMG_VBTESS_FOTO){
-        vt.setAttribute('data-explain','Untuk menghasilkan video AI dibutuhkan 1\u00A0foto produk');
+        vt.setAttribute('data-explain','Untuk menghasilkan video AI dibutuhkan 1\u00A0bahan');
         vt.setAttribute('data-sub1-src',window.PB_IMG_VBTESS_FOTO);
         vt.setAttribute('data-sub1-label','Foto Produk');
       }
@@ -16026,7 +16115,11 @@ function vbPickRefMode(mode){
   if(tessChip)tessChip.classList.toggle('sel',mode==='tess');
   let tessArea=document.getElementById('vb-mode-tess-area');
   if(tessArea)tessArea.classList.toggle('hidden',mode!=='tess');
-  if(mode==='tess'){let tp=document.getElementById('vb-mode-tess-prompt-text');if(tp)tp.textContent=VB_TESS_PROMPT_TEXT;}
+  // Cuma reset ke step 1 ("Lanjut →") kalau BENERAN baru masuk ke mode tess
+  // dari mode lain — klik ulang chip tess yang sudah aktif tidak menghapus
+  // progres nama produk / hasil prompt yang sudah ada (pola sama seperti
+  // fix bug #7 di mode 'kp' di atas).
+  if(mode==='tess'&&_camPrevMode!=='tess')vbTessResetFlow();
   let percobaanChip=document.getElementById('vb-mode-percobaan');
   if(percobaanChip)percobaanChip.classList.toggle('sel',mode==='percobaan');
   let desc=document.getElementById('vb-mode-desc');
@@ -25112,6 +25205,9 @@ function vbResetNow(){
     let mirrorOvBox=document.getElementById('vb-mirrorselfie-overlay-box'); if(mirrorOvBox)mirrorOvBox.classList.add('hidden');
     let mirrorOvToggle=document.getElementById('vb-mirrorselfie-overlay-toggle'); if(mirrorOvToggle)mirrorOvToggle.textContent='+ Atur Detail (opsional)';
     _vbMirrorRefresh();
+    // Mode tess juga ikut direset ke step 1 ("Lanjut →") biar sesi baru
+    // tidak kebawa nama produk / hasil prompt dari sesi sebelumnya.
+    vbTessResetFlow();
     document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
     VB_BULK_ROW_CACHE=[]; // FIX BUG#15: cache baris bulk juga wajib ikut bersih saat reset, biar tidak bocor ke sesi generate berikutnya
