@@ -4435,12 +4435,12 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
 
 /* PANGGUNG KARAKTER LANGSUNG (16 Okt 2026): foto karakter muncul di panggung. Karakter Sheet -> karakter berdiri,
    + Outfit -> ganti pakaian, + Produk -> tas di lantai; Dipakai -> tas dipakai; Dipegang & diarahkan ke kamera -> memegang tas. */
-#pst .ch{position:absolute;left:50%;bottom:0;height:90%;transform:translateX(-50%) translateY(16px);opacity:0;pointer-events:none;transition:opacity .5s,transform .6s;filter:drop-shadow(0 8px 16px rgba(0,0,0,.6));-webkit-mask-image:linear-gradient(#000 74%,transparent 98%);mask-image:linear-gradient(#000 74%,transparent 98%)}
+#pst .ch{position:absolute;left:50%;bottom:0;height:calc(100% - 58px);transform:translateX(-50%) translateY(16px);opacity:0;pointer-events:none;transition:opacity .5s,transform .6s;filter:drop-shadow(0 8px 16px rgba(0,0,0,.6));-webkit-mask-image:linear-gradient(#000 74%,transparent 98%);mask-image:linear-gradient(#000 74%,transparent 98%)}
 #pst.hc #pst-ch1,#pst.hc.ho #pst-ch2,#pst.hc.ho.hp #pst-ch3{opacity:1;transform:translateX(-50%)}
 #pst.hc.ho.hp #pst-ch2,#pst.hc.ho.hq #pst-ch2,#pst.hc.ho.hr #pst-ch2{opacity:0;transform:translateX(-50%) translateY(-8px)}
 #pst.hc.ho.hq #pst-ch4,#pst.hc.ho.hr #pst-ch5{opacity:1;transform:translateX(-50%)}
 #pst.hc.ho #pst-ch1{opacity:0;transform:translateX(-50%) translateY(-8px)}
-#pst #pst-ch4{height:80%;bottom:12%;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45)) drop-shadow(0 8px 16px rgba(0,0,0,.55));-webkit-mask-image:none;mask-image:none}
+#pst #pst-ch4{height:calc(88% - 58px);bottom:12%;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.45)) drop-shadow(0 8px 16px rgba(0,0,0,.55));-webkit-mask-image:none;mask-image:none}
 #pst.hc .fig{opacity:0}
 #pst .refs{position:absolute;right:12px;top:66px;display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0;pointer-events:none;transition:opacity .4s;z-index:3}
 #pst.hc .refs{opacity:1}
@@ -4449,7 +4449,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
 #pst .rf img{display:block;width:100%;height:auto}
 #pst .rf i{position:absolute;left:2px;top:2px;font-style:normal;font-weight:600;font-size:7px;line-height:1;padding:2px 3px;border-radius:99px;background:rgba(8,8,10,.8);color:var(--a2);border:1px solid rgba(217,184,118,.5)}
 #pst .pl{display:none;order:1;width:14px;height:14px;border-radius:50%;background:rgba(8,8,10,.85);border:1px solid rgba(217,184,118,.7);color:var(--a2);font:600 11px/12px sans-serif;text-align:center}
-@media(max-height:699px){#pst .refs{top:60px}#pst .rf{width:24px}#pst .pl{display:none!important}}
+@media(max-height:699px){#pst .ch{height:calc(100% - 80px)}#pst #pst-ch4{height:calc(88% - 80px)}#pst .refs{top:80px}#pst .rf{width:20px}#pst .pl{display:none!important}}
 #pst .pl.on{display:block}
 #pst #pst-pl2{order:3}
 @media(prefers-reduced-motion:reduce){#pst-w *{animation:none!important;transition:none!important}}
@@ -30725,10 +30725,13 @@ window.pstSync=function(){
  /* Panggung karakter langsung: hc=Karakter Sheet terisi (perempuan), ho=outfit, hp=dipakai, hr=dipegang & diarahkan ke kamera, hq=cara tampil lain / belum dipilih (tas di lantai) */
  var hc=sub==='f'&&!!ks,h3=hc&&!!of&&!!pr,hp=h3&&hold==='dipakai',hr=h3&&FS.holdKey==='tangan';
  c.toggle('hc',hc);c.toggle('ho',hc&&!!of);c.toggle('hp',hp);c.toggle('hr',hr);c.toggle('hq',h3&&!hp&&!hr);
- var ix=function(re){for(var i=0;i<R.length;i++)if(re.test(R[i].type||''))return i+1;return 0},n=0;
- [['pst-rf-w',/^wajah$/,hc],['pst-rf-o',/outfit|atasan|bawahan/,hc],['pst-rf-p',/produk|objek/,hc]].forEach(function(t){var e=$(t[0]),i=ix(t[1]),o=t[2]&&i>0;if(!e)return;e.classList.toggle('on',o);if(o)n++;e.style.order=String(Math.max(i-1,0)*2);var b=e.querySelector('i');if(b)b.textContent='F'+i});
+ /* nomor F mengikuti urutan asli aplikasi (fSortRefsForOrder: wajah, outfit, produk); Outfit AI tidak punya foto -> label "AI", tanpa nomor */
+ var SR=typeof fSortRefsForOrder==='function'?fSortRefsForOrder(R):R,NU=[],nf=0;
+ SR.forEach(function(r){if((r.type||'')==='outfit_random')NU.push(-1);else NU.push(++nf)});
+ var fx=function(re){for(var i=0;i<SR.length;i++)if(re.test(SR[i].type||''))return{pos:i,num:NU[i]};return null},n=0;
+ [['pst-rf-w',/^wajah$/,hc],['pst-rf-o',/outfit|atasan|bawahan/,hc],['pst-rf-p',/produk|objek/,hc]].forEach(function(t){var e=$(t[0]),f=fx(t[1]),o=t[2]&&!!f;if(!e)return;e.classList.toggle('on',o);if(o)n++;e.style.order=String((f?f.pos:0)*2);var b=e.querySelector('i');if(b)b.textContent=f&&f.num>0?'F'+f.num:'AI'});
  var p1=$('pst-pl1'),p2=$('pst-pl2');if(p1)p1.classList.toggle('on',n>=2);if(p2)p2.classList.toggle('on',n>=3);
- [['pst-sw','Karakter','Wajah',/^wajah$/],['pst-so','Outfit','Outfit',/outfit|atasan|bawahan/],['pst-sp','Produk','Produk',/produk|objek/]].forEach(function(t){var e=$(t[0]);if(!e)return;var i=ix(t[3]);e.textContent=(i?'F'+i+' ':'')+(sub==='f'||sub==='m'||t[0]==='pst-sp'?t[1]:t[2])});
+ [['pst-sw','Karakter','Wajah',/^wajah$/],['pst-so','Outfit','Outfit',/outfit|atasan|bawahan/],['pst-sp','Produk','Produk',/produk|objek/]].forEach(function(t){var e=$(t[0]);if(!e)return;var f=fx(t[3]);e.textContent=(f?(f.num>0?'F'+f.num:'AI')+' ':'')+(sub==='f'||sub==='m'||t[0]==='pst-sp'?t[1]:t[2])});
 c.toggle('of',!!wear);c.toggle('pr',!!(held||(sub==='p'&&pr)));c.toggle('hang',hold==='hanger');
  if(oh!==undefined&&oh!==hk&&ch&&pr){c.remove('hs');void st.offsetWidth;c.add('hs');clearTimeout(tm);tm=setTimeout(function(){c.remove('hs')},4500)}
  if(om!==undefined&&om!==mo&&mo){c.remove('mk');void st.offsetWidth;c.add('mk')}
