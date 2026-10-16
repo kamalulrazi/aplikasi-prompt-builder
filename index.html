@@ -4654,7 +4654,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v13.0</div>
+  <div class="splash-version" id="splash-version">v13.1</div>
 </div>
 <script>
   (function(){
@@ -6833,7 +6833,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v13.0 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v13.1 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -8700,6 +8700,7 @@ function fPickSubjek(val,el){
   // & di sini) karena cuma set display:flex, tidak saling bentrok.
   let f0ProcessBadgeOutsideTour=document.getElementById('f0-tour-process-badge');
   if(f0ProcessBadgeOutsideTour) f0ProcessBadgeOutsideTour.style.display='flex';
+  if(window.pstPreview)pstPreview('f0','subjek',val);
   fShowConfirm('f0', el, function(){ _fSubjekAdvance(val); });
 }
 
@@ -8758,6 +8759,7 @@ function fBack1(){
     selEl.classList.add('sel');
     let f0ProcessBadgeBack=document.getElementById('f0-tour-process-badge');
     if(f0ProcessBadgeBack) f0ProcessBadgeBack.style.display='flex';
+    if(window.pstPreview)pstPreview('f0','subjek',prevSubjek);
     fShowConfirm('f0', selEl, function(){ _fSubjekAdvance(prevSubjek); });
   }
   // FIX (dilaporkan user): selama sesi tur Langkah 5+6 masih berjalan, klik
@@ -9360,6 +9362,7 @@ function _fSyncPoseToHold(prevKey,newKey){
 function fPickHold(key,el,label){
   document.querySelectorAll('#f3 .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f3','holdKey',key);
   fShowConfirm('f3', el, function(){ fPickHoldConfirmed(key,label); });
 }
 function fPickHoldConfirmed(key,label){
@@ -9786,6 +9789,7 @@ function fPickPose(el){
   if(isNaN(idx)||!poses[idx])return;
   document.querySelectorAll('#f4-chips .pose-card, #f4-chips .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f4','pose',poses[idx][1]);
   fShowConfirm('f4', el, function(){
     FS.pose=poses[idx][1];
     FS.poseLabel=poses[idx][1];
@@ -9887,6 +9891,7 @@ let _fLokasiCustomLock=false;
 function fPickLokasi(val,el,label){
   document.querySelectorAll('#f5 .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f5','lokasi',label);
   fShowConfirm('f5', el, function(){
     FS.lokasi=label;
     FS.lokasiLabel=label;
@@ -9955,6 +9960,7 @@ let _fCahayaCustomLock=false;
 function fPickCahaya(val,el,label){
   document.querySelectorAll('#f7-cahaya-chips .chip, #f7-cahaya-chips-karakter .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f7','cahaya',label);
   fShowConfirm('f7', el, function(){
     _fCahaya={val,label};
     FS.cahaya=label;
@@ -10027,6 +10033,7 @@ let _fAngleCustomLock=false;
 function fPickAngle(val,el,label){
   document.querySelectorAll('#f8 .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f8','angle',label);
   fShowConfirm('f8', el, function(){
     _fAngle={val,label};
     FS.angle=label;
@@ -10096,6 +10103,7 @@ let _fMoodCustomLock=false;
 function fPickMood(val,el,label){
   document.querySelectorAll('#f9 .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f9','mood',label);
   fShowConfirm('f9', el, function(){
     FS.mood=val;
     FS.moodLabel=label;
@@ -30717,24 +30725,30 @@ var MO=[[/\bhp\b|burik|amatir/,'hp'],[/dark|gelap|moody|misterius/,'dm'],[/luxur
 function pick(t,tb,d){t=String(t||'').toLowerCase();if(!t.trim())return'';for(var i=0;i<tb.length;i++)if(tb[i][0].test(t))return tb[i][1];return d}
 function cut(s,n){s=String(s||'').trim();return s.length>n?s.slice(0,n)+'\u2026':s}
 var NM={f:'Perempuan',m:'Laki-laki',p:'Produk saja'},tm=0,pv={};
+/* PRATINJAU LANGSUNG: nilai chip yang baru diklik (belum Konfirmasi & Lanjut) langsung tampil di panggung. Hanya berlaku selama bar konfirmasi step itu masih ada; setelah dikonfirmasi/dibatalkan, panggung kembali memakai FS. FS TIDAK diubah. */
+window.PST_PV={};
+function pvw(k){var p=window.PST_PV[k];if(!p||!document.getElementById(p.c+'-confirmbar'))return undefined;return p.v}
+function pvo(k,d){var v=pvw(k);return v!==undefined?v:d}
+window.pstPv=pvw;
+window.pstPreview=function(c,k,v){window.PST_PV[k]={c:c,v:v};requestAnimationFrame(function(){if(window.pstSync)window.pstSync()})};
 window.pstSync=function(){
  var st=$('pst'),w=$('pst-w'),bar=$('pfa-bar');if(!st||typeof FS==='undefined')return;
  if(bar&&w)w.style.setProperty('--pbh',bar.offsetHeight+'px');
- var sub=FS.subjek==='hijab'?'f':FS.subjek==='pria'?'m':FS.subjek==='produk'?'p':'',
+ var _sj=pvo('subjek',FS.subjek),hkP=pvw('holdKey'),hkey=hkP!==undefined?hkP:(FS.holdKey||''),sub=_sj==='hijab'?'f':_sj==='pria'?'m':_sj==='produk'?'p':'',
  R=FS.refs||[],has=function(re){return R.some(function(r){return re.test(r.type||'')})},
  ks=has(/^wajah$/)?1:0,of=has(/outfit|atasan|bawahan/)?1:0,pr=(FS.hasProdukFoto||has(/produk|objek/))?1:0,
- ht=((FS.holdKey||'')+' '+(FS.hold||'')).toLowerCase(),hold=/hanger|gantung/.test(ht)?'hanger':/pakai|wear/.test(ht)?'dipakai':'tangan',
- pl=String(FS.poseLabel||FS.pose||'').toLowerCase(),pose=/jalan|walk/.test(pl)?'jalan':/menoleh/.test(pl)?'menoleh':'natural',
- lL=FS.lokasiLabel||FS.lokasi,cL=FS.cahayaLabel||FS.cahaya,aL=FS.angleLabel||FS.angle,mL=FS.moodLabel||FS.mood,
+ ht=(hkP!==undefined?hkP:((FS.holdKey||'')+' '+(FS.hold||''))).toLowerCase(),hold=/hanger|gantung/.test(ht)?'hanger':/pakai|wear/.test(ht)?'dipakai':'tangan',
+ pl=String(pvo('pose',FS.poseLabel||FS.pose||'')).toLowerCase(),pose=/jalan|walk/.test(pl)?'jalan':/menoleh/.test(pl)?'menoleh':'natural',
+ lL=pvo('lokasi',FS.lokasiLabel||FS.lokasi),cL=pvo('cahaya',FS.cahayaLabel||FS.cahaya),aL=pvo('angle',FS.angleLabel||FS.angle),mL=pvo('mood',FS.moodLabel||FS.mood),
  loc=pick(lL,LK,'custom'),li=pick(cL,LI,'soft'),an=pick(aL,AN,sub==='p'?'d45':'eye'),mo=pick(mL,MO,'custom');
- var sig=[sub,ks,of,pr,hold,pose,loc,li,an,mo,lL,cL,aL,mL,FS.holdKey||'',R.map(function(r){return r.type}).join(',')].join('|');
+ var sig=[sub,ks,of,pr,hold,pose,loc,li,an,mo,lL,cL,aL,mL,hkey,R.map(function(r){return r.type}).join(',')].join('|');
  if(st.dataset.sig===sig)return;st.dataset.sig=sig;
  var ch=sub==='f'||sub==='m',wear=ch&&(of||(pr&&hold==='dipakai')),held=ch&&pr&&hold!=='dipakai',c=st.classList,lo=loc?LC[loc]:0,hk=hold+pr;
  var oh=pv.h,om=pv.m;pv.h=hk;pv.m=mo;
  st.dataset.sub=sub;st.dataset.pose=pose;st.dataset.loc=loc;st.dataset.li=li;st.dataset.an=an;st.dataset.mo=mo;st.dataset.hold=hold;st.dataset.pt=lo?lo[4]:'';
  c.toggle('ks',ch&&!!ks);
  /* Panggung karakter langsung: hc=Karakter Sheet terisi (perempuan), ho=outfit, hp=dipakai, hr=dipegang & diarahkan ke kamera, hq=cara tampil lain / belum dipilih (tas di lantai) */
- var hc=sub==='f'&&!!ks,h3=hc&&!!of&&!!pr,hp=h3&&hold==='dipakai',hr=h3&&FS.holdKey==='tangan';
+ var hc=sub==='f'&&!!ks,h3=hc&&!!of&&!!pr,hp=h3&&hold==='dipakai',hr=h3&&hkey==='tangan';
  c.toggle('hc',hc);c.toggle('ho',hc&&!!of);c.toggle('hp',hp);c.toggle('hr',hr);c.toggle('hq',h3&&!hp&&!hr);
  /* nomor F mengikuti urutan asli aplikasi (fSortRefsForOrder: wajah, outfit, produk); Outfit AI tidak punya foto -> label "AI", tanpa nomor */
  var SR=typeof fSortRefsForOrder==='function'?fSortRefsForOrder(R):R,NU=[],nf=0;
@@ -30753,7 +30767,7 @@ c.toggle('of',!!wear);c.toggle('pr',!!(held||(sub==='p'&&pr)));c.toggle('hang',h
  var a,b='';
  if(!sub){a='Kotak masih kosong';b='Pilih subjek untuk mengisinya'}
  else if(sub==='p'){a='Produk saja';b=pr?'Foto produk sudah siap':'Menunggu foto produk'}
- else{a=NM[sub];var q=[ks?'wajah terisi':'siluet kosong'];if(wear)q.push(pr&&hold==='dipakai'?'memakai produk':'memakai outfit');if(held)q.push(hold==='hanger'?'membawa hanger':(FS.holdKey==='tangan'?'memegang produk':'produk di samping karakter'));b=q.join(', ')}
+ else{a=NM[sub];var q=[ks?'wajah terisi':'siluet kosong'];if(wear)q.push(pr&&hold==='dipakai'?'memakai produk':'memakai outfit');if(held)q.push(hold==='hanger'?'membawa hanger':(hkey==='tangan'?'memegang produk':'produk di samping karakter'));b=q.join(', ')}
  if(sub){var x=[];if(loc)x.push('latar '+cut(lL,30));if(li)x.push('cahaya '+cut(cL,26).toLowerCase());if(an)x.push('sudut '+cut(aL,26).toLowerCase());if(mo)x.push('mood '+cut(mL,26).toLowerCase());if(x.length)b+=(b?', ':'')+x.join(', ')}
  var cp=$('pst-cp');if(cp){cp.textContent='';var bb=document.createElement('b');bb.textContent=a;cp.appendChild(bb);cp.appendChild(document.createTextNode(cut(b,78)))}
  var fg=$('pst-fg');if(fg)fg.setAttribute('aria-label',a+'. '+b);
@@ -30892,7 +30906,7 @@ function poseBadge(){
   var st=document.getElementById('pst');if(!st||typeof FS==='undefined')return;
   var z=document.getElementById('pst-pz');
   if(!z){z=document.createElement('div');z.className='pz';z.id='pst-pz';z.setAttribute('aria-hidden','true');z.innerHTML='<svg viewBox="0 0 48 48"><use href="#pfa-p-stand"/></svg><span></span>';st.appendChild(z)}
-  var t=String(FS.poseLabel||FS.pose||'').toLowerCase(),hit=null;
+  var _pp=window.pstPv?window.pstPv('pose'):undefined,t=String(_pp!==undefined?_pp:(FS.poseLabel||FS.pose||'')).toLowerCase(),hit=null;
   if(t&&FS.subjek&&FS.subjek!=='produk')for(var i=0;i<PK.length;i++)if(PK[i][0].test(t)){hit=PK[i];break}
   z.classList.toggle('on',!!hit);
   if(hit){z.querySelector('use').setAttribute('href','#pfa-p-'+hit[1]);z.querySelector('span').textContent=hit[2]}
