@@ -1974,6 +1974,11 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
   border-color:rgba(var(--pulse-rgb),0.4);font-weight:500;
   box-shadow:0 0 0 1px rgba(var(--pulse-rgb),0.12);
 }
+/* MODE tess — chip Durasi yang belum tersedia: tetap bisa diklik (supaya
+   toast "belum tersedia" muncul), tapi tampil pudar/non-aktif. Beda dari
+   .pb-locked yang pointer-events:none (chip mode referensi foto). */
+.chip.tess-durasi-locked{opacity:0.4;filter:grayscale(0.6);cursor:not-allowed;}
+.chip.tess-durasi-locked:hover{border-color:var(--border);background:var(--surface2);color:var(--text);}
 /* INPUTS */
 .inp{
   width:100%;background:var(--surface2);border:1px solid var(--border);
@@ -6327,11 +6332,16 @@ Important rules:
       <!-- MODE BARU tess (revisi: alur bertahap) — begitu chip diklik TIDAK
            langsung muncul prompt. Urutannya: (1) tombol "Lanjut →" biasa →
            (2) wajib isi Nama Produk (cuma catatan, TIDAK ikut masuk ke
-           prompt) → begitu nama terisi muncul tombol "Generate Prompt" →
-           (3) klik tombol itu → loading sebentar → (4) tampil 2 prompt
-           sekaligus: Prompt 1 = VB_TESS_PROMPT_TEXT (sudah ada sebelumnya),
-           Prompt 2 = VB_TESS_PROMPT_TEXT_2 (baru). Lihat vbTessLanjut(),
-           vbTessNamaInput(), vbTessGenerate(), vbCopyTessPrompt(n) &
+           prompt) → begitu nama terisi muncul tombol "Lanjut →" lagi →
+           (3) pilih Durasi: 4 chip (4/6/8/10 detik), cuma "10 detik" yang
+           bisa dipilih — 3 lainnya dikunci & kalau diklik cuma munculkan
+           toast "belum tersedia" (lihat vbTessDurasiLocked()) → begitu
+           "10 detik" dipilih muncul tombol "Generate Prompt" → (4) klik
+           tombol itu → loading sebentar → (5) tampil 2 prompt sekaligus:
+           Prompt 1 = VB_TESS_PROMPT_TEXT (sudah ada sebelumnya), Prompt 2 =
+           VB_TESS_PROMPT_TEXT_2 (baru). Lihat vbTessLanjut(),
+           vbTessNamaInput(), vbTessGoDurasi(), vbTessPilihDurasi(),
+           vbTessDurasiLocked(), vbTessGenerate(), vbCopyTessPrompt(n) &
            pemanggilan reset-nya di vbPickRefMode()/vbResetNow(). -->
       <div id="vb-mode-tess-area" class="hidden" style="margin-bottom:14px;">
         <div id="vb-tess-step-lanjut">
@@ -6343,6 +6353,19 @@ Important rules:
           <label class="inplabel" style="font-size:var(--fs-2xs);">Nama Produk <span style="color:var(--accent);">*wajib</span></label>
           <div class="inp-wrap"><input class="inp" id="vb-tess-nama-input" maxlength="60" placeholder="Contoh: Tas Kulit Hitam" oninput="vbTessNamaInput()" /></div>
           <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 10px;">Nama produk cuma buat catatan kamu — tidak akan dimasukkan ke dalam prompt.</p>
+          <div style="text-align:right;">
+            <button class="btn sm hidden" id="vb-tess-nama-lanjut-btn" onclick="vbTessGoDurasi()" style="width:auto;padding:8px 18px;">Lanjut →</button>
+          </div>
+        </div>
+        <div id="vb-tess-step-durasi" class="hidden">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Pilih Durasi</label>
+          <div class="chips" style="margin:6px 0 4px;">
+            <div class="chip tess-durasi-locked" onclick="vbTessDurasiLocked()">4 detik</div>
+            <div class="chip tess-durasi-locked" onclick="vbTessDurasiLocked()">6 detik</div>
+            <div class="chip tess-durasi-locked" onclick="vbTessDurasiLocked()">8 detik</div>
+            <div class="chip" id="vb-tess-durasi-10" onclick="vbTessPilihDurasi()">10 detik</div>
+          </div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Durasi 4/6/8 detik belum tersedia — pakai 10 detik dulu ya.</p>
           <div style="text-align:right;">
             <button class="btn sm hidden" id="vb-tess-generate-btn" onclick="vbTessGenerate()" style="width:auto;padding:8px 18px;">Generate Prompt</button>
           </div>
@@ -15772,23 +15795,33 @@ const VB_TESS_PROMPT_TEXT='Luxury product ad video from a single reference photo
 // sekali (cuma dialihbahasakan). Ditampilkan berdampingan dengan Prompt 1
 // (VB_TESS_PROMPT_TEXT di atas, versi lama) lewat alur vbTessGenerate().
 const VB_TESS_PROMPT_TEXT_2='Luxury product ad video from a single reference photo. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a dark room with a glossy black surface.\n\nScene 1 (0-3 seconds): The frame is almost dark, a thin beam of light slowly sweeps from left to right and reveals the silhouette of the product. The camera moves in very slowly (slow push-in).\n\nScene 2 (3-6 seconds): Macro shot on the most prominent part visible in the photo. Rim light makes the material shine, fine dust particles float in the air, shallow focus, soft bokeh.\n\nScene 3 (6-10 seconds): The camera slowly pulls back to a hero composition, with the product centered in the frame and its silhouette emphasized by rim light. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo. No humans, hands, or wearers; if the photo contains a person, show only the product. No text or watermark.\n\nAudio: adjust it to whatever fits best.';
-// ── Alur bertahap mode tess (permintaan user, Okt 2026): chip "tess" diklik
-// → tombol "Lanjut →" → wajib isi Nama Produk (TIDAK ikut masuk ke prompt,
-// cuma catatan) → begitu nama terisi muncul tombol "Generate Prompt" → klik
-// → loading sebentar → tampil 2 prompt (Prompt 1 lama + Prompt 2 baru).
+// ── Alur bertahap mode tess (permintaan user, Okt 2026, direvisi): chip
+// "tess" diklik → tombol "Lanjut →" → wajib isi Nama Produk (TIDAK ikut
+// masuk ke prompt, cuma catatan) → begitu nama terisi muncul tombol
+// "Lanjut →" lagi → pilih Durasi (4 chip: 4/6/8/10 detik — cuma "10 detik"
+// yang bisa dipilih, 3 lainnya dikunci & kalau diklik cuma munculkan toast
+// "belum tersedia") → begitu "10 detik" dipilih muncul tombol "Generate
+// Prompt" → klik → loading sebentar → tampil 2 prompt (Prompt 1 lama +
+// Prompt 2 baru).
 function vbTessResetFlow(){
   let stepLanjut=document.getElementById('vb-tess-step-lanjut');
   let stepNama=document.getElementById('vb-tess-step-nama');
+  let stepDurasi=document.getElementById('vb-tess-step-durasi');
   let loading=document.getElementById('vb-tess-loading');
   let result=document.getElementById('vb-tess-result');
   let namaInp=document.getElementById('vb-tess-nama-input');
+  let namaLanjutBtn=document.getElementById('vb-tess-nama-lanjut-btn');
   let genBtn=document.getElementById('vb-tess-generate-btn');
+  let durasi10=document.getElementById('vb-tess-durasi-10');
   if(stepLanjut)stepLanjut.classList.remove('hidden');
   if(stepNama)stepNama.classList.add('hidden');
+  if(stepDurasi)stepDurasi.classList.add('hidden');
   if(loading)loading.classList.add('hidden');
   if(result)result.classList.add('hidden');
   if(namaInp)namaInp.value='';
+  if(namaLanjutBtn)namaLanjutBtn.classList.add('hidden');
   if(genBtn)genBtn.classList.add('hidden');
+  if(durasi10)durasi10.classList.remove('sel');
 }
 function vbTessLanjut(){
   let stepLanjut=document.getElementById('vb-tess-step-lanjut');
@@ -15800,17 +15833,40 @@ function vbTessLanjut(){
 }
 function vbTessNamaInput(){
   let namaInp=document.getElementById('vb-tess-nama-input');
-  let genBtn=document.getElementById('vb-tess-generate-btn');
-  if(!namaInp||!genBtn)return;
-  genBtn.classList.toggle('hidden',!namaInp.value.trim());
+  let namaLanjutBtn=document.getElementById('vb-tess-nama-lanjut-btn');
+  if(!namaInp||!namaLanjutBtn)return;
+  namaLanjutBtn.classList.toggle('hidden',!namaInp.value.trim());
 }
-function vbTessGenerate(){
+// Nama Produk sudah wajib & terisi → lanjut ke step pilih Durasi.
+function vbTessGoDurasi(){
   let namaInp=document.getElementById('vb-tess-nama-input');
   if(!namaInp||!namaInp.value.trim())return;
   let stepNama=document.getElementById('vb-tess-step-nama');
+  let stepDurasi=document.getElementById('vb-tess-step-durasi');
+  if(stepNama)stepNama.classList.add('hidden');
+  if(stepDurasi)stepDurasi.classList.remove('hidden');
+}
+// Klik salah satu chip durasi yang masih dikunci (4/6/8 detik) — cuma
+// kasih tahu belum tersedia, tidak mengubah pilihan apapun.
+function vbTessDurasiLocked(){
+  showToast('Durasi ini belum tersedia','error');
+}
+// Satu-satunya durasi yang bisa dipilih sekarang: 10 detik.
+function vbTessPilihDurasi(){
+  let durasi10=document.getElementById('vb-tess-durasi-10');
+  let genBtn=document.getElementById('vb-tess-generate-btn');
+  if(durasi10)durasi10.classList.add('sel');
+  if(genBtn)genBtn.classList.remove('hidden');
+}
+function vbTessGenerate(){
+  let namaInp=document.getElementById('vb-tess-nama-input');
+  let durasi10=document.getElementById('vb-tess-durasi-10');
+  if(!namaInp||!namaInp.value.trim())return;
+  if(!durasi10||!durasi10.classList.contains('sel'))return;
+  let stepDurasi=document.getElementById('vb-tess-step-durasi');
   let loading=document.getElementById('vb-tess-loading');
   let result=document.getElementById('vb-tess-result');
-  if(stepNama)stepNama.classList.add('hidden');
+  if(stepDurasi)stepDurasi.classList.add('hidden');
   if(result)result.classList.add('hidden');
   if(loading)loading.classList.remove('hidden');
   setTimeout(function(){
