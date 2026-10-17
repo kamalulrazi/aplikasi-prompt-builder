@@ -4788,7 +4788,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.8</div>
+  <div class="splash-version" id="splash-version">v14.10</div>
 </div>
 <script>
   (function(){
@@ -5595,11 +5595,6 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
 
         <!-- EMPTY HINT (dihapus) -->
 
-        <!-- CONFIRM -->
-        <div id="f1-confirm" class="hidden" style="margin-top:8px;">
-          <button class="btn sm" onclick="fKonfirmRef()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
-        </div>
-
       </div><!-- end f1-normal-panel -->
 
       <!-- MODAL OUTFIT RANDOM -->
@@ -5617,7 +5612,13 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       </div>
 
     </div>
-    <div class="wback" onclick="fBack1()">← Kembali</div>
+    <!-- DOCK F1 (permintaan user): Lanjut & Kembali Foto Referensi menempel tepat di atas nav bawah (lihat #pb-f1-css). Saat tur: display:contents = tampilan lama. -->
+    <div id="f1-dock">
+      <div id="f1-confirm" class="hidden" style="margin-top:8px;">
+        <button class="btn sm" onclick="fKonfirmRef()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
+      </div>
+      <div class="wback" onclick="fBack1()">← Kembali</div>
+    </div>
   </div>
 
   <!-- F2: PRODUK — disembunyikan dari UI, logic internal tetap jalan -->
@@ -6916,7 +6917,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.8 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.10 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -7707,7 +7708,7 @@ function fSyncCardEditDoneBtn(cardId, isNativeVisible){
     // induknya) sedang display:none — cara paling andal utk cek "beneran
     // kelihatan di layar" tanpa peduli lewat elemen mana ia disembunyikan.
     let bar=document.getElementById(cardId+'-confirmbar');
-    let barVisible=!!(bar && bar.offsetParent!==null);
+    let barVisible=!!(bar && bar.getClientRects().length>0); // getClientRects (bukan offsetParent): bar Lanjut sekarang position:fixed -> offsetParent selalu null
     let mt12Visible=Array.from(card.querySelectorAll('[data-role="mt12-confirm"]')).some(function(btn){return btn.offsetParent!==null;});
     isNativeVisible=barVisible||mt12Visible;
   }
@@ -8394,7 +8395,7 @@ function fRenderList(){
       ${isProdukType||isRandom?`
         <div class="f1-ref-input">
           <input class="inp" style="font-size:var(--fs-xs2);padding:5px 8px;" placeholder="${esc(phText)}" value="${esc(r.focus)}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()" />
-          ${!isRandom?`<button class="f1-adv-toggle" onclick="event.stopPropagation();fToggleAdv('${r.id}')"><span id="adv-icon-${r.id}">▾</span> <span id="adv-text-${r.id}">atur detail foto</span></button>
+          ${!isRandom?`<button class="f1-adv-toggle" onclick="event.stopPropagation();fToggleAdv('${r.id}')"><span id="adv-icon-${r.id}">▾</span> <span id="adv-text-${r.id}">atur detail</span></button>
             <div id="adv-area-${r.id}" class="hidden" style="margin-top:8px;padding:8px;background:var(--bg);border-radius:var(--radius-xs);">
               <div style="font-size:var(--fs-2xs);font-weight:500;color:var(--green);margin-bottom:3px;"><svg class="icon"><use href="#ic-check"></use></svg> AMBIL</div>
               <textarea class="desc-ta" style="font-size:var(--fs-xs);min-height:44px;" oninput="fUpdateRef('${r.id}','extractCustom',this.value)" onclick="event.stopPropagation()">${esc(r.extractCustom)}</textarea>
@@ -8436,7 +8437,7 @@ function fRenderList(){
       `:`
         <div id="detail-expanded-${r.id}" class="f1-ref-input" style="${hasDetail?'':'display:none'}">
           <input class="inp" style="font-size:var(--fs-xs2);padding:5px 8px;" placeholder="${esc(phText)}" value="${esc(r.focus)}" id="detail-input-${r.id}" oninput="fUpdateRef('${r.id}','focus',this.value)" onclick="event.stopPropagation()" />
-          <button class="f1-adv-toggle" onclick="event.stopPropagation();fToggleAdv('${r.id}')"><span id="adv-icon-${r.id}">▾</span> <span id="adv-text-${r.id}">atur detail foto</span></button>
+          <button class="f1-adv-toggle" onclick="event.stopPropagation();fToggleAdv('${r.id}')"><span id="adv-icon-${r.id}">▾</span> <span id="adv-text-${r.id}">atur detail</span></button>
           <div id="adv-area-${r.id}" class="hidden" style="margin-top:8px;padding:8px;background:var(--bg);border-radius:var(--radius-xs);">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
               <span style="font-size:var(--fs-2xs);font-weight:500;color:var(--green);"><svg class="icon"><use href="#ic-check"></use></svg> AMBIL</span>
@@ -8475,7 +8476,7 @@ function fCardClick(e,id,isExpandable){
 }
 
 function fToggleAdv(id,label){
-  label = label || 'atur detail foto';
+  label = label || 'atur detail';
   let area=document.getElementById('adv-area-'+id);
   let icon=document.getElementById('adv-icon-'+id);
   let text=document.getElementById('adv-text-'+id);
@@ -31302,6 +31303,36 @@ html body:not(.pb-tour-active) #video .wrap{padding-bottom:190px!important;}
   window.addEventListener('load',function(){sync();setTimeout(sync,400);setTimeout(sync,1500);});
 })();
 </script>
+<style id="pb-f1-css">
+/* FOTO REFERENSI (permintaan user, Okt 2026):
+   - kotak kecil F1/F2/F3 di baris detail foto disembunyikan
+   - kolom nama produk lebih besar & di samping label "Produk"; "atur detail" di bawah kolom itu
+   - Lanjut + Kembali menempel tepat di atas nav bawah (dock f1) */
+html body #f1 .f1-ref-num{display:none!important;}
+html body #f1 .f1-ref-row{grid-template-columns:auto minmax(0,1fr) auto;column-gap:10px;row-gap:2px;padding:8px 12px;}
+html body #f1 .f1-ref-type{grid-column:1;grid-row:1;}
+html body #f1 .f1-ref-del{grid-column:3;grid-row:1;}
+html body #f1 .f1-ref-input>.inp{grid-column:2;grid-row:1;width:100%;min-width:0;margin:0;min-height:46px;padding:10px 12px!important;font-size:var(--fs-sm)!important;border-radius:var(--radius-sm);}
+html body #f1 .f1-adv-toggle{grid-column:2;grid-row:2;justify-self:start;min-height:32px;padding:0 2px;font-size:var(--fs-sm);}
+html body #f1 .f1-ref-input:not(:has(>.inp))>.f1-adv-toggle{grid-row:1;justify-self:end;}
+html body #f1 .f1-ref-input>[id^="adv-area-"]{grid-column:1/-1;grid-row:3;}
+#f1-dock{display:contents;}
+html body:not(.pb-tour-active) #foto#foto #f1-dock{
+  position:fixed!important;left:0;right:0;top:auto;bottom:var(--pb-dock-b,0px);z-index:99;box-sizing:border-box;
+  display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:8px;
+  margin:0;padding:10px max(14px,calc((100vw - 640px)/2 + 14px));
+  background:var(--surface2);border-top:1px solid var(--border);box-shadow:0 -6px 18px rgba(0,0,0,.28);
+}
+html body:not(.pb-tour-active) #foto#foto #f1-dock .wback{order:1;flex:0 0 42px;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;margin:0!important;}
+html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm{order:2;flex:1 1 auto;min-width:0;margin:0!important;padding:0!important;}
+html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm .btn{display:flex;align-items:center;justify-content:center;width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;margin:0!important;}
+@media (min-width:900px){
+  html body:not(.pb-tour-active) #foto#foto #f1-dock{
+    padding-left:max(14px,calc((100vw - 1180px)/2 + 14px));
+    padding-right:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 404px);
+  }
+}
+</style>
 <script id="pb-slimnav-js">
 (function(){
   var RE=/^(konfirmasi\s*&\s*)?lanjut\b/i,raf=0;
