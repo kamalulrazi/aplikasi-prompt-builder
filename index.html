@@ -2344,20 +2344,17 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vstyle-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-4) var(--space-5);cursor:pointer;transition:all 0.15s;margin-bottom:0;}
 
 /* DAILY LIMIT WIDGET */
-#daily-limit-bar{position:fixed;bottom:calc(96px + var(--safe-b));right:12px;z-index:200;font-family:'Hanken Grotesk',system-ui,sans-serif;display:flex;flex-direction:column;align-items:flex-end;gap:5px;pointer-events:none;}
-#dlb-badge{pointer-events:auto;display:flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 9px 3px var(--space-2);cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:border-color 0.15s;user-select:none;touch-action:none;}
-#dlb-badge:hover{border-color:var(--border-hi);}
-#daily-limit-bar.dragging #dlb-badge{cursor:grabbing;}
-#daily-limit-bar.dragging{transition:none!important;}
+#daily-limit-bar{position:static;margin:0 0 18px;font-family:'Hanken Grotesk',system-ui,sans-serif;display:flex;flex-direction:column;}
 .dlb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;transition:background 0.3s;}
 .dlb-dot.ok{background:var(--green);}
 .dlb-dot.warn{background:var(--warning);}
 .dlb-dot.empty{background:var(--red);}
-#dlb-count{font-size:var(--fs-xs);font-weight:450;color:var(--muted);line-height:1;}
-#dlb-panel{pointer-events:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-3) var(--space-4);box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:160px;display:none;cursor:grab;}
-#daily-limit-bar.expanded #dlb-panel{display:block;}
-.dlb-panel-label{font-size:var(--fs-3xs);letter-spacing:.01em;text-transform:none;color:var(--muted2);margin-bottom:var(--space-2);}
-.dlb-track{height:2px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-bottom:5px;}
+#dlb-panel{display:block;background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:16px;cursor:pointer;}
+.dlb-row{display:flex;align-items:center;gap:8px;margin:0 0 12px;}
+#dlb-count{font-size:var(--fs-lg,17px);font-weight:600;color:var(--text);line-height:1;}
+.dlb-unit{font-size:var(--fs-xs);color:var(--muted);line-height:1;}
+.dlb-panel-label{font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;text-transform:none;color:var(--text);margin-bottom:var(--space-3);}
+.dlb-track{height:4px;background:var(--surface3);border-radius:4px;overflow:hidden;margin-bottom:8px;}
 .dlb-fill{height:100%;border-radius:2px;transition:width 0.4s ease,background 0.4s ease;}
 #dlb-reset{font-size:var(--fs-2xs);color:var(--muted2);line-height:1.7;}
 
@@ -4791,7 +4788,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.4</div>
+  <div class="splash-version" id="splash-version">v14.5</div>
 </div>
 <script>
   (function(){
@@ -6920,6 +6917,17 @@ Important rules:
       <a href="kontak.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Kontak</a>
     </div>
   </div>
+  <!-- LIMIT HARIAN (permintaan user, Okt 2026): dulu widget melayang di atas nav bawah, sekarang kartu tetap di tab Panduan.
+       ID dlb-* tetap sama karena dipakai dlRenderBar(). -->
+  <div id="daily-limit-bar" style="display:none;">
+    <div id="dlb-panel" onclick="pbOpenUpgradeModal();">
+      <div class="dlb-panel-label">Tier <span id="dlb-tier-label">Gratis</span> — Limit Harian</div>
+      <div class="dlb-row"><span class="dlb-dot ok" id="dlb-dot"></span><span id="dlb-count">— / —</span><span class="dlb-unit">produk terpakai hari ini</span></div>
+      <div class="dlb-track"><div class="dlb-fill" id="dlb-fill" style="width:100%;background:var(--green);"></div></div>
+      <span id="dlb-reset">— / —</span>
+      <div style="margin-top:8px;font-size:var(--fs-2xs);color:var(--accent);font-weight:600;">Lihat paket upgrade →</div>
+    </div>
+  </div>
   <div class="pb-akun-row">
     <div class="h-pill" id="pb-user-pill" style="cursor:pointer;display:none;align-items:center;gap:6px;" onclick="pbLogout()" title="Klik untuk keluar">
       <img id="pb-user-avatar" src="" alt="" style="width:16px;height:16px;border-radius:50%;display:none;">
@@ -7021,7 +7029,7 @@ Important rules:
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.4 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.5 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -26194,20 +26202,6 @@ window.addEventListener('beforeunload', function(e){
      langsung di bawah <body>) supaya "bottom:0"-nya selalu relatif ke
      viewport asli, bukan ke scroll container. switchPage() & CSS lain
      gak perlu berubah karena masih dicari lewat class .ntab / .nav global. -->
-<!-- DAILY LIMIT WIDGET -->
-<div id="daily-limit-bar" style="display:none;">
-  <div id="dlb-panel" onclick="event.stopPropagation();pbOpenUpgradeModal();">
-    <div class="dlb-panel-label">Tier <span id="dlb-tier-label">Gratis</span> — Limit Harian</div>
-    <div class="dlb-track"><div class="dlb-fill" id="dlb-fill" style="width:100%;background:var(--green);"></div></div>
-    <span id="dlb-reset">— / —</span>
-    <div style="margin-top:8px;font-size:var(--fs-2xs);color:var(--accent);font-weight:600;">Lihat paket upgrade →</div>
-  </div>
-  <div id="dlb-badge" onclick="pbToggleLimitBar()">
-    <span class="dlb-dot ok" id="dlb-dot"></span>
-    <span id="dlb-count">— / —</span>
-  </div>
-</div>
-
 <!-- MODAL: UPGRADE TIER — pola sama dgn #apikey-modal-overlay biar konsisten -->
 <style>
 .upg-dlg{--ac:var(--accent);--ac2:var(--accent-2);--acd:var(--accent-dim);--gl:rgba(227,194,126,.26);width:100%;max-width:440px;display:flex;flex-direction:column;overflow-y:auto;background:radial-gradient(75% 38% at 50% 14%,var(--gl),transparent 70%),var(--bg);color:var(--text)}
@@ -29920,8 +29914,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
 /* FIX v6.94: saat keyboard HP muncul, viewport menyusut sehingga .nav (position:fixed;bottom:0)
    ikut terdorong naik menutupi konten. Selama user mengetik, nav & widget limit disembunyikan
    (class pb-kb-open dipasang di <html> oleh script di bawah), lalu muncul lagi saat keyboard tutup. */
-html.pb-kb-open .nav,
-html.pb-kb-open #daily-limit-bar{display:none !important;}
+html.pb-kb-open .nav{display:none !important;}
 </style>
 <script>
 (function(){
@@ -31544,6 +31537,72 @@ html body #foto#foto .wcard [id$="-confirmbar"]{display:flex;justify-content:fle
 html body #foto#foto .wcard [id$="-confirmbar"] .btn{width:auto!important;flex:0 0 auto;height:38px!important;min-height:38px!important;padding:0 18px!important;font-size:13.5px!important;margin:0!important}
 html body #foto#foto .wcard:has([id$="-confirmbar"]) .wback{display:none!important}
 </style>
+<style id="pb-dock-css">
+/* DOCK LANJUT (permintaan user, Okt 2026): tombol Lanjut bawah dulu "mengambang tanggung" di kanan.
+   Sekarang jadi bar penuh yang menempel TEPAT di atas nav (Foto/Video/Riwayat/Panduan). Berlaku di wizard Video
+   (.pbw-dock + footer Step 1) dan wizard Foto (bar -confirmbar). Tidak aktif saat tur (nav memang disembunyikan).
+   Tinggi nav diukur skrip pb-dock-js ke --pb-dock-b (0 kalau nav di atas / keyboard terbuka). */
+:root{--pb-dock-b:0px}
+html body:not(.pb-tour-active) :is(.pbw-dock,#v1 .wbody>#vb-mode-normal-footer,#foto#foto .wcard [id$="-confirmbar"]){
+  position:fixed!important;left:0!important;right:0!important;top:auto!important;bottom:var(--pb-dock-b,0px)!important;
+  z-index:99;width:auto!important;max-width:none!important;box-sizing:border-box;
+  margin:0!important;padding:10px max(14px,calc((100vw - 640px)/2 + 14px)) 10px!important;
+  display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-end;gap:8px;
+  background:var(--surface2)!important;border:0;border-top:1px solid var(--border);border-radius:0!important;
+  box-shadow:0 -6px 18px rgba(0,0,0,.28);
+}
+/* di dalam dock: Kembali (ikon) di kiri, Lanjut mengisi sisa lebar */
+html body:not(.pb-tour-active) :is(.pbw-dock,#v1 .wbody>#vb-mode-normal-footer) .btn:not(.ghost):not(.pbw-bk),
+html body:not(.pb-tour-active) #foto#foto .wcard [id$="-confirmbar"] .btn:not(.pb-bk-ic){
+  flex:1 1 auto!important;width:auto!important;min-width:0!important;margin:0!important;
+  height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+html body:not(.pb-tour-active) .pbw-dock [id$="-confirmbar"]{flex:1 1 auto!important;min-width:0;padding:0!important;margin:0!important;background:none!important;box-shadow:none!important;border:0!important;position:static!important;display:flex;}
+html body:not(.pb-tour-active) .pbw-dock [id$="-confirmbar"] .btn{width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;}
+html body:not(.pb-tour-active) :is(.pbw-dock .pbw-bk,.pbw-dock .wback,#foto#foto .wcard [id$="-confirmbar"] .pb-bk-ic){
+  flex:0 0 42px!important;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;
+}
+html body:not(.pb-tour-active) .pbw-dock .btn.ghost:not(.pbw-bk){flex:0 0 auto!important;height:42px!important;min-height:42px!important;}
+/* ruang di bawah isi supaya kartu terakhir tidak tertutup dock */
+html body:not(.pb-tour-active) #video .wrap{padding-bottom:190px!important;}
+/* wizard Foto layar lebar: sejajarkan dengan kolom kiri (kolom kanan = panel Prompt 380px + jarak 24px) */
+@media (min-width:900px){
+  html body:not(.pb-tour-active) #foto#foto .wcard [id$="-confirmbar"]{
+    padding-left:max(14px,calc((100vw - 1180px)/2 + 14px))!important;
+    padding-right:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 404px)!important;
+  }
+}
+/* animasi masuk kartu menyisakan transform (fill both) -> position:fixed anak-anaknya jadi relatif ke kartu. Setelah selesai, lepas transform-nya. */
+.wcard.anim-in{animation-fill-mode:backwards!important;}
+</style>
+<script id="pb-dock-js">
+(function(){
+  function sync(){
+    var n=document.querySelector('nav.nav'),h=0;
+    try{
+      if(n){
+        var cs=getComputedStyle(n),r=n.getBoundingClientRect();
+        if(cs.display!=='none'&&cs.position==='fixed'&&r.height>20&&r.bottom>=window.innerHeight-2)h=Math.round(r.height);
+      }
+    }catch(e){}
+    document.documentElement.style.setProperty('--pb-dock-b',h+'px');
+  }
+  window.addEventListener('resize',sync);
+  window.addEventListener('orientationchange',sync);
+  if(window.visualViewport)window.visualViewport.addEventListener('resize',sync);
+  if(window.MutationObserver){
+    var mo=new MutationObserver(sync);
+    mo.observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+    mo.observe(document.body,{attributes:true,attributeFilter:['class']});
+  }
+  var n0=document.querySelector('nav.nav');
+  if(n0&&window.ResizeObserver)new ResizeObserver(sync).observe(n0);
+  sync();
+  document.addEventListener('DOMContentLoaded',sync);
+  window.addEventListener('load',function(){sync();setTimeout(sync,400);setTimeout(sync,1500);});
+})();
+</script>
 <script id="pb-slimnav-js">
 (function(){
   var RE=/^(konfirmasi\s*&\s*)?lanjut\b/i,raf=0;
