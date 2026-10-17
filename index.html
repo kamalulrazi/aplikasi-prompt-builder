@@ -6362,6 +6362,7 @@ Important rules:
             <div class="chip" id="vb-tess-gaya-1" onclick="vbTessPilihGaya(1)">Mewah</div>
             <div class="chip" id="vb-tess-gaya-2" onclick="vbTessPilihGaya(2)">Dinamis</div>
             <div class="chip" id="vb-tess-gaya-3" onclick="vbTessPilihGaya(3)">Estetik</div>
+            <div class="chip" id="vb-tess-gaya-4" onclick="vbTessPilihGaya(4)">UGC</div>
           </div>
           <div style="text-align:right;">
             <button class="btn sm hidden" id="vb-tess-gaya-lanjut-btn" onclick="vbTessGoNama()" style="width:auto;padding:8px 18px;">Lanjut →</button>
@@ -6380,10 +6381,10 @@ Important rules:
           <div class="chips" style="margin:6px 0 4px;">
             <div class="chip tess-durasi-locked" onclick="vbTessDurasiLocked()">4 detik</div>
             <div class="chip tess-durasi-locked" onclick="vbTessDurasiLocked()">6 detik</div>
-            <div class="chip tess-durasi-locked" onclick="vbTessDurasiLocked()">8 detik</div>
-            <div class="chip" id="vb-tess-durasi-10" onclick="vbTessPilihDurasi()">10 detik</div>
+            <div class="chip tess-durasi-locked" id="vb-tess-durasi-8" onclick="vbTessPilihDurasi(8)">8 detik</div>
+            <div class="chip" id="vb-tess-durasi-10" onclick="vbTessPilihDurasi(10)">10 detik</div>
           </div>
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Durasi 4/6/8 detik belum tersedia — pakai 10 detik dulu ya.</p>
+          <p id="vb-tess-durasi-hint" style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Durasi 4/6/8 detik belum tersedia — pakai 10 detik dulu ya.</p>
           <div style="text-align:right;">
             <button class="btn sm hidden" id="vb-tess-generate-btn" onclick="vbTessGenerate()" style="width:auto;padding:8px 18px;">Generate Prompt</button>
           </div>
@@ -6402,7 +6403,7 @@ Important rules:
           </div>
           <div class="out-card" id="vb-tess-result-card-2" style="margin-top:10px;">
             <div class="out-head">
-              <div class="out-label">Prompt 2 — tess (Lanjutan dari Prompt 1)</div>
+              <div class="out-label" id="vb-tess-result-label-2">Prompt 2 — tess (Lanjutan dari Prompt 1)</div>
               <div style="display:flex;align-items:center;gap:7px;">
                 <button class="copy-btn" onclick="vbCopyTessPrompt(2)">Salin</button>
               </div>
@@ -15841,7 +15842,17 @@ const VB_TESS_PROMPT_TEXT_ESTETIK_2='Aesthetic product ad video from a single re
 // "belum tersedia") → begitu "10 detik" dipilih muncul tombol "Generate
 // Prompt" → klik → loading sebentar → tampil 2 prompt (Awal→Lanjutan)
 // sesuai Gaya yang dipilih: "Mewah", "Dinamis", atau "Estetik".
-let VB_TESS_GAYA=null; // 1 = Mewah, 2 = Dinamis, 3 = Estetik
+// Gaya "UGC" (17 Okt 2026): POV handheld ala rekaman HP. Prompt 1 = produk diangkat ke kamera, Prompt 2 = produk sudah di permukaan lalu disentuh tangan.
+const VB_TESS_PROMPT_TEXT_UGC="Vertical video, natural UGC-style content, as if filmed by oneself with a phone.\n\nUse the reference photo as the product reference.\nPOV (first-person) viewpoint, as if the viewer is holding the product themselves. Only hands are visible.\n\nAction: at the start of the video the product is not yet being held, then the product is slowly lifted toward the camera, showing the part of the product that matches the reference photo, then brought closer to the camera so the details of the material can be seen. Relaxed movement, not rushed.\n\nSetting: an ordinary, simple home room (plain wall, wooden table or a bed with simple sheets), slightly messy and as-is. Natural light from the window, warm and soft. No sense of luxury, studio, or decorative props.\n\nCamera: handheld with subtle shake, focus drifting slightly like real phone footage.\n\nSound: only the ambient sound of the room and the soft sound of the product rubbing. No music, no dialogue, no narration.\n\nRestrictions: no human faces, no text or watermarks, no extra logos, no excessive cinematic effects, no luxury feel.";
+const VB_TESS_PROMPT_TEXT_UGC_2="Use the reference photo as the product reference. The shape, color, material, details, and logo of the product must be exactly the same as in the photo, do not change or add anything.\n\nPOV (first-person) viewpoint, as if the viewer is the one looking at and touching the product. Only hands are visible.\nThe scene starts with the product already resting on a surface in front of the camera (wooden table, bed with simple sheets, or the floor of the house, depending on the type of product). The camera is slightly above the product, facing down at an angle.\n\nAction: the camera slowly moves closer, showing 2 to 3 distinctive details of the product. Then one hand enters the frame and naturally touches a part of the product. At the end, the hand moves away and the product is left alone in the center of the frame, stable and clear.\n\nSetting: an ordinary, simple home room (plain wall, wooden table or a bed with simple sheets), slightly messy and as-is. Natural light from the window, warm and soft. No sense of luxury, studio, or decorative props.\n\nCamera: handheld with subtle shake, focus drifting slightly like real phone footage, slowing down and becoming stable at the end.\n\nSound: only the ambient sound of the room and the soft sound of touch on the product. No music, no dialogue, no narration.\n\nRestrictions: no human faces, no text or watermarks, no extra logos, no excessive cinematic effects, no luxury feel. The camera never points upward toward the face, the frame is always chest height and below.";
+let VB_TESS_GAYA=null; // 1 = Mewah, 2 = Dinamis, 3 = Estetik, 4 = UGC
+let VB_TESS_DURASI=null; // 8 atau 10 (8 hanya untuk Gaya UGC)
+function vbTessPromptPair(){
+  if(VB_TESS_GAYA===2)return [VB_TESS_PROMPT_TEXT_DINAMIS,VB_TESS_PROMPT_TEXT_DINAMIS_2];
+  if(VB_TESS_GAYA===3)return [VB_TESS_PROMPT_TEXT_ESTETIK,VB_TESS_PROMPT_TEXT_ESTETIK_2];
+  if(VB_TESS_GAYA===4)return [VB_TESS_PROMPT_TEXT_UGC,VB_TESS_PROMPT_TEXT_UGC_2];
+  return [VB_TESS_PROMPT_TEXT,VB_TESS_PROMPT_TEXT_2];
+}
 function vbTessResetFlow(){
   let stepLanjut=document.getElementById('vb-tess-step-lanjut');
   let stepGaya=document.getElementById('vb-tess-step-gaya');
@@ -15857,6 +15868,8 @@ function vbTessResetFlow(){
   let gaya1=document.getElementById('vb-tess-gaya-1');
   let gaya2=document.getElementById('vb-tess-gaya-2');
   let gaya3=document.getElementById('vb-tess-gaya-3');
+  let gaya4=document.getElementById('vb-tess-gaya-4');
+  let durasi8=document.getElementById('vb-tess-durasi-8');
   if(stepLanjut)stepLanjut.classList.remove('hidden');
   if(stepGaya)stepGaya.classList.add('hidden');
   if(stepNama)stepNama.classList.add('hidden');
@@ -15871,7 +15884,10 @@ function vbTessResetFlow(){
   if(gaya1)gaya1.classList.remove('sel');
   if(gaya2)gaya2.classList.remove('sel');
   if(gaya3)gaya3.classList.remove('sel');
+  if(gaya4)gaya4.classList.remove('sel');
+  if(durasi8){durasi8.classList.remove('sel');durasi8.classList.add('tess-durasi-locked');}
   VB_TESS_GAYA=null;
+  VB_TESS_DURASI=null;
   vbTessSetPreviewVideo(window.PB_IMG_VBTESS_VIDEO); // balik ke video Gaya Mewah (default)
 }
 function vbTessLanjut(){
@@ -15897,14 +15913,17 @@ function vbTessPilihGaya(n){
   let gaya1=document.getElementById('vb-tess-gaya-1');
   let gaya2=document.getElementById('vb-tess-gaya-2');
   let gaya3=document.getElementById('vb-tess-gaya-3');
+  let gaya4=document.getElementById('vb-tess-gaya-4');
   let gayaLanjutBtn=document.getElementById('vb-tess-gaya-lanjut-btn');
   if(gaya1)gaya1.classList.toggle('sel',n===1);
   if(gaya2)gaya2.classList.toggle('sel',n===2);
   if(gaya3)gaya3.classList.toggle('sel',n===3);
+  if(gaya4)gaya4.classList.toggle('sel',n===4);
   if(gayaLanjutBtn)gayaLanjutBtn.classList.remove('hidden');
   let videoByGaya=window.PB_IMG_VBTESS_VIDEO;
   if(n===2)videoByGaya=window.PB_IMG_VBTESS_VIDEO_DINAMIS;
   else if(n===3)videoByGaya=window.PB_IMG_VBTESS_VIDEO_ESTETIK;
+  else if(n===4)videoByGaya=window.PB_IMG_VBTESS_VIDEO_UGC;
   vbTessSetPreviewVideo(videoByGaya);
 }
 // Gaya sudah dipilih → lanjut ke step isi Nama Produk.
@@ -15931,25 +15950,38 @@ function vbTessGoDurasi(){
   let stepDurasi=document.getElementById('vb-tess-step-durasi');
   if(stepNama)stepNama.classList.add('hidden');
   if(stepDurasi)stepDurasi.classList.remove('hidden');
+  // Gaya UGC: durasi 8 & 10 detik bisa dipilih. Gaya lain: hanya 10 detik.
+  let durasi8=document.getElementById('vb-tess-durasi-8');
+  let durasi10=document.getElementById('vb-tess-durasi-10');
+  let hint=document.getElementById('vb-tess-durasi-hint');
+  let genBtn=document.getElementById('vb-tess-generate-btn');
+  VB_TESS_DURASI=null;
+  if(durasi8){durasi8.classList.remove('sel');durasi8.classList.toggle('tess-durasi-locked',VB_TESS_GAYA!==4);}
+  if(durasi10)durasi10.classList.remove('sel');
+  if(genBtn)genBtn.classList.add('hidden');
+  if(hint)hint.textContent=(VB_TESS_GAYA===4)?'Durasi 4/6 detik belum tersedia — pilih 8 atau 10 detik.':'Durasi 4/6/8 detik belum tersedia — pakai 10 detik dulu ya.';
 }
 // Klik salah satu chip durasi yang masih dikunci (4/6/8 detik) — cuma
 // kasih tahu belum tersedia, tidak mengubah pilihan apapun.
 function vbTessDurasiLocked(){
   showToast('Durasi ini belum tersedia','error');
 }
-// Satu-satunya durasi yang bisa dipilih sekarang: 10 detik.
-function vbTessPilihDurasi(){
+// Durasi yang bisa dipilih: 10 detik (semua Gaya) dan 8 detik (khusus Gaya UGC).
+function vbTessPilihDurasi(n){
+  if(n===8&&VB_TESS_GAYA!==4){vbTessDurasiLocked();return;}
+  VB_TESS_DURASI=n;
+  let durasi8=document.getElementById('vb-tess-durasi-8');
   let durasi10=document.getElementById('vb-tess-durasi-10');
   let genBtn=document.getElementById('vb-tess-generate-btn');
-  if(durasi10)durasi10.classList.add('sel');
+  if(durasi8)durasi8.classList.toggle('sel',n===8);
+  if(durasi10)durasi10.classList.toggle('sel',n===10);
   if(genBtn)genBtn.classList.remove('hidden');
 }
 function vbTessGenerate(){
   let namaInp=document.getElementById('vb-tess-nama-input');
-  let durasi10=document.getElementById('vb-tess-durasi-10');
   if(!VB_TESS_GAYA)return;
   if(!namaInp||!namaInp.value.trim())return;
-  if(!durasi10||!durasi10.classList.contains('sel'))return;
+  if(!VB_TESS_DURASI)return;
   let stepDurasi=document.getElementById('vb-tess-step-durasi');
   let loading=document.getElementById('vb-tess-loading');
   let result=document.getElementById('vb-tess-result');
@@ -15963,22 +15995,26 @@ function vbTessGenerate(){
     let label1=document.getElementById('vb-tess-result-label-1');
     let card2=document.getElementById('vb-tess-result-card-2');
     let note=document.getElementById('vb-tess-result-note');
-    // 3 Gaya, pola sama (2 prompt, Awal→Lanjutan) — cuma isinya beda.
-    let promptPair=[VB_TESS_PROMPT_TEXT,VB_TESS_PROMPT_TEXT_2];
-    if(VB_TESS_GAYA===2)promptPair=[VB_TESS_PROMPT_TEXT_DINAMIS,VB_TESS_PROMPT_TEXT_DINAMIS_2];
-    else if(VB_TESS_GAYA===3)promptPair=[VB_TESS_PROMPT_TEXT_ESTETIK,VB_TESS_PROMPT_TEXT_ESTETIK_2];
+    let promptPair=vbTessPromptPair();
     if(p1)p1.textContent=promptPair[0];
     if(p2)p2.textContent=promptPair[1];
-    if(label1)label1.textContent='Prompt 1 — tess (Awal)';
+    let label2=document.getElementById('vb-tess-result-label-2');
+    if(VB_TESS_GAYA===4){
+      if(label1)label1.textContent='Prompt 1 — UGC (Produk diangkat ke kamera)';
+      if(label2)label2.textContent='Prompt 2 — UGC (Produk di permukaan, disentuh tangan)';
+      if(note)note.textContent='Dua prompt ini adalah dua variasi adegan — generate masing-masing sebagai klip terpisah ('+VB_TESS_DURASI+' detik).';
+    }else{
+      if(label1)label1.textContent='Prompt 1 — tess (Awal)';
+      if(label2)label2.textContent='Prompt 2 — tess (Lanjutan dari Prompt 1)';
+      if(note)note.textContent='Pakai Prompt 1 dulu sampai selesai, baru lanjut pakai Prompt 2 — keduanya satu rangkaian, bukan pilihan.';
+    }
     if(card2)card2.classList.remove('hidden');
     if(note)note.classList.remove('hidden');
     if(result)result.classList.remove('hidden');
   },900);
 }
 function vbCopyTessPrompt(n){
-  let promptPair=[VB_TESS_PROMPT_TEXT,VB_TESS_PROMPT_TEXT_2];
-  if(VB_TESS_GAYA===2)promptPair=[VB_TESS_PROMPT_TEXT_DINAMIS,VB_TESS_PROMPT_TEXT_DINAMIS_2];
-  else if(VB_TESS_GAYA===3)promptPair=[VB_TESS_PROMPT_TEXT_ESTETIK,VB_TESS_PROMPT_TEXT_ESTETIK_2];
+  let promptPair=vbTessPromptPair();
   let txt=(n===2)?promptPair[1]:promptPair[0];
   _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
 }
@@ -26564,6 +26600,9 @@ window.PB_IMG_VBTESS_VIDEO_DINAMIS='media/tess-video-dinamis.mp4';
 // file aslinya wajib diunggah manual ke folder media/ di server dengan nama
 // persis di bawah ini.
 window.PB_IMG_VBTESS_VIDEO_ESTETIK='media/tess-video-estetik.mp4';
+// Video pratinjau Gaya "UGC" tess (17 Okt 2026) — dipasang lewat vbTessPilihGaya(4).
+// File asli wajib diunggah manual ke folder media/ di server dengan nama persis di bawah ini.
+window.PB_IMG_VBTESS_VIDEO_UGC='media/tess-video-ugc.mp4';
 // Media pratinjau Motion Control (Okt 2026): VIDEO = hasil akhir (Video AI, 1920x1080, 10 detik, ada suara, tanpa diperkecil),
 // FOTO = Foto AI (file asli, tanpa kompres), REF = video referensi sumber gerakan (1024x576 asli, dipangkas 10 detik pertama),
 // REFPOSTER = cuplikan video referensi (dipakai sebagai poster & gambar bahan di lightbox).
@@ -26582,7 +26621,7 @@ window.PB_IMG_VBIKUTI_REFPOSTER='media/vbikuti-refposter.jpg';
 // unduhan belum selesai/gagal, tetap jalan pakai alamat media/ biasa.
 // Unduhan lewat cache HTTP browser, jadi pembukaan berikutnya hampir tanpa data.
 (function(){
-  var VID_KEYS=['PB_IMG_VBASET_VIDEO','PB_IMG_VBMS_VIDEO','PB_IMG_VBTESS_VIDEO','PB_IMG_VBTESS_VIDEO_DINAMIS','PB_IMG_VBTESS_VIDEO_ESTETIK','PB_IMG_VBKP_VIDEO','PB_IMG_VBREF_VIDEO','PB_IMG_VBIKUTI_VIDEO','PB_IMG_VBIKUTI_REF'];
+  var VID_KEYS=['PB_IMG_VBASET_VIDEO','PB_IMG_VBMS_VIDEO','PB_IMG_VBTESS_VIDEO','PB_IMG_VBTESS_VIDEO_DINAMIS','PB_IMG_VBTESS_VIDEO_ESTETIK','PB_IMG_VBTESS_VIDEO_UGC','PB_IMG_VBKP_VIDEO','PB_IMG_VBREF_VIDEO','PB_IMG_VBIKUTI_VIDEO','PB_IMG_VBIKUTI_REF'];
   var PHOTO_KEYS=['PB_IMG_VBREF_FOTO','PB_IMG_VBASET_FOTO1','PB_IMG_VBASET_FOTO2','PB_IMG_VBMS_FOTO','PB_IMG_VBTESS_FOTO','PB_IMG_VBKP_FOTO1','PB_IMG_VBKP_FOTO2','PB_IMG_VBIKUTI_FOTO','PB_IMG_VBIKUTI_REFPOSTER'];
   var started=false;
   function warmPhotos(){
