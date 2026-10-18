@@ -2489,10 +2489,13 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    dan area tempel JSON bisa melebar penuh di bawahnya. */
 #foto-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px;}
 #foto:has(#f0.done) #foto-tools:not(:has(#f-import-area.ft-imported:not(.hidden) #f-import-status:not(.hidden))){display:none;}
-/* Setelah impor berhasil: blok ini tinggal strip status (+ tombol Batal), dua tombol & textarea disembunyikan. */
-#foto-tools:has(#f-import-area.ft-imported:not(.hidden) #f-import-status:not(.hidden)){grid-template-columns:1fr;}
-#foto-tools:has(#f-import-area.ft-imported:not(.hidden) #f-import-status:not(.hidden)) .ft-btn{display:none;}
-#f-import-area.ft-imported>:not(#f-import-status){display:none;}
+/* v14.11 FIX IMPOR PROMPT LAMA: setelah impor berhasil, textarea & penjelasan diciutkan jadi strip status.
+   Dulu rule di sini ikut MENYEMBUNYIKAN semua tombol (termasuk "Prompt Foto AI") dan tidak ada tombol Batal,
+   jadi user terkunci di layar nyaris kosong tanpa jalan ke Ringkasan/Generate. Sekarang tombol tetap tampil
+   dan strip status punya dua tombol aksi: "Buka Ringkasan" & "Mulai dari awal". */
+#f-import-area.ft-imported>:not(#f-import-status):not(#f-import-actions){display:none;}
+#f-import-actions{display:none;gap:8px;margin-top:8px;}
+#f-import-area.ft-imported #f-import-actions{display:flex;}
 #f-import-toggle-wrap{display:contents;}
 .ft-btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 12px;width:auto;
   background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted);
@@ -4815,7 +4818,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.10</div>
+  <div class="splash-version" id="splash-version">v14.11</div>
 </div>
 <script>
   (function(){
@@ -5382,6 +5385,10 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       </div>
       <div id="f-import-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);line-height:1.65;"></div>
       <div id="f-import-status" class="hidden" style="margin-top:8px;background:rgba(76,175,125,0.1);border:1px solid rgba(76,175,125,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--green);line-height:1.65;"></div>
+      <div id="f-import-actions">
+        <button type="button" class="btn sm" onclick="pfaOpen();setTimeout(function(){try{pfaView('prompt');}catch(e){}},150);" style="flex:1;">Buka Ringkasan</button>
+        <button type="button" class="btn sm ghost" onclick="fCancelImportAsk()" style="flex:1;">Mulai dari awal</button>
+      </div>
     </div>
   </div>
   </div>
@@ -6926,7 +6933,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.10 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.11 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10910,6 +10917,8 @@ function _fImportParseLoose(txt){
   function sanitize(s){
     return s.replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB]/g,'"').replace(/[\u2018\u2019\u201A\u201B]/g,"'").replace(/[\u00A0\u200B\uFEFF]/g,' ');
   }
+  // v14.11: koma berlebih sebelum } atau ] (sering muncul kalau JSON disalin dari chat/editor) dibuang.
+  function noTrail(s){ return s.replace(/,\s*([}\]])/g,'$1'); }
   let cands=[txt];
   let s=txt.indexOf('{'), en=txt.lastIndexOf('}');
   if(s!==-1 && en>s) cands.push(txt.substring(s,en+1));
@@ -10919,13 +10928,25 @@ function _fImportParseLoose(txt){
     let s2=t2.indexOf('{'), e2=t2.lastIndexOf('}');
     if(s2!==-1 && e2>s2) cands.push(t2.substring(s2,e2+1));
   }
+  let extra=[];
+  cands.forEach(function(c){ let n=noTrail(c); if(n!==c) extra.push(n); });
+  cands=cands.concat(extra);
   for(let i=0;i<cands.length;i++){
     let p=tryP(cands[i]);
     if(p===undefined) continue;
     let r=pick(p,0);
     if(r) return r;
   }
-  return null;
+  // v14.11: JSON terpotong / rusak (mis. kurang kurung penutup karena salin tidak lengkap) —
+  // dulu langsung ditolak. Sekarang ambil isian scene per-kunci pakai regex; foto referensi tidak ikut.
+  let flat=t2;
+  let sc={}, got=0;
+  ['location','lighting','camera_angle','camera_framing','pose','mood_and_tone'].forEach(function(k){
+    let v=_fImportExtractField(flat,k);
+    if(v){ sc[k]=v; got++; }
+  });
+  if(!got) return null;
+  return {prompt:_fImportExtractField(flat,'prompt'), subject:_fImportExtractField(flat,'subject'), scene:sc, __loose:true};
 }
 
 function fImportPrompt(){
@@ -11182,6 +11203,7 @@ function fImportPrompt(){
   if((FS.refs||[]).some(function(r){return r.type==='produk'&&!(r.focus&&String(r.focus).trim());})) _impMissing.push('Nama produk (di Foto Referensi)');
   if(statusBox){
     statusBox.innerHTML = 'Berhasil diimpor: <strong>' + esc(filled.join(', ')) + '</strong>. Tap "ubah" di step manapun buat ganti sebelum generate ulang.' + (_impMissing.length ? '<br><span style="color:var(--red);">Belum terisi: <strong>' + esc(_impMissing.join(', ')) + '</strong> — tap "ubah" dan isi dulu, kalau tidak prompt-nya bolong.</span>' : '') + '<br><button onclick="fCancelImport()" style="background:none;border:none;color:var(--red);font-size:var(--fs-xs);text-decoration:underline;cursor:pointer;padding:4px 0 0;"><svg class="icon"><use href="#ic-close"></use></svg> Batal, mulai dari awal</button>';
+    if(parsed.__loose) statusBox.innerHTML += '<br><span style="color:var(--muted);">JSON-nya terpotong/rusak, jadi hanya isian yang terbaca yang diambil. Foto referensi &amp; nama produk tidak ikut — tambahkan lagi di Step Foto Referensi.</span>';
     statusBox.classList.remove('hidden');
   }
   // Setelah impor, area tempel diciutkan jadi strip status saja (lihat CSS .ft-imported) supaya
@@ -11189,11 +11211,34 @@ function fImportPrompt(){
   let _impArea = document.getElementById('f-import-area');
   if(_impArea){ _impArea.classList.remove('hidden'); _impArea.classList.add('ft-imported'); }
   showToast('Prompt lama berhasil diimpor!','success');
+  // v14.11 FIX IMPOR PROMPT LAMA: sejak layar "Prompt Foto AI" (Live Console) dipakai, semua kartu wizard, Ringkasan
+  // dan tombol Generate HANYA tampil kalau layar itu terbuka (#foto.pfa-open). Impor tidak pernah membukanya,
+  // jadi setelah "Import & Isi Otomatis" user cuma melihat strip status dan tidak bisa lanjut ke Generate.
+  // Sekarang layar langsung dibuka dan digeser ke Ringkasan + Generate (kecuali sedang tur panduan).
+  try{
+    if(typeof window.pfaOpen==='function' && !document.body.classList.contains('pb-tour-active')){
+      window.pfaOpen();
+      setTimeout(function(){ try{ if(typeof window.pfaView==='function') window.pfaView('prompt'); }catch(e){} },150);
+    }
+  }catch(e){}
   setTimeout(()=>genArea && genArea.scrollIntoView({behavior:'smooth',block:'nearest'}),200);
 }
 
 // Batalkan import dan kembali ke wizard normal dari awal
+// v14.11: dipanggil dari tombol "Mulai dari awal" di strip status impor (dulu fungsi ini tidak punya tombol sama sekali).
+function fCancelImportAsk(){
+  showConfirm('Impor dibatalkan dan semua isian wizard foto dikosongkan. Lanjutkan?',fCancelImport,null,'Ya, Kosongkan');
+}
 function fCancelImport(){
+  // v14.11: pakai reset penuh yang sama dengan tombol Reset (bersihkan state impor, hasil generate, progress),
+  // lalu tutup layar Prompt Foto AI supaya user kembali ke pilihan awal.
+  try{
+    if(typeof fResetNow==='function'){
+      fResetNow();
+      try{ if(typeof window.pfaClose==='function') window.pfaClose(); }catch(e){}
+      return;
+    }
+  }catch(e){}
   FS.importActive = false;
   FS.importRefPhotos = null;
   FS.importCriticalRule = '';
