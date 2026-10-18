@@ -4919,6 +4919,13 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     // Di luar elemen-elemen itu (scroll area, teks, dsb.), guard anti-zoom
     // yang asli tetap jalan seperti biasa.
     if(e.target&&e.target.closest&&e.target.closest('.chip,.subjek-card,.ftype-btn,.catcard,.vstyle-card,.produk-choice,.suara-card,#vmotion-chips .pb-fk,#v4-box .pb-fk,#vcam-chips .pb-fk,#vcam-hook-chips .pb-fk'))return;
+    // FIX (HP Redmi: ikon kamera/upload foto "tidak terjadi apa-apa"): tap pada elemen
+    // yang bisa diklik (tombol, ikon upload ber-onclick, label, input, link) JANGAN
+    // pernah dibatalkan — preventDefault di sini membuat browser tidak membuat event
+    // 'click', jadi picker foto tidak terbuka kalau tap jatuh <300ms setelah sentuhan
+    // sebelumnya (mis. habis scroll / habis tutup keyboard). Zoom tetap terkunci lewat
+    // touch-action:pan-x pan-y di html/body, jadi guard ini aman dikecualikan di sini.
+    if(e.target&&e.target.closest&&e.target.closest('button,a,label,input,select,textarea,summary,[onclick],[role="button"]'))return;
     let now = Date.now();
     if (now - _lastTouchEnd <= 300) e.preventDefault();
     _lastTouchEnd = now;
@@ -6777,7 +6784,7 @@ Important rules:
              bareng dengan slot foto AI, lihat vbHandleProdukFotoUpload). -->
         <div id="vb-manual-produkfoto-wrap" style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:8px;">
           <span style="font-size:var(--fs-2xs);color:var(--muted);">Foto (opsional)</span>
-          <input type="file" accept="image/*" id="vb-manual-produkfoto-input" style="display:none;" onchange="vbHandleProdukFotoUpload(this)" />
+          <input type="file" accept="image/*" id="vb-manual-produkfoto-input" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="vbHandleProdukFotoUpload(this)" />
           <div id="vb-manual-produkfoto-empty" class="vbfoto-empty" onclick="document.getElementById('vb-manual-produkfoto-input').click()" style="width:40px;height:40px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;flex-shrink:0;">
             <svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg>
           </div>
@@ -15588,7 +15595,7 @@ function _vbRenderProdukFotoMulti(){
     }).join('');
     let addBtn=list.length<5
       ?('<label style="display:inline-flex;width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);align-items:center;justify-content:center;color:var(--muted);cursor:pointer;vertical-align:top;">'
-        +'<input type="file" accept="image/*" style="display:none;" onchange="vbAddProdukFotoMulti(this)" />'
+        +'<input type="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="vbAddProdukFotoMulti(this)" />'
         +'<svg class="icon" style="width:16px;height:16px;"><use href="#ic-camera"></use></svg></label>')
       :'';
     wrap.innerHTML=(list.length?thumbs:'<p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 6px;">Belum ada foto produk.</p>')+addBtn;
@@ -18422,7 +18429,7 @@ function vbBulkSetCount(){
       +_vbBulkDetailInnerHtml(i,cached)
       +'</div>'
       +'</div>'
-      +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="display:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
+      +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
       +'<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;">'
       +'<div style="font-size:11px;line-height:1.25;color:var(--muted);text-align:center;max-width:52px;">Foto produk (boleh dilewati)</div>'
       +'<div id="vb-bulk-foto-empty-'+i+'" onclick="document.getElementById(\'vb-bulk-foto-input-'+i+'\').click()" style="width:44px;height:44px;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;'+(hasFoto?'display:none;':'')+'">'
@@ -22861,7 +22868,7 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
       +'<input class="inp" id="vb-revisi-keunggulan-'+prodIdx+'" maxlength="150" placeholder="Keunggulan (opsional)" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].keunggulan)||'')+'" />'
       +'<div>'
       +'<label class="inplabel" style="font-size:var(--fs-2xs);">Foto Referensi <span style="font-weight:400;color:var(--muted);">(kosongkan = pakai foto lama, atau upload buat ganti)</span></label>'
-      +'<input type="file" accept="image/*" id="vb-revisi-foto-input-'+prodIdx+'" style="display:none;" onchange="vbHandleRevisiFotoUpload(this,'+prodIdx+')" />'
+      +'<input type="file" accept="image/*" id="vb-revisi-foto-input-'+prodIdx+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="vbHandleRevisiFotoUpload(this,'+prodIdx+')" />'
       +'<div id="vb-revisi-foto-empty-'+prodIdx+'" onclick="document.getElementById(\'vb-revisi-foto-input-'+prodIdx+'\').click()" style="'+(hasRevFoto?'display:none;':'')+'border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);padding:8px;text-align:center;color:var(--muted);font-size:var(--fs-2xs);cursor:pointer;">'
       +'<svg class="icon" style="width:14px;height:14px;"><use href="#ic-camera"></use></svg> Tap buat upload/ganti foto</div>'
       +'<div id="vb-revisi-foto-preview-'+prodIdx+'" style="'+(hasRevFoto?'':'display:none;')+'position:relative;display:inline-block;">'
@@ -24789,7 +24796,7 @@ function _vbRenderMultiOutput(scripts,produkNamaForHistory,animate,manualMode){
   revisiPanel.innerHTML='<div style="font-size:var(--fs-2xs);color:var(--muted);">Tulis apa yang mau diubah dari ketiga script di atas (Hook/Story/CTA sekaligus direvisi bareng). Foto, keunggulan, dan target audience bisa diubah juga kalau perlu.</div>'
     +'<textarea class="inp textarea-base" id="vb-single-revisi-note" rows="2" maxlength="300" placeholder="Contoh: variasikan lagi, atau buat lebih santai kayak lagi ngobrol ke teman, atau lebih heboh"></textarea>'
     +'<div style="display:flex;align-items:center;gap:8px;">'
-    +'<input type="file" accept="image/*" id="vb-single-revisi-foto-input" style="display:none;" onchange="vbSingleRevisiFotoUpload(this)" />'
+    +'<input type="file" accept="image/*" id="vb-single-revisi-foto-input" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="vbSingleRevisiFotoUpload(this)" />'
     +'<div id="vb-single-revisi-foto-empty" onclick="document.getElementById(\'vb-single-revisi-foto-input\').click()" style="'+(_hasFoto?'display:none;':'')+'width:40px;height:40px;flex-shrink:0;border:1.5px dashed var(--border-hi);border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;cursor:pointer;text-align:center;">+Foto</div>'
     +'<div id="vb-single-revisi-foto-preview" class="'+(_hasFoto?'':'hidden')+'" style="position:relative;width:40px;height:40px;flex-shrink:0;">'
     +'<img id="vb-single-revisi-foto-img" class="vbfoto-img" src="'+(_hasFoto?('data:'+(VB.produkFotoMime||'image/jpeg')+';base64,'+VB.produkFotoBase64):'')+'" style="width:40px;height:40px;border-radius:var(--radius-xs);object-fit:cover;border:1px solid var(--border-hi);display:block;" />'
@@ -27410,7 +27417,7 @@ function pbRenderStep2b(){
 // foto+teks+tombol "Udah?" fase 1 dilepas semua, sesuai permintaan).
 function pbGoStep2bCamera(){
   pbSaveTourStepState('pbGoStep2bCamera');
-  let desc = '<input type="file" accept="image/*" id="pb-step2b-photo-input" style="display:none;" onchange="pbStep2bPhotoPicked(this)">'
+  let desc = '<input type="file" accept="image/*" id="pb-step2b-photo-input" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="pbStep2bPhotoPicked(this)">'
     + '<div style="display:flex;justify-content:center;margin:18px 0 4px;">'
     + '<div onclick="document.getElementById(\'pb-step2b-photo-input\').click()" style="width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1px solid var(--border-hi);display:flex;align-items:center;justify-content:center;cursor:pointer;">'
     + '<svg class="icon" style="width:28px;height:28px;color:var(--accent);"><use href="#ic-camera"></use></svg>'
@@ -27735,7 +27742,7 @@ function pbStep6ExtFinish(){
 function pbGoStep6ExtUpload(){
   pbSaveTourStepState('pbGoStep6ExtUpload');
   let desc = '<p style="margin-top:0;">Foto AI yang telah kakak unduh dari Google Flow, coba upload disini, aku pengen lihat.</p>'
-    + '<input type="file" accept="image/*" id="pb-step6ext-photo-input" style="display:none;" onchange="pbStep6ExtPhotoPicked(this)">'
+    + '<input type="file" accept="image/*" id="pb-step6ext-photo-input" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="pbStep6ExtPhotoPicked(this)">'
     + '<div style="display:flex;justify-content:center;margin:18px 0 4px;">'
     + '<div style="position:relative;width:64px;height:64px;">'
     + '<div onclick="document.getElementById(\'pb-step6ext-photo-input\').click()" id="pb-step6ext-photo-btn" style="position:absolute;inset:0;border-radius:50%;background:var(--surface2);border:1px solid var(--border-hi);display:flex;align-items:center;justify-content:center;cursor:pointer;">'
@@ -27814,7 +27821,7 @@ var pbFotoAiDataUrl=null;
 function pbGoStep4(){
   pbSaveTourStepState('pbGoStep4');
   let desc = '<p style="margin-top:0;">Foto karakter sheet yang telah kakak unduh, coba upload disini, aku pengen lihat.</p>'
-    + '<input type="file" accept="image/*" id="pb-step4-photo-input" style="display:none;" onchange="pbStep4PhotoPicked(this)">'
+    + '<input type="file" accept="image/*" id="pb-step4-photo-input" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="pbStep4PhotoPicked(this)">'
     // FIX (dilaporkan user — klik icon kamera gak ngapa-ngapain): sebelumnya
     // pakai <label for="..."> buat mancing klik ke input file tersembunyi.
     // Diganti pola yang sama kayak upload foto lain di app (lihat
@@ -29396,6 +29403,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   var FRONT_FROM = {x:-135, y:168,  r:-9};
 
   var startY = 0, startX = 0, pulling = false, currentPull = 0, armed = false, refreshing = false;
+  var pullTarget = null;
   var axisLocked = false; // true = sudah dipastikan ini gesture vertikal, bukan swipe horizontal
   var settleTimer = null;
 
@@ -29424,7 +29432,25 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       var scroller = target.closest('[style*="overflow-y"], .preview-slots');
       if(scroller && scroller !== appShell && scroller.scrollTop > 0) return false;
     }
+    // FIX (refresh padahal belum mentok atas): container scroll yang overflow-nya
+    // diatur lewat stylesheet (mis. #foto.pfa-open = layar penuh wizard Foto)
+    // tidak ketangkap selector inline di atas. Cek SEMUA leluhur lewat computed style.
+    if(ptrScrolledAncestor(target)) return false;
     return true;
+  }
+
+  // True kalau ada elemen scrollable (selain #app-shell) di antara target dan
+  // #app-shell yang posisinya BELUM di puncak — gesture itu milik scroll-nya sendiri.
+  function ptrScrolledAncestor(el){
+    while(el && el !== appShell && el !== document.body && el.nodeType === 1){
+      if(el.scrollTop > 0){
+        var oy = '';
+        try{ oy = getComputedStyle(el).overflowY; }catch(e){}
+        if(oy === 'auto' || oy === 'scroll' || oy === 'overlay') return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
   }
 
   function vibrate(ms){
@@ -29514,6 +29540,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     if(!canStartPull(e.target)) { pulling = false; return; }
     startY = e.touches[0].clientY;
     startX = e.touches[0].clientX;
+    pullTarget = e.target;
     pulling = true;
     axisLocked = false;
     pullT0 = 0;
@@ -29542,7 +29569,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       if(currentPull > 0){ currentPull = 0; renderPull(0); }
       return; // bukan menarik ke bawah (atau lagi scroll konten) — biarkan scroll normal
     }
-    if(appShell.scrollTop > 0){ // sempat ke-scroll di tengah gesture — batalkan
+    if(appShell.scrollTop > 0 || ptrScrolledAncestor(pullTarget)){ // sempat ke-scroll di tengah gesture — batalkan
       if(currentPull > 0) resetPull(true);
       return;
     }
@@ -31352,7 +31379,9 @@ html body #f1 .f1-ref-del{grid-column:3;grid-row:1;}
 html body #f1 .f1-ref-input>.inp{grid-column:2;grid-row:1;width:100%;min-width:0;margin:0;min-height:46px;padding:10px 12px!important;font-size:var(--fs-sm)!important;border-radius:var(--radius-sm);}
 html body #f1 .f1-adv-toggle{grid-column:2;grid-row:2;justify-self:start;min-height:32px;padding:0 2px;font-size:var(--fs-sm);}
 html body #f1 .f1-ref-input:not(:has(>.inp))>.f1-adv-toggle{grid-row:1;justify-self:end;}
-html body #f1 .f1-ref-input>[id^="adv-area-"]{grid-column:1/-1;grid-row:3;}
+html body #f1 .f1-ref-input>[id^="pc-err-"]{grid-column:1/-1;grid-row:3;min-width:0;margin:4px 2px 2px;line-height:1.4;}
+html body #f1 .f1-ref-input>[id^="adv-area-"]{grid-column:1/-1;grid-row:4;}
+html body #f1 .f1-adv-toggle{white-space:nowrap;}
 #f1-dock{display:contents;}
 html body:not(.pb-tour-active) #foto#foto #f1-dock{
   position:fixed!important;left:0;right:0;top:auto;bottom:var(--pb-dock-b,0px);z-index:99;box-sizing:border-box;
