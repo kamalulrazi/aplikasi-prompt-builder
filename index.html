@@ -15415,65 +15415,75 @@ function _vbIsLikelyHeic(file){
   return type.indexOf('heic')!==-1||type.indexOf('heif')!==-1||/\.(heic|heif)$/.test(name);
 }
 function _vbCompressImageFile(file){
+  // ROBUST (lintas HP): (1) file.type KOSONG tidak lagi ditolak — sebagian galeri/file manager
+  // Android (Xiaomi/Samsung/file dari cloud) melaporkan tipe kosong untuk foto asli; biar proses
+  // decode yang menentukan valid-tidaknya. (2) Foto dimuat lewat blob URL (hemat memori untuk foto
+  // 50MP+ di HP RAM kecil), fallback ke FileReader kalau blob URL gagal. (3) Timeout 25 dtk supaya
+  // tidak pernah menggantung diam-diam. (4) blob URL selalu dilepas.
   return new Promise(function(resolve,reject){
     if(!file){reject(new Error('File yang dipilih bukan gambar'));return;}
     let isHeic=_vbIsLikelyHeic(file);
-    // FIX (audit lanjutan — permintaan pesan error HEIC yang lebih jelas):
-    // dulu file HEIC dengan file.type kosong/generik langsung ditolak di
-    // sini dengan pesan "bukan gambar" yang menyesatkan (padahal itu memang
-    // foto, cuma formatnya belum tentu didukung). Sekarang kalau namanya
-    // mengarah ke HEIC/HEIF, tetap dilanjutkan ke percobaan decode (beberapa
-    // browser seperti Safari BISA baca HEIC) — kalau memang gagal decode,    // pesan error di bawah (img.onerror) yang jelasin alasannya.
-    if(!isHeic&&(!file.type||file.type.indexOf('image/')!==0)){reject(new Error('File yang dipilih bukan gambar'));return;}
-    let reader=new FileReader();
-    reader.onerror=function(){reject(new Error('Gagal membaca file'));};
-    reader.onload=function(){
-      let img=new Image();
-      img.onerror=function(){
-        // FIX: pesan generik "coba file lain" tidak jelas kenapa gagal —
-        // padahal penyebab paling umum di lapangan adalah foto HEIC dari
-        // iPhone yang browsernya (Chrome/Android/Windows umumnya) belum
-        // bisa decode. Kasih tau akar masalah + solusi konkret.
-        if(isHeic){
-          reject(new Error('Format foto ini (HEIC/HEIF, biasa dari kamera iPhone) belum bisa dibaca browser kamu. Ubah dulu ke JPG/PNG — misal share fotonya ke WhatsApp/aplikasi lain lalu simpan ulang, atau screenshot fotonya — baru upload lagi.'));
-        }else{
-          reject(new Error('Gagal memuat gambar — coba file lain'));
-        }
-      };
-      img.onload=function(){
-        // FIX (audit 413 — request kebesaran ke Groq): dulu MAX=1024px +
-        // quality 0.8 menghasilkan base64 yang lumayan berat buat model
-        // vision (foto itu MAHAL secara token). Diturunkan ke 512px +
-        // quality 0.7 supaya foto referensi tetap cukup jelas dibaca AI
-        // untuk kenali jenis/warna/motif produk, tapi jauh lebih hemat
-        // token per foto — mengurangi risiko 1 request nembus limit
-        // token/menit Groq waktu ada foto ikut dilampirkan.
-        // HEMAT TOKEN (30 Sep 2026): 512 -> 384 -> 320px (~137 token/foto maks). Foto hanya untuk mengenali jenis produk.
-        let MAX=320;
-        let w=img.width,h=img.height;
-        if(w>MAX||h>MAX){
-          if(w>h){h=Math.round(h*(MAX/w));w=MAX;}
-          else{w=Math.round(w*(MAX/h));h=MAX;}
-        }
+    let ftype=(file.type||'').toLowerCase();
+    if(!isHeic&&ftype&&ftype.indexOf('image/')!==0){reject(new Error('File yang dipilih bukan gambar'));return;}
+    let done=false,objUrl='',timer=null,triedReader=false;
+    function finish(fn,arg){
+      if(done)return;done=true;clearTimeout(timer);
+      if(objUrl){try{URL.revokeObjectURL(objUrl);}catch(e){}objUrl='';}
+      fn(arg);
+    }
+    timer=setTimeout(function(){finish(reject,new Error('Foto terlalu lama diproses — coba foto yang lebih kecil atau screenshot-nya'));},25000);
+    function failFinal(){
+      if(isHeic){
+        finish(reject,new Error('Format foto ini (HEIC/HEIF, biasa dari kamera iPhone) belum bisa dibaca browser kamu. Ubah dulu ke JPG/PNG — misal share fotonya ke WhatsApp/aplikasi lain lalu simpan ulang, atau screenshot fotonya — baru upload lagi.'));
+      }else{
+        finish(reject,new Error('Gagal memuat gambar — coba file lain'));
+      }
+    }
+    function onDecoded(img){
+      // HEMAT TOKEN: maks 320px (foto hanya untuk mengenali jenis produk).
+      let MAX=320;
+      let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+      if(!w||!h){failFinal();return;}
+      if(w>MAX||h>MAX){
+        if(w>h){h=Math.round(h*(MAX/w));w=MAX;}
+        else{w=Math.round(w*(MAX/h));h=MAX;}
+      }
+      w=Math.max(1,w);h=Math.max(1,h);
+      let dataUrl;
+      try{
         let canvas=document.createElement('canvas');
         canvas.width=w;canvas.height=h;
         let ctx=canvas.getContext('2d');
-        // FIX v10.9 (laporan user: foto produk yang diupload jadi HITAM semua): JPEG tidak punya
-        // kanal transparan, jadi PNG/WebP berlatar transparan (hasil hapus background, stiker,
-        // screenshot produk) berubah jadi hitam kalau canvas tidak diisi warna dulu. Isi putih
-        // SEBELUM drawImage; foto biasa tanpa transparansi tidak terpengaruh.
+        // Isi putih dulu: PNG/WebP transparan kalau jadi JPEG tanpa ini berubah hitam.
         ctx.fillStyle='#ffffff';
         ctx.fillRect(0,0,w,h);
         ctx.drawImage(img,0,0,w,h);
-        let dataUrl;
-        try{dataUrl=canvas.toDataURL('image/jpeg',0.7);}catch(e){reject(new Error('Gagal memproses gambar (mungkin file rusak)'));return;}
-        let base64=dataUrl.split(',')[1]||'';
-        if(!base64){reject(new Error('Gagal memproses gambar'));return;}
-        resolve({base64:base64,mime:'image/jpeg'});
+        dataUrl=canvas.toDataURL('image/jpeg',0.7);
+      }catch(e){finish(reject,new Error('Gagal memproses gambar (mungkin file rusak)'));return;}
+      let base64=(dataUrl||'').split(',')[1]||'';
+      if(!base64){finish(reject,new Error('Gagal memproses gambar'));return;}
+      finish(resolve,{base64:base64,mime:'image/jpeg'});
+    }
+    function loadViaReader(){
+      if(triedReader||done){if(!done)failFinal();return;}
+      triedReader=true;
+      let reader=new FileReader();
+      reader.onerror=function(){finish(reject,new Error('Gagal membaca file'));};
+      reader.onload=function(){
+        let img2=new Image();
+        img2.onload=function(){onDecoded(img2);};
+        img2.onerror=failFinal;
+        img2.src=reader.result;
       };
-      img.src=reader.result;
-    };
-    reader.readAsDataURL(file);
+      try{reader.readAsDataURL(file);}catch(e){finish(reject,new Error('Gagal membaca file'));}
+    }
+    let img=new Image();
+    img.onload=function(){onDecoded(img);};
+    img.onerror=loadViaReader; // blob URL gagal → coba jalur FileReader sebelum menyerah
+    try{
+      if(window.URL&&URL.createObjectURL){objUrl=URL.createObjectURL(file);img.src=objUrl;}
+      else loadViaReader();
+    }catch(e){loadViaReader();}
   });
 }
 
@@ -27435,13 +27445,16 @@ function pbGoStep2bCamera(){
 function pbStep2bPhotoPicked(input){
   let file=input.files&&input.files[0];
   if(!file)return;
-  input.value='';
+  // FIX (lintas HP): input.value JANGAN dikosongkan sebelum file selesai dibaca — di sebagian
+  // WebView/browser vendor Android itu membuat File jadi kosong/tak terbaca (gagal diam-diam).
   let reader=new FileReader();
   reader.onload=function(e){
     pbProdukFotoDataUrl=e.target.result;
     pbProdukFotoUploaded=true;
     pbGoStep2();
   };
+  reader.onerror=reader.onabort=function(){showToast('Foto gagal dibaca. Coba pilih foto lagi ya.','error');};
+  reader.onloadend=function(){try{input.value='';}catch(e){}};
   reader.readAsDataURL(file);
 }
 // ── Dipanggil dari csCopyPrompt() (lihat komentar di sana) untuk
@@ -27769,12 +27782,16 @@ function pbGoStep6ExtUpload(){
 function pbStep6ExtPhotoPicked(input){
   let file=input.files&&input.files[0];
   if(!file)return;
-  input.value='';
   let reader=new FileReader();
   reader.onload=function(e){
     pbFotoAiDataUrl=e.target.result;
     pbFotoAiUploaded=true;
   };
+  reader.onerror=reader.onabort=function(){
+    showToast('Foto gagal dibaca. Coba pilih foto lagi ya.','error');
+    let cb=document.getElementById('pb-step6ext-photo-btn'); if(cb) cb.classList.remove('hidden');
+  };
+  reader.onloadend=function(){try{input.value='';}catch(e){}};
   reader.readAsDataURL(file);
   let camBtn=document.getElementById('pb-step6ext-photo-btn');
   if(camBtn) camBtn.classList.add('hidden');
@@ -27886,7 +27903,6 @@ function pbF0KsThumbSync(){
 function pbStep4PhotoPicked(input){
   let file=input.files&&input.files[0];
   if(!file)return;
-  input.value='';
   // FIX: pujian dulu muncul PERSIS 1,4 detik sesudah foto dipilih, tak peduli
   // fotonya sudah/gagal terbaca — foto gagal dibaca tetap dipuji padahal tur
   // menganggap fotonya belum ada (pbKsFotoUploaded=false), dan di HP lambat
@@ -27916,6 +27932,7 @@ function pbStep4PhotoPicked(input){
     tuntaskan();
   };
   reader.onerror=reader.onabort=function(){fotoGagal=true;tuntaskan();};
+  reader.onloadend=function(){try{input.value='';}catch(e){}};
   reader.readAsDataURL(file);
   let camBtn=document.getElementById('pb-step4-photo-btn');
   if(camBtn) camBtn.classList.add('hidden');
