@@ -6396,18 +6396,6 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
         <div class="chip" onclick="vbPickAge('adult, approximately 30-45 years old',this,'Dewasa')">Dewasa <span style="opacity:0.6;">30–45 th</span></div>
         <div class="chip" onclick="vbPickAge('middle-aged adult, approximately 45-60 years old',this,'Paruh Baya')">Paruh Baya <span style="opacity:0.6;">45–60 th</span></div>
       </div>
-      <div class="mt12">
-        <label class="inplabel">Atau isi sendiri</label>
-        <div class="inp-wrap">
-          <div class="v2-num-row">
-            <input class="inp" id="v2-custom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="15" aria-label="Usia dalam tahun" oninput="vbCountInpV2(this,'v2-counter');v2RangeFromInput()" />
-            <span class="v2-unit">tahun</span>
-          </div>
-          <div class="v2-track"><input type="range" id="v2-range" min="1" max="120" value="15" aria-label="Geser usia" oninput="v2RangeFromRange()" /></div>
-          <div class="inp-counter" id="v2-counter">Maks. 120 tahun</div>
-        </div>
-        <button class="btn sm" data-role="mt12-confirm" onclick="vbPickAgeCustom()">Konfirmasi →</button>
-      </div>
     </div>
   </div>
 
@@ -6591,9 +6579,10 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       <div class="cp cp3 cpc" id="vcam-hook-chips" role="radiogroup" aria-label="Visual Hook"></div>
       <div class="mt12"><label class="inplabel" for="vcam-hook-custom">Atau isi sendiri</label><div class="inp-wrap"><input class="inp" type="text" id="vcam-hook-custom" maxlength="200" autocomplete="off" placeholder="Contoh: the character gasps and points at the product" oninput="vbCamCustom('hook',this)" onkeydown="vbCamKey(event,'hook')" /></div></div>
       </div>
+      <button type="button" class="btn sm ghost" id="vcam-skip-move-btn" style="width:100%;margin-top:8px;" onclick="vbSkipCamPart('move')" title="Lewati gerakan kamera saja, lanjut ke Visual Hook">Lewati kamera</button>
+      <button type="button" class="btn sm ghost hidden" id="vcam-skip-hook-btn" style="width:100%;margin-top:8px;" onclick="vbSkipCamPart('hook')" title="Lewati visual hook saja, gerakan kamera yang sudah dipilih tetap dipakai">Lewati hook</button>
       <button type="button" class="btn sm" id="vcam-next-btn" style="width:100%;margin-top:16px;" onclick="vbCamTab('hook')">Lanjut →</button>
       <button type="button" class="btn sm hidden" id="vcam-confirm-btn" style="width:100%;margin-top:16px;" onclick="vbCamConfirm()"><svg class="icon"><use href="#ic-check"></use></svg> Lanjut →</button>
-      <button type="button" class="btn sm ghost" style="width:100%;margin-top:8px;" onclick="vbSkipCam()" title="Melewati kamera DAN visual hook sekaligus">Lewati</button>
     </div>
   </div>
 
@@ -7256,7 +7245,6 @@ const CS_FIELDS={
   f7:{input:'f7-custom',confirm:'fPickCahayaCustom'},
   f8:{input:'f8-custom',confirm:'fPickAngleCustom'},
   f9:{input:'f9-custom',confirm:'fPickMoodCustom'},
-  v2:{input:'v2-custom',confirm:'vbPickAgeCustom'},
   v3:{input:'v3-custom',confirm:'vbPickPitchCustom'},
   v4:{input:'v4-custom',confirm:'vbPickAccentCustom'},
   vm3lok:{input:'vb-mode3-lokasi-custom',confirm:'vbPickMode3LokasiCustom'},
@@ -16608,6 +16596,18 @@ function vbSkipCam(){
   _vbCamPreview();
   vbPickCamConfirmed('','');
 }
+// Lewati SALAH SATU: 'move' = kosongkan gerakan kamera lalu pindah ke tab Visual Hook; 'hook' = kosongkan visual hook lalu simpan & lanjut
+// (gerakan kamera yang sudah dipilih tetap dipakai). Kalau dua-duanya dilewati hasilnya sama dengan vbSkipCam().
+function vbSkipCamPart(kind){
+  let hook=(kind==='hook');
+  let box=document.getElementById(hook?'vcam-hook-chips':'vcam-chips');
+  if(box){box.querySelectorAll('.pb-fk,.chip').forEach(function(c){c.classList.remove('sel');c.setAttribute('aria-checked','false');});try{_vbCamPlate(box);}catch(e){}}
+  let inp=document.getElementById(hook?'vcam-hook-custom':'vcam-move-custom'); if(inp)inp.value='';
+  if(hook)_vbCamPendHook=''; else _vbCamPendMove='';
+  try{_vbCamPreview();}catch(e){}
+  try{vbCamDots();}catch(e){}
+  if(hook)vbCamConfirm(); else vbCamTab('hook');
+}
 try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
 // Jaga konsistensi step kamera saat user GANTI MODE di tengah alur (lewat step 1 / Riwayat).
 //  - Pindah KE mode yang punya step kamera, padahal user sudah sampai Script tanpa pernah
@@ -16954,26 +16954,6 @@ function vbPickAge(val,el,label){
   el.classList.add('sel');
   VB.age=val;VB.ageLabel=label;
   if(!VB.gender){showToast('Pilih Jenis Kelamin dulu ya','error');return;}
-  vbCheckV2Done();
-}
-function vbPickAgeCustom(){
-  // FIX BUG#17 (ditemukan saat audit mendalam khusus builder video):
-  // sebelumnya kalau Jenis Kelamin belum dipilih, fungsi ini langsung
-  // `return` SEBELUM membaca/menyimpan isi kotak usia custom — beda dengan
-  // vbPickAge() (klik chip) yang menyimpan VB.age dulu baru mengecek gender.
-  // Akibatnya: user yang ketik usia custom duluan sebelum pilih Jenis
-  // Kelamin, teksnya TIDAK tersimpan ke state sama sekali walau sudah tap
-  // "Konfirmasi →" — harus diulang lagi setelah pilih gender. Sekarang nilai
-  // usia custom disimpan dulu (state selalu update), baru cek gender untuk
-  // memutuskan apakah sudah boleh lanjut ke step berikutnya atau belum.
-  let _raw=document.getElementById('v2-custom').value.replace(/\D/g,'');
-  if(!_raw){showToast('Isi dulu ya','error');return;}
-  let _n=parseInt(_raw,10);
-  if(!(_n>=1&&_n<=120)){showToast('Usia harus antara 1–120 tahun','error');return;}
-  let val=_n+' years old';
-  VB.age=val;VB.ageLabel=_n+' tahun';
-  document.querySelectorAll('#vb-age-chips .chip').forEach(c=>c.classList.remove('sel'));
-  if(!VB.gender){showToast('Usia tersimpan — pilih Jenis Kelamin juga ya','error');return;}
   vbCheckV2Done();
 }
 
@@ -25168,11 +25148,8 @@ function vbResetNow(){
     let m3mp=document.getElementById('vb-manual-mode3-produk'); if(m3mp)m3mp.value='';
     document.querySelectorAll('#vb-mode3-lokasi-chips .chip,#vb-mode3-lighting-chips .chip').forEach(c=>c.classList.remove('sel'));
     vbMode3ResetSteps();
-    document.getElementById('v2-custom').value='';
-    if(typeof v2RangeReset==='function')v2RangeReset();
     document.getElementById('v3-custom').value='';
     document.getElementById('v4-custom').value='';
-    let v2cnt=document.getElementById('v2-counter'); if(v2cnt){v2cnt.textContent='Maks. 120 tahun';v2cnt.className='inp-counter';}
     let v3cnt=document.getElementById('v3-counter'); if(v3cnt){v3cnt.textContent='0 / 80';v3cnt.className='inp-counter';}
     let v4cnt=document.getElementById('v4-counter'); if(v4cnt){v4cnt.textContent='0 / 120';v4cnt.className='inp-counter';}
     VB_SINGLE_OVERLAY=null;
@@ -30526,6 +30503,9 @@ function vbCamTab(k,quiet){
   var nx=document.getElementById('vcam-next-btn'),cf=document.getElementById('vcam-confirm-btn');
   if(nx)nx.classList.toggle('hidden',hook);
   if(cf)cf.classList.toggle('hidden',!hook);
+  var skm=document.getElementById('vcam-skip-move-btn'),skh=document.getElementById('vcam-skip-hook-btn');
+  if(skm)skm.classList.toggle('hidden',hook);
+  if(skh)skh.classList.toggle('hidden',!hook);
   // Pelat emas di dalam panel chip baru bisa diukur setelah panelnya tampil.
   var place=function(){['vcam-chips','vcam-hook-chips'].forEach(function(id){var c=document.getElementById(id);if(c){try{_vbCamPlate(c);}catch(e){}}});};
   place();try{requestAnimationFrame(place);}catch(e){}
@@ -30925,6 +30905,15 @@ if(f){
 window.addEventListener('orientationchange',function(){setTimeout(recenterSoon,300);});
 var rn=window.fResetNow;
 if(typeof rn==='function'){window.fResetNow=function(){var r=rn.apply(this,arguments);try{lastCur='';lastStepKey='';window.pfaView('pilih');recenterSoon();}catch(e){}return r;};}
+/* FIX (laptop/layar sempit, tab Pilih | Prompt): setelah Generate — termasuk Generate ULANG sesudah edit dari Ringkasan —
+   langsung pindah ke tab Prompt. Sebelumnya pindah tab hanya terjadi saat hasil muncul PERTAMA kali (watchOutput: on && !outShown),
+   jadi pada Generate ulang (hasil lama masih tampil) user harus klik tab "Prompt" manual. */
+var dg=window._fDoGenerate;
+if(typeof dg==='function'){window._fDoGenerate=function(){
+  var r=dg.apply(this,arguments);
+  try{if(f&&f.classList.contains('pfa-open')&&window.innerWidth<900)window.pfaView('prompt');}catch(e){}
+  return r;
+};}
 var sp=window.switchPage;
 if(typeof sp==='function'){window.switchPage=function(){window.pfaClose();return sp.apply(this,arguments);};}
 deco();refresh();
