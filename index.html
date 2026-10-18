@@ -1906,7 +1906,7 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vb-mode-row{display:flex;flex-direction:column;gap:10px;margin-bottom:6px;}
 .chips.vb-mode-list{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-2);}
 .chips.vb-mode-list .chip{text-align:center;white-space:normal;line-height:1.2;}
-#vb-mode-preview,#vb-mode-preview-aset,#vb-mode-preview-kp,#vb-mode-preview-ms,#vb-mode-preview-tess,#vb-mode-preview-ikuti{min-width:0;display:flex;flex-direction:column;align-items:stretch;animation:vbModePreviewIn .28s ease;}
+#vb-mode-preview,#vb-mode-preview-aset,#vb-mode-preview-kp,#vb-mode-preview-ms,#vb-mode-preview-tess,#vb-mode-preview-fashion,#vb-mode-preview-ikuti{min-width:0;display:flex;flex-direction:column;align-items:stretch;animation:vbModePreviewIn .28s ease;}
 @keyframes vbModePreviewIn{from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:none;}}
 /* GAYA "CHECKLIST SYARAT" (Sept 2026, opsi C yang dipilih user dari preview
    "klarifikasi butuh 1 foto" — ganti dari gaya tiket/sobekan lama). Kartu
@@ -1928,7 +1928,7 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vbc-minis{display:flex;gap:4px;flex-shrink:0;}
 .vbc-mini img,.vbc-mini video{width:100%;height:100%;object-fit:cover;display:block;}
 .vbc-res{padding:10px 9px 11px;display:flex;flex-direction:column;align-items:center;}
-#vb-mode-preview .pb-flow-thumb.vbc-thumb,#vb-mode-preview-aset .pb-flow-thumb.vbc-thumb,#vb-mode-preview-kp .pb-flow-thumb.vbc-thumb,#vb-mode-preview-ms .pb-flow-thumb.vbc-thumb,#vb-mode-preview-tess .pb-flow-thumb.vbc-thumb,#vb-mode-preview-ikuti .pb-flow-thumb.vbc-thumb{width:min(220px,100%);height:auto;aspect-ratio:1/1;border-radius:8px;}
+#vb-mode-preview .pb-flow-thumb.vbc-thumb,#vb-mode-preview-aset .pb-flow-thumb.vbc-thumb,#vb-mode-preview-kp .pb-flow-thumb.vbc-thumb,#vb-mode-preview-ms .pb-flow-thumb.vbc-thumb,#vb-mode-preview-tess .pb-flow-thumb.vbc-thumb,#vb-mode-preview-fashion .pb-flow-thumb.vbc-thumb,#vb-mode-preview-ikuti .pb-flow-thumb.vbc-thumb{width:min(220px,100%);height:auto;aspect-ratio:1/1;border-radius:8px;}
 .vbc-label{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.25;margin-top:4px;}
 .vbc-sub{font-size:11.5px;line-height:1.35;color:var(--muted2);margin-top:-1px;}
 .vbc-sub-ai{color:var(--accent);font-weight:600;}
@@ -6111,6 +6111,8 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
           <div class="chip" id="vb-mode-percobaan" onclick="vbPickRefMode('percobaan')">Percobaan</div>
           <!-- MODE BARU (16 Okt 2026): tess — video iklan produk mewah dari 1 foto produk. Self-contained seperti Motion Control: prompt siap salin, tanpa wizard V2-V5. -->
           <div class="chip" id="vb-mode-tess" onclick="vbPickRefMode('tess')">tess</div>
+          <!-- MODE BARU (18 Okt 2026): Fashion Editorial — video fashion 8 detik dari foto karakter + outfit. Self-contained seperti tess: Lanjut -> Nama Produk -> Durasi (cuma 8 detik) -> Generate -> 2 prompt (bahasa Inggris). Tanpa wizard V2-V5. -->
+          <div class="chip" id="vb-mode-fashion" onclick="vbPickRefMode('fashion')">Fashion Editorial</div>
         </div>
         <!-- BUG FIX: elemen ini sebelumnya tidak ada sama sekali di HTML, padahal
              vbPickRefMode() sudah lama mencoba mengisi teks penjelasan tiap mode
@@ -6194,6 +6196,16 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
             </div>
             <div class="vbc-res">
               <div class="pb-flow-thumb vbc-thumb" id="vb-mode-preview-ms-video-thumb" data-label="Video AI" onclick="pbFlowLightboxOpen(this)"><video id="vb-mode-preview-ms-video" muted autoplay loop playsinline preload="none"></video></div>
+              <div class="vbc-label">🎬 Video AI</div>
+              <div class="vbc-sub vbc-sub-ai">hasil akhirnya</div>
+            </div>
+          </div>
+        </div>
+        <!-- MODE BARU Fashion Editorial (18 Okt 2026): pratinjau cuma Video AI (tanpa baris syarat foto). Video diisi lazy dari PB_IMG_VBFASHION_VIDEO lewat vbSyncFashionPreview(). -->
+        <div id="vb-mode-preview-fashion" class="hidden">
+          <div class="vbc-card">
+            <div class="vbc-res">
+              <div class="pb-flow-thumb vbc-thumb" id="vb-mode-preview-fashion-video-thumb" data-label="Video AI" onclick="pbFlowLightboxOpen(this)"><video id="vb-mode-preview-fashion-video" muted autoplay loop playsinline preload="none"></video></div>
               <div class="vbc-label">🎬 Video AI</div>
               <div class="vbc-sub vbc-sub-ai">hasil akhirnya</div>
             </div>
@@ -6373,6 +6385,68 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
               </div>
             </div>
             <div class="out-body"><pre id="vb-mode-tess-prompt-text-2" style="white-space:pre-wrap;"></pre></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODE BARU Fashion Editorial (18 Okt 2026) — alur bertahap, pola sama
+           dengan tess tapi TANPA step Gaya: (1) tombol "Lanjut →" → (2) isi
+           Nama Produk (wajib, cuma catatan, TIDAK ikut masuk ke prompt) →
+           (3) pilih Durasi: 4/6/10 detik dikunci (klik = toast "belum
+           tersedia"), cuma "8 detik" yang bisa dipilih → (4) tombol
+           "Generate Prompt" → loading sebentar → (5) tampil 2 prompt bahasa
+           Inggris (VB_FASHION_PROMPT_1 & VB_FASHION_PROMPT_2). Dua prompt =
+           dua variasi video terpisah. Lihat vbFeLanjut(), vbFeNamaInput(),
+           vbFeGoDurasi(), vbFePilihDurasi(), vbFeDurasiLocked(),
+           vbFeGenerate(), vbCopyFePrompt(n) & vbFeResetFlow() (dipanggil dari
+           vbPickRefMode()/vbResetNow()). -->
+      <div id="vb-mode-fashion-area" class="hidden" style="margin-bottom:14px;">
+        <div id="vb-fe-step-lanjut">
+          <div style="text-align:right;">
+            <button class="btn sm" onclick="vbFeLanjut()" style="width:auto;padding:8px 18px;">Lanjut →</button>
+          </div>
+        </div>
+        <div id="vb-fe-step-nama" class="hidden">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Nama Produk <span style="color:var(--accent);">*wajib</span></label>
+          <div class="inp-wrap"><input class="inp" id="vb-fe-nama-input" maxlength="60" placeholder="Contoh: Dress Satin Hitam" oninput="vbFeNamaInput()" /></div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 10px;">Nama produk cuma buat catatan kamu — tidak akan dimasukkan ke dalam prompt.</p>
+          <div style="text-align:right;">
+            <button class="btn sm hidden" id="vb-fe-nama-lanjut-btn" onclick="vbFeGoDurasi()" style="width:auto;padding:8px 18px;">Lanjut →</button>
+          </div>
+        </div>
+        <div id="vb-fe-step-durasi" class="hidden">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Pilih Durasi</label>
+          <div class="chips" style="margin:6px 0 4px;">
+            <div class="chip tess-durasi-locked" onclick="vbFeDurasiLocked()">4 detik</div>
+            <div class="chip tess-durasi-locked" onclick="vbFeDurasiLocked()">6 detik</div>
+            <div class="chip" id="vb-fe-durasi-8" onclick="vbFePilihDurasi(8)">8 detik</div>
+            <div class="chip tess-durasi-locked" onclick="vbFeDurasiLocked()">10 detik</div>
+          </div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Durasi 4/6/10 detik belum tersedia — pakai 8 detik dulu ya.</p>
+          <div style="text-align:right;">
+            <button class="btn sm hidden" id="vb-fe-generate-btn" onclick="vbFeGenerate()" style="width:auto;padding:8px 18px;">Generate Prompt</button>
+          </div>
+        </div>
+        <div id="vb-fe-loading" class="hidden" style="text-align:center;padding:18px 0;color:var(--muted2);font-size:var(--fs-xs2);">⏳ Membuat prompt…</div>
+        <div id="vb-fe-result" class="hidden">
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Dua prompt ini adalah dua variasi video — generate masing-masing sebagai klip terpisah (8 detik).</p>
+          <div class="out-card">
+            <div class="out-head">
+              <div class="out-label">Prompt 1 — Fashion Editorial (Menoleh &amp; Mendekat)</div>
+              <div style="display:flex;align-items:center;gap:7px;">
+                <button class="copy-btn" onclick="vbCopyFePrompt(1)">Salin</button>
+              </div>
+            </div>
+            <div class="out-body"><pre id="vb-fe-prompt-text-1" style="white-space:pre-wrap;"></pre></div>
+          </div>
+          <div class="out-card" style="margin-top:10px;">
+            <div class="out-head">
+              <div class="out-label">Prompt 2 — Fashion Editorial (Pose Anggun &amp; Menunjuk)</div>
+              <div style="display:flex;align-items:center;gap:7px;">
+                <button class="copy-btn" onclick="vbCopyFePrompt(2)">Salin</button>
+              </div>
+            </div>
+            <div class="out-body"><pre id="vb-fe-prompt-text-2" style="white-space:pre-wrap;"></pre></div>
           </div>
         </div>
       </div>
@@ -15645,6 +15719,7 @@ const VB_REF_MODE_DESC={
   ikuti:'FOTO AI akan mengikuti setiap gerakan dari video yang kamu lampirkan, dengan mempertahankan lokasi, outfit, lighting pada FOTO AI.',
   mirrorselfie:'Persiapkan 1 bahan aja, yaitu FOTO AI. FOTO AI wajib dengan pose mirror selfie. Kamu bisa pilih di Pose ketika merakit prompt foto.',
   tess:'Persiapkan 1 foto produk aja. Video iklan produk mewah dibuat dari satu foto produk itu: latar gelap dengan permukaan hitam mengilap, cahaya tepi, dan kamera bergerak pelan.',
+  fashion:'Persiapkan 1 foto karakter yang sedang memakai outfit. Video fashion editorial 8 detik tanpa suara dan tanpa musik, dibuat sekali jalan tanpa cut: karakter bergaya di depan kamera dan memperlihatkan outfitnya.',
   percobaan:'Video voice over: lampirkan beberapa foto sesuai urutan, tiap foto jadi satu adegan dengan durasi kurang lebih sama. Tidak ada orang yang bicara di layar, narasi terdengar sebagai suara dari luar layar.'
 };
 // ── MODE 4 — "Ikuti Gerakan Video Referensi": beda total dari Mode 1-3.
@@ -15884,6 +15959,118 @@ function vbSyncTessPreview(show){
       try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
     }
   }else if(vid){
+    try{ vid.pause(); }catch(e){}
+  }
+}
+// ── MODE BARU "Fashion Editorial" (18 Okt 2026) ─────────────────────────────
+// Self-contained seperti tess: Lanjut → Nama Produk → Durasi (cuma 8 detik) →
+// Generate → 2 prompt. Teks prompt SENGAJA bahasa Inggris (dikirim ke AI video).
+const VB_FASHION_PROMPT_1=[
+  'Fashion editorial video, 8 seconds, filmed as one continuous real-time shot. Natural real-time motion, with no cuts, no transitions, and no scene changes.',
+  '',
+  'Seconds 0-1: the character looks to the right, like someone keeping watch on the people passing by.',
+  'Second 2: the character turns to look at the camera and strikes a cute pose, then moves closer and closer until the face is very close to the camera.',
+  'Second 5: the character steps back and shows off the outfit, without turning around.',
+  '',
+  'The character does not speak. There is no music.'
+].join('\n');
+const VB_FASHION_PROMPT_2=[
+  'Fashion editorial video, 8 seconds.',
+  '',
+  'Seconds 0-1: the video starts with the character holding an elegant pose in the opening frame.',
+  'Then the character shows a little of the right side of the outfit, and after that a little of the left side of the outfit.',
+  'At second 5, the character walks toward the camera until very close, and then points to the bottom-left corner of the screen.',
+  '',
+  'The character must not turn around at any point during the video.',
+  'The character does not speak. There is no music.'
+].join('\n');
+let VB_FASHION_DURASI=null; // cuma 8 yang tersedia
+function vbFeResetFlow(){
+  let ids=['vb-fe-step-nama','vb-fe-step-durasi','vb-fe-loading','vb-fe-result','vb-fe-nama-lanjut-btn','vb-fe-generate-btn'];
+  ids.forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
+  let stepLanjut=document.getElementById('vb-fe-step-lanjut');
+  if(stepLanjut)stepLanjut.classList.remove('hidden');
+  let namaInp=document.getElementById('vb-fe-nama-input');
+  if(namaInp)namaInp.value='';
+  let durasi8=document.getElementById('vb-fe-durasi-8');
+  if(durasi8)durasi8.classList.remove('sel');
+  VB_FASHION_DURASI=null;
+}
+function vbFeLanjut(){
+  let stepLanjut=document.getElementById('vb-fe-step-lanjut');
+  let stepNama=document.getElementById('vb-fe-step-nama');
+  if(stepLanjut)stepLanjut.classList.add('hidden');
+  if(stepNama)stepNama.classList.remove('hidden');
+  let namaInp=document.getElementById('vb-fe-nama-input');
+  if(namaInp)namaInp.focus();
+}
+function vbFeNamaInput(){
+  let namaInp=document.getElementById('vb-fe-nama-input');
+  let namaLanjutBtn=document.getElementById('vb-fe-nama-lanjut-btn');
+  if(!namaInp||!namaLanjutBtn)return;
+  namaLanjutBtn.classList.toggle('hidden',!namaInp.value.trim());
+}
+// Nama Produk wajib & terisi → lanjut ke step pilih Durasi.
+function vbFeGoDurasi(){
+  let namaInp=document.getElementById('vb-fe-nama-input');
+  if(!namaInp||!namaInp.value.trim())return;
+  let stepNama=document.getElementById('vb-fe-step-nama');
+  let stepDurasi=document.getElementById('vb-fe-step-durasi');
+  let durasi8=document.getElementById('vb-fe-durasi-8');
+  let genBtn=document.getElementById('vb-fe-generate-btn');
+  if(stepNama)stepNama.classList.add('hidden');
+  if(stepDurasi)stepDurasi.classList.remove('hidden');
+  VB_FASHION_DURASI=null;
+  if(durasi8)durasi8.classList.remove('sel');
+  if(genBtn)genBtn.classList.add('hidden');
+}
+// Klik chip durasi yang masih dikunci (4/6/10 detik) — cuma kasih tahu belum tersedia.
+function vbFeDurasiLocked(){
+  showToast('Durasi ini belum tersedia','error');
+}
+function vbFePilihDurasi(n){
+  if(n!==8){vbFeDurasiLocked();return;}
+  VB_FASHION_DURASI=8;
+  let durasi8=document.getElementById('vb-fe-durasi-8');
+  let genBtn=document.getElementById('vb-fe-generate-btn');
+  if(durasi8)durasi8.classList.add('sel');
+  if(genBtn)genBtn.classList.remove('hidden');
+}
+function vbFeGenerate(){
+  let namaInp=document.getElementById('vb-fe-nama-input');
+  if(!namaInp||!namaInp.value.trim())return;
+  if(!VB_FASHION_DURASI)return;
+  let stepDurasi=document.getElementById('vb-fe-step-durasi');
+  let loading=document.getElementById('vb-fe-loading');
+  let result=document.getElementById('vb-fe-result');
+  if(stepDurasi)stepDurasi.classList.add('hidden');
+  if(result)result.classList.add('hidden');
+  if(loading)loading.classList.remove('hidden');
+  setTimeout(function(){
+    if(loading)loading.classList.add('hidden');
+    let p1=document.getElementById('vb-fe-prompt-text-1');
+    let p2=document.getElementById('vb-fe-prompt-text-2');
+    if(p1)p1.textContent=VB_FASHION_PROMPT_1;
+    if(p2)p2.textContent=VB_FASHION_PROMPT_2;
+    if(result)result.classList.remove('hidden');
+  },900);
+}
+function vbCopyFePrompt(n){
+  let txt=(n===2)?VB_FASHION_PROMPT_2:VB_FASHION_PROMPT_1;
+  _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+}
+// Pratinjau mode Fashion Editorial (video saja). Media diisi lazy, pola sama dengan vbSyncTessPreview().
+function vbSyncFashionPreview(show){
+  let box=document.getElementById('vb-mode-preview-fashion');
+  if(!box) return;
+  box.classList.toggle('hidden',!show);
+  let vid=document.getElementById('vb-mode-preview-fashion-video');
+  if(!vid) return;
+  if(show){
+    if(!vid.getAttribute('src') && window.PB_IMG_VBFASHION_VIDEO) vid.src=window.PB_IMG_VBFASHION_VIDEO;
+    vid.muted=true;
+    try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
+  }else{
     try{ vid.pause(); }catch(e){}
   }
 }
@@ -16138,6 +16325,7 @@ function vbPickRefMode(mode){
   vbSyncKpPreview(mode==='kp');
   vbSyncMsPreview(mode==='mirrorselfie');
   vbSyncTessPreview(mode==='tess');
+  vbSyncFashionPreview(mode==='fashion');
   vbSyncIkutiPreview(mode==='ikuti');
   document.getElementById('vb-mode-aset').classList.toggle('sel',mode==='aset');
   document.getElementById('vb-mode-kp').classList.toggle('sel',mode==='kp');
@@ -16157,6 +16345,13 @@ function vbPickRefMode(mode){
   // progres nama produk / hasil prompt yang sudah ada (pola sama seperti
   // fix bug #7 di mode 'kp' di atas).
   if(mode==='tess'&&_camPrevMode!=='tess')vbTessResetFlow();
+  // Fashion Editorial: pola sama dengan tess — chip, area, dan reset ke step 1
+  // cuma kalau BENERAN baru masuk dari mode lain.
+  let fashionChip=document.getElementById('vb-mode-fashion');
+  if(fashionChip)fashionChip.classList.toggle('sel',mode==='fashion');
+  let fashionArea=document.getElementById('vb-mode-fashion-area');
+  if(fashionArea)fashionArea.classList.toggle('hidden',mode!=='fashion');
+  if(mode==='fashion'&&_camPrevMode!=='fashion')vbFeResetFlow();
   let percobaanChip=document.getElementById('vb-mode-percobaan');
   if(percobaanChip)percobaanChip.classList.toggle('sel',mode==='percobaan');
   let desc=document.getElementById('vb-mode-desc');
@@ -16173,11 +16368,11 @@ function vbPickRefMode(mode){
   if(selfieArea)selfieArea.classList.toggle('hidden',mode!=='mirrorselfie');
   if(mode==='mirrorselfie')_vbMirrorRefresh();
   let normalFooter=document.getElementById('vb-mode-normal-footer');
-  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='mirrorselfie'||mode==='tess');
+  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='mirrorselfie'||mode==='tess'||mode==='fashion');
   if(justSwitchedToKp)vbMode3ResetSteps();
   // try/catch: dipanggil juga saat app baru dimuat, ketika STEP_PAUSE_STACK/VB bisa belum terdefinisi (TDZ).
   // Motion Control & Mirror Selfie self-contained (tidak lewat wizard V2-V5) — jangan utak-atik kartu kamera di situ.
-  if(mode!=='ikuti'&&mode!=='mirrorselfie'&&mode!=='tess'){try{_vbReconcileCamStep();}catch(e){}}
+  if(mode!=='ikuti'&&mode!=='mirrorselfie'&&mode!=='tess'&&mode!=='fashion'){try{_vbReconcileCamStep();}catch(e){}}
   // Pilihan kamera & Visual Hook beda per mode: kalau mode BENAR-BENAR berganti, buang pilihan yang
   // bukan milik mode baru, lalu gambar ulang chip sesuai mode. Pilihan dari Riwayat (mode sama) tidak disentuh.
   try{
@@ -25234,6 +25429,7 @@ function vbResetNow(){
     // Mode tess juga ikut direset ke step 1 ("Lanjut →") biar sesi baru
     // tidak kebawa nama produk / hasil prompt dari sesi sebelumnya.
     vbTessResetFlow();
+    vbFeResetFlow();
     document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
     VB_BULK_ROW_CACHE=[]; // FIX BUG#15: cache baris bulk juga wajib ikut bersih saat reset, biar tidak bocor ke sesi generate berikutnya
@@ -26383,6 +26579,8 @@ window.PB_IMG_VBKP_FOTO2='media/vbkp-foto2.jpg';
 window.PB_IMG_VBMS_VIDEO='media/vbms-video.mp4';
 window.PB_IMG_VBMS_FOTO='media/vbms-foto.jpg';
 // Media pratinjau mode tess (Okt 2026): VIDEO = hasil akhir (720x1280, 10 detik, ada suara) dipakai apa adanya tanpa kompres; FOTO = foto produk (tas hitam).
+// Media pratinjau Fashion Editorial (18 Okt 2026): video saja, 720x1280, ada suara, dipakai apa adanya.
+window.PB_IMG_VBFASHION_VIDEO='media/fashion-video.mp4';
 window.PB_IMG_VBTESS_VIDEO='media/tess-video.mp4';
 window.PB_IMG_VBTESS_FOTO='media/tess-foto.jpg';
 // Video pratinjau Gaya "Dinamis" tess (17 Okt 2026) — dipasang ke pratinjau
@@ -27014,6 +27212,7 @@ function pbHideOverlay(endingTour){
     pbUnlockChip('#vb-mode-mirrorselfie');
     pbUnlockChip('#vb-mode-percobaan');
     pbUnlockChip('#vb-mode-tess');
+    pbUnlockChip('#vb-mode-fashion');
     let hintEl=document.getElementById('vb-tour-mode-hint');
     if(hintEl) hintEl.style.display='none';
     document.body.classList.remove('pb-tour-blur-context');
@@ -27335,6 +27534,7 @@ function pbGoStep7VideoOpen(){
   pbLockChip('#vb-mode-mirrorselfie');
   pbLockChip('#vb-mode-percobaan');
   pbLockChip('#vb-mode-tess');
+  pbLockChip('#vb-mode-fashion');
   document.body.classList.add('pb-tour-blur-context');
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='block';
@@ -27375,6 +27575,7 @@ function pbStep7VideoDone(){
   pbUnlockChip('#vb-mode-mirrorselfie');
   pbUnlockChip('#vb-mode-percobaan');
   pbUnlockChip('#vb-mode-tess');
+  pbUnlockChip('#vb-mode-fashion');
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='none';
   document.body.classList.remove('pb-tour-blur-context');
