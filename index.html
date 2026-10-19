@@ -4840,7 +4840,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.17</div>
+  <div class="splash-version" id="splash-version">v14.18</div>
 </div>
 <script>
   (function(){
@@ -7033,7 +7033,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.17 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.18 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10571,6 +10571,13 @@ function _fDoGenerate(){
 // ============================================================
 // Menyesuaikan teks output_quality dengan cahaya/mood/mode produk-saja (dipakai jalur normal
 // DAN jalur impor, supaya keduanya tidak bisa saling melenceng).
+// Kalimat pembuka "shot in a candid and natural style" hanya dipakai kalau mood kosong atau
+// mengandung "candid". Untuk mood lain (Dark Moody, Luxury Premium, dll) frasa itu dibuang
+// supaya tidak bentrok dengan mood yang dipilih.
+function _fIntroStyle(effMood){
+  let m=String(effMood||'').toLowerCase().trim();
+  return (!m || /candid/.test(m)) ? ', shot in a candid and natural style' : '';
+}
 function _fAdaptQuality(quality, effCahaya, effMood, isProdukSaja){
   let _c=String(effCahaya||'').toLowerCase(), _m=String(effMood||'').toLowerCase();
   let _phone=/phone camera|candid/.test(_m);
@@ -10754,7 +10761,7 @@ function _fBuildImportedPromptJSON(ov){
   let outfitRandomIntroImp = _impRandomDescs.length ? 'Outfit (AI-generated, no reference photo): ' + _impRandomDescs.join(' | ') + '. ' : '';
   let intro = (isProdukSaja
       ? introProdukSajaTextImp
-      : (effProductBlock ? 'A photorealistic product image' : 'A photorealistic lifestyle fashion image') + ', shot in a candid and natural style. Subject: ' + (FS.importSubject || 'a person') + '. ')
+      : (effProductBlock ? 'A photorealistic product image' : 'A photorealistic lifestyle fashion image') + _fIntroStyle(effMood) + '. Subject: ' + (FS.importSubject || 'a person') + '. ')
     + outfitRandomIntroImp
     + (effProductBlock ? 'Hero product: ' + effProductBlock.name + (effProductBlock.placement ? ', ' + effProductBlock.placement + '. ' : '. ') + (effProductBlock.instruction || '') + ' ' : '')
     + 'Scene: ' + effLokasi + '. '
@@ -11504,8 +11511,8 @@ function _fBuildPromptJSON(ov){
   let intro = (isProdukSaja
     ? produkSajaIntroText
     : (hasProdukRef
-        ? 'A photorealistic product image, shot in a candid and natural style. Subject: '+subjekDesc+'. '
-        : 'A photorealistic lifestyle fashion image, shot in a candid and natural style. Subject: '+subjekDesc+'. '))
+        ? 'A photorealistic product image'+_fIntroStyle(effMood)+'. Subject: '+subjekDesc+'. '
+        : 'A photorealistic lifestyle fashion image'+_fIntroStyle(effMood)+'. Subject: '+subjekDesc+'. '))
     + outfitRandomIntro
     + (produkBlock ? 'Hero product: ' + produkBlock.name + (produkBlock.placement ? ', ' + produkBlock.placement + '. ' : '. ') + produkBlock.instruction + ' ' : '')
     + 'Scene: ' + effLokasi + '. '
