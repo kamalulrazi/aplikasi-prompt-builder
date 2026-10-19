@@ -4623,6 +4623,18 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
 /* Isian di baris produk mode Bulk (nama, keunggulan, arah, hook sendiri, teks video) tampil sebagai kotak, bukan garis bawah. */
 #vb-bulk-rows .inp{background:var(--surface2)!important;border:1px solid var(--border-hi)!important;border-radius:10px!important;padding:11px 12px!important;box-shadow:none!important}
 #vb-bulk-rows .inp:focus{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(var(--pulse-rgb),.12)!important}
+#vb-bulk-rows .vb-chev-btn{align-self:flex-start;width:38px;height:38px;padding:0;border-radius:999px;border:1px solid var(--accent);background:var(--accent-dim-bg);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+#vb-bulk-rows .vb-chev-btn svg{transition:transform .25s ease}
+#vb-bulk-rows .vb-chev-btn.open svg{transform:rotate(180deg)}
+</style>
+<style id="vcam-desc">
+/* Pergerakan Kamera (tab Kamera & Visual Hook): baris ringkas; deskripsi opsi baru muncul saat opsinya dipilih, seperti step Aksen. */
+.cp.cp3.cpc{--rh:56px}
+.cp.cp3.cpc .pb-fk .pb-fk-text small{display:none}
+.cp.cp3.cpc .pb-fk.sel .pb-fk-text small{display:block;margin-top:3px;animation:vcamDesc .28s ease both}
+.cp.cp3.cpc .pb-fk.sel{min-height:80px}
+@keyframes vcamDesc{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.cp.cp3.cpc .pb-fk.sel .pb-fk-text small{animation:none}}
 </style>
 </head>
 <body>
@@ -4823,7 +4835,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.11</div>
+  <div class="splash-version" id="splash-version">v14.12</div>
 </div>
 <script>
   (function(){
@@ -6788,7 +6800,6 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
           <button id="vb-bulk-btn" class="btn" onclick="vbBulkMainAction()" style="font-size:var(--fs-md);padding:13px;">Generate Prompt</button>
           <!-- PERMINTAAN USER (Okt 2026): di tab Produk tombolnya "Lanjut" (pindah ke tab Penonton); "Generate Prompt" baru muncul di tab Penonton. Lihat vbInfoSyncBtns(). -->
           <button id="vb-bulk-next-btn" type="button" class="btn hidden" onclick="vbInfoNext()" style="font-size:var(--fs-md);padding:13px;">Lanjut</button>
-          <p style="font-size:var(--fs-xs);color:var(--muted);margin-top:6px;line-height:1.65;">Tiap produk otomatis dapat 3 script dengan alur tetap: Hook (stop scroll + sadarkan masalah), Cerita (produk jadi solusi), CTA (ajak cek keranjang). Tampilan kartu dibuat kompak, script bisa diedit langsung dan JSON di bawahnya update otomatis.</p>
           <div id="vb-bulk-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
         </div>
       </div>
@@ -7017,7 +7028,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.11 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.12 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18530,8 +18541,20 @@ function vbBulkToggleTopik(i){
   let btn=document.getElementById('vb-bulk-topik-toggle-'+i);
   if(!box)return;
   let opening=box.classList.contains('hidden');
+  if(opening){
+    // Akordeon: buka detail produk ini -> detail produk lain yang masih terbuka ditutup.
+    // Isiannya aman karena input cuma disembunyikan (tidak dihapus), dan chip ringkasannya diperbarui.
+    document.querySelectorAll('[id^="vb-bulk-topik-box-"]').forEach(function(ob){
+      if(ob===box||ob.classList.contains('hidden'))return;
+      let j=ob.id.replace('vb-bulk-topik-box-','');
+      ob.classList.add('hidden');
+      let ob2=document.getElementById('vb-bulk-topik-toggle-'+j);
+      if(ob2){ob2.setAttribute('aria-expanded','false');ob2.classList.remove('open');}
+      try{vbBulkUpdateSummary(+j);}catch(e){}
+    });
+  }
   box.classList.toggle('hidden');
-  if(btn)btn.textContent=opening?'Selesai':'Atur detail';
+  if(btn){btn.setAttribute('aria-expanded',opening?'true':'false');btn.classList.toggle('open',opening);}
   if(opening){
     vbBulkTab(i,'konten');
   }else{
@@ -18572,8 +18595,9 @@ function vbBulkUpdateSummary(i){
   let t=val('vb-bulk-topik-'+i); if(t)items.push('Arah: '+cut(t));
   let o=val('vb-bulk-overlay-'+i); if(o)items.push('Teks video: '+cut(o));
   let chipCss='font-size:var(--fs-2xs);border:1px solid var(--border-hi);border-radius:20px;padding:3px 9px;color:var(--accent);background:var(--surface3);';
+  wrap.style.display=items.length?'flex':'none';
   if(!items.length){
-    wrap.innerHTML='<span style="font-size:var(--fs-2xs);color:var(--muted);">Belum ada detail</span>';
+    wrap.innerHTML='';
   }else{
     wrap.innerHTML=items.map(function(x){return '<span style="'+chipCss+'">'+esc(x)+'</span>';}).join('');
   }
@@ -18715,7 +18739,7 @@ function vbBulkSetCount(){
       +'<div style="flex:1;display:flex;flex-direction:column;gap:6px;">'
       +'<input class="inp" id="vb-bulk-nama-'+i+'" aria-label="Nama produk '+(i+1)+'" maxlength="80" placeholder="Nama produk *wajib" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
       +'<div id="vb-bulk-sum-'+i+'" style="display:flex;flex-wrap:wrap;gap:5px;"></div>'
-      +'<button type="button" onclick="vbBulkToggleTopik('+i+')" id="vb-bulk-topik-toggle-'+i+'" style="align-self:flex-start;background:var(--accent-dim-bg);border:1px solid var(--accent);color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:6px 14px;border-radius:20px;font-weight:500;font-family:inherit;">'+(hasTopik?'Selesai':'Atur detail')+'</button>'
+      +'<button type="button" class="vb-chev-btn'+(hasTopik?' open':'')+'" onclick="vbBulkToggleTopik('+i+')" id="vb-bulk-topik-toggle-'+i+'" aria-label="Atur detail" aria-expanded="'+(hasTopik?'true':'false')+'"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"/></svg></button>'
       +'</div>'
       +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
       +'<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;">'
@@ -31603,7 +31627,7 @@ html body [id$="-confirmbar"] .btn.pb-lanjut{margin:0!important}
 html body .pbw-dock>.btn.pb-lanjut{margin:0!important}
 
 /* wizard Video: dock di bawah → rapat ke kanan, Kembali (ikon) tepat di kiri Lanjut */
-html body .pbw-dock{flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;padding:8px 0;margin-top:12px}
+html body .pbw-dock{flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:16px;padding:8px 0;margin-top:12px}
 html body .pbw-dock .btn:not(.ghost):not(.pbw-bk){flex:0 0 auto!important;width:auto!important;height:38px!important;min-height:38px!important;padding:0 20px!important;font-size:13.5px!important}
 html body .pbw-dock .btn.ghost:not(.pbw-bk){height:38px!important;min-height:38px!important;font-size:13.5px!important;padding:0 16px!important}
 html body .pbw-dock [id$="-confirmbar"]{flex:0 0 auto!important}
