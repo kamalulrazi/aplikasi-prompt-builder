@@ -4840,7 +4840,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.19</div>
+  <div class="splash-version" id="splash-version">v14.22</div>
 </div>
 <script>
   (function(){
@@ -5651,6 +5651,8 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
 
         </div>
 
+        <!-- MODE PRODUK SAJA · POV: tampil kalau user cuma memilih "Produk" (diatur povSync() di blok script pov-js) -->
+        <div id="f1-pov-hint">Cuma pilih <b>Produk</b>? Boleh langsung lanjut setelah nama produk diisi. Hasilnya foto produk dipegang gaya POV.</div>
         <div class="f1-divider" id="f1-divider" style="display:none;"><span>Detail tiap foto</span><em id="f1-divider-count">0</em></div>
 
         <!-- FOTO DETAIL LIST — compact rows -->
@@ -5741,6 +5743,28 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       <div class="wanswer" id="fa3"></div>
     </div>
     <div class="wbody">
+      <!-- MODE PRODUK SAJA · POV: dipakai menggantikan isi lama step ini selama body.pov-on (lihat <style id="pov-css">) -->
+      <div id="f3-pov-panel">
+        <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.65;">Kakak ingin produk yang akan ditampilkan nanti bagaimana?</p>
+        <div class="chips">
+          <div class="chip chip-wide" id="f3-pov-chip" onclick="fPovPickHold(this)">
+            <div>
+              <div class="text-title-sm">POV</div>
+              <div class="text-hint">Produk dipegang dengan sudut pandang orang pertama, seolah-olah kakak sendiri yang memegangnya.</div>
+            </div>
+          </div>
+        </div>
+        <div class="mt12">
+          <label class="inplabel">Atau isi sendiri</label>
+          <div style="display:flex;gap:6px;">
+            <div class="inp-wrap" style="flex:1;">
+              <input class="inp" id="f3-pov-custom" maxlength="300" placeholder="Example: POV, holding the product up close with both hands..." onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f3-pov-counter')" />
+              <div class="inp-counter" id="f3-pov-counter">0 / 300</div>
+            </div>
+          </div>
+          <button class="btn sm" data-role="mt12-confirm" onclick="fPovPickHoldCustom()">Lanjut →</button>
+        </div>
+      </div>
       <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.65;">Kakak ingin produk yang akan ditampilkan nanti bagaimana?</p>
       <div class="chips">
         <div class="chip" onclick="fPickHold('dipakai',this,'Dipakai langsung')">Dipakai ke karakter</div>
@@ -7033,7 +7057,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.19 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.22 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -7929,6 +7953,7 @@ function copyText(text,btn){
 // STATE
 let FS={
   refs:[], refCounter:0,
+  povProduk:false, holdLabel:'', povPlacement:'', povCamera:'',
   hasProdukFoto:false,
   subjek:'',
   produkMode:'',
@@ -10419,7 +10444,11 @@ function fGenerate(){
   // Lama/Generate Variasi malah disembunyikan TOTAL (pb-tour-result-simple)
   // supaya user pemula cuma lihat hasil prompt-nya saja, tidak dibuat
   // bingung — lihat pbTourAfterGenActive & pbShowSaveJsonNotif() di bawah.
-  if(FS.subjek==='produk'){
+  if(FS.povProduk){
+    // MODE PRODUK SAJA · POV (lihat blok script pov-js): step Pose & Sudut Kamera tidak dipakai.
+    if(FS.refs.some(function(r){return r.type!=='produk';})){showToast('Foto referensi bukan produk saja — buka Foto Ref lalu tekan Lanjut dulu.','error');return;}
+    if(!FS.lokasi||!FS.hold||!FS.mood||!FS.cahaya){showToast('Lengkapi semua step dulu!','error');return;}
+  } else if(FS.subjek==='produk'){
     if(!FS.lokasi||!FS.cahaya||!FS.angle||!FS.mood){showToast('Lengkapi semua step dulu!','error');return;}
   } else {
     let hasOutfitRandom=FS.refs.some(r=>r.type==='outfit_random'&&r.focus);
@@ -10434,7 +10463,7 @@ function fGenerate(){
   // Jika user back dan ganti produkMode/holdKey, FS.pose bisa berisi nilai lama yang tidak sesuai.
   // Cara paling aman: cek apakah f4 masih dalam state 'done'. Jika tidak (user back tapi belum pilih ulang), blok.
   let f4card=document.getElementById('f4');
-  if(!f4card||!f4card.classList.contains('done')){
+  if(!FS.povProduk&&(!f4card||!f4card.classList.contains('done'))){
     showToast('Pilih pose terlebih dahulu (Step Pose belum dikonfirmasi)!','error');
     return;
   }
@@ -11140,6 +11169,8 @@ function fImportPrompt(){
   FS.angle=''; FS.angleLabel=''; FS.angleDesc='';
   FS.mood=''; FS.moodLabel='';
   FS.conflictLevel=0; FS.shotOverrides={};
+  FS.povProduk=false; FS.holdLabel=''; FS.povPlacement=''; FS.povCamera='';   // keluar dari mode Produk saja · POV
+  if(typeof povSync==='function')povSync();
 
   // isProdukSaja: prompt lama tanpa pose di scene = mode produk-saja
   // FIX (audit): dulu produk-saja = "tidak ada pose" saja, jadi prompt karakter (subject "a woman"/"a man")
@@ -13698,6 +13729,7 @@ function _pbRestorePreOpenSnapshot(){
     Object.keys(FS).forEach(function(k){delete FS[k];});
     Object.assign(FS,fsData);
     if(FS.subjek==='produk')FS.subjek='';FS.importIsProdukSaja=false;
+    if(typeof povSync==='function')povSync();
   }catch(e){/* snapshot foto korup — biarkan FS apa adanya daripada error */}
   try{
     let vbObj=JSON.parse(snap.vb||'{}');
@@ -14020,7 +14052,7 @@ function pbOpenSavedPage(id){
   // punya salah satu) supaya tetap kompatibel.
   try{
     let fotoState=(item.fotoState!=null)?item.fotoState:(item.type==='foto'?item.state:null);
-    if(fotoState!=null && typeof FS!=='undefined'){Object.assign(FS,JSON.parse(fotoState||'{}'));if(FS.subjek==='produk')FS.subjek='';FS.importIsProdukSaja=false;}
+    if(fotoState!=null && typeof FS!=='undefined'){FS.povProduk=false;Object.assign(FS,JSON.parse(fotoState||'{}'));if(FS.subjek==='produk')FS.subjek='';FS.importIsProdukSaja=false;if(typeof povSync==='function')povSync();}
   }catch(e){/* state foto korup — lanjut tanpa restore, HTML hasil tetap ditampilkan */}
   try{
     let videoState=(item.videoState!=null)?item.videoState:(item.type==='video'?item.state:null);
@@ -30712,7 +30744,7 @@ v2RangePaint(15);
   function sync(){
     t=0;
     var a=act(),vis=[];
-    IDS.forEach(function(id){
+    (typeof fStepOrder==='function'?fStepOrder():IDS).forEach(function(id){
       var c=document.getElementById(id);if(!c)return;
       var i=a.indexOf(id),st='off';
       if(i>-1&&c.style.display!=='none'){
@@ -31066,7 +31098,7 @@ function stateOf(c){
   return c.classList.contains('done')?'done':(c.classList.contains('pending')?'pend':'act');
 }
 function cards(){
-  return IDS.map($).filter(function(c){return c&&stateOf(c)!=='off';});
+  return (typeof fStepOrder==='function'?fStepOrder():IDS).map($).filter(function(c){return c&&stateOf(c)!=='off';});
 }
 var lastCur='',lastSum='',lastStepKey='';
 function fin0(cs,doneN,total){return doneN>=total;}
@@ -31151,7 +31183,7 @@ var prev={};
 function live(){
   var box=$('pfa-live-body');if(!box||typeof FS==='undefined')return;
   var sj={hijab:'perempuan',pria:'laki-laki',produk:'produk saja'};
-  var rows=[
+  var rows=(FS.povProduk?[['produk',FS.produkNama||''],['lokasi',FS.lokasiLabel||''],['cara_tampil',FS.holdLabel||''],['mood',FS.moodLabel||''],['cahaya',FS.cahayaLabel||'']]:[
     ['subjek',sj[FS.subjek]||''],
     ['produk',FS.produkNama||''],
     ['cara_tampil',FS.hold||''],
@@ -31160,7 +31192,7 @@ function live(){
     ['cahaya',FS.cahayaLabel||''],
     ['sudut_kamera',FS.angleLabel||''],
     ['mood',FS.moodLabel||'']
-  ].filter(function(r){
+  ]).filter(function(r){
     if(FS.subjek==='produk'&&(r[0]==='pose'||r[0]==='cara_tampil'))return false;
     return r[0]!=='produk'||r[1]||FS.subjek==='produk';
   });
@@ -31292,6 +31324,471 @@ if(typeof dg==='function'){window._fDoGenerate=function(){
 var sp=window.switchPage;
 if(typeof sp==='function'){window.switchPage=function(){window.pfaClose();return sp.apply(this,arguments);};}
 deco();refresh();
+})();
+</script>
+<style id="pov-css">
+/* ═══ MODE "PRODUK SAJA · POV" — Prompt Foto AI (v14.17) ═══
+   Aktif kalau di step Foto Referensi user HANYA memilih "Produk" (tanpa Karakter Sheet/Outfit).
+   Step lanjutan: Lokasi → Cara Tampil (cuma POV) → Mood & Tone → Pencahayaan. Hasil prompt: JSON bahasa Inggris.
+   Semua logika ada di blok script pov-js di bawah; class body.pov-on dinyalakan oleh povSync(). */
+#f3-pov-panel{display:none;}
+body.pov-on #f3 .wbody>:not(#f3-pov-panel):not([id$="-confirmbar"]){display:none!important;}
+body.pov-on #f3-pov-panel{display:block;}
+.pov-hint{display:none;margin:0 0 12px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.55;}
+body.pov-on .pov-hint{display:block;}
+#f1-pov-hint{display:none;margin:0 0 14px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface3);font-size:var(--fs-xs2);line-height:1.55;color:var(--muted);}
+#f1-pov-hint.show{display:block;}
+</style>
+<script id="pov-js">
+/* ═══ MODE "PRODUK SAJA · POV" — Prompt Foto AI (v14.17) ═══
+   Permintaan user: di step Foto Referensi, kalau user cuma memilih "Produk" (tanpa Karakter Sheet) tetap boleh lanjut
+   setelah mengisi nama produk. Step berikutnya mengikuti struktur prompt:
+   Lokasi → Cara Tampil Produk (opsi tunggal: POV) → Mood & Tone → Pencahayaan, dan di tiap step user bisa isi sendiri.
+   Prompt hasilnya ditulis dalam bahasa Inggris dengan struktur JSON:
+   prompt, mood_and_tone, reference_photos, product, scene{location,camera,mood_and_tone}, output_quality{camera,lighting}.
+   Mode ini ditandai FS.povProduk. Mode lama (Karakter Sheet + produk) tidak berubah sama sekali: semua fungsi di bawah
+   langsung meneruskan ke fungsi aslinya kalau FS.povProduk = false. */
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var ORDER=['f5','f3','f9','f7'];                       /* urutan step mode POV */
+var TITLES={f5:'Lokasi',f3:'Cara Tampil',f9:'Mood & Tone',f7:'Pencahayaan'};
+var POV_PLACEMENT='held in hand';
+var POV_CAMERA='POV style (first-person perspective)';
+var POV_HOLD_TEXT='held in POV style (first-person perspective)';
+
+/* Teks Inggris untuk chip preset (chip aslinya berisi teks Indonesia) */
+var LOK_EN={
+  'Kamar Mewah':'luxurious bedroom',
+  'Kamar Aesthetic':'aesthetic bedroom',
+  'Kamar Spanyol':'Spanish-style bedroom',
+  'Ruang Tamu Mewah':'luxurious living room',
+  'Teras Rumah Mewah':'luxurious house terrace',
+  'Di Dalam Mobil Mewah':'inside a luxury car'
+};
+var LIGHT_EN={
+  'Siang Cerah':'bright natural daylight — crisp, clean light with vivid natural colors, no filter',
+  'Hujan':'soft rainy-day light — cool, diffused overcast daylight with gentle muted tones, no filter',
+  'Window Light Samping':'soft natural window light from the side — gentle indoor daylight, airy and bright, no filter'
+};
+var MOOD_SHORT={
+  'Natural Candid':'lifestyle candid natural, authentic, relaxed, no studio feel',
+  'Dark Moody':'dark moody cinematic, deep shadows, dramatic and mysterious',
+  'Luxury Premium':'luxury premium editorial, polished, refined, elegant'
+};
+/* Placeholder kolom "isi sendiri" versi Inggris (dipakai selama mode POV aktif) */
+var PH_ID={f5:'f5-custom-karakter',f7:'f7-custom',f9:'f9-custom'};
+var PH={
+  f5:'Example: cozy rooftop at golden hour, minimalist cafe corner...',
+  f7:'Example: warm lamp light, soft morning sunlight through sheer curtains...',
+  f9:'Example: soft Korean aesthetic, warm and cozy, retro 90s...'
+};
+
+function wrap(name,fn){
+  var o=window[name];
+  if(typeof o!=='function')return;
+  window[name]=function(){return fn.call(this,o,arguments);};
+}
+function isOnlyProduk(){
+  return !!(FS.refs&&FS.refs.length>0&&FS.refs.every(function(r){return r.type==='produk';}));
+}
+function filled(id){
+  return id==='f5'?!!FS.lokasi:id==='f3'?!!FS.hold:id==='f9'?!!FS.mood:!!FS.cahaya;
+}
+function trunc(s,n){s=String(s||'');return s.length>n?s.substring(0,n-1)+'…':s;}
+function cap(t){t=String(t||'').trim().replace(/[.\s]+$/,'');return t?t.charAt(0).toUpperCase()+t.slice(1):t;}
+function hideCard(id){var c=$(id);if(c){c.classList.add('done','hidden');c.classList.remove('pending');}}
+function resetCounter(cid){var c=$(cid);if(c){c.textContent='0 / 300';c.className='inp-counter';}}
+
+/* ── sinkron tampilan: class body, placeholder Inggris, label subjek, hint di Foto Referensi ── */
+function povSync(){
+  if(typeof FS==='undefined')return;
+  var on=!!FS.povProduk;
+  document.body.classList.toggle('pov-on',on);
+  Object.keys(PH_ID).forEach(function(k){
+    var inp=$(PH_ID[k]);if(!inp)return;
+    if(inp.dataset.phOrig===undefined)inp.dataset.phOrig=inp.getAttribute('placeholder')||'';
+    var want=on?PH[k]:inp.dataset.phOrig;
+    if(inp.getAttribute('placeholder')!==want)inp.setAttribute('placeholder',want);
+  });
+  var fa0=$('fa0'),f0=$('f0');
+  if(fa0&&f0&&f0.classList.contains('done')){
+    var lab=on?'Produk saja (POV)':((typeof SUBJEK_LABELS!=='undefined'&&SUBJEK_LABELS[FS.subjek])||'');
+    if(lab&&fa0.textContent!==lab)fa0.textContent=lab;
+  }
+  var h=$('f1-pov-hint');
+  if(h)h.classList.toggle('show',isOnlyProduk());
+}
+
+/* ── pindah ke step berikutnya yang belum terisi; kalau semua sudah terisi → area Generate ── */
+function showGen(){
+  var ga=$('f-gen-area');
+  if(ga)ga.classList.remove('hidden');
+  fUpdateProgress(7,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+  if(typeof fRunAIConflictCheck==='function')fRunAIConflictCheck(true);
+  setTimeout(function(){var g=$('f-gen-area');if(g)g.scrollIntoView({behavior:'smooth',block:'nearest'});},200);
+}
+function povAdvance(){
+  var nxt=null;
+  for(var i=0;i<ORDER.length;i++){if(!filled(ORDER[i])){nxt=ORDER[i];break;}}
+  if(nxt){
+    var ga=$('f-gen-area');if(ga)ga.classList.add('hidden');
+    fUpdateProgress(parseInt(nxt.slice(1),10),TITLES[nxt]);
+    showCard(nxt);
+  }else{
+    showGen();
+  }
+}
+
+/* ── kosongkan 1 step (dipakai tombol "← Kembali") ── */
+function povClear(id){
+  if(id==='f5'){
+    FS.lokasi='';FS.lokasiLabel='';FS.lokasiDesc='';
+    document.querySelectorAll('#f5 .chip').forEach(function(c){c.classList.remove('sel');});
+    var a=$('f5-custom-karakter');if(a)a.value='';resetCounter('f5-counter-karakter');
+  }else if(id==='f3'){
+    FS.hold='';FS.holdKey='';FS.holdLabel='';FS.povPlacement='';FS.povCamera='';
+    document.querySelectorAll('#f3 .chip').forEach(function(c){c.classList.remove('sel');});
+    var b=$('f3-pov-custom');if(b)b.value='';resetCounter('f3-pov-counter');
+  }else if(id==='f9'){
+    FS.mood='';FS.moodLabel='';
+    document.querySelectorAll('#f9 .chip').forEach(function(c){c.classList.remove('sel');});
+    var c9=$('f9-custom');if(c9)c9.value='';resetCounter('f9-counter');
+  }else if(id==='f7'){
+    FS.cahaya='';FS.cahayaLabel='';FS.cahayaDesc='';
+    try{_fCahaya=null;}catch(e){}
+    document.querySelectorAll('#f7 .chip').forEach(function(c){c.classList.remove('sel');});
+    var c7=$('f7-custom');if(c7)c7.value='';resetCounter('f7-counter');
+  }
+}
+function povBack(id){
+  var i=ORDER.indexOf(id),card=$(id);
+  povClear(id);
+  if(card){
+    card.classList.remove('done','hidden');card.classList.add('pending');
+    var fa=$('fa'+id.slice(1));if(fa)fa.textContent='';
+    var cb=$(id+'-confirmbar');if(cb)cb.remove();
+    if(typeof fRestoreCustomBlock==='function')fRestoreCustomBlock(card);
+  }
+  var ga=$('f-gen-area');if(ga)ga.classList.add('hidden');
+  var jo=$('f-json-output');if(jo)jo.style.display='none';
+  if(i<=0){
+    var c1=$('f1');
+    if(c1){c1.classList.remove('done','hidden','pending');}
+    var a1=$('fa1');if(a1)a1.textContent='';
+    fUpdateProgress(1,'Foto Referensi');
+  }else{
+    var pid=ORDER[i-1],pc=$(pid);
+    if(pc){pc.classList.remove('done','hidden','pending');}
+    fUpdateProgress(parseInt(pid.slice(1),10),TITLES[pid]);
+  }
+}
+
+/* ── setter per step ── */
+function setLokasi(desc,label,raw){
+  FS.lokasi=raw||label;FS.lokasiLabel=label;FS.lokasiDesc=desc;
+  doneCard('f5','fa5',label==='Custom'?trunc(raw,35):label);
+  povAdvance();
+}
+function setHold(kind,text){
+  FS.holdKey=kind;
+  if(kind==='pov'){
+    FS.hold=POV_HOLD_TEXT;FS.holdLabel='POV';FS.povPlacement=POV_PLACEMENT;FS.povCamera=POV_CAMERA;
+    doneCard('f3','fa3','POV');
+  }else{
+    FS.hold=text;FS.holdLabel='Custom';FS.povPlacement=text;FS.povCamera=text;
+    doneCard('f3','fa3','Custom — '+trunc(text,35));
+  }
+  povAdvance();
+}
+function setMood(val,label){
+  FS.mood=val;FS.moodLabel=label;
+  doneCard('f9','fa9',label==='Custom'?trunc(val,35):label);
+  povAdvance();
+}
+function setCahaya(desc,label,raw){
+  FS.cahaya=raw||label;FS.cahayaLabel=label;FS.cahayaDesc=desc;
+  try{_fCahaya={val:desc,label:label};}catch(e){}
+  doneCard('f7','fa7',label==='Custom'?trunc(raw,35):label);
+  povAdvance();
+}
+
+/* ── step 3: Cara Tampil Produk — opsi tunggal POV + isi sendiri ── */
+window.fPovPickHold=function(el){
+  document.querySelectorAll('#f3 .chip').forEach(function(c){c.classList.remove('sel');});
+  el.classList.add('sel');
+  fShowConfirm('f3',el,function(){setHold('pov');});
+};
+var holdLock=false;
+window.fPovPickHoldCustom=function(){
+  if(holdLock)return;
+  var inp=$('f3-pov-custom'),val=inp?inp.value.trim():'';
+  if(!val){showToast('Isi cara tampil produk dulu!','error');return;}
+  holdLock=true;setTimeout(function(){holdLock=false;},600);
+  document.querySelectorAll('#f3 .chip').forEach(function(c){c.classList.remove('sel');});
+  setHold('custom',val);
+};
+
+/* ── wrapper: lokasi, mood, pencahayaan (chip + isi sendiri) ── */
+wrap('fPickLokasi',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  var val=a[0],el=a[1],label=a[2];
+  document.querySelectorAll('#f5 .chip').forEach(function(c){c.classList.remove('sel');});
+  el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f5','lokasi',label);
+  fShowConfirm('f5',el,function(){setLokasi(LOK_EN[label]||val,label);});
+});
+var lokLock=false;
+wrap('fPickLokasiCustomKarakter',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  if(lokLock)return;
+  var inp=$('f5-custom-karakter'),val=inp?inp.value.trim():'';
+  if(!val){showToast('Isi lokasi dulu!','error');return;}
+  lokLock=true;setTimeout(function(){lokLock=false;},600);
+  document.querySelectorAll('#f5 .chip').forEach(function(c){c.classList.remove('sel');});
+  setLokasi(val,'Custom',val);
+});
+wrap('fPickMood',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  var val=a[0],el=a[1],label=a[2];
+  document.querySelectorAll('#f9 .chip').forEach(function(c){c.classList.remove('sel');});
+  el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f9','mood',label);
+  fShowConfirm('f9',el,function(){setMood(val,label);});
+});
+var moodLock=false;
+wrap('fPickMoodCustom',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  if(moodLock)return;
+  var inp=$('f9-custom'),val=inp?inp.value.trim():'';
+  if(!val){showToast('Isi mood/tone dulu!','error');return;}
+  moodLock=true;setTimeout(function(){moodLock=false;},600);
+  document.querySelectorAll('#f9 .chip').forEach(function(c){c.classList.remove('sel');});
+  setMood(val,'Custom');
+});
+wrap('fPickCahaya',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  var val=a[0],el=a[1],label=a[2];
+  document.querySelectorAll('#f7 .chip').forEach(function(c){c.classList.remove('sel');});
+  el.classList.add('sel');
+  if(window.pstPreview)pstPreview('f7','cahaya',label);
+  fShowConfirm('f7',el,function(){setCahaya(LIGHT_EN[label]||val,label);});
+});
+var lightLock=false;
+wrap('fPickCahayaCustom',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  if(lightLock)return;
+  var inp=$('f7-custom'),val=inp?inp.value.trim():'';
+  if(!val){showToast('Isi kondisi cahaya dulu!','error');return;}
+  lightLock=true;setTimeout(function(){lightLock=false;},600);
+  document.querySelectorAll('#f7 .chip').forEach(function(c){c.classList.remove('sel');});
+  setCahaya(val,'Custom',val);
+});
+
+/* ── tombol "← Kembali" tiap step ── */
+[['fBack3','f3'],['fBack5','f5'],['fBack7','f7'],['fBack9','f9']].forEach(function(p){
+  wrap(p[0],function(o,a){
+    if(!FS.povProduk)return o.apply(this,a);
+    return povBack(p[1]);
+  });
+});
+
+/* ── step 1: Foto Referensi — "Produk saja" boleh lanjut setelah nama produk diisi ── */
+function flagEmptyNames(list){
+  var first=null;
+  list.forEach(function(ref){
+    var card=$('pc-'+ref.id),inp=card&&card.querySelector('input.inp');
+    if(!inp)return;
+    inp.style.borderColor='var(--red)';inp.style.boxShadow='0 0 0 2px rgba(224,92,92,0.2)';
+    var eid='pc-err-'+ref.id;
+    if(!$(eid)){
+      var e=document.createElement('div');e.id=eid;
+      e.style.cssText='font-size:var(--fs-xs2);color:var(--red);margin-top:5px;font-weight:500;';
+      e.textContent='Nama produk wajib diisi';
+      inp.insertAdjacentElement('afterend',e);
+    }
+    inp.addEventListener('input',function(){
+      inp.style.borderColor='';inp.style.boxShadow='';
+      var x=$(eid);if(x)x.remove();
+    },{once:true});
+    if(!first)first=inp;
+  });
+  if(first){first.focus();}
+}
+wrap('fKonfirmRef',function(o,a){
+  var tour=(typeof pbTourF1Active!=='undefined'&&pbTourF1Active);
+  if(tour||FS.importActive||!FS.subjek||!isOnlyProduk()){
+    /* bukan mode "Produk saja" → alur lama. Kalau sebelumnya mode POV, bersihkan sisa step POV dulu. */
+    if(FS.povProduk&&!tour&&!FS.importActive&&FS.refs&&FS.refs.length>0){
+      FS.povProduk=false;
+      fResetFrom(2);
+      povSync();
+    }
+    return o.apply(this,a);
+  }
+  var sedb=$('summary-edit-done-btn');if(sedb)sedb.remove();
+  var prod=FS.refs.filter(function(r){return r.type==='produk';});
+  var empty=prod.filter(function(r){return !r.focus||!r.focus.trim();});
+  if(empty.length){
+    flagEmptyNames(empty);
+    showToast('Isi nama produknya dulu ya!','error');
+    return;
+  }
+  if(!FS.povProduk)fResetFrom(2);            /* masuk mode POV: bersihkan step lanjutan sisa alur lama */
+  FS.povProduk=true;
+  FS.produkMode='foto';
+  FS.produkNama=prod.map(function(r){return r.focus.trim();}).join(', ');
+  FS.pose='';FS.poseLabel='';FS.poseDesc='';
+  FS.angle='';FS.angleLabel='';FS.angleDesc='';FS.kamera='';
+  doneCard('f1','fa1',FS.refs.length+' foto (Produk)');
+  hideCard('f2');hideCard('f4');hideCard('f8');   /* Pose & Sudut Kamera tidak dipakai di mode ini */
+  povSync();
+  fSyncStepNums();
+  povAdvance();
+});
+
+/* ── urutan & daftar step aktif ── */
+wrap('fActiveSteps',function(o,a){
+  return FS.povProduk?['f0','f1','f5','f3','f9','f7']:o.apply(this,a);
+});
+window.fStepOrder=function(){
+  return FS.povProduk?['f0','f1','f5','f3','f9','f7','f4','f8']:['f0','f1','f3','f4','f5','f7','f8','f9'];
+};
+
+/* ── reset & sinkronisasi ── */
+wrap('fResetFrom',function(o,a){
+  var n=Number(a[0]);
+  var r=o.apply(this,a);
+  if(n<=1)FS.povProduk=false;
+  if(n<=3){
+    FS.holdLabel='';FS.povPlacement='';FS.povCamera='';
+    var i3=$('f3-pov-custom');if(i3)i3.value='';
+    resetCounter('f3-pov-counter');
+  }
+  povSync();
+  return r;
+});
+wrap('fSyncStepNums',function(o,a){var r=o.apply(this,a);povSync();return r;});
+wrap('fRenderList',function(o,a){var r=o.apply(this,a);povSync();return r;});
+wrap('fRestoreStepUI',function(o,a){
+  var r=o.apply(this,a);
+  if(FS.povProduk&&Number(a[0])===3){
+    var chip=$('f3-pov-chip'),inp=$('f3-pov-custom');
+    if(chip)chip.classList.toggle('sel',FS.holdKey==='pov');
+    if(inp){inp.value=FS.holdKey==='custom'?FS.hold:'';fCountInp(inp,'f3-pov-counter');}
+  }
+  return r;
+});
+
+/* ── Ringkasan (cek sebelum generate) ── */
+function povRenderSummary(){
+  var rows=$('summary-rows'),warnEl=$('summary-warning'),warnText=$('summary-warning-text'),ok=$('summary-ok-badge');
+  if(!rows)return;
+  var warnings=[],items=[];
+  var prod=(FS.refs||[]).filter(function(r){return r.type==='produk';});
+  items.push({key:'Mode',val:'Produk saja · POV',editCard:null});
+  items.push({key:'Foto Ref',val:prod.length+' foto (Produk)'+(FS.produkNama?' · '+FS.produkNama:''),editCard:1});
+  if((FS.refs||[]).some(function(r){return r.type!=='produk';}))warnings.push('Foto referensi bukan produk saja — buka Foto Ref lalu tekan Lanjut agar mode-nya ikut menyesuaikan.');
+  if(prod.some(function(r){return !r.focus||!r.focus.trim();}))warnings.push('Nama produk belum diisi — buka Foto Ref.');
+  var lok=FS.lokasiLabel==='Custom'?trunc(FS.lokasi,55):(FS.lokasiLabel||'—');
+  if(!FS.lokasi)warnings.push('Lokasi belum dipilih.');
+  items.push({key:'Lokasi',val:lok,editCard:5});
+  var hold=FS.holdLabel==='Custom'?trunc(FS.hold,55):(FS.hold?(FS.holdLabel||'POV'):'—');
+  if(!FS.hold)warnings.push('Cara tampil produk belum dipilih.');
+  items.push({key:'Cara Tampil',val:hold,editCard:3});
+  var mood=FS.moodLabel==='Custom'?trunc(FS.mood,55):(FS.moodLabel||'—');
+  if(!FS.mood)warnings.push('Mood & tone belum dipilih.');
+  items.push({key:'Mood',val:mood,editCard:9});
+  var cah=FS.cahayaLabel==='Custom'?trunc(FS.cahaya,55):(FS.cahayaLabel||'—');
+  if(!FS.cahaya)warnings.push('Pencahayaan belum dipilih.');
+  items.push({key:'Cahaya',val:cah,editCard:7});
+  rows.innerHTML=items.map(function(it){
+    var eb=it.editCard?'<button class="summary-edit" onclick="fSummaryEdit('+it.editCard+')"><svg class="icon"><use href="#ic-edit"></use></svg> Edit</button>':'';
+    var vc=(it.val==='—')?'summary-row-val empty':'summary-row-val';
+    return '<div class="summary-row"><div class="summary-row-key">'+it.key+'</div><div class="'+vc+'">'+esc(it.val)+'</div>'+eb+'</div>';
+  }).join('');
+  if(warnings.length>0){
+    if(warnEl)warnEl.style.display='flex';
+    if(warnText)warnText.textContent=warnings.join(' ');
+    if(ok){ok.textContent='Cek';ok.style.background='var(--surface3)';ok.style.color='var(--text)';ok.style.borderColor='var(--border-hi)';}
+  }else{
+    if(warnEl)warnEl.style.display='none';
+    if(ok){ok.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> Siap';ok.style.background='rgba(76,175,125,0.12)';ok.style.color='var(--green)';ok.style.borderColor='rgba(76,175,125,0.2)';}
+  }
+}
+wrap('fRenderSummary',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  return povRenderSummary();
+});
+
+/* ── pembuat JSON prompt (bahasa Inggris) ── */
+function povBuild(){
+  var realRefs=fSortRefsForOrder(FS.refs.filter(function(r){return r.type==='produk';}));
+  var name=(FS.produkNama||'').trim()||'product from reference photo';
+  var loc=(FS.lokasiDesc||FS.lokasi||'').trim();
+  var moodFull=(FS.mood||'').trim();
+  var light=(FS.cahayaDesc||FS.cahaya||'').trim();
+  var placement=FS.povPlacement||POV_PLACEMENT;
+  var camera=FS.povCamera||POV_CAMERA;
+  var holdTxt=FS.holdKey==='custom'?placement:POV_HOLD_TEXT;
+  var moodShort=MOOD_SHORT[FS.moodLabel]||moodFull;
+
+  var prompt='Photorealistic product photo. Product: '+name+', '+holdTxt+'. Location: '+loc+'. Mood: '+moodShort+'.';
+
+  var refPhotos=realRefs.map(function(r,i){
+    var def=FTYPE.produk;
+    var custom=(r.extractCustom!==undefined&&r.extractCustom!==def.extract)?String(r.extractCustom).trim():'';
+    var nm=(r.focus||name).trim();
+    var ex=custom||('the '+nm+' in complete detail');
+    if(r.ukuran)ex+='. Product physical size: '+r.ukuran+' — render the product accurately to this size ratio relative to the scene.';
+    return {photo_number:i+1,type:'Product',extract_only:ex};
+  });
+
+  /* output_quality: default = gaya foto HP candid; kalau lighting/mood terkontrol (studio, luxury, dark moody, dst) = foto bersih */
+  var controlled=/studio|softbox|e-commerce|dark moody|low key|dramatic|directional/.test(light.toLowerCase())
+    ||/clean, bright|luxury premium|editorial|dark moody|soft pastel|high-key|cinematic/.test(moodFull.toLowerCase());
+  var quality;
+  if(controlled){
+    quality={
+      camera:'High-quality, sharp, well-exposed POV photo with accurate colors and clean detail, matching the selected lighting and mood; realistic and natural-looking, not over-processed or artificially smoothed. The product stays sharp and in focus.',
+      lighting:cap(light)+'. Keep the lighting controlled and consistent across the frame; accurate product colors without overexposure, and shadows never cover product details.'
+    };
+  }else{
+    quality={
+      camera:'Shot with a smartphone camera (not a DSLR), with a natural handheld POV feel. Subtle noise and grain typical of a phone camera, realistic dynamic range without heavy HDR. The product stays sharp and in focus. Looks like an authentic phone photo, not a polished studio image.',
+      lighting:cap(light)+'. Accurate product colors without overexposure, and shadows never cover product details. Feels organic and spontaneous.'
+    };
+  }
+
+  var fullJson={
+    prompt:prompt,
+    mood_and_tone:moodFull,
+    reference_photos:refPhotos,
+    product:{name:name,placement:placement},
+    scene:{location:loc,camera:camera,mood_and_tone:moodFull},
+    output_quality:quality
+  };
+  return {fullJson:fullJson,realRefs:realRefs,randomRefs:[],subjekLabel:'Produk'};
+}
+wrap('_fBuildPromptJSON',function(o,a){
+  if(!FS.povProduk)return o.apply(this,a);
+  return povBuild();
+});
+
+window.povSync=povSync;   /* dipakai kode Riwayat di luar blok ini */
+/* ── init: sisipkan hint bahasa Inggris di step Lokasi/Pencahayaan/Mood ── */
+function init(){
+  ['f5','f7','f9'].forEach(function(id){
+    var wb=$(id)&&$(id).querySelector('.wbody');
+    if(!wb||wb.querySelector('.pov-hint'))return;
+    var h=document.createElement('p');
+    h.className='pov-hint';
+    h.textContent='Prompt dibuat dalam bahasa Inggris. Kalau isi sendiri, tulis dalam bahasa Inggris supaya hasilnya rapi.';
+    wb.insertBefore(h,wb.firstChild);
+  });
+  povSync();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
 <div id="pst-w"><div class="stage" id="pst" data-sub="" data-pose="natural" data-loc="">
