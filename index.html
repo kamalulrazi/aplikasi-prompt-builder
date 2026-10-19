@@ -18526,13 +18526,54 @@ function vbBulkToggleTopik(i){
   if(!box)return;
   let opening=box.classList.contains('hidden');
   box.classList.toggle('hidden');
-  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur detail (boleh dilewati)';
+  if(btn)btn.textContent=opening?'Selesai':'Atur detail';
   if(opening){
-    let inp=document.getElementById('vb-bulk-topik-'+i);
-    if(inp)inp.focus();
+    vbBulkTab(i,'konten');
+  }else{
+    vbBulkUpdateSummary(i);
   }
   fFitWbody(box);
 }
+// Pindah tab di panel "Atur detail" per produk (Konten / Hook / Teks Video).
+// Cuma satu pane yang tampil sekaligus, jadi panel tidak panjang.
+function vbBulkTab(i,name){
+  ['konten','hook','teks'].forEach(function(k){
+    let pane=document.getElementById('vb-bulk-pane-'+i+'-'+k);
+    let tab=document.getElementById('vb-bulk-tab-'+i+'-'+k);
+    let on=(k===name);
+    if(pane)pane.classList.toggle('hidden',!on);
+    if(tab){
+      tab.style.background=on?'var(--surface3)':'none';
+      tab.style.color=on?'var(--accent)':'var(--muted)';
+    }
+  });
+  let first=document.getElementById(name==='konten'?'vb-bulk-keunggulan-'+i:(name==='teks'?'vb-bulk-overlay-'+i:''));
+  if(first&&name==='teks')first.focus();
+  let box=document.getElementById('vb-bulk-topik-box-'+i);
+  if(box)fFitWbody(box);
+}
+// Ringkasan chip di bawah nama produk (tampil saat panel detail tertutup).
+// Baca langsung dari input supaya selalu sinkron dengan yang diketik.
+function vbBulkUpdateSummary(i){
+  let wrap=document.getElementById('vb-bulk-sum-'+i);
+  if(!wrap)return;
+  let labels={psikologis:'Hook Psikologis',murah:'Hook Harga Murah',heboh:'Hook Super Heboh',custom:'Hook Sendiri'};
+  let cache=VB_BULK_ROW_CACHE[i]||{};
+  let val=function(id){let e=document.getElementById(id);return e?e.value.trim():'';};
+  let cut=function(t){return t.length>26?t.slice(0,25)+'…':t;};
+  let items=[];
+  if(cache.hookType&&labels[cache.hookType])items.push(labels[cache.hookType]);
+  let k=val('vb-bulk-keunggulan-'+i); if(k)items.push('Keunggulan: '+cut(k));
+  let t=val('vb-bulk-topik-'+i); if(t)items.push('Arah: '+cut(t));
+  let o=val('vb-bulk-overlay-'+i); if(o)items.push('Teks video: '+cut(o));
+  let chipCss='font-size:var(--fs-2xs);border:1px solid var(--border-hi);border-radius:20px;padding:3px 9px;color:var(--accent);background:var(--surface3);';
+  if(!items.length){
+    wrap.innerHTML='<span style="font-size:var(--fs-2xs);color:var(--muted);">Belum ada detail</span>';
+  }else{
+    wrap.innerHTML=items.map(function(x){return '<span style="'+chipCss+'">'+esc(x)+'</span>';}).join('');
+  }
+}
+
 // FITUR BARU (permintaan user, Sept 2026): "Atur detail" per produk di mode Bulk
 // sekarang SAMA seperti "Atur detail" di mode single — isinya: Arah Pembahasan,
 // Atur Hook (4 chip + Isi Sendiri), dan kolom "Isi" (teks kecil di video).
@@ -18544,24 +18585,37 @@ function vbBulkToggleTopik(i){
 function _vbBulkDetailInnerHtml(i,cached){
   let hookOpts=[['psikologis','Hook Psikologis'],['murah','Hook Harga Murah'],['heboh','Hook Super Heboh'],['custom','Isi Sendiri']];
   let chips=hookOpts.map(function(o){
-    return '<div class="chip'+(cached.hookType===o[0]?' sel':'')+'" onclick="vbBulkPickHook('+i+',\''+o[0]+'\',this)" style="min-height:32px;padding:5px 10px;font-size:var(--fs-2xs);">'+o[1]+'</div>';
+    return '<div class="chip'+(cached.hookType===o[0]?' sel':'')+'" onclick="vbBulkPickHook('+i+',\''+o[0]+'\',this)" style="min-height:40px;padding:8px 10px;font-size:var(--fs-xs2);display:flex;align-items:center;justify-content:center;text-align:center;">'+o[1]+'</div>';
   }).join('');
   let showCustom=(cached.hookType==='custom');
-  let inpStyle='font-size:var(--fs-xs2);padding:6px 8px;';
-  let lblStyle='font-size:var(--fs-2xs);margin-top:4px;';
-  return '<div style="display:flex;flex-direction:column;gap:6px;">'
+  let inpStyle='font-size:var(--fs-xs2);padding:8px 10px;';
+  let lblStyle='font-size:var(--fs-2xs);margin-top:8px;';
+  let tabCss='flex:1;border:none;border-radius:8px;padding:8px 4px;font-size:var(--fs-xs2);cursor:pointer;font-family:inherit;';
+  function tab(k,label){return '<button type="button" id="vb-bulk-tab-'+i+'-'+k+'" onclick="vbBulkTab('+i+',\''+k+'\')" style="'+tabCss+'background:none;color:var(--muted);">'+label+'</button>';}
+  return '<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">'
+    +'<div style="display:flex;gap:2px;background:var(--surface);border-radius:10px;padding:3px;">'+tab('konten','Konten')+tab('hook','Hook')+tab('teks','Teks Video')+'</div>'
+    // Pane 1: Konten
+    +'<div id="vb-bulk-pane-'+i+'-konten">'
     +'<label class="inplabel" style="'+lblStyle+'">Keunggulan <span style="font-weight:400;color:var(--muted);">(opsional)</span></label>'
     +'<input class="inp" id="vb-bulk-keunggulan-'+i+'" aria-label="Keunggulan produk '+(i+1)+'" maxlength="150" placeholder="Contoh: tahan air, ringan dipakai seharian" style="'+inpStyle+'" value="'+esc(cached.keunggulan||'')+'" />'
     +'<label class="inplabel" style="'+lblStyle+'">Arah Pembahasan</label>'
     +'<input class="inp" id="vb-bulk-topik-'+i+'" aria-label="Arah pembahasan produk '+(i+1)+'" maxlength="150" placeholder="Contoh: tas yang dipakai kalangan atas" style="'+inpStyle+'" value="'+esc(cached.topik||'')+'" />'
-    +'<label class="inplabel" style="'+lblStyle+'">Atur Hook</label>'
-    +'<div id="vb-bulk-hook-chips-'+i+'" style="display:flex;flex-wrap:wrap;gap:6px;">'+chips+'</div>'
-    +'<div id="vb-bulk-hook-custom-box-'+i+'" class="'+(showCustom?'':'hidden')+'">'
+    +'</div>'
+    // Pane 2: Hook
+    +'<div id="vb-bulk-pane-'+i+'-hook" class="hidden">'
+    +'<label class="inplabel" style="'+lblStyle+'">Pilih gaya hook</label>'
+    +'<div id="vb-bulk-hook-chips-'+i+'" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'+chips+'</div>'
+    +'<div id="vb-bulk-hook-custom-box-'+i+'" class="'+(showCustom?'':'hidden')+'" style="margin-top:6px;">'
     +'<input class="inp" id="vb-bulk-hook-custom-'+i+'" aria-label="Hook sendiri produk '+(i+1)+'" maxlength="150" placeholder="Contoh: hook yang bikin penasaran soal isi paketnya" style="'+inpStyle+'" value="'+esc(cached.hookCustom||'')+'" />'
     +'</div>'
-    +'<label class="inplabel" style="'+lblStyle+'">Isi</label>'
+    +'</div>'
+    // Pane 3: Teks kecil di video (dulu label "Isi")
+    +'<div id="vb-bulk-pane-'+i+'-teks" class="hidden">'
+    +'<label class="inplabel" style="'+lblStyle+'">Teks kecil di video</label>'
     +'<input class="inp" id="vb-bulk-overlay-'+i+'" aria-label="Teks overlay produk '+(i+1)+'" maxlength="60" placeholder="Contoh: sepatu futsal" style="'+inpStyle+'" value="'+esc(cached.overlay||'')+'" />'
-    +'<p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0;line-height:1.55;">Kalau diisi, otomatis ditambahkan di akhir prompt Hook: muncul tulisan kecil banget pada detik awal selama 2 detik di pojok kanan paling bawah. Tidak dikirim ke server. Kosongkan kalau tidak perlu.</p>'
+    +'<p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;line-height:1.55;">Kalau diisi, otomatis ditambahkan di akhir prompt Hook: muncul tulisan kecil banget pada detik awal selama 2 detik di pojok kanan paling bawah. Tidak dikirim ke server. Kosongkan kalau tidak perlu.</p>'
+    +'</div>'
+    +'<button type="button" onclick="vbBulkToggleTopik('+i+')" style="width:100%;margin-top:10px;background:var(--accent-dim-bg);border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:9px;font-size:var(--fs-xs2);cursor:pointer;font-family:inherit;">Selesai</button>'
     +'</div>';
 }
 // Pilih gaya Hook untuk produk ke-i di form Bulk. Klik ulang chip yang sama =
@@ -18576,6 +18630,7 @@ function vbBulkPickHook(i,val,el){
   if(already){
     cache.hookType='';
     if(customBox)customBox.classList.add('hidden');
+    vbBulkUpdateSummary(i);
     fFitWbody(el);
     return;
   }
@@ -18590,6 +18645,7 @@ function vbBulkPickHook(i,val,el){
       customBox.classList.add('hidden');
     }
   }
+  vbBulkUpdateSummary(i);
   fFitWbody(el);
 }
 // Bangun N baris input (Nama Produk *wajib + Keunggulan opsional + Foto opsional) sesuai jumlah yang dipilih user
@@ -18653,10 +18709,8 @@ function vbBulkSetCount(){
       +'<div style="display:flex;gap:6px;margin-bottom:0;align-items:flex-start;">'
       +'<div style="flex:1;display:flex;flex-direction:column;gap:6px;">'
       +'<input class="inp" id="vb-bulk-nama-'+i+'" aria-label="Nama produk '+(i+1)+'" maxlength="80" placeholder="Nama produk *wajib" style="font-size:var(--fs-xs2);padding:6px 8px;" value="'+esc(cached.nama||'')+'" />'
-      +'<button type="button" onclick="vbBulkToggleTopik('+i+')" id="vb-bulk-topik-toggle-'+i+'" style="background:none;border:none;color:var(--accent);font-size:var(--fs-2xs);cursor:pointer;padding:0;font-weight:500;text-align:left;">'+(hasTopik?'– Sembunyikan detail':'+ Atur detail (boleh dilewati)')+'</button>'
-      +'<div id="vb-bulk-topik-box-'+i+'" class="'+(hasTopik?'':'hidden')+'">'
-      +_vbBulkDetailInnerHtml(i,cached)
-      +'</div>'
+      +'<div id="vb-bulk-sum-'+i+'" style="display:flex;flex-wrap:wrap;gap:5px;"></div>'
+      +'<button type="button" onclick="vbBulkToggleTopik('+i+')" id="vb-bulk-topik-toggle-'+i+'" style="align-self:flex-start;background:var(--accent-dim-bg);border:1px solid var(--accent);color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:6px 14px;border-radius:20px;font-weight:500;font-family:inherit;">'+(hasTopik?'Selesai':'Atur detail')+'</button>'
       +'</div>'
       +'<input type="file" accept="image/*" id="vb-bulk-foto-input-'+i+'" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="vbHandleBulkFotoUpload(this,'+i+')" />'
       +'<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;">'
@@ -18668,8 +18722,13 @@ function vbBulkSetCount(){
       +'<button type="button" onclick="vbRemoveBulkFoto('+i+')" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg class="icon"><use href="#ic-close"></use></svg></button>'
       +'</div>'
       +'</div>'
+      +'</div>'
+      +'<div id="vb-bulk-topik-box-'+i+'" class="'+(hasTopik?'':'hidden')+'">'
+      +_vbBulkDetailInnerHtml(i,cached)
       +'</div>';
     rows.appendChild(row);
+    vbBulkUpdateSummary(i);
+    if(hasTopik)vbBulkTab(i,'konten');
   }
   // Pastikan card cukup tinggi menampung semua baris + tombol Generate di
   // bawahnya, berapa pun jumlah produk yang baru saja diset (lihat fFitWbody).
