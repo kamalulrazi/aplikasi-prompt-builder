@@ -4840,7 +4840,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.25</div>
+  <div class="splash-version" id="splash-version">v14.26</div>
 </div>
 <script>
   (function(){
@@ -5652,7 +5652,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
         </div>
 
         <!-- MODE PRODUK SAJA · POV: tampil kalau user cuma memilih "Produk" (diatur povSync() di blok script pov-js) -->
-        <div id="f1-pov-hint">Cuma pilih <b>Produk</b>? Boleh langsung lanjut setelah nama produk diisi. Hasilnya foto produk dipegang gaya POV.</div>
+        <div id="f1-pov-hint">Cuma pilih <b>Produk</b>? Boleh langsung lanjut setelah nama produk diisi. Hasilnya foto produk gaya POV (dipegang atau di hanger).</div>
         <div class="f1-divider" id="f1-divider" style="display:none;"><span>Detail tiap foto</span><em id="f1-divider-count">0</em></div>
 
         <!-- FOTO DETAIL LIST — compact rows -->
@@ -5747,22 +5747,18 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       <div id="f3-pov-panel">
         <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.65;">Kakak ingin produk yang akan ditampilkan nanti bagaimana?</p>
         <div class="chips">
-          <div class="chip chip-wide" id="f3-pov-chip" onclick="fPovPickHold(this)">
+          <div class="chip chip-wide" id="f3-pov-chip-tangan" data-hold="tangan" onclick="fPovPickHold(this,'tangan')">
             <div>
-              <div class="text-title-sm">POV</div>
-              <div class="text-hint">Produk dipegang dengan sudut pandang orang pertama, seolah-olah kakak sendiri yang memegangnya.</div>
+              <div class="text-title-sm">Dipegang</div>
+              <div class="text-hint">Produk dipegang satu tangan saja, sudut pandang POV (orang pertama).</div>
             </div>
           </div>
-        </div>
-        <div class="mt12">
-          <label class="inplabel">Atau isi sendiri</label>
-          <div style="display:flex;gap:6px;">
-            <div class="inp-wrap" style="flex:1;">
-              <input class="inp" id="f3-pov-custom" maxlength="300" placeholder="Example: POV, holding the product up close with both hands..." onfocus="fCustomFocus(this)" oninput="fCountInp(this,'f3-pov-counter')" />
-              <div class="inp-counter" id="f3-pov-counter">0 / 300</div>
+          <div class="chip chip-wide" id="f3-pov-chip-hanger" data-hold="hanger" onclick="fPovPickHold(this,'hanger')">
+            <div>
+              <div class="text-title-sm">Di hanger</div>
+              <div class="text-hint">Produk digantung di hanger dan terlihat penuh menghadap kamera, sudut pandang POV.</div>
             </div>
           </div>
-          <button class="btn sm" data-role="mt12-confirm" onclick="fPovPickHoldCustom()">Lanjut →</button>
         </div>
       </div>
       <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.65;">Kakak ingin produk yang akan ditampilkan nanti bagaimana?</p>
@@ -7057,7 +7053,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.25 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.26 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -31489,9 +31485,11 @@ body.pov-on .pov-hint{display:block;}
 var $=function(id){return document.getElementById(id);};
 var ORDER=['f5','f3','f9','f7'];                       /* urutan step mode POV */
 var TITLES={f5:'Lokasi',f3:'Cara Tampil',f9:'Mood & Tone',f7:'Pencahayaan'};
-var POV_PLACEMENT='held in hand';
+var HOLD={
+  tangan:{label:'Dipegang',text:'held in one hand only',placement:'held in one hand only \u2014 a single hand visible holding the product, no second hand in the frame'},
+  hanger:{label:'Di hanger',text:'hanging on a hanger',placement:'hanging on a hanger, fully visible and facing the camera'}
+};
 var POV_CAMERA='POV style (first-person perspective)';
-var POV_HOLD_TEXT='held in POV style (first-person perspective)';
 
 /* Teks Inggris untuk chip preset (chip aslinya berisi teks Indonesia) */
 var LOK_EN={
@@ -31540,6 +31538,10 @@ function resetCounter(cid){var c=$(cid);if(c){c.textContent='0 / 300';c.classNam
 function povSync(){
   if(typeof FS==='undefined')return;
   var on=!!FS.povProduk;
+  if(on&&FS.holdKey==='pov'){   /* sisa Riwayat lama (opsi "POV") → disamakan dengan "Dipegang" */
+    FS.holdKey='tangan';FS.hold=HOLD.tangan.text;FS.holdLabel=HOLD.tangan.label;FS.povPlacement=HOLD.tangan.placement;FS.povCamera=POV_CAMERA;
+    var fa3=$('fa3');if(fa3&&fa3.textContent==='POV')fa3.textContent=HOLD.tangan.label;
+  }
   document.body.classList.toggle('pov-on',on);
   Object.keys(PH_ID).forEach(function(k){
     var inp=$(PH_ID[k]);if(!inp)return;
@@ -31626,15 +31628,11 @@ function setLokasi(desc,label,raw){
   doneCard('f5','fa5',label==='Custom'?trunc(raw,35):label);
   povAdvance();
 }
-function setHold(kind,text){
-  FS.holdKey=kind;
-  if(kind==='pov'){
-    FS.hold=POV_HOLD_TEXT;FS.holdLabel='POV';FS.povPlacement=POV_PLACEMENT;FS.povCamera=POV_CAMERA;
-    doneCard('f3','fa3','POV');
-  }else{
-    FS.hold=text;FS.holdLabel='Custom';FS.povPlacement=text;FS.povCamera=text;
-    doneCard('f3','fa3','Custom — '+trunc(text,35));
-  }
+function setHold(kind){
+  var h=HOLD[kind]||HOLD.tangan;
+  FS.holdKey=HOLD[kind]?kind:'tangan';
+  FS.hold=h.text;FS.holdLabel=h.label;FS.povPlacement=h.placement;FS.povCamera=POV_CAMERA;
+  doneCard('f3','fa3',h.label);
   povAdvance();
 }
 function setMood(val,label){
@@ -31649,20 +31647,11 @@ function setCahaya(desc,label,raw){
   povAdvance();
 }
 
-/* ── step 3: Cara Tampil Produk — opsi tunggal POV + isi sendiri ── */
-window.fPovPickHold=function(el){
+/* ── step 3: Cara Tampil Produk — 2 opsi: Dipegang (satu tangan) / Di hanger. Sudut kamera selalu POV ── */
+window.fPovPickHold=function(el,kind){
   document.querySelectorAll('#f3 .chip').forEach(function(c){c.classList.remove('sel');});
   el.classList.add('sel');
-  fShowConfirm('f3',el,function(){setHold('pov');});
-};
-var holdLock=false;
-window.fPovPickHoldCustom=function(){
-  if(holdLock)return;
-  var inp=$('f3-pov-custom'),val=inp?inp.value.trim():'';
-  if(!val){showToast('Isi cara tampil produk dulu!','error');return;}
-  holdLock=true;setTimeout(function(){holdLock=false;},600);
-  document.querySelectorAll('#f3 .chip').forEach(function(c){c.classList.remove('sel');});
-  setHold('custom',val);
+  fShowConfirm('f3',el,function(){setHold(kind);});
 };
 
 /* ── wrapper: lokasi, mood, pencahayaan (chip + isi sendiri) ── */
@@ -31811,9 +31800,8 @@ wrap('fRenderList',function(o,a){var r=o.apply(this,a);povSync();return r;});
 wrap('fRestoreStepUI',function(o,a){
   var r=o.apply(this,a);
   if(FS.povProduk&&Number(a[0])===3){
-    var chip=$('f3-pov-chip'),inp=$('f3-pov-custom');
-    if(chip)chip.classList.toggle('sel',FS.holdKey==='pov');
-    if(inp){inp.value=FS.holdKey==='custom'?FS.hold:'';fCountInp(inp,'f3-pov-counter');}
+    var k=FS.holdKey==='hanger'?'hanger':'tangan';
+    document.querySelectorAll('#f3-pov-panel .chip').forEach(function(c){c.classList.toggle('sel',!!FS.hold&&c.dataset.hold===k);});
   }
   return r;
 });
@@ -31831,9 +31819,10 @@ function povRenderSummary(){
   var lok=FS.lokasiLabel==='Custom'?trunc(FS.lokasi,55):(FS.lokasiLabel||'—');
   if(!FS.lokasi)warnings.push('Lokasi belum dipilih.');
   items.push({key:'Lokasi',val:lok,editCard:5});
-  var hold=FS.holdLabel==='Custom'?trunc(FS.hold,55):(FS.hold?(FS.holdLabel||'POV'):'—');
+  var hold=FS.hold?(FS.holdLabel==='Custom'?trunc(FS.hold,55):(FS.holdLabel||'Dipegang')):'—';
   if(!FS.hold)warnings.push('Cara tampil produk belum dipilih.');
   items.push({key:'Cara Tampil',val:hold,editCard:3});
+  items.push({key:'Sudut Kamera',val:'POV',editCard:null});
   var mood=FS.moodLabel==='Custom'?trunc(FS.mood,55):(FS.moodLabel||'—');
   if(!FS.mood)warnings.push('Mood & tone belum dipilih.');
   items.push({key:'Mood',val:mood,editCard:9});
@@ -31866,12 +31855,13 @@ function povBuild(){
   var loc=(FS.lokasiDesc||FS.lokasi||'').trim();
   var moodFull=(FS.mood||'').trim();
   var light=(FS.cahayaDesc||FS.cahaya||'').trim();
-  var placement=FS.povPlacement||POV_PLACEMENT;
-  var camera=FS.povCamera||POV_CAMERA;
-  var holdTxt=FS.holdKey==='custom'?placement:POV_HOLD_TEXT;
+  var camera=POV_CAMERA;   /* sudut kamera selalu POV */
+  var H=HOLD[FS.holdKey]||(FS.holdKey==='custom'?null:HOLD.tangan);
+  var placement=H?H.placement:(FS.povPlacement||HOLD.tangan.placement);   /* 'custom' = sisa riwayat lama */
+  var holdTxt=H?H.text:placement;
   var moodShort=MOOD_SHORT[FS.moodLabel]||moodFull;
 
-  var prompt='Photorealistic product photo. Product: '+name+', '+holdTxt+'. Location: '+loc+'. Mood: '+moodShort+'.';
+  var prompt='Photorealistic product photo. Product: '+name+', '+holdTxt+'. Camera: '+camera+'. Location: '+loc+'. Mood: '+moodShort+'.';
 
   var refPhotos=realRefs.map(function(r,i){
     var def=FTYPE.produk;
