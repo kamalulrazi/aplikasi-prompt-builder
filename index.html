@@ -4840,7 +4840,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.29</div>
+  <div class="splash-version" id="splash-version">v14.30</div>
 </div>
 <script>
   (function(){
@@ -7091,7 +7091,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.29 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.30 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -32705,6 +32705,108 @@ html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm .btn{display:flex
   function sched(){if(!raf)raf=requestAnimationFrame(run);}
   if(window.MutationObserver)new MutationObserver(sched).observe(document.body,{childList:true,subtree:true});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sched);else sched();
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     BANNER "BUKA DI CHROME" (v14.30) — deteksi browser dalam aplikasi
+     (TikTok, Instagram, Facebook, Line, Snapchat, dll) & Android WebView.
+     Browser-browser ini sering TIDAK bisa membuka galeri/kamera dari
+     <input type="file">, jadi upload foto produk gagal diam-diam.
+     Banner muncul sekali di paling atas, bisa ditutup (diingat selama
+     sesi). Di Chrome/Safari biasa banner tidak muncul sama sekali.
+     Berdiri sendiri: tidak menyentuh kode upload / step manapun.
+     ═══════════════════════════════════════════════════════════════════ -->
+<style id="iab-css">
+#iab-banner{position:fixed;top:0;left:0;right:0;z-index:1000000;display:none;box-sizing:border-box;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 14px 12px;
+  background:#1d1a14;border-bottom:1px solid rgba(217,184,118,.45);color:#F2F0EC;
+  font:400 13px/1.5 'Hanken Grotesk',system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#iab-banner.show{display:block}
+#iab-banner b{color:#F0D9A0;font-weight:600}
+#iab-banner .iab-x{position:absolute;top:calc(6px + env(safe-area-inset-top,0px));right:8px;width:30px;height:30px;
+  border:0;background:none;color:#8B8892;font-size:20px;line-height:1;cursor:pointer}
+#iab-banner .iab-t{margin:0 30px 8px 0}
+#iab-banner .iab-row{display:flex;flex-wrap:wrap;gap:8px}
+#iab-banner .iab-btn{flex:1 1 auto;min-height:40px;padding:8px 14px;border-radius:10px;font:600 13px 'Hanken Grotesk',system-ui,sans-serif;cursor:pointer}
+#iab-banner .iab-go{background:#D9B876;color:#17130a;border:0}
+#iab-banner .iab-cp{background:transparent;color:#F0D9A0;border:1px solid rgba(217,184,118,.5)}
+</style>
+<div id="iab-banner" role="alert">
+  <button type="button" class="iab-x" id="iab-close" aria-label="Tutup">&times;</button>
+  <div class="iab-t">&#9888;&#65039; Kamu membuka lewat <b id="iab-name">browser aplikasi</b>. <b>Upload foto bisa tidak berfungsi.</b> Buka di Chrome supaya semua fitur jalan.</div>
+  <div class="iab-row">
+    <button type="button" class="iab-btn iab-go" id="iab-open">Buka di Chrome</button>
+    <button type="button" class="iab-btn iab-cp" id="iab-copy">Salin link</button>
+  </div>
+  <div id="iab-hint" style="margin-top:8px;font-size:12px;color:#8B8892;display:none">Kalau tombol tidak bereaksi: ketuk titik tiga (&#8942;) di pojok layar, lalu pilih &ldquo;Buka di browser&rdquo; / &ldquo;Open in browser&rdquo;.</div>
+</div>
+<script>
+(function(){
+  try{
+    var ua=navigator.userAgent||'';
+    var isAndroid=/Android/i.test(ua);
+    var apps=[
+      [/musical_ly|BytedanceWebview|TikTok|trill_|ByteLocale/i,'TikTok'],
+      [/Instagram/i,'Instagram'],
+      [/FBAN|FBAV|FB_IAB|FBIOS|Messenger/i,'Facebook'],
+      [/\bLine\//i,'LINE'],
+      [/Snapchat/i,'Snapchat'],
+      [/Twitter|TwitterAndroid/i,'X (Twitter)'],
+      [/Pinterest/i,'Pinterest'],
+      [/LinkedInApp/i,'LinkedIn'],
+      [/Shopee|Tokopedia/i,'aplikasi Shopee/Tokopedia']
+    ];
+    var name='';
+    for(var i=0;i<apps.length;i++){if(apps[i][0].test(ua)){name=apps[i][1];break;}}
+    // Android WebView umum: "; wv)" di User-Agent (tanpa nama aplikasi yang dikenal)
+    if(!name&&isAndroid&&/; wv\)/.test(ua))name='browser aplikasi';
+    // iOS in-app: iPhone tanpa "Safari/" di UA = WebView
+    if(!name&&/iP(hone|ad|od)/.test(ua)&&!/Safari\//.test(ua))name='browser aplikasi';
+    if(!name)return;
+
+    try{if(sessionStorage.getItem('iab_dismissed')==='1')return;}catch(e){}
+
+    var bar=document.getElementById('iab-banner');
+    if(!bar)return;
+    document.getElementById('iab-name').textContent=name==='browser aplikasi'?name:('browser '+name);
+    bar.classList.add('show');
+
+    document.getElementById('iab-close').onclick=function(){
+      bar.classList.remove('show');
+      try{sessionStorage.setItem('iab_dismissed','1');}catch(e){}
+    };
+
+    document.getElementById('iab-open').onclick=function(){
+      var hint=document.getElementById('iab-hint');
+      if(isAndroid){
+        // Intent Chrome: bekerja di sebagian WebView; kalau diblok, hint di bawah jadi cadangan.
+        var proto=location.protocol.replace(':','')||'https';
+        var u='intent://'+location.host+location.pathname+location.search
+          +'#Intent;scheme='+proto+';package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(location.href)+';end';
+        try{location.href=u;}catch(e){}
+      }
+      if(hint)hint.style.display='block'; // iOS / intent diblok: tampilkan cara manual
+    };
+
+    document.getElementById('iab-copy').onclick=function(){
+      var btn=this,url=location.href;
+      function ok(){btn.textContent='Tersalin \u2713';setTimeout(function(){btn.textContent='Salin link';},2000);
+        var h=document.getElementById('iab-hint');if(h){h.style.display='block';h.textContent='Link tersalin. Buka Chrome, tempel di kolom alamat, lalu Enter.';}}
+      function fallback(){
+        try{
+          var t=document.createElement('textarea');t.value=url;t.style.cssText='position:fixed;opacity:0;top:0;left:0';
+          document.body.appendChild(t);t.focus();t.select();
+          var done=document.execCommand('copy');document.body.removeChild(t);
+          if(done)ok();else window.prompt('Salin link ini lalu buka di Chrome:',url);
+        }catch(e){window.prompt('Salin link ini lalu buka di Chrome:',url);}
+      }
+      try{
+        if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(ok,fallback);
+        else fallback();
+      }catch(e){fallback();}
+    };
+  }catch(e){/* banner tidak boleh pernah mengganggu app */}
 })();
 </script>
 </body>
