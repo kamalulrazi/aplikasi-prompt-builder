@@ -4888,7 +4888,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.30</div>
+  <div class="splash-version" id="splash-version">v14.32</div>
 </div>
 <script>
   (function(){
@@ -7153,7 +7153,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.30 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.32 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -16153,6 +16153,10 @@ const VB_FE_PROMPT_STEP={
     'detik 0: vidio dimulai dengan lokasi doang didalam frame, yang terlihat didalam frame hanyalah LOKASI TANPA ADA KARAKTER MANUSIA. kalo dalam foto ada karakter manusia, maka hapus aja khusus untuk frame awal aja.',
     'detik 1-3: karakter mulai masuk kedalam frame dari sisi kanan dan melakukan pose dua jari dengan exited.'
   ].join('\n'),
+  '1goyang':[
+    'Detik 0-2: Video langsung dimulai dengan extreme close-up dari sudut sedikit ke bawah (low angle). Frame hanya menampilkan separuh bawah tubuh karakter, dari dagu sampai perut; hidung dan mata tidak masuk frame. Kamera handheld bergoyang jelas: bergeser kiri-kanan, sedikit miring (tilt), dan naik-turun tidak stabil, seperti seseorang sedang menyetel dan membenarkan posisi hp. Ada micro-shake dan sedikit perubahan fokus/eksposur saat kamera digeser.',
+    'Detik 2-3: Karakter mundur selangkah sambil memberi pose dua jari.'
+  ].join('\n'),
   '1isi':[
     'detik 0-1: karakter menoleh sedikit aja ke arah kanan seolah lagi memantau seseorang, jadi ceritanya disini si karakter agak pemalu untuk merekam dirinya sendiri jadi dia jaga-jaga kalo misalkan ada orang lewat,',
     'detik 1-3: karakter memperlihatkan outfitnya dengan gerakan yang anggun tapi versi amatiran'
@@ -16161,24 +16165,25 @@ const VB_FE_PROMPT_STEP={
   '3isi':'detik 6-8: karakter berjalan mendekat kekamera untuk memperlihatkan wajahnya, di akhir dia memberikan pose imut wajahnya.',
   3:'detik 6-8: karakter mendekat kekamera sampai tangannya memegang kamera dan memberikan senyuman terakhir sebelum kameranya dimatikan. di frame terakhir kamera hitam gelap akibat ditutupi oleh tangan karakter.'
 };
+const VB_FE_PROMPT_CAM_DIAM='kamera: diam.'; // dibuang kalau Step 0-3 = Goyang (kamera handheld bergoyang)
 const VB_FE_PROMPT_TAIL=[
-  'kamera: diam.',
+  VB_FE_PROMPT_CAM_DIAM,
   'tidak ada musik, tidak ada kamera fisik dan hp fisik yang terlihat didalam frame. dan karakter tidak berbicara dan tidak mengeluarkan suara apapun.'
 ].join('\n');
 // Video pratinjau tiap step: utama media/N.mp4 (folder media seperti video lain), cadangan N.mp4 di folder yang sama dengan index.html.
 // Kunci '1isi' = opsi "Menoleh" di kategori Isi Step 0-3 (video flow.mp4).
-const VB_FE_VIDEO={1:['media/1.mp4','1.mp4'],'1isi':['media/flow.mp4','flow.mp4'],'3isi':['media/4.mp4','4.mp4'],2:['media/2.mp4','2.mp4'],3:['media/3.mp4','3.mp4']};
-const VB_FE_CAP={1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh',2:'Step 3-6 · Pose',3:'Step 6-8 · Tutup kamera','3isi':'Step 6-8 · Mendekat'};
+const VB_FE_VIDEO={1:['media/1.mp4','1.mp4'],'1isi':['media/flow.mp4','flow.mp4'],'1goyang':['media/5.mp4','5.mp4'],'3isi':['media/4.mp4','4.mp4'],2:['media/2.mp4','2.mp4'],3:['media/3.mp4','3.mp4']};
+const VB_FE_CAP={1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh','1goyang':'Step 0-3 · Goyang',2:'Step 3-6 · Pose',3:'Step 6-8 · Tutup kamera','3isi':'Step 6-8 · Mendekat'};
 // Storyboard: 3 bingkai. o[].v = nilai VB_FE_VAR ('buka'|'isi'|'penutup'), o[].k = kunci video/caption (lihat vbFeKey), o[].l = label.
 const VB_FE_SLOT=[null,
-  {t:'Awal',r:'',q:'Bagaimana video dibuka?',c:[{v:'buka',l:'Pembukaan'},{v:'isi',l:'Isi'}],o:[{v:'buka',k:1,l:'Muncul'},{v:'isi',k:'1isi',l:'Menoleh'}]},
+  {t:'Awal',r:'0–3 dtk',q:'Bagaimana video dibuka?',c:[{v:'buka',l:'Pembukaan'},{v:'isi',l:'Isi'}],o:[{v:'buka',k:1,l:'Muncul'},{v:'goyang',cat:'buka',k:'1goyang',l:'Goyang'},{v:'isi',k:'1isi',l:'Menoleh'}]},
   {t:'Tengah',r:'3–6 dtk',q:'Pose apa di tengah video?',o:[{v:'',k:2,l:'Pose'}]},
   {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',c:[{v:'penutup',l:'Penutup'},{v:'isi',l:'Isi'}],o:[{v:'penutup',k:3,l:'Tutup kamera'},{v:'isi',k:'3isi',l:'Mendekat'}]}];
 const VB_FE_ICO='<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3a4 4 0 0 1-8 0z"/></svg>';
 let VB_FASHION_DURASI=null; // cuma 8 yang tersedia
 let VB_FE_PICK={1:false,2:false,3:false};
-let VB_FE_VAR={1:'buka',3:'penutup'};   // varian opsi bingkai Awal: 'buka' (Muncul) / 'isi' (Menoleh); bingkai Akhir: 'penutup' / 'isi' (Mendekat)
-function vbFeKey(n){return ((n===1||n===3)&&VB_FE_VAR[n]==='isi')?(n+'isi'):n;}
+let VB_FE_VAR={1:'buka',3:'penutup'};   // varian opsi bingkai Awal: 'buka' (Muncul) / 'goyang' (Goyang) / 'isi' (Menoleh); bingkai Akhir: 'penutup' / 'isi' (Mendekat)
+function vbFeKey(n){if(n===1&&VB_FE_VAR[1]==='goyang')return '1goyang';return ((n===1||n===3)&&VB_FE_VAR[n]==='isi')?(n+'isi'):n;}
 let VB_FE_MODE='step'; // 'step' = video 1 opsi diulang, 'full' = versi lengkap 1→2→3
 let VB_FE_GEN_TOKEN=0;
 function vbFePausePreview(){
@@ -16395,7 +16400,7 @@ function vbFeDrawSheet(n,cur){
     h+='<div class="vb-fe-seg" role="tablist">'+t.c.map(function(c){
       return '<button type="button" role="tab" aria-selected="'+(c.v===VB_FE_SHEET_CAT)+'" onclick="vbFeSheetTab('+n+',\''+c.v+'\')">'+c.l+'</button>';
     }).join('')+'</div>';
-    list=t.o.filter(function(o){return o.v===VB_FE_SHEET_CAT;});
+    list=t.o.filter(function(o){return (o.cat||o.v)===VB_FE_SHEET_CAT;});
   }
   sh.innerHTML=h+list.map(function(o){
     return '<button type="button" class="vb-fe-row" aria-pressed="'+(cur===o.k)+'" onclick="vbFePilihStep('+n+',\''+o.v+'\')"><span class="vb-fe-rd"></span>'+o.l+'</button>';
@@ -16414,7 +16419,7 @@ function vbFeOpenSheet(n){
   let cur=VB_FE_PICK[n]?vbFeOptOf(n).k:null;
   VB_FE_SHEET_N=n;VB_FE_SHEET_OPENER=vbFeFrameEl(n);
   sh.setAttribute('aria-label',t.q);
-  if(t.c)VB_FE_SHEET_CAT=VB_FE_PICK[n]?vbFeOptOf(n).v:t.c[0].v;
+  if(t.c)VB_FE_SHEET_CAT=VB_FE_PICK[n]?(vbFeOptOf(n).cat||vbFeOptOf(n).v):t.c[0].v;
   vbFeWarm(t.o.map(function(o){return o.k;}));
   vbFeDrawSheet(n,cur);
   bk.hidden=sh.hidden=false;
@@ -16485,14 +16490,14 @@ function vbFePlayFull(){
 // Pilih opsi di bingkai n (k = 'isi' untuk opsi kedua di bingkai Awal/Akhir: Menoleh / Mendekat; selain itu opsi utama).
 function vbFePilihStep(n,k){
   if(n!==1&&n!==2&&n!==3)return;
-  if(n===1||n===3)VB_FE_VAR[n]=(k==='isi')?'isi':(n===1?'buka':'penutup');
+  if(n===1||n===3)VB_FE_VAR[n]=(k==='isi')?'isi':((n===1&&k==='goyang')?'goyang':(n===1?'buka':'penutup'));
   VB_FE_PICK[n]=true;
   vbFeCloseSheet();
   vbFeUpdateFrame(n);
   vbFeUpdateSeq();
 }
 function vbFeBuildPrompt(){
-  return VB_FE_PROMPT_HEAD+'\n\n'+VB_FE_PROMPT_STEP[vbFeKey(1)]+'\n'+VB_FE_PROMPT_STEP[2]+'\n'+VB_FE_PROMPT_STEP[vbFeKey(3)]+'\n\n'+VB_FE_PROMPT_TAIL;
+  return VB_FE_PROMPT_HEAD+'\n\n'+VB_FE_PROMPT_STEP[vbFeKey(1)]+'\n'+VB_FE_PROMPT_STEP[2]+'\n'+VB_FE_PROMPT_STEP[vbFeKey(3)]+'\n\n'+(vbFeKey(1)==='1goyang'?VB_FE_PROMPT_TAIL.split('\n').filter(function(l){return l!==VB_FE_PROMPT_CAM_DIAM;}).join('\n'):VB_FE_PROMPT_TAIL);
 }
 function vbFeGenerate(){
   if(!VB_FASHION_DURASI)return;
