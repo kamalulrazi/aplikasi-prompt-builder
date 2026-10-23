@@ -1977,6 +1977,15 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    .pb-locked yang pointer-events:none (chip mode referensi foto). */
 .chip.tess-durasi-locked{opacity:0.4;filter:grayscale(0.6);cursor:not-allowed;}
 .chip.tess-durasi-locked:hover{border-color:var(--border);background:var(--surface2);color:var(--text);}
+/* Fashion Editorial (23 Okt 2026): kotak pratinjau baju + kolom step. Warna lewat token tema. */
+.vb-fe-layout{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin-bottom:4px;}
+.vb-fe-preview{width:168px;max-width:100%;flex:0 0 auto;}
+.vb-fe-pv-box{position:relative;width:100%;aspect-ratio:9/16;border:1px solid var(--border-hi);border-radius:14px;overflow:hidden;background:var(--surface3);}
+.vb-fe-pv-box video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#000;}
+.vb-fe-pv-ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px;text-align:center;color:var(--muted2);font-size:11.5px;line-height:1.4;}
+.vb-fe-pv-ph svg{color:var(--accent);}
+.vb-fe-pv-cap{font-size:11.5px;font-weight:600;color:var(--text);text-align:center;margin-top:6px;line-height:1.25;}
+.vb-fe-steps-col{flex:1 1 150px;min-width:140px;}
 /* INPUTS */
 .inp{
   width:100%;background:var(--surface2);border:1px solid var(--border);
@@ -6436,29 +6445,19 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
         </div>
       </div>
 
-      <!-- MODE BARU Fashion Editorial (18 Okt 2026) — alur bertahap, pola sama
-           dengan tess tapi TANPA step Gaya: (1) tombol "Lanjut →" → (2) isi
-           Nama Produk (wajib, cuma catatan, TIDAK ikut masuk ke prompt) →
-           (3) pilih Durasi: 4/6/10 detik dikunci (klik = toast "belum
-           tersedia"), cuma "8 detik" yang bisa dipilih → (4) tombol
-           "Generate Prompt" → loading sebentar → (5) tampil 2 prompt bahasa
-           Inggris (VB_FASHION_PROMPT_1 & VB_FASHION_PROMPT_2). Dua prompt =
-           dua variasi video terpisah. Lihat vbFeLanjut(), vbFeNamaInput(),
-           vbFeGoDurasi(), vbFePilihDurasi(), vbFeDurasiLocked(),
-           vbFeGenerate(), vbCopyFePrompt(n) & vbFeResetFlow() (dipanggil dari
-           vbPickRefMode()/vbResetNow()). -->
+      <!-- MODE BARU Fashion Editorial (revisi 23 Okt 2026) — alur bertahap:
+           (1) "Lanjut →" → (2) pilih Durasi (4/6/10 detik dikunci, cuma 8 detik) →
+           "Lanjut →" → (3) kotak Pratinjau + 3 step: Step 0-3 (Muncul), Step 3-6 (Pose),
+           Step 6-8 (Penutup). Tiap step cuma 1 opsi; klik opsi = video 1/2/3.mp4 tampil
+           di kotak pratinjau & step berikutnya terbuka. Setelah 3 step dipilih →
+           "Generate Prompt" → 1 prompt bahasa Indonesia (kepala + isi step + ekor).
+           Tidak ada lagi step Nama Produk & 2 prompt lama. Lihat vbFeLanjut(),
+           vbFePilihDurasi(), vbFeGoSteps(), vbFePilihStep(n), vbFeGenerate(),
+           vbCopyFePrompt() & vbFeResetFlow() (dipanggil dari vbPickRefMode()/vbResetNow()). -->
       <div id="vb-mode-fashion-area" class="hidden" style="margin-bottom:14px;">
         <div id="vb-fe-step-lanjut">
           <div style="text-align:right;">
             <button class="btn sm" onclick="vbFeLanjut()" style="width:auto;padding:8px 18px;">Lanjut →</button>
-          </div>
-        </div>
-        <div id="vb-fe-step-nama" class="hidden">
-          <label class="inplabel" style="font-size:var(--fs-2xs);">Nama Produk <span style="color:var(--accent);">*wajib</span></label>
-          <div class="inp-wrap"><input class="inp" id="vb-fe-nama-input" maxlength="60" placeholder="Contoh: Dress Satin Hitam" oninput="vbFeNamaInput()" /></div>
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 10px;">Nama produk cuma buat catatan kamu — tidak akan dimasukkan ke dalam prompt.</p>
-          <div style="text-align:right;">
-            <button class="btn sm hidden" id="vb-fe-nama-lanjut-btn" onclick="vbFeGoDurasi()" style="width:auto;padding:8px 18px;">Lanjut →</button>
           </div>
         </div>
         <div id="vb-fe-step-durasi" class="hidden">
@@ -6471,29 +6470,56 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
           </div>
           <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Durasi 4/6/10 detik belum tersedia — pakai 8 detik dulu ya.</p>
           <div style="text-align:right;">
+            <button class="btn sm hidden" id="vb-fe-durasi-lanjut-btn" onclick="vbFeGoSteps()" style="width:auto;padding:8px 18px;">Lanjut →</button>
+          </div>
+        </div>
+        <div id="vb-fe-steps" class="hidden">
+          <div class="vb-fe-layout">
+            <div class="vb-fe-preview">
+              <div class="vb-fe-pv-box" id="vb-fe-pv-box">
+                <div class="vb-fe-pv-ph" id="vb-fe-pv-ph">
+                  <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3a4 4 0 0 1-8 0z"/></svg>
+                  <span id="vb-fe-pv-ph-text">Pratinjau baju<br>Pilih opsi untuk melihat videonya</span>
+                </div>
+                <video id="vb-fe-pv-video" class="hidden" muted loop playsinline preload="auto"></video>
+              </div>
+              <div class="vb-fe-pv-cap" id="vb-fe-pv-cap">Pratinjau</div>
+            </div>
+            <div class="vb-fe-steps-col">
+              <div id="vb-fe-s1">
+                <label class="inplabel" style="font-size:var(--fs-2xs);">Step 0-3</label>
+                <div class="chips" style="margin:6px 0 10px;">
+                  <div class="chip" id="vb-fe-opt-1" onclick="vbFePilihStep(1)">Muncul</div>
+                </div>
+              </div>
+              <div id="vb-fe-s2" class="hidden">
+                <label class="inplabel" style="font-size:var(--fs-2xs);">Step 3-6</label>
+                <div class="chips" style="margin:6px 0 10px;">
+                  <div class="chip" id="vb-fe-opt-2" onclick="vbFePilihStep(2)">Pose</div>
+                </div>
+              </div>
+              <div id="vb-fe-s3" class="hidden">
+                <label class="inplabel" style="font-size:var(--fs-2xs);">Step 6-8</label>
+                <div class="chips" style="margin:6px 0 10px;">
+                  <div class="chip" id="vb-fe-opt-3" onclick="vbFePilihStep(3)">Penutup</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:right;margin-top:6px;">
             <button class="btn sm hidden" id="vb-fe-generate-btn" onclick="vbFeGenerate()" style="width:auto;padding:8px 18px;">Generate Prompt</button>
           </div>
         </div>
         <div id="vb-fe-loading" class="hidden" style="text-align:center;padding:18px 0;color:var(--muted2);font-size:var(--fs-xs2);">⏳ Membuat prompt…</div>
         <div id="vb-fe-result" class="hidden">
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Dua prompt ini adalah dua variasi video — generate masing-masing sebagai klip terpisah (8 detik).</p>
           <div class="out-card">
             <div class="out-head">
-              <div class="out-label">Prompt 1 — Fashion Editorial (Menoleh &amp; Mendekat)</div>
+              <div class="out-label">Prompt — Fashion Editorial</div>
               <div style="display:flex;align-items:center;gap:7px;">
-                <button class="copy-btn" onclick="vbCopyFePrompt(1)">Salin</button>
+                <button class="copy-btn" onclick="vbCopyFePrompt()">Salin</button>
               </div>
             </div>
-            <div class="out-body"><pre id="vb-fe-prompt-text-1" style="white-space:pre-wrap;"></pre></div>
-          </div>
-          <div class="out-card" style="margin-top:10px;">
-            <div class="out-head">
-              <div class="out-label">Prompt 2 — Fashion Editorial (Pose Anggun &amp; Menunjuk)</div>
-              <div style="display:flex;align-items:center;gap:7px;">
-                <button class="copy-btn" onclick="vbCopyFePrompt(2)">Salin</button>
-              </div>
-            </div>
-            <div class="out-body"><pre id="vb-fe-prompt-text-2" style="white-space:pre-wrap;"></pre></div>
+            <div class="out-body"><pre id="vb-fe-prompt-text" style="white-space:pre-wrap;"></pre></div>
           </div>
         </div>
       </div>
@@ -16081,64 +16107,58 @@ function vbSyncTessPreview(show){
 // ── MODE BARU "Fashion Editorial" (18 Okt 2026) ─────────────────────────────
 // Self-contained seperti tess: Lanjut → Nama Produk → Durasi (cuma 8 detik) →
 // Generate → 2 prompt. Teks prompt SENGAJA bahasa Inggris (dikirim ke AI video).
-const VB_FASHION_PROMPT_1=[
-  'Fashion editorial video, 8 seconds, filmed as one continuous real-time shot. Natural real-time motion, with no cuts, no transitions, and no scene changes.',
-  '',
-  'Seconds 0-1: the character looks to the right, like someone keeping watch on the people passing by.',
-  'Second 2: the character turns to look at the camera and strikes a cute pose, then moves closer and closer until the face is very close to the camera.',
-  'Second 5: the character steps back and shows off the outfit, without turning around.',
-  '',
-  'The character does not speak. There is no music.'
+// Revisi 23 Okt 2026: step Nama Produk & 2 prompt lama DIHAPUS. Prompt sekarang bahasa
+// Indonesia (ditulis apa adanya dari permintaan user) = KEPALA + isi step terpilih + EKOR.
+const VB_FE_PROMPT_HEAD='vidio rekaman natural biasa bukan rekaman shooting profesional studio. jadi bikin dengan natural aja.';
+const VB_FE_PROMPT_STEP={
+  1:[
+    'detik 0: vidio dimulai dengan lokasi doang didalam frame, yang terlihat didalam frame hanyalah LOKASI TANPA ADA KARAKTER MANUSIA. kalo dalam foto ada karakter manusia, maka hapus aja khusus untuk frame awal aja.',
+    'detik 1-3: karakter mulai masuk kedalam frame dari sisi kanan dan melakukan pose dua jari dengan exited.'
+  ].join('\n'),
+  2:'detik 3-6: karakter melakukan pose dimana dia memperlihatkan outfit yang dipakai sambil mengangkat sedikit kakinya.',
+  3:'detik 6-8: karakter mendekat kekamera sampai tangannya memegang kamera dan memberikan senyuman terakhir sebelum kameranya dimatikan. di frame terakhir kamera hitam gelap akibat ditutupi oleh tangan karakter.'
+};
+const VB_FE_PROMPT_TAIL=[
+  'kamera: diam.',
+  'tidak ada musik, tidak ada kamera fisik dan hp fisik yang terlihat didalam frame. dan karakter tidak berbicara dan tidak mengeluarkan suara apapun.'
 ].join('\n');
-const VB_FASHION_PROMPT_2=[
-  'Fashion editorial video, 8 seconds.',
-  '',
-  'Seconds 0-1: the video starts with the character holding an elegant pose in the opening frame.',
-  'Then the character shows a little of the right side of the outfit, and after that a little of the left side of the outfit.',
-  'At second 5, the character walks toward the camera until very close, and then points to the bottom-left corner of the screen.',
-  '',
-  'The character must not turn around at any point during the video.',
-  'The character does not speak. There is no music.'
-].join('\n');
+// Video pratinjau tiap step: utama media/N.mp4 (folder media seperti video lain), cadangan N.mp4 di folder yang sama dengan index.html.
+const VB_FE_VIDEO={1:['media/1.mp4','1.mp4'],2:['media/2.mp4','2.mp4'],3:['media/3.mp4','3.mp4']};
+const VB_FE_CAP={1:'Step 0-3 · Muncul',2:'Step 3-6 · Pose',3:'Step 6-8 · Penutup'};
 let VB_FASHION_DURASI=null; // cuma 8 yang tersedia
+let VB_FE_PICK={1:false,2:false,3:false};
+function vbFePausePreview(){
+  let vid=document.getElementById('vb-fe-pv-video');
+  if(vid){try{vid.pause();}catch(e){}}
+}
 function vbFeResetFlow(){
-  let ids=['vb-fe-step-nama','vb-fe-step-durasi','vb-fe-loading','vb-fe-result','vb-fe-nama-lanjut-btn','vb-fe-generate-btn'];
+  let ids=['vb-fe-step-durasi','vb-fe-steps','vb-fe-loading','vb-fe-result','vb-fe-durasi-lanjut-btn','vb-fe-generate-btn','vb-fe-s2','vb-fe-s3'];
   ids.forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
   let stepLanjut=document.getElementById('vb-fe-step-lanjut');
   if(stepLanjut)stepLanjut.classList.remove('hidden');
-  let namaInp=document.getElementById('vb-fe-nama-input');
-  if(namaInp)namaInp.value='';
   let durasi8=document.getElementById('vb-fe-durasi-8');
   if(durasi8)durasi8.classList.remove('sel');
+  [1,2,3].forEach(function(n){let o=document.getElementById('vb-fe-opt-'+n);if(o)o.classList.remove('sel');});
+  let s1=document.getElementById('vb-fe-s1');
+  if(s1)s1.classList.remove('hidden');
+  // kotak pratinjau balik ke kondisi kosong
+  vbFePausePreview();
+  let vid=document.getElementById('vb-fe-pv-video');
+  if(vid){vid.classList.add('hidden');vid.removeAttribute('src');vid.onerror=null;try{vid.load();}catch(e){}}
+  let ph=document.getElementById('vb-fe-pv-ph');
+  if(ph)ph.classList.remove('hidden');
+  let phT=document.getElementById('vb-fe-pv-ph-text');
+  if(phT)phT.innerHTML='Pratinjau baju<br>Pilih opsi untuk melihat videonya';
+  let cap=document.getElementById('vb-fe-pv-cap');
+  if(cap)cap.textContent='Pratinjau';
   VB_FASHION_DURASI=null;
+  VB_FE_PICK={1:false,2:false,3:false};
 }
 function vbFeLanjut(){
   let stepLanjut=document.getElementById('vb-fe-step-lanjut');
-  let stepNama=document.getElementById('vb-fe-step-nama');
-  if(stepLanjut)stepLanjut.classList.add('hidden');
-  if(stepNama)stepNama.classList.remove('hidden');
-  let namaInp=document.getElementById('vb-fe-nama-input');
-  if(namaInp)namaInp.focus();
-}
-function vbFeNamaInput(){
-  let namaInp=document.getElementById('vb-fe-nama-input');
-  let namaLanjutBtn=document.getElementById('vb-fe-nama-lanjut-btn');
-  if(!namaInp||!namaLanjutBtn)return;
-  namaLanjutBtn.classList.toggle('hidden',!namaInp.value.trim());
-}
-// Nama Produk wajib & terisi → lanjut ke step pilih Durasi.
-function vbFeGoDurasi(){
-  let namaInp=document.getElementById('vb-fe-nama-input');
-  if(!namaInp||!namaInp.value.trim())return;
-  let stepNama=document.getElementById('vb-fe-step-nama');
   let stepDurasi=document.getElementById('vb-fe-step-durasi');
-  let durasi8=document.getElementById('vb-fe-durasi-8');
-  let genBtn=document.getElementById('vb-fe-generate-btn');
-  if(stepNama)stepNama.classList.add('hidden');
+  if(stepLanjut)stepLanjut.classList.add('hidden');
   if(stepDurasi)stepDurasi.classList.remove('hidden');
-  VB_FASHION_DURASI=null;
-  if(durasi8)durasi8.classList.remove('sel');
-  if(genBtn)genBtn.classList.add('hidden');
 }
 // Klik chip durasi yang masih dikunci (4/6/10 detik) — cuma kasih tahu belum tersedia.
 function vbFeDurasiLocked(){
@@ -16148,32 +16168,87 @@ function vbFePilihDurasi(n){
   if(n!==8){vbFeDurasiLocked();return;}
   VB_FASHION_DURASI=8;
   let durasi8=document.getElementById('vb-fe-durasi-8');
-  let genBtn=document.getElementById('vb-fe-generate-btn');
+  let btn=document.getElementById('vb-fe-durasi-lanjut-btn');
   if(durasi8)durasi8.classList.add('sel');
-  if(genBtn)genBtn.classList.remove('hidden');
+  if(btn)btn.classList.remove('hidden');
 }
-function vbFeGenerate(){
-  let namaInp=document.getElementById('vb-fe-nama-input');
-  if(!namaInp||!namaInp.value.trim())return;
+// Durasi 8 detik terpilih → buka kotak pratinjau + Step 0-3.
+function vbFeGoSteps(){
   if(!VB_FASHION_DURASI)return;
   let stepDurasi=document.getElementById('vb-fe-step-durasi');
+  let steps=document.getElementById('vb-fe-steps');
+  if(stepDurasi)stepDurasi.classList.add('hidden');
+  if(steps)steps.classList.remove('hidden');
+}
+// Tampilkan video step n di kotak pratinjau (coba media/N.mp4 dulu, lalu N.mp4).
+function vbFeSetPreview(n){
+  let vid=document.getElementById('vb-fe-pv-video');
+  let ph=document.getElementById('vb-fe-pv-ph');
+  let phT=document.getElementById('vb-fe-pv-ph-text');
+  let cap=document.getElementById('vb-fe-pv-cap');
+  if(!vid)return;
+  let list=VB_FE_VIDEO[n]||[];
+  let idx=0;
+  if(cap)cap.textContent=VB_FE_CAP[n]||'Pratinjau';
+  function playNow(){
+    vid.muted=true;
+    try{let p=vid.play();if(p&&p.catch)p.catch(function(){});}catch(e){}
+  }
+  vid.onerror=function(){
+    idx++;
+    if(idx<list.length){
+      vid.src=list[idx];
+      try{vid.load();}catch(e){}
+      playNow();
+    }else{
+      vid.onerror=null;
+      vid.classList.add('hidden');
+      if(ph)ph.classList.remove('hidden');
+      if(phT)phT.innerHTML='Video belum ditemukan<br>Pastikan file '+n+'.mp4 ada di folder media';
+    }
+  };
+  vid.onloadeddata=function(){
+    if(ph)ph.classList.add('hidden');
+    vid.classList.remove('hidden');
+  };
+  vid.src=list[0];
+  try{vid.load();}catch(e){}
+  playNow();
+}
+// Klik satu-satunya opsi di step n: tandai terpilih, putar videonya, buka step berikutnya.
+function vbFePilihStep(n){
+  if(n!==1&&n!==2&&n!==3)return;
+  VB_FE_PICK[n]=true;
+  let o=document.getElementById('vb-fe-opt-'+n);
+  if(o)o.classList.add('sel');
+  vbFeSetPreview(n);
+  let next=document.getElementById('vb-fe-s'+(n+1));
+  if(next)next.classList.remove('hidden');
+  let genBtn=document.getElementById('vb-fe-generate-btn');
+  if(genBtn)genBtn.classList.toggle('hidden',!(VB_FE_PICK[1]&&VB_FE_PICK[2]&&VB_FE_PICK[3]));
+}
+function vbFeBuildPrompt(){
+  return VB_FE_PROMPT_HEAD+'\n\n'+VB_FE_PROMPT_STEP[1]+'\n'+VB_FE_PROMPT_STEP[2]+'\n'+VB_FE_PROMPT_STEP[3]+'\n\n'+VB_FE_PROMPT_TAIL;
+}
+function vbFeGenerate(){
+  if(!VB_FASHION_DURASI)return;
+  if(!(VB_FE_PICK[1]&&VB_FE_PICK[2]&&VB_FE_PICK[3]))return;
+  let steps=document.getElementById('vb-fe-steps');
   let loading=document.getElementById('vb-fe-loading');
   let result=document.getElementById('vb-fe-result');
-  if(stepDurasi)stepDurasi.classList.add('hidden');
+  vbFePausePreview();
+  if(steps)steps.classList.add('hidden');
   if(result)result.classList.add('hidden');
   if(loading)loading.classList.remove('hidden');
   setTimeout(function(){
     if(loading)loading.classList.add('hidden');
-    let p1=document.getElementById('vb-fe-prompt-text-1');
-    let p2=document.getElementById('vb-fe-prompt-text-2');
-    if(p1)p1.textContent=VB_FASHION_PROMPT_1;
-    if(p2)p2.textContent=VB_FASHION_PROMPT_2;
+    let p=document.getElementById('vb-fe-prompt-text');
+    if(p)p.textContent=vbFeBuildPrompt();
     if(result)result.classList.remove('hidden');
   },900);
 }
-function vbCopyFePrompt(n){
-  let txt=(n===2)?VB_FASHION_PROMPT_2:VB_FASHION_PROMPT_1;
-  _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+function vbCopyFePrompt(){
+  _copyTextRobust(vbFeBuildPrompt(),function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
 }
 // Pratinjau mode Fashion Editorial (video saja). Media diisi lazy, pola sama dengan vbSyncTessPreview().
 function vbSyncFashionPreview(show){
@@ -16570,6 +16645,7 @@ function vbPickRefMode(mode){
   let fashionArea=document.getElementById('vb-mode-fashion-area');
   if(fashionArea)fashionArea.classList.toggle('hidden',mode!=='fashion');
   if(mode==='fashion'&&_camPrevMode!=='fashion')vbFeResetFlow();
+  if(mode!=='fashion')vbFePausePreview();
   // tess (id internal tess2): pola sama — chip, area, reset ke step 1 cuma kalau BENERAN baru masuk dari mode lain.
   let tess2Chip=document.getElementById('vb-mode-tess2');
   if(tess2Chip)tess2Chip.classList.toggle('sel',mode==='tess2');
