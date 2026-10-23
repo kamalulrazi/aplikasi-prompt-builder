@@ -1987,6 +1987,8 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vb-fe-pv-cap{font-size:11.5px;font-weight:600;color:var(--text);text-align:center;margin-top:6px;line-height:1.25;}
 .vb-fe-steps-col{flex:1 1 150px;min-width:140px;}
 .vb-fe-right{flex:1 1 220px;min-width:0;}
+.vb-fe-col{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:6px 0 10px;}
+.vb-fe-sub{margin-left:14px;padding-left:10px;border-left:2px solid var(--border-hi);display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
 .vb-fe-empty{font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;}
 /* INPUTS */
 .inp{
@@ -6493,15 +6495,15 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
             <div class="vb-fe-steps-col" id="vb-fe-steps-col">
               <div id="vb-fe-s1">
                 <label class="inplabel" style="font-size:var(--fs-2xs);">Step 0-3</label>
-                <div class="chips" style="margin:6px 0 6px;">
+                <div class="vb-fe-col">
                   <div class="chip" id="vb-fe-cat-1-buka" onclick="vbFePilihKategori(1,'buka')">Pembukaan</div>
+                  <div class="vb-fe-sub hidden" id="vb-fe-optrow-1-buka">
+                    <div class="chip" id="vb-fe-opt-1" onclick="vbFePilihStep(1,'buka')">Muncul</div>
+                  </div>
                   <div class="chip" id="vb-fe-cat-1-isi" onclick="vbFePilihKategori(1,'isi')">Isi</div>
-                </div>
-                <div class="chips hidden" id="vb-fe-optrow-1-buka" style="margin:0 0 10px;">
-                  <div class="chip" id="vb-fe-opt-1" onclick="vbFePilihStep(1)">Muncul</div>
-                </div>
-                <div class="chips hidden" id="vb-fe-optrow-1-isi" style="margin:0 0 10px;">
-                  <div class="chip" id="vb-fe-opt-1-isi" onclick="vbFePilihStep(1,'isi')">Menoleh</div>
+                  <div class="vb-fe-sub hidden" id="vb-fe-optrow-1-isi">
+                    <div class="chip" id="vb-fe-opt-1-isi" onclick="vbFePilihStep(1,'isi')">Menoleh</div>
+                  </div>
                 </div>
               </div>
               <div id="vb-fe-s2" class="hidden">
@@ -6512,14 +6514,16 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
               </div>
               <div id="vb-fe-s3" class="hidden">
                 <label class="inplabel" style="font-size:var(--fs-2xs);">Step 6-8</label>
-                <div class="chips" style="margin:6px 0 6px;">
+                <div class="vb-fe-col">
                   <div class="chip" id="vb-fe-cat-3-penutup" onclick="vbFePilihKategori(3,'penutup')">Penutup</div>
+                  <div class="vb-fe-sub hidden" id="vb-fe-optrow-3-penutup">
+                    <div class="chip" id="vb-fe-opt-3" onclick="vbFePilihStep(3,'penutup')">Penutup</div>
+                  </div>
                   <div class="chip" id="vb-fe-cat-3-isi" onclick="vbFePilihKategori(3,'isi')">Isi</div>
+                  <div class="vb-fe-sub hidden" id="vb-fe-optrow-3-isi">
+                    <div class="chip" id="vb-fe-opt-3-isi" onclick="vbFePilihStep(3,'isi')">Mendekat</div>
+                  </div>
                 </div>
-                <div class="chips hidden" id="vb-fe-optrow-3-penutup" style="margin:0 0 10px;">
-                  <div class="chip" id="vb-fe-opt-3" onclick="vbFePilihStep(3)">Penutup</div>
-                </div>
-                <p class="hidden vb-fe-empty" id="vb-fe-optrow-3-isi">Opsi untuk "Isi" belum tersedia.</p>
               </div>
             </div>
             <div class="vb-fe-right hidden" id="vb-fe-right">
@@ -16142,6 +16146,7 @@ const VB_FE_PROMPT_STEP={
     'detik 1-2: karakter memperlihatkan outfitnya dengan gerakan yang anggun tapi versi amatiran'
   ].join('\n'),
   2:'detik 3-6: karakter melakukan pose dimana dia memperlihatkan outfit yang dipakai sambil mengangkat sedikit kakinya.',
+  '3isi':'detik 6-8: karakter berjalan mendekat kekamera untuk memperlihatkan wajahnya, di akhir dia memberikan pose imut wajahnya.',
   3:'detik 6-8: karakter mendekat kekamera sampai tangannya memegang kamera dan memberikan senyuman terakhir sebelum kameranya dimatikan. di frame terakhir kamera hitam gelap akibat ditutupi oleh tangan karakter.'
 };
 const VB_FE_PROMPT_TAIL=[
@@ -16150,16 +16155,16 @@ const VB_FE_PROMPT_TAIL=[
 ].join('\n');
 // Video pratinjau tiap step: utama media/N.mp4 (folder media seperti video lain), cadangan N.mp4 di folder yang sama dengan index.html.
 // Kunci '1isi' = opsi "Menoleh" di kategori Isi Step 0-3 (video flow.mp4).
-const VB_FE_VIDEO={1:['media/1.mp4','1.mp4'],'1isi':['media/flow.mp4','flow.mp4'],2:['media/2.mp4','2.mp4'],3:['media/3.mp4','3.mp4']};
-const VB_FE_CAP={1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh',2:'Step 3-6 · Pose',3:'Step 6-8 · Penutup'};
+const VB_FE_VIDEO={1:['media/1.mp4','1.mp4'],'1isi':['media/flow.mp4','flow.mp4'],'3isi':['media/4.mp4','4.mp4'],2:['media/2.mp4','2.mp4'],3:['media/3.mp4','3.mp4']};
+const VB_FE_CAP={1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh',2:'Step 3-6 · Pose',3:'Step 6-8 · Penutup','3isi':'Step 6-8 · Mendekat'};
 // Kategori per step. Cuma kategori yang punya opsi (VB_FE_CAT_OPSI) yang bisa memilih opsi; "isi" masih kosong.
 const VB_FE_KATEGORI={1:['buka','isi'],3:['penutup','isi']};
-const VB_FE_CAT_OPSI={1:['buka','isi'],3:['penutup']};
+const VB_FE_CAT_OPSI={1:['buka','isi'],3:['penutup','isi']};
 let VB_FASHION_DURASI=null; // cuma 8 yang tersedia
 let VB_FE_PICK={1:false,2:false,3:false};
-let VB_FE_VAR={1:'buka'};   // varian opsi Step 0-3: 'buka' (Muncul) atau 'isi' (Menoleh)
+let VB_FE_VAR={1:'buka',3:'penutup'};   // varian opsi Step 0-3: 'buka' (Muncul) atau 'isi' (Menoleh)
 let VB_FE_PICKCAT={1:null,2:null,3:null}; // kategori asal opsi yang dipilih per step
-function vbFeKey(n){return (n===1&&VB_FE_VAR[1]==='isi')?'1isi':n;}
+function vbFeKey(n){return ((n===1||n===3)&&VB_FE_VAR[n]==='isi')?(n+'isi'):n;}
 let VB_FE_LAST=null;   // step terakhir yang diklik opsinya (dipakai saat kembali dari hasil prompt)
 let VB_FE_MODE='step'; // 'step' = video 1 opsi diulang, 'full' = versi lengkap 1→2→3
 let VB_FE_GEN_TOKEN=0;
@@ -16177,7 +16182,7 @@ function vbFeResetFlow(){
   let durasi8=document.getElementById('vb-fe-durasi-8');
   if(durasi8)durasi8.classList.remove('sel');
   [1,2,3].forEach(function(n){let o=document.getElementById('vb-fe-opt-'+n);if(o)o.classList.remove('sel');});
-  let oIsi=document.getElementById('vb-fe-opt-1-isi');if(oIsi)oIsi.classList.remove('sel');
+  ['vb-fe-opt-1-isi','vb-fe-opt-3-isi'].forEach(function(id){let o=document.getElementById(id);if(o)o.classList.remove('sel');});
   [1,3].forEach(function(n){VB_FE_KATEGORI[n].forEach(function(k){let ch=document.getElementById('vb-fe-cat-'+n+'-'+k);if(ch)ch.classList.remove('sel');});});
   let s1=document.getElementById('vb-fe-s1');
   if(s1)s1.classList.remove('hidden');
@@ -16198,7 +16203,7 @@ function vbFeResetFlow(){
   VB_FASHION_DURASI=null;
   VB_FE_PICK={1:false,2:false,3:false};
   VB_FE_LAST=null;
-  VB_FE_VAR={1:'buka'};
+  VB_FE_VAR={1:'buka',3:'penutup'};
   VB_FE_PICKCAT={1:null,2:null,3:null};
   VB_FE_MODE='step';
 }
@@ -16305,14 +16310,15 @@ function vbFePilihKategori(n,k){
 // Tandai terpilih, putar videonya, buka step berikutnya.
 function vbFePilihStep(n,k){
   if(n!==1&&n!==2&&n!==3)return;
-  if(n===1){
-    VB_FE_VAR[1]=(k==='isi')?'isi':'buka';
-    VB_FE_PICKCAT[1]=VB_FE_VAR[1];
-    let a=document.getElementById('vb-fe-opt-1'),b=document.getElementById('vb-fe-opt-1-isi');
-    if(a)a.classList.toggle('sel',VB_FE_VAR[1]==='buka');
-    if(b)b.classList.toggle('sel',VB_FE_VAR[1]==='isi');
+  if(n===1||n===3){
+    let utama=(n===1)?'buka':'penutup';
+    VB_FE_VAR[n]=(k==='isi')?'isi':utama;
+    VB_FE_PICKCAT[n]=VB_FE_VAR[n];
+    let a=document.getElementById('vb-fe-opt-'+n),b=document.getElementById('vb-fe-opt-'+n+'-isi');
+    if(a)a.classList.toggle('sel',VB_FE_VAR[n]===utama);
+    if(b)b.classList.toggle('sel',VB_FE_VAR[n]==='isi');
   }else{
-    VB_FE_PICKCAT[n]=VB_FE_CAT_OPSI[n]?VB_FE_CAT_OPSI[n][0]:null;
+    VB_FE_PICKCAT[n]=null;
     let o=document.getElementById('vb-fe-opt-'+n);
     if(o)o.classList.add('sel');
   }
@@ -16325,7 +16331,7 @@ function vbFePilihStep(n,k){
   if(genBtn)genBtn.classList.toggle('hidden',!vbFeAllPicked());
 }
 function vbFeBuildPrompt(){
-  return VB_FE_PROMPT_HEAD+'\n\n'+VB_FE_PROMPT_STEP[vbFeKey(1)]+'\n'+VB_FE_PROMPT_STEP[2]+'\n'+VB_FE_PROMPT_STEP[3]+'\n\n'+VB_FE_PROMPT_TAIL;
+  return VB_FE_PROMPT_HEAD+'\n\n'+VB_FE_PROMPT_STEP[vbFeKey(1)]+'\n'+VB_FE_PROMPT_STEP[2]+'\n'+VB_FE_PROMPT_STEP[vbFeKey(3)]+'\n\n'+VB_FE_PROMPT_TAIL;
 }
 function vbFeGenerate(){
   if(!VB_FASHION_DURASI)return;
