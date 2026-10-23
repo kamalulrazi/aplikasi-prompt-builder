@@ -1987,6 +1987,9 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vb-fe-pv-cap{font-size:11.5px;font-weight:600;color:var(--text);text-align:center;margin-top:6px;line-height:1.25;}
 .vb-fe-steps-col{flex:1 1 150px;min-width:140px;}
 .vb-fe-right{flex:1 1 220px;min-width:0;}
+/* Setelah "Lanjut →" di Fashion Editorial: daftar mode lain, penjelasan, dan semua pratinjau mode disembunyikan (seperti Start Frame yang sudah dikonfirmasi). Dibuka lagi lewat "Ubah mode" / vbFeResetFlow(). */
+#v1.vb-fe-locked .vb-mode-row,#v1.vb-fe-locked #vb-mode-desc,#v1.vb-fe-locked .wbody>label.inplabel:first-child{display:none!important;}
+.vb-fe-modebar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;}
 .vb-fe-col{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:6px 0 10px;}
 .vb-fe-sub{margin-left:14px;padding-left:10px;border-left:2px solid var(--border-hi);display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
 .vb-fe-empty{font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;}
@@ -6462,6 +6465,10 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
            vbFeGenerate(), vbFeKembali(), vbCopyFePrompt() & vbFeResetFlow()
            (dipanggil dari vbPickRefMode()/vbResetNow()). -->
       <div id="vb-mode-fashion-area" class="hidden" style="margin-bottom:14px;">
+        <div id="vb-fe-modebar" class="vb-fe-modebar hidden">
+          <span class="chip sel" style="cursor:default;">Fashion Editorial</span>
+          <button class="copy-btn" onclick="vbFeResetFlow()">Ubah mode</button>
+        </div>
         <div id="vb-fe-step-lanjut">
           <div style="text-align:right;">
             <button class="btn sm" onclick="vbFeLanjut()" style="width:auto;padding:8px 18px;">Lanjut →</button>
@@ -6489,6 +6496,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
                   <span id="vb-fe-pv-ph-text">Pratinjau baju<br>Pilih opsi untuk melihat videonya</span>
                 </div>
                 <video id="vb-fe-pv-video" class="hidden" muted loop playsinline preload="auto"></video>
+                <video id="vb-fe-pv-video2" style="visibility:hidden" muted playsinline preload="auto"></video>
               </div>
               <div class="vb-fe-pv-cap" id="vb-fe-pv-cap">Pratinjau</div>
             </div>
@@ -16169,12 +16177,44 @@ let VB_FE_LAST=null;   // step terakhir yang diklik opsinya (dipakai saat kembal
 let VB_FE_MODE='step'; // 'step' = video 1 opsi diulang, 'full' = versi lengkap 1→2→3
 let VB_FE_GEN_TOKEN=0;
 function vbFePausePreview(){
-  let vid=document.getElementById('vb-fe-pv-video');
-  if(vid){try{vid.pause();}catch(e){}}
+  ['vb-fe-pv-video','vb-fe-pv-video2'].forEach(function(id){
+    let vid=document.getElementById(id);
+    if(vid){try{vid.pause();}catch(e){}}
+  });
+}
+let VB_FE_FULL_TOKEN=0;
+// Hentikan putar-berurutan versi lengkap & kembalikan kotak pratinjau ke mode 1 video.
+function vbFeStopFull(){
+  VB_FE_FULL_TOKEN++;
+  let a=document.getElementById('vb-fe-pv-video'),b=document.getElementById('vb-fe-pv-video2');
+  if(a){a.onplaying=null;a.onended=null;a.style.visibility='';a.style.zIndex='';}
+  if(b){
+    try{b.pause();}catch(e){}
+    b.onplaying=null;b.onended=null;b.onerror=null;
+    b.style.visibility='hidden';b.style.zIndex='';
+    b.removeAttribute('src');try{b.load();}catch(e){}
+  }
+}
+// Kunci / buka daftar mode di kartu 1. Terkunci = mode lain tidak terlihat (setelah "Lanjut →" di Fashion Editorial).
+function vbFeLockModes(on){
+  let card=document.getElementById('v1');
+  if(card)card.classList.toggle('vb-fe-locked',!!on);
+  let bar=document.getElementById('vb-fe-modebar');
+  if(bar)bar.classList.toggle('hidden',!on);
+  // video pratinjau mode fashion di daftar mode: jangan jalan diam-diam saat daftar tersembunyi
+  let mv=document.getElementById('vb-mode-preview-fashion-video');
+  if(mv){
+    if(on){try{mv.pause();}catch(e){}}
+    else if(mv.getAttribute('src')&&card&&document.getElementById('vb-mode-fashion')&&document.getElementById('vb-mode-fashion').classList.contains('sel')){
+      try{let pp=mv.play();if(pp&&pp.catch)pp.catch(function(){});}catch(e){}
+    }
+  }
 }
 function vbFeAllPicked(){return !!(VB_FE_PICK[1]&&VB_FE_PICK[2]&&VB_FE_PICK[3]);}
 function vbFeResetFlow(){
   VB_FE_GEN_TOKEN++; // batalkan generate yang masih menunggu
+  vbFeStopFull();
+  vbFeLockModes(false); // daftar mode muncul lagi
   let ids=['vb-fe-step-durasi','vb-fe-steps','vb-fe-loading','vb-fe-result','vb-fe-right','vb-fe-durasi-lanjut-btn','vb-fe-generate-btn','vb-fe-s2','vb-fe-s3','vb-fe-optrow-1-buka','vb-fe-optrow-1-isi','vb-fe-optrow-3-penutup','vb-fe-optrow-3-isi'];
   ids.forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
   let stepLanjut=document.getElementById('vb-fe-step-lanjut');
@@ -16208,6 +16248,7 @@ function vbFeResetFlow(){
   VB_FE_MODE='step';
 }
 function vbFeLanjut(){
+  vbFeLockModes(true); // mode lain tidak terlihat lagi, sama seperti Start Frame setelah Lanjut
   let stepLanjut=document.getElementById('vb-fe-step-lanjut');
   let stepDurasi=document.getElementById('vb-fe-step-durasi');
   if(stepLanjut)stepLanjut.classList.add('hidden');
@@ -16273,21 +16314,64 @@ function vbFeLoadVideo(n,opts){
 }
 // Pratinjau 1 opsi (diulang terus).
 function vbFeSetPreview(n){
+  vbFeStopFull();
   let cap=document.getElementById('vb-fe-pv-cap');
   VB_FE_MODE='step';
   if(cap)cap.textContent=VB_FE_CAP[vbFeKey(n)]||'Pratinjau';
   vbFeLoadVideo(n,{loop:true});
 }
 // Pratinjau VERSI LENGKAP: video opsi step 1 → 2 → 3 berurutan, lalu ulang dari awal.
+// MULUS: pakai 2 elemen video bergantian (double buffer). Selagi satu video diputar, video berikutnya
+// sudah dimuat di elemen satunya; begitu video berakhir, yang berikutnya langsung diputar dan baru
+// ditampilkan setelah benar-benar jalan — frame terakhir video lama tetap terlihat, jadi tidak ada jeda/kedip hitam.
 function vbFePlayFull(){
-  let cap=document.getElementById('vb-fe-pv-cap');
+  let A=document.getElementById('vb-fe-pv-video'),B=document.getElementById('vb-fe-pv-video2');
+  let ph=document.getElementById('vb-fe-pv-ph'),phT=document.getElementById('vb-fe-pv-ph-text'),cap=document.getElementById('vb-fe-pv-cap');
+  if(!A||!B)return;
   VB_FE_MODE='full';
-  function mainkan(n){
-    if(VB_FE_MODE!=='full')return;
-    if(cap)cap.textContent='Versi lengkap · '+(VB_FE_CAP[vbFeKey(n)]||'');
-    vbFeLoadVideo(n,{loop:false,onEnded:function(){mainkan(n>=3?1:n+1);}});
+  let token=++VB_FE_FULL_TOKEN;
+  let els=[A,B],order=[1,2,3];
+  function siapkan(el,n){ // muat video step n ke elemen el (belum diputar)
+    let list=VB_FE_VIDEO[vbFeKey(n)]||[],idx=0;
+    el.onplaying=null;el.onended=null;
+    el.loop=false;el.muted=true;el.preload='auto';
+    el.onerror=function(){
+      if(token!==VB_FE_FULL_TOKEN)return;
+      idx++;
+      if(idx<list.length){el.src=list[idx];try{el.load();}catch(e){}}
+      else{
+        el.onerror=null;
+        els.forEach(function(x){try{x.pause();}catch(e){}x.style.visibility='hidden';});
+        if(ph)ph.classList.remove('hidden');
+        if(phT)phT.innerHTML='Video belum ditemukan<br>Pastikan file '+(list[0]||'').replace('media/','')+' ada di folder media';
+        VB_FE_FULL_TOKEN++;
+      }
+    };
+    el.src=list[0];
+    try{el.load();}catch(e){}
   }
-  mainkan(1);
+  function putar(i,cur){ // putar segmen i di elemen els[cur] yang sudah disiapkan
+    if(token!==VB_FE_FULL_TOKEN)return;
+    let el=els[cur],other=els[1-cur],n=order[i%3],nextI=(i+1)%3;
+    el.onplaying=function(){
+      el.onplaying=null;
+      if(token!==VB_FE_FULL_TOKEN)return;
+      el.classList.remove('hidden');
+      el.style.visibility='visible';el.style.zIndex='2';
+      other.classList.remove('hidden');
+      other.style.zIndex='1';other.style.visibility='hidden';
+      if(ph)ph.classList.add('hidden');
+      if(cap)cap.textContent='Versi lengkap · '+(VB_FE_CAP[vbFeKey(n)]||'');
+      siapkan(other,order[nextI]); // muat video berikutnya selagi yang ini diputar
+    };
+    el.onended=function(){el.onended=null;putar(nextI,1-cur);};
+    try{el.currentTime=0;}catch(e){}
+    let pr;try{pr=el.play();}catch(e){}
+    if(pr&&pr.catch)pr.catch(function(){});
+  }
+  // Mulai di elemen B: A masih menampilkan frame terakhir pratinjau sebelumnya sampai B benar-benar jalan.
+  siapkan(B,order[0]);
+  putar(0,1);
 }
 // Klik kategori di step n. Kalau opsi yang sudah dipilih berasal dari kategori lain (atau kategori ini
 // belum punya opsi), pilihan step itu dibatalkan supaya tidak ada pilihan yang tidak terlihat.
@@ -16767,7 +16851,7 @@ function vbPickRefMode(mode){
   let fashionArea=document.getElementById('vb-mode-fashion-area');
   if(fashionArea)fashionArea.classList.toggle('hidden',mode!=='fashion');
   if(mode==='fashion'&&_camPrevMode!=='fashion')vbFeResetFlow();
-  if(mode!=='fashion')vbFePausePreview();
+  if(mode!=='fashion'){vbFePausePreview();vbFeLockModes(false);}
   // tess (id internal tess2): pola sama — chip, area, reset ke step 1 cuma kalau BENERAN baru masuk dari mode lain.
   let tess2Chip=document.getElementById('vb-mode-tess2');
   if(tess2Chip)tess2Chip.classList.toggle('sel',mode==='tess2');
