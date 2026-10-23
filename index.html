@@ -2006,6 +2006,10 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vb-fe-fr.has-v::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,0) 38%,rgba(0,0,0,0) 58%,rgba(0,0,0,.7));pointer-events:none;}
 .vb-fe-fr.has-v small,.vb-fe-fr.has-v b{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);}
 .vb-fe-fr.has-v .vb-fe-fr-ic{display:none;}
+.vb-fe-fr.ld .vb-fe-fr-ic{visibility:hidden;}
+.vb-fe-fr.ld::before{content:"";position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2.5px solid var(--border-hi);border-top-color:var(--accent);animation:vbFeSpin .8s linear infinite;z-index:2;}
+@keyframes vbFeSpin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion:reduce){.vb-fe-fr.ld::before{animation-duration:2.4s;}}
 .vb-fe-seq{text-align:center;font-size:var(--fs-sm);color:var(--muted2);margin:0 0 4px;}
 #vb-fe-generate-btn:disabled{cursor:not-allowed;box-shadow:none;}
 .vb-fe-bk{position:fixed;inset:0;z-index:9490;background:rgba(0,0,0,.6);}
@@ -2014,6 +2018,10 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 @keyframes vbFeSheetIn{from{transform:translateY(24px);opacity:0;}to{transform:none;opacity:1;}}
 .vb-fe-sheet h3{margin:0;font-size:var(--fs-lg);font-weight:600;color:var(--text);}
 .vb-fe-row{display:flex;align-items:center;gap:12px;width:100%;margin:8px 0 0;padding:14px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2);color:var(--text);font-family:'Hanken Grotesk',sans-serif;font-size:var(--fs-md2);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.vb-fe-seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:12px 0 4px;padding:4px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);}
+.vb-fe-seg button{padding:10px 8px;border:0;border-radius:9px;background:transparent;color:var(--muted2);font-family:'Hanken Grotesk',sans-serif;font-size:var(--fs-md2);font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.vb-fe-seg button[aria-selected="true"]{background:var(--accent-dim-bg);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-dim);}
+.vb-fe-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .vb-fe-rd{flex:0 0 auto;width:18px;height:18px;border-radius:50%;border:2px solid var(--border-hi);}
 .vb-fe-row[aria-pressed="true"]{border-color:var(--gloss-border,var(--accent-dim));background:var(--accent-dim-bg);}
 .vb-fe-row[aria-pressed="true"] .vb-fe-rd{border:5px solid var(--accent);}
@@ -6481,7 +6489,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       <!-- MODE BARU Fashion Editorial (revisi 23 Okt 2026, tampilan storyboard) — alur bertahap:
            (1) "Lanjut →" → (2) pilih Durasi (4/6/10 dikunci, cuma 8 detik) → "Lanjut →" →
            (3) STORYBOARD: 3 bingkai 9:16 (Awal 0–3 dtk / Tengah 3–6 dtk / Akhir 6–8 dtk). Ketuk bingkai =
-           bottom sheet pilihan: Awal = Muncul | Menoleh, Tengah = Pose, Akhir = Penutup | Mendekat.
+           bottom sheet pilihan: Awal = tab Pembukaan (Muncul) | Isi (Menoleh), Tengah = Pose, Akhir = tab Penutup (Tutup kamera) | Isi (Mendekat).
            Opsi terpilih = videonya diputar di dalam bingkai (cadangan: ikon baju) + garis urutan "Muncul → Pose → …".
            Tombol "Generate Prompt" aktif setelah 3 bingkai terisi → 1 prompt + kotak pratinjau versi LENGKAP
            (video 1→2→3 berurutan, ulang). "Kembali" menghapus hasil & kembali ke storyboard (pilihan tetap).
@@ -16160,12 +16168,12 @@ const VB_FE_PROMPT_TAIL=[
 // Video pratinjau tiap step: utama media/N.mp4 (folder media seperti video lain), cadangan N.mp4 di folder yang sama dengan index.html.
 // Kunci '1isi' = opsi "Menoleh" di kategori Isi Step 0-3 (video flow.mp4).
 const VB_FE_VIDEO={1:['media/1.mp4','1.mp4'],'1isi':['media/flow.mp4','flow.mp4'],'3isi':['media/4.mp4','4.mp4'],2:['media/2.mp4','2.mp4'],3:['media/3.mp4','3.mp4']};
-const VB_FE_CAP={1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh',2:'Step 3-6 · Pose',3:'Step 6-8 · Penutup','3isi':'Step 6-8 · Mendekat'};
+const VB_FE_CAP={1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh',2:'Step 3-6 · Pose',3:'Step 6-8 · Tutup kamera','3isi':'Step 6-8 · Mendekat'};
 // Storyboard: 3 bingkai. o[].v = nilai VB_FE_VAR ('buka'|'isi'|'penutup'), o[].k = kunci video/caption (lihat vbFeKey), o[].l = label.
 const VB_FE_SLOT=[null,
-  {t:'Awal',r:'0–3 dtk',q:'Bagaimana video dibuka?',o:[{v:'buka',k:1,l:'Muncul'},{v:'isi',k:'1isi',l:'Menoleh'}]},
+  {t:'Awal',r:'',q:'Bagaimana video dibuka?',c:[{v:'buka',l:'Pembukaan'},{v:'isi',l:'Isi'}],o:[{v:'buka',k:1,l:'Muncul'},{v:'isi',k:'1isi',l:'Menoleh'}]},
   {t:'Tengah',r:'3–6 dtk',q:'Pose apa di tengah video?',o:[{v:'',k:2,l:'Pose'}]},
-  {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',o:[{v:'penutup',k:3,l:'Penutup'},{v:'isi',k:'3isi',l:'Mendekat'}]}];
+  {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',c:[{v:'penutup',l:'Penutup'},{v:'isi',l:'Isi'}],o:[{v:'penutup',k:3,l:'Tutup kamera'},{v:'isi',k:'3isi',l:'Mendekat'}]}];
 const VB_FE_ICO='<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3a4 4 0 0 1-8 0z"/></svg>';
 let VB_FASHION_DURASI=null; // cuma 8 yang tersedia
 let VB_FE_PICK={1:false,2:false,3:false};
@@ -16273,6 +16281,21 @@ function vbFeGoSteps(){
 }
 // ── Storyboard (3 bingkai) ──────────────────────────────────────────────────
 function vbFeFrameEl(n){return document.getElementById('vb-fe-fr-'+n);}
+// Pemanasan video: begitu sheet pilihan dibuka, video opsi-opsinya mulai diunduh di latar belakang,
+// jadi saat user memilih, video sudah (sebagian) ada di cache & langsung tampil. Referensi disimpan supaya unduhan tidak terputus.
+const VB_FE_WARM={};
+function vbFeWarm(keys){
+  keys.forEach(function(k){
+    if(VB_FE_WARM[k])return;
+    let list=VB_FE_VIDEO[k];if(!list)return;
+    let v=document.createElement('video'),idx=0;
+    v.muted=true;v.preload='auto';v.setAttribute('playsinline','');
+    v.onerror=function(){idx++;if(idx<list.length){v.src=list[idx];try{v.load();}catch(e){}}else{v.onerror=null;}};
+    VB_FE_WARM[k]=v;
+    v.src=list[0];
+    try{v.load();}catch(e){}
+  });
+}
 function vbFePlayEl(v){
   if(!v||!v.getAttribute('src'))return;
   v.muted=true;
@@ -16313,9 +16336,9 @@ function vbFeUpdateFrame(n){
   fr.classList.toggle('on',!!VB_FE_PICK[n]);
   if(!VB_FE_PICK[n]){
     delete fr.dataset.k;
-    fr.classList.remove('has-v');
+    fr.classList.remove('has-v','ld');
     ic.textContent='+';lb.textContent='Pilih';
-    fr.setAttribute('aria-label',t.t+' '+t.r+', belum dipilih');
+    fr.setAttribute('aria-label',(t.t+' '+t.r).trim()+', belum dipilih');
     v.onloadeddata=null;v.onerror=null;
     try{v.pause();}catch(e){}
     v.classList.add('hidden');v.removeAttribute('src');
@@ -16324,16 +16347,17 @@ function vbFeUpdateFrame(n){
   }
   let opt=vbFeOptOf(n);
   ic.innerHTML=VB_FE_ICO;lb.textContent=opt.l;
-  fr.setAttribute('aria-label',t.t+' '+t.r+': '+opt.l+'. Ketuk untuk mengubah');
+  fr.setAttribute('aria-label',(t.t+' '+t.r).trim()+': '+opt.l+'. Ketuk untuk mengubah');
   if(fr.dataset.k===String(opt.k)){vbFePlayEl(v);return;} // opsi sama, video tetap jalan
   fr.dataset.k=String(opt.k);
   let list=VB_FE_VIDEO[opt.k]||[],idx=0;
   fr.classList.remove('has-v');v.classList.add('hidden');
-  v.onloadeddata=function(){fr.classList.add('has-v');v.classList.remove('hidden');};
+  fr.classList.add('ld'); // tampilkan spinner sampai frame pertama video siap
+  v.onloadeddata=function(){fr.classList.remove('ld');fr.classList.add('has-v');v.classList.remove('hidden');};
   v.onerror=function(){ // coba media/N.mp4, lalu N.mp4; kalau dua-duanya tidak ada, tetap tampil ikon baju
     idx++;
     if(idx<list.length){v.src=list[idx];try{v.load();}catch(e){}vbFePlayEl(v);}
-    else{v.onerror=null;v.onloadeddata=null;v.removeAttribute('src');fr.classList.remove('has-v');v.classList.add('hidden');}
+    else{v.onerror=null;v.onloadeddata=null;v.removeAttribute('src');fr.classList.remove('has-v','ld');v.classList.add('hidden');}
   };
   v.src=list[0];
   try{v.load();}catch(e){}
@@ -16359,6 +16383,30 @@ function vbFeEnsureSheet(){
   document.body.appendChild(bk);document.body.appendChild(sh);
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&VB_FE_SHEET_N)vbFeCloseSheet();});
 }
+let VB_FE_SHEET_CAT='';
+// Isi sheet: bingkai Awal/Akhir = 2 tab kategori (Pembukaan|Isi / Penutup|Isi) + opsi kategori aktif; bingkai Tengah = langsung opsi.
+function vbFeDrawSheet(n,cur){
+  let t=VB_FE_SLOT[n],sh=document.getElementById('vb-fe-sheet');
+  if(!sh)return;
+  if(cur===undefined)cur=VB_FE_PICK[n]?vbFeOptOf(n).k:null;
+  let h='<h3>'+t.t+(t.r?' · '+t.r:'')+'</h3>';
+  let list=t.o;
+  if(t.c){
+    h+='<div class="vb-fe-seg" role="tablist">'+t.c.map(function(c){
+      return '<button type="button" role="tab" aria-selected="'+(c.v===VB_FE_SHEET_CAT)+'" onclick="vbFeSheetTab('+n+',\''+c.v+'\')">'+c.l+'</button>';
+    }).join('')+'</div>';
+    list=t.o.filter(function(o){return o.v===VB_FE_SHEET_CAT;});
+  }
+  sh.innerHTML=h+list.map(function(o){
+    return '<button type="button" class="vb-fe-row" aria-pressed="'+(cur===o.k)+'" onclick="vbFePilihStep('+n+',\''+o.v+'\')"><span class="vb-fe-rd"></span>'+o.l+'</button>';
+  }).join('');
+}
+function vbFeSheetTab(n,v){
+  VB_FE_SHEET_CAT=v;
+  vbFeDrawSheet(n);
+  let sh=document.getElementById('vb-fe-sheet'),f=sh&&sh.querySelector('.vb-fe-row');
+  if(f){try{f.focus({preventScroll:true});}catch(e){}}
+}
 function vbFeOpenSheet(n){
   if(!VB_FE_SLOT[n])return;
   vbFeEnsureSheet();
@@ -16366,11 +16414,11 @@ function vbFeOpenSheet(n){
   let cur=VB_FE_PICK[n]?vbFeOptOf(n).k:null;
   VB_FE_SHEET_N=n;VB_FE_SHEET_OPENER=vbFeFrameEl(n);
   sh.setAttribute('aria-label',t.q);
-  sh.innerHTML='<h3>'+t.t+' · '+t.r+'</h3>'+t.o.map(function(o){
-    return '<button type="button" class="vb-fe-row" aria-pressed="'+(cur===o.k)+'" onclick="vbFePilihStep('+n+',\''+o.v+'\')"><span class="vb-fe-rd"></span>'+o.l+'</button>';
-  }).join('');
+  if(t.c)VB_FE_SHEET_CAT=VB_FE_PICK[n]?vbFeOptOf(n).v:t.c[0].v;
+  vbFeWarm(t.o.map(function(o){return o.k;}));
+  vbFeDrawSheet(n,cur);
   bk.hidden=sh.hidden=false;
-  let f=sh.querySelector('.vb-fe-row[aria-pressed="true"]')||sh.querySelector('.vb-fe-row');
+  let f=sh.querySelector('.vb-fe-row[aria-pressed="true"]')||sh.querySelector('.vb-fe-row')||sh.querySelector('.vb-fe-seg button');
   if(f){try{f.focus({preventScroll:true});}catch(e){}}
 }
 function vbFeCloseSheet(noFocus){
