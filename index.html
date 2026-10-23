@@ -292,15 +292,13 @@
     premium: {label:'Premium', limit:50,  price:79000, periodDays:30}
   };
   var PB_PAYMENT_CONFIG = {
-    waNumber: '6282273703136', // GANTI: nomor WA admin, format 62..., tanpa + atau spasi
-    bank: { nama:'BCA', noRek:'1234567890', atasNama:'Nama Kamu' }, // (cadangan, dipakai kalau methods kosong)
-    // DAFTAR METODE BAYAR — tambah/hapus/ubah baris sesuai kebutuhan.
+    // DAFTAR METODE BAYAR (bank & e-wallet). Tiap baris: nama, noRek (nomor rekening / nomor e-wallet), atasNama.
+    // Tambah / hapus baris sesuai kebutuhan (mis. OVO, GoPay, BCA, Jago, Mandiri...).
+    // PENGAMAN: baris yang noRek-nya masih diawali "ISI" TIDAK ditampilkan ke user. Ganti "ISI_..." dengan data asli.
     methods: [
-      { nama:'DANA', noRek:'081234567890',  atasNama:'Nama Kamu' }, // GANTI
-      { nama:'BCA',  noRek:'1234567890',    atasNama:'Nama Kamu' }, // GANTI
-      { nama:'BRI',  noRek:'123456789012',  atasNama:'Nama Kamu' }  // GANTI / hapus baris ini kalau tak dipakai
+      { nama:'blu by BCA Digital', noRek:'001392644121', atasNama:'Kamalul Razi' }
     ],
-    qrisImageUrl: '' // GANTI (opsional): URL gambar QRIS kalau punya
+    qrisImageUrl: '' // (opsional) URL gambar QRIS kalau punya
   };
   window.PB_TIER_CONFIG = PB_TIER_CONFIG;
   window.PB_PAYMENT_CONFIG = PB_PAYMENT_CONFIG;
@@ -13183,20 +13181,28 @@ function pbSelectUpgradeTier(tier){
   document.getElementById('upg-pay-amount').textContent='Rp'+pbUpgPrice(tier,_pbUpgradeSelectedPer).toLocaleString('id-ID');
   pbRenderPayMethods();
 }
+function pbPayList(){
+  var pay=window.PB_PAYMENT_CONFIG||{};
+  return (pay.methods||[]).filter(function(m){ return m && m.noRek && String(m.noRek).indexOf('ISI')!==0 && String(m.atasNama||'').indexOf('ISI')!==0; });
+}
 function pbRenderPayMethods(){
-  var pay=window.PB_PAYMENT_CONFIG, box=document.getElementById('upg-pay-methods');
+  var box=document.getElementById('upg-pay-methods');
   if(!box) return;
-  var list=(pay.methods&&pay.methods.length)?pay.methods:[pay.bank];
+  var list=pbPayList();
+  if(!list.length){
+    box.innerHTML='<div class="info-card" style="margin-bottom:10px;"><div style="font-size:var(--fs-sm);color:var(--muted);">Metode pembayaran belum tersedia. Silakan coba lagi nanti.</div></div>';
+    return;
+  }
   box.innerHTML=list.map(function(m,i){
     return '<div class="info-card" style="margin-bottom:10px;"><div style="flex:1;min-width:0;">'+
       '<div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:2px;">'+esc(m.nama)+'</div>'+
-      '<div style="font-family:\'JetBrains Mono\',monospace;font-size:var(--fs-base);font-weight:600;word-break:break-all;">'+esc(m.noRek)+'</div>'+
+      '<div style="font-family:\'Geist Mono\',monospace;font-size:var(--fs-base);font-weight:700;word-break:break-all;">'+esc(m.noRek)+'</div>'+
       '<div style="font-size:var(--fs-sm);color:var(--muted);">a.n. '+esc(m.atasNama)+'</div></div>'+
       '<button type="button" class="btn" style="margin-left:10px;padding:8px 12px;" onclick="pbCopyPayNo('+i+')">Salin</button></div>';
   }).join('');
 }
 function pbCopyPayNo(i){
-  var pay=window.PB_PAYMENT_CONFIG, list=(pay.methods&&pay.methods.length)?pay.methods:[pay.bank], m=list[i];
+  var list=pbPayList(), m=list[i];
   if(!m) return;
   var no=String(m.noRek).replace(/\s+/g,'');
   var done=function(){ showToast('Nomor '+m.nama+' disalin','success'); };
@@ -13221,11 +13227,7 @@ function pbConfirmUpgradeWA(){
       window.pbCloudPushUpgradeRequest({tier:tier, price:total, period:per.label, months:per.months, days:per.days, email:email, requestedAt:Date.now(), status:'pending'});
     }
   }catch(e){}
-  var pesan='Halo, saya mau konfirmasi upgrade Prompt Builder ke paket '+cfg.label+' periode '+per.label+' (Rp'+total.toLocaleString('id-ID')+').'+
-    (email?(' Akun: '+email+'.'):'')+' Berikut bukti transfernya 🙏';
-  var wa='https://wa.me/'+window.PB_PAYMENT_CONFIG.waNumber+'?text='+encodeURIComponent(pesan);
-  window.open(wa,'_blank');
-  showToast('Cek WhatsApp untuk kirim bukti transfer ke admin ya!','success');
+  showToast('Permintaan upgrade tercatat. Paket aktif setelah pembayaranmu kami cek.','success');
   pbCloseUpgradeModal();
 }
 
@@ -26784,9 +26786,9 @@ window.addEventListener('beforeunload', function(e){
     <div id="upgrade-payment-panel" class="upg-sheet" style="display:none;">
       <button onclick="pbBackToUpgradePlans()" style="background:none;border:none;color:var(--muted);font-size:var(--fs-sm);cursor:pointer;padding:0;margin-bottom:12px;">← Kembali</button>
       <div style="font-size:var(--fs-base);font-weight:600;margin-bottom:4px;">Upgrade ke <span id="upg-pay-tier-label"></span></div>
-      <div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:14px;">Transfer <strong id="upg-pay-amount" style="color:var(--text);"></strong> lewat salah satu metode di bawah (DANA / bank), lalu konfirmasi via WhatsApp.</div>
+      <div style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:14px;">Transfer <strong id="upg-pay-amount" style="color:var(--text);"></strong> lewat salah satu metode di bawah (bank / e-wallet), lalu tekan tombol konfirmasi di bawah.</div>
       <div id="upg-pay-methods"></div>
-      <button class="btn" style="width:100%;background:var(--green);" onclick="pbConfirmUpgradeWA()">Sudah Transfer — Konfirmasi via WhatsApp</button>
+      <button class="btn" style="width:100%;background:var(--green);" onclick="pbConfirmUpgradeWA()">Sudah Transfer — Kirim Konfirmasi</button>
     </div>
   </div>
 </div>
