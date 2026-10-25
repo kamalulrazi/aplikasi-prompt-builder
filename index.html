@@ -21489,7 +21489,7 @@ function _vbSapaanRule(){
 // Contoh di bawah = OPSI 1 (VB_REF_OPSI1_COMBO, kunci: nadaKey+'|'+aksen; VB_REF_OPSI1_DEFAULT = cadangan umum).
 // Opsi baru: bikin pasangan VB_REF_OPSI2_DEFAULT + VB_REF_OPSI2_COMBO dengan format yang sama, lalu daftarkan di VB_REFERENCE_OPTIONS.
 // Tiap kali skrip diminta ke AI, SATU opsi dipilih acak.
-var VB_REFERENCE_HEAD='REFERENCE: the sample scripts are only for tone and signature dialect words. Never copy their words, product or place; write every sentence fresh for the product in DATA. The situation and order of events must come from the product.\n';
+var VB_REFERENCE_HEAD='REFERENCE (EXAMPLE ONLY): the sample script below is about a DIFFERENT product and is NOT your product. Use it only to feel the tone, rhythm and signature dialect words. Do not copy or paraphrase its sentences, jokes, scenario, problem, product, place or word order, and never mention its product. Write every sentence fresh and original for the product in DATA; the situation and order of events must come from that product.\n';
 var VB_REF_OPSI1_DEFAULT=
   'hook: piknik tapi bawa kresek? malu-maluin banget loh, mending pakek tas ini aja, estetik, muat banyak, foto piknik juga langsung makin cakep.\n'+
   'story: bayangin, kamu piknik sama teman, semua bawa bekal di tas biasa. tapi kamu datang bawa tas ini, langsung semua noleh dan minta foto bareng sama tas-nya.\n'+
@@ -22923,6 +22923,16 @@ function _vbClaimWords(text,nama,adv){
   });
   return out;
 }
+// ── 25 Okt 2026 (audit): PENGAMAN SKRIP NYASAR ─────────────────────────────────────────────
+// Kalau skrip menyebut produk milik CONTOH referensi (sunscreen, tumbler, dst) padahal kata itu tidak ada di nama/keunggulan/arah
+// pembahasan produknya, bagian itu dibuat ulang SEKALI (hanya produk yang nyasar). Kalau opsi contoh baru ditambahkan di
+// VB_REFERENCE_OPTIONS, tambahkan juga kata produknya di daftar ini.
+var VB_FOREIGN_SAMPLE_WORDS=['sunscreen','tumbler','earbuds','earphone','kipas','ring light','parfum','kresek','tas piknik'];
+function _vbOffTopicWords(p,bp){
+  var own=(String(bp&&bp.nama||'')+' '+String(bp&&bp.keunggulan||'')+' '+String(bp&&bp.topik||'')).toLowerCase();
+  var txt=[p&&p.hook,p&&p.story,p&&p.cta].join(' ').toLowerCase();
+  return VB_FOREIGN_SAMPLE_WORDS.filter(function(w){return txt.indexOf(w)>-1&&own.indexOf(w)===-1;});
+}
 function _vbPostChecks(arr,batch){
   var aligned=(arr.length===batch.length);
   var rec=[];try{rec=JSON.parse(localStorage.getItem(VB_TAILS_KEY)||'[]')||[];}catch(e){rec=[];}
@@ -23143,7 +23153,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   const _maxImgThisCall=_pbMaxImages(); // FIX: label [Image N] & lampiran foto dibatasi sesuai batas model (Groq 3 / Gemini 16)
   
   const _vbVar=(VB_RANDOM_DIRECTIONS&&!extraNote)?_vbPickVariation(batch.length):null; // v10: sudut Hook & momen Story diundi kode (hanya generate baru, bukan revisi)
-  const _vbRefPlan=batch.length>1?_vbPlanReferences(batch.length):null; // v13.4: contoh referensi diacak per produk
+  const _vbRefPlan=null; // 25 Okt 2026 (audit): tidak lagi memasangkan tiap produk dengan 'REF: Opsi N' (bikin AI meniru contoh produk lain). Batch memakai 1 contoh saja.
   let produkListText=batch.map((p,i)=>{
     let line=(i+1)+'. '+_vbCleanField(p.nama,160)+(p.keunggulan?' — advantages: '+_vbCleanField(p.keunggulan,400):'')+(p.topik?' — STORY focus: '+_vbCleanField(p.topik,400):'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
@@ -23157,7 +23167,6 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       if(!p.topik&&_vbVar[i].form)line+=' — FORM: '+_vbVar[i].form;
       if(_vbVar[i].invite)line+=' — INVITE angle: '+_vbVar[i].invite;
     }
-    if(_vbRefPlan)line+=' — REF: '+VB_REFERENCE_OPTIONS[_vbRefPlan[i]].nama;
     if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
       line+=' [Image '+_imgCounter+']';
@@ -23191,7 +23200,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
 
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
   // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
-  let _promptParts=[{text:'DATA\n'+prompt+'\nWrite '+batch.length+' script'+(batch.length>1?'s':'')+' now. Output the JSON array only.'}]; // audit Okt 2026: DATA user pindah dari system prompt ke pesan user
+  let _promptParts=[{text:'DATA\n'+prompt+'\nREMINDER: each script is ONLY about its own product in the list above, and the product name must be said in HOOK or STORY. The REFERENCE sample is just an example of tone about a different product: never copy it and never mention its product.\nWrite '+batch.length+' script'+(batch.length>1?'s':'')+' now. Output the JSON array only.'}]; // audit Okt 2026: DATA user pindah dari system prompt ke pesan user
   let _imgAttached=0;
   batch.forEach(function(p){
     if(p.fotoBase64&&_imgAttached<_maxImgThisCall){
@@ -23404,6 +23413,31 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
 
   // PERBAIKAN SKRIP KEPENDEKAN (permintaan user, 29 Sep 2026): HANYA kalau pemanggil
   // meminta (fixShort=true: generate bulk, plus revisi/regenerate satu produk sejak 12 Okt 2026 supaya kelebihan kata diperpendek AI, bukan dipotong kode).
+  // 25 Okt 2026 (audit): pengaman skrip nyasar (lihat _vbOffTopicWords). Dibuat ulang SEKALI, hanya untuk produk yang nyasar.
+  try{
+    if(!(typeof extraNote==='string'&&extraNote.indexOf('OFF-TOPIC RETRY')===0)){
+      let _offIdx=[],_offProd=[];
+      for(let oi=0;oi<arr.length;oi++){
+        let _bp=_byNo?batch[arr[oi]&&arr[oi]._bi]:(arr.length===batch.length?batch[oi]:null);
+        if(_bp&&arr[oi]&&_vbOffTopicWords(arr[oi],_bp).length){_offIdx.push(oi);_offProd.push(_bp);}
+      }
+      if(_offIdx.length){
+        console.warn('[_vbCallBulkBatch] '+_offIdx.length+' skrip menyebut produk contoh referensi — dibuat ulang sekali.');
+        let _saveMode=_vbCurrentCallMode,_savePC=_vbCurrentCallProdukCount,_saveFC=_vbCurrentCallFotoCount;
+        try{
+          let _rr=await _vbCallBulkBatch(_offProd,targetAudience,'OFF-TOPIC RETRY: the previous draft wrongly talked about another product. Write ONLY about the product on each line of the list, using its own name and its own daily problem. Do not mention any other product.'+(extraNote?' '+String(extraNote):''),onWait,null,usedHooks,cacheSystem,totalProdukInSesi);
+          (_rr||[]).forEach(function(o,j){
+            if(!o||!o.hook||!o.story||!o.cta)return;
+            let k=(o._bi!=null?o._bi:j),t=arr[_offIdx[k]];
+            if(!t||!_offProd[k])return;
+            if(_vbOffTopicWords(o,_offProd[k]).length)return; // masih nyasar: pakai hasil lama apa adanya
+            t.hook=o.hook;t.story=o.story;t.cta=o.cta;
+          });
+        }catch(eOff){console.warn('[_vbCallBulkBatch] regenerasi skrip nyasar dilewati:',eOff);}
+        _vbCurrentCallMode=_saveMode;_vbCurrentCallProdukCount=_savePC;_vbCurrentCallFotoCount=_saveFC;
+      }
+    }
+  }catch(eGuard){console.warn('[_vbCallBulkBatch] pengaman skrip nyasar dilewati:',eGuard);}
   if(fixShort)await _vbApplyShortFix(arr,_byNo?arr.map(function(o){return batch[o._bi];}):batch,range,onWait,{system:_vbEffectiveSystemPrompt,text:(_promptParts&&_promptParts[0]&&_promptParts[0].text)||''});
 
   for(let pi=0;pi<arr.length;pi++){
