@@ -16282,10 +16282,47 @@ function vbFeGoSteps(){
 function vbFeFrameEl(n){return document.getElementById('vb-fe-fr-'+n);}
 // Pemanasan video: begitu sheet pilihan dibuka, video opsi-opsinya mulai diunduh di latar belakang,
 // jadi saat user memilih, video sudah (sebagian) ada di cache & langsung tampil. Referensi disimpan supaya unduhan tidak terputus.
+// 25 Okt 2026 (audit kecepatan): PRATINJAU INSTAN. Sebelumnya video tiap opsi baru diunduh SETELAH user mengetuk opsi
+// (pemanasan lama cuma elemen <video preload> yang sering diabaikan browser HP), jadi bingkai menampilkan spinner dulu.
+// Sekarang begitu mode Fashion Editorial dipilih, semua video opsi diunduh di latar belakang (2 jalur) lalu disimpan
+// sebagai blob di memori; saat user mengetuk opsi, video dibaca dari memori = langsung tampil. Dilewati kalau Data Saver
+// aktif / koneksi 2G. Kalau unduhan belum selesai atau gagal, tetap jalan lewat alamat media/ seperti biasa.
+const VB_FE_BLOB={};
+let VB_FE_PRELOAD_STARTED=false;
+function vbFeSrcList(k){
+  let l=VB_FE_VIDEO[k]||[];
+  return VB_FE_BLOB[k]?[VB_FE_BLOB[k]].concat(l):l;
+}
+function vbFePreloadAll(){
+  if(VB_FE_PRELOAD_STARTED)return;
+  try{let c=navigator.connection;if(c&&(c.saveData||/(^|-)2g$/.test(c.effectiveType||'')))return;}catch(e){}
+  if(!window.fetch||!window.URL||!URL.createObjectURL)return;
+  VB_FE_PRELOAD_STARTED=true;
+  let keys=[1,2,3,'1isi','3isi','1goyang'],i=0;
+  function fetchOne(list,j){
+    return (typeof pbMediaGet==='function'?pbMediaGet(list[j]):fetch(list[j]).then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.blob();}))
+      .then(function(b){if(!b||!b.size||/^text\//.test(b.type))throw new Error('bukan video');return b;})
+      .catch(function(){return j+1<list.length?fetchOne(list,j+1):null;});
+  }
+  function next(){
+    if(i>=keys.length)return;
+    let k=keys[i++],list=VB_FE_VIDEO[k];
+    if(!list||VB_FE_BLOB[k]){next();return;}
+    fetchOne(list,0).then(function(b){if(b)VB_FE_BLOB[k]=URL.createObjectURL(b);}).catch(function(){}).then(next);
+  }
+  next();next();
+  try{let u=window.PB_IMG_VBFASHION_VIDEO;if(u&&String(u).indexOf('blob:')!==0&&typeof pbMediaGet==='function')pbMediaGet(u).then(function(b){window.PB_IMG_VBFASHION_VIDEO=URL.createObjectURL(b);}).catch(function(){});}catch(e){} // video pratinjau mode ikut disimpan
+}
+// Mulai unduh begitu aplikasi dibuka (bukan menunggu mode Fashion Editorial dipilih). Pembukaan berikutnya: dibaca dari penyimpanan browser.
+(function(){
+  function go(){try{vbFePreloadAll();}catch(e){}}
+  function arm(){if(window.requestIdleCallback)requestIdleCallback(go,{timeout:4000});else setTimeout(go,2500);}
+  if(document.readyState==='complete')setTimeout(arm,1500);else window.addEventListener('load',function(){setTimeout(arm,1500);});
+})();
 const VB_FE_WARM={};
 function vbFeWarm(keys){
   keys.forEach(function(k){
-    if(VB_FE_WARM[k])return;
+    if(VB_FE_WARM[k]||VB_FE_BLOB[k])return;
     let list=VB_FE_VIDEO[k];if(!list)return;
     let v=document.createElement('video'),idx=0;
     v.muted=true;v.preload='auto';v.setAttribute('playsinline','');
@@ -16349,9 +16386,9 @@ function vbFeUpdateFrame(n){
   fr.setAttribute('aria-label',(t.t+' '+t.r).trim()+': '+opt.l+'. Ketuk untuk mengubah');
   if(fr.dataset.k===String(opt.k)){vbFePlayEl(v);return;} // opsi sama, video tetap jalan
   fr.dataset.k=String(opt.k);
-  let list=VB_FE_VIDEO[opt.k]||[],idx=0;
+  let list=vbFeSrcList(opt.k),idx=0;
   fr.classList.remove('has-v');v.classList.add('hidden');
-  fr.classList.add('ld'); // tampilkan spinner sampai frame pertama video siap
+  if(!VB_FE_BLOB[opt.k])fr.classList.add('ld'); // spinner hanya kalau video belum ada di memori
   v.onloadeddata=function(){fr.classList.remove('ld');fr.classList.add('has-v');v.classList.remove('hidden');};
   v.onerror=function(){ // coba media/N.mp4, lalu N.mp4; kalau dua-duanya tidak ada, tetap tampil ikon baju
     idx++;
@@ -16440,7 +16477,7 @@ function vbFePlayFull(){
   let token=++VB_FE_FULL_TOKEN;
   let els=[A,B],order=[1,2,3];
   function siapkan(el,n){ // muat video step n ke elemen el (belum diputar)
-    let list=VB_FE_VIDEO[vbFeKey(n)]||[],idx=0;
+    let list=vbFeSrcList(vbFeKey(n)),idx=0;
     el.onplaying=null;el.onended=null;
     el.loop=false;el.muted=true;el.preload='auto';
     el.onerror=function(){
@@ -16451,7 +16488,7 @@ function vbFePlayFull(){
         el.onerror=null;
         els.forEach(function(x){try{x.pause();}catch(e){}x.style.visibility='hidden';});
         if(ph)ph.classList.remove('hidden');
-        if(phT)phT.innerHTML='Video belum ditemukan<br>Pastikan file '+(list[0]||'').replace('media/','')+' ada di folder media';
+        if(phT)phT.innerHTML='Video belum ditemukan<br>Pastikan file '+((VB_FE_VIDEO[vbFeKey(n)]||[])[0]||'').replace('media/','')+' ada di folder media';
         VB_FE_FULL_TOKEN++;
       }
     };
@@ -16552,6 +16589,7 @@ function vbSyncFashionPreview(show){
     if(!vid.getAttribute('src') && window.PB_IMG_VBFASHION_VIDEO) vid.src=window.PB_IMG_VBFASHION_VIDEO;
     vid.muted=true;
     try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
+    setTimeout(function(){try{vbFePreloadAll();}catch(e){}},400); // 25 Okt 2026: unduh video semua opsi di latar belakang
   }else{
     try{ vid.pause(); }catch(e){}
   }
@@ -27986,6 +28024,48 @@ window.PB_IMG_VBIKUTI_REFPOSTER='media/vbikuti-refposter.jpg';
 // perlu diubah karena selalu membaca window.PB_IMG_* saat dibutuhkan; kalau
 // unduhan belum selesai/gagal, tetap jalan pakai alamat media/ biasa.
 // Unduhan lewat cache HTTP browser, jadi pembukaan berikutnya hampir tanpa data.
+// 25 Okt 2026: SIMPAN VIDEO PERMANEN DI BROWSER (Cache Storage). pbMediaGet(url) -> Promise<Blob>.
+// Pertama kali: diunduh dari server lalu disimpan. Berikutnya (aplikasi ditutup lalu dibuka lagi): dibaca dari penyimpanan
+// browser TANPA mengunduh video lagi. Setelah itu, di latar belakang, cuma 1 permintaan HEAD kecil (tanpa isi video) untuk
+// mengecek apakah file di server diganti (etag / last-modified / ukuran berbeda); kalau diganti, video diunduh ulang & disimpan
+// untuk pembukaan berikutnya. Butuh https (atau localhost); kalau tidak tersedia, jatuh ke unduhan biasa tiap sesi.
+var PB_MEDIA_CACHE='pb-media-v1';
+function pbMediaNet(url){
+  return fetch(url).then(function(r){
+    if(!r.ok)throw new Error('http '+r.status);
+    if(/^text\//.test(r.headers.get('content-type')||''))throw new Error('bukan video');
+    return r;
+  });
+}
+function pbMediaRevalidate(cache,url,oldHeaders){
+  setTimeout(function(){
+    try{
+      fetch(url,{method:'HEAD',cache:'no-cache'}).then(function(h){
+        if(!h.ok)return;
+        var changed=false,decided=false;
+        ['etag','last-modified','content-length'].forEach(function(n){
+          if(decided)return;
+          var a=oldHeaders.get(n),b=h.headers.get(n);
+          if(a&&b){decided=true;changed=(a!==b);}
+        });
+        if(changed)pbMediaNet(url).then(function(r){return cache.put(url,r);}).catch(function(){});
+      }).catch(function(){});
+    }catch(e){}
+  },3000);
+}
+function pbMediaGet(url){
+  var direct=function(){return pbMediaNet(url).then(function(r){return r.blob();});};
+  if(!(window.caches&&window.isSecureContext))return direct();
+  return caches.open(PB_MEDIA_CACHE).then(function(cache){
+    return cache.match(url).then(function(hit){
+      if(hit){pbMediaRevalidate(cache,url,hit.headers);return hit.blob();}
+      return pbMediaNet(url).then(function(r){
+        return cache.put(url,r.clone()).catch(function(){}).then(function(){return r.blob();});
+      });
+    });
+  }).catch(function(){return direct();});
+}
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){} // minta browser jangan menghapus penyimpanan ini saat memori penuh
 (function(){
   var VID_KEYS=['PB_IMG_VBASET_VIDEO','PB_IMG_VBMS_VIDEO','PB_IMG_VBTESS_VIDEO','PB_IMG_VBTESS_VIDEO_DINAMIS','PB_IMG_VBTESS_VIDEO_ESTETIK','PB_IMG_VBTESS_VIDEO_UGC','PB_IMG_VBKP_VIDEO','PB_IMG_VBREF_VIDEO','PB_IMG_VBIKUTI_VIDEO','PB_IMG_VBIKUTI_REF'];
   var PHOTO_KEYS=['PB_IMG_VBREF_FOTO','PB_IMG_VBASET_FOTO1','PB_IMG_VBASET_FOTO2','PB_IMG_VBMS_FOTO','PB_IMG_VBTESS_FOTO','PB_IMG_VBFASHION_FOTO','PB_IMG_VBKP_FOTO1','PB_IMG_VBKP_FOTO2','PB_IMG_VBIKUTI_FOTO','PB_IMG_VBIKUTI_REFPOSTER'];
@@ -28001,7 +28081,7 @@ window.PB_IMG_VBIKUTI_REFPOSTER='media/vbikuti-refposter.jpg';
     if(!u || String(u).indexOf('blob:')===0 || !window.fetch || !window.URL || !URL.createObjectURL){
       warmVideo(i+1); return;
     }
-    fetch(u).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.blob(); })
+    (typeof pbMediaGet==='function'?pbMediaGet(u):fetch(u).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.blob(); }))
       .then(function(b){ window[k]=URL.createObjectURL(b); })
       .catch(function(){})
       .then(function(){ setTimeout(function(){ warmVideo(i+1); },300); });
@@ -28011,15 +28091,9 @@ window.PB_IMG_VBIKUTI_REFPOSTER='media/vbikuti-refposter.jpg';
     setTimeout(function(){ warmPhotos(); warmVideo(0); },800);
   }
   function init(){
-    var chip=document.getElementById('vb-mode-satu');
-    if(!chip) return;
-    if(!('IntersectionObserver' in window)){ setTimeout(start,4000); return; }
-    var io=new IntersectionObserver(function(es){
-      for(var i=0;i<es.length;i++){
-        if(es[i].isIntersecting){ io.disconnect(); start(); return; }
-      }
-    });
-    io.observe(chip);
+    // 25 Okt 2026: mulai begitu aplikasi dibuka (tidak lagi menunggu halaman Video Builder terlihat). Dilewati kalau Data Saver / 2G.
+    try{ var c=navigator.connection; if(c&&(c.saveData||/(^|-)2g$/.test(c.effectiveType||''))) return; }catch(e){}
+    setTimeout(start,2500);
   }
   if(document.readyState==='complete') init();
   else window.addEventListener('load',init);
