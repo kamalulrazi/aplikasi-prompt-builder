@@ -22415,9 +22415,19 @@ var VB_REFERENCE_OPTIONS=[
   {nama:'Opsi 12',def:VB_REF_OPSI12_DEFAULT,combo:VB_REF_OPSI12_COMBO},
   {nama:'Opsi 13',def:VB_REF_OPSI13_DEFAULT,combo:VB_REF_OPSI13_COMBO}
 ];
+// 25 Okt 2026: contoh referensi diacak TANPA ulangan: semua opsi dikocok dulu, dipakai satu per satu (tiap panggilan AI = 1 opsi baru),
+// baru dikocok lagi kalau habis; opsi pertama putaran baru dijamin beda dari opsi terakhir putaran sebelumnya.
+var _vbRefBag=[],_vbRefLast=-1;
 function _vbPickReferenceOption(){
   var L=VB_REFERENCE_OPTIONS;
-  return L[Math.floor(Math.random()*L.length)]||L[0];
+  if(!_vbRefBag.length){
+    var idx=[];for(var i=0;i<L.length;i++)idx.push(i);
+    for(var a=idx.length-1;a>0;a--){var b=Math.floor(Math.random()*(a+1));var t=idx[a];idx[a]=idx[b];idx[b]=t;}
+    if(idx.length>1&&idx[idx.length-1]===_vbRefLast){var t2=idx[idx.length-1];idx[idx.length-1]=idx[0];idx[0]=t2;}
+    _vbRefBag=idx;
+  }
+  _vbRefLast=_vbRefBag.pop();
+  return L[_vbRefLast]||L[0];
 }
 // v13.4 (16 Okt 2026, permintaan user): generate banyak produk sekaligus -> contoh referensi DIACAK PER PRODUK (semua opsi dibagi rata,
 // tidak berulang berurutan lewat _vbDeal). Opsi yang terpakai ditulis SEKALI di system prompt (hemat token), tiap baris produk
@@ -22439,7 +22449,7 @@ function _vbReferenceBlockMulti(pitch,accent,plan){
   var k=_vbRefKey(pitch,accent),used=[];
   plan.forEach(function(i){if(used.indexOf(i)<0)used.push(i);});
   used.sort();
-  return VB_REFERENCE_HEAD.replace(/\n$/,' Each product in DATA names its own reference (REF: Opsi N); for that product follow ONLY that option, never mix them.\n')
+  return VB_REFERENCE_HEAD.replace(/\n$/,' Each product in DATA is tagged with one sample (TONE SAMPLE: Opsi N). For that product take the tone, rhythm and dialect words ONLY from that sample and never mix samples. The samples are about other products: never use their topic, product, problem or scenario for any product in DATA.\n')
     +used.map(function(i){var o=VB_REFERENCE_OPTIONS[i];return '['+o.nama+']\n'+_vbRefText(o,k);}).join('\n\n');
 }
 function _vbReferenceBlock(pitch,accent){
@@ -22966,8 +22976,8 @@ function _vbClaimWords(text,nama,adv){
 // pembahasan produknya, bagian itu dibuat ulang SEKALI (hanya produk yang nyasar). Kalau opsi contoh baru ditambahkan di
 // VB_REFERENCE_OPTIONS, tambahkan juga kata produknya di daftar ini.
 var VB_FOREIGN_SAMPLE_WORDS=['sunscreen','tumbler','earbuds','earphone','kipas','ring light','parfum','kresek','tas piknik'];
-function _vbOffTopicWords(p,bp){
-  var own=(String(bp&&bp.nama||'')+' '+String(bp&&bp.keunggulan||'')+' '+String(bp&&bp.topik||'')).toLowerCase();
+function _vbOffTopicWords(p,bp,extra){
+  var own=(String(bp&&bp.nama||'')+' '+String(bp&&bp.keunggulan||'')+' '+String(bp&&bp.topik||'')+' '+String(extra||'')).toLowerCase();
   var txt=[p&&p.hook,p&&p.story,p&&p.cta].join(' ').toLowerCase();
   return VB_FOREIGN_SAMPLE_WORDS.filter(function(w){return txt.indexOf(w)>-1&&own.indexOf(w)===-1;});
 }
@@ -23191,7 +23201,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
   const _maxImgThisCall=_pbMaxImages(); // FIX: label [Image N] & lampiran foto dibatasi sesuai batas model (Groq 3 / Gemini 16)
   
   const _vbVar=(VB_RANDOM_DIRECTIONS&&!extraNote)?_vbPickVariation(batch.length):null; // v10: sudut Hook & momen Story diundi kode (hanya generate baru, bukan revisi)
-  const _vbRefPlan=null; // 25 Okt 2026 (audit): tidak lagi memasangkan tiap produk dengan 'REF: Opsi N' (bikin AI meniru contoh produk lain). Batch memakai 1 contoh saja.
+  const _vbRefPlan=batch.length>1?_vbPlanReferences(batch.length):null; // contoh referensi diacak per produk (dalam 1 panggilan); 25 Okt 2026: dipasang lagi dengan label 'TONE SAMPLE' + kalimat 'contoh nada saja, bukan topik'
   let produkListText=batch.map((p,i)=>{
     let line=(i+1)+'. '+_vbCleanField(p.nama,160)+(p.keunggulan?' — advantages: '+_vbCleanField(p.keunggulan,400):'')+(p.topik?' — STORY focus: '+_vbCleanField(p.topik,400):'');
     // FITUR BARU (permintaan user): gaya HOOK per produk dari "Atur Detail" di
@@ -23205,6 +23215,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       if(!p.topik&&_vbVar[i].form)line+=' — FORM: '+_vbVar[i].form;
       if(_vbVar[i].invite)line+=' — INVITE angle: '+_vbVar[i].invite;
     }
+    if(_vbRefPlan)line+=' — TONE SAMPLE: '+VB_REFERENCE_OPTIONS[_vbRefPlan[i]].nama+' (tone and dialect only, never its topic)';
     if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
       line+=' [Image '+_imgCounter+']';
@@ -23457,18 +23468,18 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       let _offIdx=[],_offProd=[];
       for(let oi=0;oi<arr.length;oi++){
         let _bp=_byNo?batch[arr[oi]&&arr[oi]._bi]:(arr.length===batch.length?batch[oi]:null);
-        if(_bp&&arr[oi]&&_vbOffTopicWords(arr[oi],_bp).length){_offIdx.push(oi);_offProd.push(_bp);}
+        if(_bp&&arr[oi]&&_vbOffTopicWords(arr[oi],_bp,extraNote).length){_offIdx.push(oi);_offProd.push(_bp);}
       }
       if(_offIdx.length){
         console.warn('[_vbCallBulkBatch] '+_offIdx.length+' skrip menyebut produk contoh referensi — dibuat ulang sekali.');
         let _saveMode=_vbCurrentCallMode,_savePC=_vbCurrentCallProdukCount,_saveFC=_vbCurrentCallFotoCount;
         try{
-          let _rr=await _vbCallBulkBatch(_offProd,targetAudience,'OFF-TOPIC RETRY: the previous draft wrongly talked about another product. Write ONLY about the product on each line of the list, using its own name and its own daily problem. Do not mention any other product.'+(extraNote?' '+String(extraNote):''),onWait,null,usedHooks,cacheSystem,totalProdukInSesi);
+          let _rr=await _vbCallBulkBatch(_offProd,targetAudience,'OFF-TOPIC RETRY: the previous draft wrongly talked about another product. Write ONLY about the product on each line of the list, using its own name and its own daily problem. Do not mention any other product.'+(extraNote?' '+String(extraNote):''),onWait,undefined,usedHooks,cacheSystem,totalProdukInSesi);
           (_rr||[]).forEach(function(o,j){
             if(!o||!o.hook||!o.story||!o.cta)return;
             let k=(o._bi!=null?o._bi:j),t=arr[_offIdx[k]];
             if(!t||!_offProd[k])return;
-            if(_vbOffTopicWords(o,_offProd[k]).length)return; // masih nyasar: pakai hasil lama apa adanya
+            if(_vbOffTopicWords(o,_offProd[k],extraNote).length)return; // masih nyasar: pakai hasil lama apa adanya
             t.hook=o.hook;t.story=o.story;t.cta=o.cta;
           });
         }catch(eOff){console.warn('[_vbCallBulkBatch] regenerasi skrip nyasar dilewati:',eOff);}
@@ -23511,7 +23522,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
 // (v11.85) _vbBuildPhotoAwareBatches dihapus — tidak dipakai sejak semua produk digabung per panggilan (lihat VB_MAX_PRODUK_PER_CALL).
 
 // ===== PERBAIKAN AUDIT (Okt 2026) — helper baru =====
-var VB_MAX_PRODUK_PER_CALL=15; // 1 panggilan untuk <=15 produk (hemat, sesuai permintaan awal); >15 dipecah supaya 1 kegagalan tidak menghanguskan semuanya
+var VB_MAX_PRODUK_PER_CALL=15; // 1 panggilan untuk <=15 produk (contoh referensi diacak per produk di dalam panggilan itu); >15 dipecah supaya 1 kegagalan tidak menghanguskan semuanya
 function _vbCleanField(s,max){
   s=String(s==null?'':s).replace(/[\r\n\t]+/g,' ').replace(/["`]+/g,"'").replace(/\s{2,}/g,' ').trim();
   return s.length>max?s.slice(0,max):s;
@@ -28043,7 +28054,7 @@ function pbMediaRevalidate(cache,url,oldHeaders){
       fetch(url,{method:'HEAD',cache:'no-cache'}).then(function(h){
         if(!h.ok)return;
         var changed=false,decided=false;
-        ['etag','last-modified','content-length'].forEach(function(n){
+        ['content-length','last-modified','etag'].forEach(function(n){
           if(decided)return;
           var a=oldHeaders.get(n),b=h.headers.get(n);
           if(a&&b){decided=true;changed=(a!==b);}
@@ -28053,14 +28064,15 @@ function pbMediaRevalidate(cache,url,oldHeaders){
     }catch(e){}
   },3000);
 }
+function pbMediaTyped(b){return (b&&!b.type)?new Blob([b],{type:'video/mp4'}):b;}
 function pbMediaGet(url){
-  var direct=function(){return pbMediaNet(url).then(function(r){return r.blob();});};
+  var direct=function(){return pbMediaNet(url).then(function(r){return r.blob().then(pbMediaTyped);});};
   if(!(window.caches&&window.isSecureContext))return direct();
   return caches.open(PB_MEDIA_CACHE).then(function(cache){
     return cache.match(url).then(function(hit){
-      if(hit){pbMediaRevalidate(cache,url,hit.headers);return hit.blob();}
+      if(hit){pbMediaRevalidate(cache,url,hit.headers);return hit.blob().then(pbMediaTyped);}
       return pbMediaNet(url).then(function(r){
-        return cache.put(url,r.clone()).catch(function(){}).then(function(){return r.blob();});
+        return cache.put(url,r.clone()).catch(function(){}).then(function(){return r.blob().then(pbMediaTyped);});
       });
     });
   }).catch(function(){return direct();});
