@@ -1,5 +1,5 @@
 // Service worker — sekarang HANYA men-cache foto pratinjau panggung Prompt Foto AI
-// (folder media/pst/). Semua yang lain tetap seperti sebelumnya: tidak di-cache,
+// (file media/chN.webp). Semua yang lain tetap seperti sebelumnya: tidak di-cache,
 // index.html selalu diambil terbaru (no-store).
 //
 // CARA GANTI FOTO:
@@ -32,10 +32,11 @@ self.addEventListener('fetch', function (event) {
 
   // ── Foto pratinjau Prompt Foto AI: cache dulu, kalau belum ada baru unduh ──
   // Ditaruh PALING ATAS, sebelum aturan "/media/ dibiarkan ke browser" di bawah.
+  // Hanya file bernama ch<angka>.webp (atau ch<angka>-v2.webp dst.) di folder media/.
   // Foto bukan video, tidak pakai Range, jadi aman di-cache penuh.
   if (req.method === 'GET' &&
       url.origin === self.location.origin &&
-      url.pathname.indexOf('/media/pst/') !== -1 &&
+      /\/media\/ch\d+(-v\d+)?\.webp$/.test(url.pathname) &&
       !req.headers.has('range')) {
     event.respondWith(
       caches.open(PST_CACHE).then(function (cache) {
