@@ -1,51 +1,82 @@
-// Service worker minimal — sekadar biar registrasi di index.html tidak
-// gagal/warning. Tidak melakukan caching apa pun, jadi app selalu
-// mengambil versi terbaru dari file (aman untuk pengembangan).
-// Kalau nanti mau app bisa dipakai offline, ini bisa dikembangkan lagi
-// untuk cache file www secara sederhana.
+// Service worker — sekarang HANYA men-cache foto pratinjau panggung Prompt Foto AI
+// (folder media/pst/). Semua yang lain tetap seperti sebelumnya: tidak di-cache,
+// index.html selalu diambil terbaru (no-store).
+//
+// CARA GANTI FOTO:
+// - Ganti 1-2 foto  -> beri nama file baru (mis. ch12-v2.webp) atau tambah ?v=2 di src.
+//   Foto lain TIDAK diunduh ulang.
+// - Ganti banyak foto sekaligus -> naikkan PST_CACHE jadi 'pst-media-v2'.
+//   Cache lama otomatis dihapus saat activate, foto diunduh ulang sekali.
+var PST_CACHE = 'pst-media-v1';
 
 self.addEventListener('install', function (event) {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
-  self.clients.claim();
+  event.waitUntil(
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (k) {
+        // Hapus HANYA cache foto versi lama. Cache lain tidak disentuh.
+        if (k.indexOf('pst-media-') === 0 && k !== PST_CACHE) {
+          return caches.delete(k);
+        }
+      }));
+    }).then(function () { return self.clients.claim(); })
+  );
 });
 
 self.addEventListener('fetch', function (event) {
+  var req = event.request;
+  var url = new URL(req.url);
+
+  // ── Foto pratinjau Prompt Foto AI: cache dulu, kalau belum ada baru unduh ──
+  // Ditaruh PALING ATAS, sebelum aturan "/media/ dibiarkan ke browser" di bawah.
+  // Foto bukan video, tidak pakai Range, jadi aman di-cache penuh.
+  if (req.method === 'GET' &&
+      url.origin === self.location.origin &&
+      url.pathname.indexOf('/media/pst/') !== -1 &&
+      !req.headers.has('range')) {
+    event.respondWith(
+      caches.open(PST_CACHE).then(function (cache) {
+        return cache.match(req).then(function (hit) {
+          if (hit) return hit;
+          return fetch(req).then(function (res) {
+            // simpan hanya kalau sukses (hindari menyimpan 404)
+            if (res && res.status === 200) cache.put(req, res.clone());
+            return res;
+          });
+        });
+      })
+    );
+    return;
+  }
+
   // BARU (Okt 2026): video/foto pratinjau sekarang file terpisah di folder
   // media/. Video dimuat browser pakai request Range (potongan byte), jadi
   // dibiarkan ditangani browser sendiri (tanpa respondWith) supaya cache
   // HTTP-nya jalan normal dan video tidak diunduh ulang setiap kali.
-  var url = new URL(event.request.url);
   if (url.origin === self.location.origin &&
       url.pathname.indexOf('/media/') !== -1) {
     return;
   }
-  if (event.request.headers.has('range') ||
-      event.request.destination === 'video' ||
-      event.request.destination === 'audio') {
+  if (req.headers.has('range') ||
+      req.destination === 'video' ||
+      req.destination === 'audio') {
     return;
   }
 
   // FIX (audit refresh, "app masih versi lama setelah refresh"): untuk
   // dokumen HTML utama (index.html — SATU-SATUNYA file app ini, semua
   // CSS/JS inline di dalamnya), fetch dipaksa cache:'no-store' supaya
-  // SELALU ambil byte terbaru dari server, tidak pernah "puas" dengan
-  // salinan di HTTP cache browser. Tanpa ini, pass-through polos di
-  // bawah tetap tunduk ke aturan cache bawaan browser (Cache-Control/
-  // ETag dari server) — kalau hosting tidak kirim header no-cache yang
-  // benar, refresh/reload bisa saja mendapat index.html versi lama dari
-  // cache tanpa benar-benar menanyakan ke server, padahal SW ini sendiri
-  // sudah aktif dan sengaja tidak melakukan caching apa pun.
-  var isDocument = event.request.mode === 'navigate' ||
-                   event.request.destination === 'document';
+  // SELALU ambil byte terbaru dari server.
+  var isDocument = req.mode === 'navigate' ||
+                   req.destination === 'document';
   if (isDocument) {
-    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }
   // Selain dokumen utama (font CDN, GSI, Firebase SDK, dst.): pass-through
-  // apa adanya seperti semula, tidak diubah sama sekali — supaya tidak
-  // mengganggu koneksi long-lived/stream milik Firestore dkk.
-  event.respondWith(fetch(event.request));
+  // apa adanya, supaya tidak mengganggu koneksi long-lived/stream Firestore dkk.
+  event.respondWith(fetch(req));
 });
