@@ -2237,7 +2237,8 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    Dipakai tombol Generate bulk (Hook/Story/CTA) lewat startGenLogoBtn(). Logo P di atas
    tetap jadi cadangan kalau canvas tidak tersedia. Warna kanvas dibaca dari token tema
    (--text, --accent, --accent-2, --bg, --surface2, --surface3, --red), jadi otomatis ikut Gratis/Standar/Premium. */
-.btn.btn-loading.gen-has-scene{padding:4px 0 2px;}
+/* !important: tombol #vb-bulk-btn punya style="padding:13px" inline yang kalau tidak begini mengalahkan padding loader */
+.btn.btn-loading.gen-has-scene{padding:4px 0 2px!important;}
 /* aturan .btn:disabled bawaan meredupkan isi tombol — untuk loader ini dikembalikan penuh */
 .btn.btn-loading.gen-has-scene:disabled{opacity:1;filter:none;cursor:default;transform:none;}
 .gen-scene{width:min(100%,232px);margin:0 auto;animation:genSceneIn .55s cubic-bezier(.16,1,.3,1) both;}
@@ -2331,6 +2332,17 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    cukup 1 aturan animation langsung di sini. */
 .vb-ta-loading-badge .p-layer-back{animation:pLoopBack 4.4s infinite;}
 .vb-ta-loading-badge .p-layer-front{animation:pLoopFront 4.4s infinite;}
+/* (26 Okt 2026, permintaan user) Selama loading generate skrip bulk (stick man), kotak kolom skrip DISEMBUNYIKAN dulu;
+   class vb-gen-wait dipasang di <html> oleh _vbRunBulkGenerate dan dicopot oleh _vbRevealScriptBox() begitu skrip pertama
+   berhasil diterima dari AI (atau di finally kalau gagal). Kotak lalu muncul dengan fade-in; kalau AI cepat, fade-in-nya juga cepat. */
+html.vb-gen-wait #vb-multi-output,html.vb-gen-wait #vb-order-flow{display:none!important;}
+#vb-multi-output.vb-out-reveal{animation:vbOutReveal .42s cubic-bezier(.16,1,.3,1) both;}
+#vb-multi-output.vb-out-reveal.vb-out-fast{animation-duration:.18s;}
+@keyframes vbOutReveal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* kedipan halus di kotak skrip saat teksnya berubah karena perbaikan kata / permintaan ulang ke AI (terlihat real-time) */
+.vb-ta-wrap.vb-ta-fixflash textarea{animation:vbFixFlash .9s ease-out;}
+@keyframes vbFixFlash{0%{box-shadow:0 0 0 2px var(--accent);}100%{box-shadow:0 0 0 0 transparent;}}
+@media (prefers-reduced-motion:reduce){#vb-multi-output.vb-out-reveal,.vb-ta-wrap.vb-ta-fixflash textarea{animation:none;}}
 
 /* ── SPLASH SCREEN — tampilan awal sebelum masuk app: logo P (sama seperti
    loading generate) menyatu, lalu muncul tulisan "Prompt Builder" ── */
@@ -4918,7 +4930,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.40</div>
+  <div class="splash-version" id="splash-version">v14.41</div>
 </div>
 <script>
   (function(){
@@ -7192,7 +7204,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.40 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.41 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -13060,7 +13072,7 @@ function step(dt){
    else if(u<3.0){k=es((u-2.1)/.9);pg.x=-38*(1-k);pg.y=-2.5*Math.sin(k*Math.PI);pg.a=es((u-2.1)/.12);tg.hold=1}
    else{pg.x=pg.y=0;pg.a=1;tg.nm='w0';tg.fm='c0'}}
   if(e.k!=='p'&&pg.a<1&&u>.2){pg.a=1;pg.x=pg.y=0}}
- else if(st==='rev'){var rs=s%5.4,n=s/5.4|0;if(n!==rvc){rvc=n;ink=ink.filter(function(x){return!x.rv});cs=null;from=tip.slice()}
+ else if(st==='rev'){var rs=s%5.4,n=s/5.4|0;if(rh&&rs>=3.3&&rs<3.55){stT-=.8;s=stT;rs=s%5.4;n=s/5.4|0;}if(n!==rvc){rvc=n;ink=ink.filter(function(x){return!x.rv});cs=null;from=tip.slice()}
   if(rs<1.5){sub('a'+n);tg.nm='chin';tg.ln=13;tg.cu=3;tg.hd=-5;tg.mo='o';tg.br=-1;tg.gz=[.4,-.7];qm=es(rs/.3);qc='?';thk=1;tg.tap=.35}
   else if(rs<2.5){sub('b'+n);wri(P_STR,'b'+n,'r',rs-1.5,.25,.65,1);tg.nm='w';tg.br=-1;tg.gz=0;tg.ln=24+tip[0]*3}
   else if(rs<3.3){sub('c'+n);tg.nm='head';tg.ln=14;tg.cu=3;tg.hd=-4;tg.mo='o';tg.br=1;tg.gz=[.5,-.8];qm=1;qc='?'}
@@ -13209,10 +13221,16 @@ function draw(){
 function size(){var d=Math.min(window.devicePixelRatio||1,3),w=Math.round(cv.clientWidth*d),h=Math.round(cv.clientHeight*d);if(w&&(cv.width!==w||cv.height!==h)){cv.width=w;cv.height=h}}
 function frame(now){if(!cv.isConnected)return;raf=requestAnimationFrame(frame);var dt=Math.min(.033,(now-last)/1000||.016);last=now;if(document.hidden)return;if(!(fr++%40)||!cols)rc();size();step(dt);draw()}
 function settle(n){rc();size();for(var i=0;i<n;i++)step(1/30);draw()}
-this.set=function(s,o){o=o||{};st=s;stT=0;ts=o.ts||1;sk='';cs=null;from=tip.slice();bub=emo=qm=0;torn=0;sparked=0;rvc=-1;
+var rh=0; /* tahan di fase "menunggu AI" pada adegan rev selama permintaan ke AI masih berjalan (26 Okt 2026) */
+this.set=function(s,o){o=o||{};st=s;stT=o.from||0;ts=o.ts||1;rh=o.hold?1:0;sk='';cs=null;from=tip.slice();bub=emo=qm=0;torn=0;sparked=0;rvc=-1;if(s==='rev'||s==='ok'||s==='err'){pg.x=pg.y=0;pg.a=1;}
  if(s==='loop'){ink=[];pg.x=pg.y=0;pg.a=1;S.hl.x=0;S.hl.v=0}
  if(red){settle(s==='loop'?150:s==='rev'?90:s==='retry'?118:s==='ok'?100:80)}};
 this.stop=function(){cancelAnimationFrame(raf)};
+/* API kecepatan & sinkron real-time (26 Okt 2026): speed = skala waktu adegan; hold = tahan di "menunggu AI"; revGo = hasil AI sudah datang, lanjut menulis perbaikan; revLeft = sisa detik sampai tulisan perbaikan selesai */
+this.speed=function(v){ts=v>0?v:1};
+this.hold=function(v){rh=v?1:0};
+this.revGo=function(){rh=0;if(st!=='rev')return;var c=Math.floor(stT/5.4)*5.4,r=stT-c;if(r<1.5)stT=c+1.5};
+this.revLeft=function(){if(st!=='rev')return 0;var r=stT%5.4;return r<4.8?(4.8-r)/ts:0};
 rc();size();step(.016);draw();
 if(red)settle(150);else raf=requestAnimationFrame(frame);
 }
@@ -13302,8 +13320,8 @@ function _glSetLabel(st,t){
 // kembali ke adegan menulis + label batch terakhir (setelah adegan ganti model / revisi selesai)
 function _glResume(st){
   if(st.closed||st.phase==='done')return;
-  st.phase='loading';
-  if(st.scene)st.scene.set('loop');
+  st.phase='loading';st.revGot=false;
+  if(st.scene)st.scene.set('loop',{ts:st.ts||1});
   var t=st.pending||st.last;st.pending=null;
   if(t)_glSetLabel(st,t);
 }
@@ -13314,7 +13332,8 @@ function startGenLogoBtn(btn,label){
   var useScene=_glSceneOK();
   var built=useScene?_buildGenSceneHTML(label):_buildGenLogoHTML(label);
   var st={origHTML:btn.innerHTML,wrapId:built.id,btn:btn,mode:useScene?'scene':'logo',scene:null,
-          phase:'loading',last:label||'',pending:null,rev:0,revT:0,rt:0,fin:0,closed:false,lt:0};
+          phase:'loading',last:label||'',pending:null,rev:0,revT:0,rt:0,fin:0,closed:false,lt:0,
+          t0:Date.now(),beats:[],ts:1,spT:0,revGot:false};
   var apply=function(){
     btn.disabled=true;
     btn.classList.add('btn-loading');
@@ -13355,40 +13374,82 @@ function updateGenLogoLabel(state,label){
   state.last=label;
   _glSetLabel(state,label);
 }
-// Dipanggil dari alur generate: 'retry' = ganti model, 'rev-start'/'rev-end' = revisi kata.
+// Dipanggil dari alur generate: 'retry' = ganti model, 'draft' = skrip pertama dari AI sudah masuk,
+// 'rev-start'/'rev-end' = pembungkus perbaikan kata, 'rev-call' = SATU permintaan perbaikan ke AI baru dikirim,
+// 'rev-result' = balasan perbaikan sudah diproses (info: {n,step,total,model} / {left,total}).
 // Tidak melakukan apa pun bila tidak ada loader yang sedang tampil (mis. generate 1 produk).
-function genLogoEvent(kind){
+// (26 Okt 2026, permintaan user) Perbaikan kata & permintaan ulang ke AI sekarang tampil REAL-TIME: adegan "revisi"
+// langsung muncul begitu permintaan dikirim (tanpa jeda 600ms), karakter menunggu balasan AI, lalu langsung menulis
+// perbaikan begitu balasan datang. Kecepatan adegan menyesuaikan irama kejadian (_glBeat) supaya stick man tetap
+// mengimbangi kalau semuanya berlangsung sangat cepat.
+function _glModelName(k){try{return (k&&typeof PB_AI_MODELS!=='undefined'&&PB_AI_MODELS[k]&&PB_AI_MODELS[k].label)||'';}catch(e){return '';}}
+// irama kejadian: makin rapat kejadiannya dalam 5 detik terakhir, makin cepat adegannya (kembali normal 2,6 dtk setelah sepi)
+function _glBeat(st){
+  if(!st||st.closed||!st.scene)return;
+  var now=Date.now();
+  st.beats=(st.beats||[]).filter(function(x){return now-x<5000;});st.beats.push(now);
+  var n=st.beats.length,sp=n>=5?2.4:(n>=4?2:(n>=3?1.6:(n>=2?1.25:1)));
+  st.ts=sp;
+  try{st.scene.speed(sp);}catch(e){}
+  clearTimeout(st.spT);
+  st.spT=setTimeout(function(){if(st.closed||st.phase==='done')return;st.ts=1;try{st.scene.speed(1);}catch(e){}},2600);
+}
+function genLogoEvent(kind,info){
   var st=_glActive;
   if(!st||st.closed||st.phase==='done')return;
+  info=info||{};
   if(kind==='retry'){
     if(st.phase!=='loading'&&st.phase!=='revising')return;
     clearTimeout(st.rt);clearTimeout(st.revT);
+    _glBeat(st);
     st.phase='retrying';
     _glSetLabel(st,'Model error. Pindah ke model lain...');
-    if(st.scene)st.scene.set('retry');
-    st.rt=setTimeout(function(){if(st.phase==='retrying')_glResume(st);},st.scene?(_glReduce()?350:_GL_RT_MS):1800);
+    if(st.scene)st.scene.set('retry',{ts:st.ts||1});
+    st.rt=setTimeout(function(){if(st.phase==='retrying')_glResume(st);},st.scene?(_glReduce()?350:Math.max(1500,_GL_RT_MS/(st.ts||1))):1800);
+  }else if(kind==='draft'){
+    _glBeat(st);
+    updateGenLogoLabel(st,'Skrip dari AI sudah masuk. Mengecek jumlah kata...');
   }else if(kind==='rev-start'){
-    st.rev++;
-    // tunggu sebentar: kalau revisi ternyata cuma pengecekan cepat (tidak ada panggilan AI), adegan tidak perlu muncul
-    if(st.rev===1&&st.phase==='loading'){
-      clearTimeout(st.revT);
-      st.revT=setTimeout(function(){
-        if(st.closed||st.rev<=0||st.phase!=='loading')return;
-        st.phase='revising';
-        _glSetLabel(st,'Merevisi kata supaya lebih pas...');
-        if(st.scene)st.scene.set('rev');
-      },600);
+    st.rev++; // adegan revisi TIDAK lagi dimulai dari sini — hanya kalau benar-benar ada permintaan ke AI (rev-call)
+  }else if(kind==='rev-call'){
+    clearTimeout(st.revT);
+    _glBeat(st);
+    if(st.phase==='retrying')return; // adegan ganti model masih tampil; adegan revisi menyusul lewat kejadian berikutnya
+    var was=(st.phase==='revising');
+    st.phase='revising';st.revGot=false;
+    var mn=_glModelName(info.model);
+    _glSetLabel(st,'Merevisi '+(info.n||'')+' teks'+(info.total>1?' (percobaan '+info.step+'/'+info.total+(mn?', '+mn:'')+')':(mn?' ('+mn+')':''))+'. Menunggu AI...');
+    if(st.scene){
+      if(!was)st.scene.set('rev',{ts:st.ts||1,hold:1});
+      else st.scene.hold(1);
     }
+  }else if(kind==='rev-result'){
+    if(st.phase!=='revising')return;
+    st.revGot=true;
+    _glBeat(st);
+    _glSetLabel(st,info.left>0?('Revisi diterima. Masih '+info.left+' teks di luar rentang, mencoba lagi...'):'Revisi diterima. Semua teks sudah pas.');
+    if(st.scene)st.scene.revGo();
   }else if(kind==='rev-end'){
     st.rev=Math.max(0,st.rev-1);
-    if(st.rev===0){clearTimeout(st.revT);if(st.phase==='revising')_glResume(st);}
+    if(st.rev===0){
+      clearTimeout(st.revT);
+      if(st.phase==='revising'){
+        var wait=0;
+        if(st.scene){
+          try{if(st.revGot)wait=st.scene.revLeft();else st.scene.hold(0);}catch(e){wait=0;}
+        }
+        // biarkan tulisan perbaikan selesai dulu (maks 2,5 dtk) supaya adegannya tidak terpotong; kalau tidak ada balasan, langsung lanjut
+        if(wait>0.05)st.revT=setTimeout(function(){if(st.phase==='revising'&&st.rev===0)_glResume(st);},Math.min(2500,wait*1000+120));
+        else _glResume(st);
+      }
+    }
   }
 }
 // Lepas loader & kembalikan tombol ke isi aslinya. Animasi berhenti sendiri karena elemennya dibuang dari DOM.
 function _glRestore(st,immediate,sync){
   if(!st||st.closed)return;
   st.closed=true;
-  clearTimeout(st.rt);clearTimeout(st.revT);clearTimeout(st.fin);
+  clearTimeout(st.rt);clearTimeout(st.revT);clearTimeout(st.fin);clearTimeout(st.spT);
   try{if(st.scene)st.scene.stop();}catch(e){}
   var btn=st.btn;
   var apply=function(){
@@ -13417,9 +13478,13 @@ function stopGenLogoBtn(btn,state,outcome){
     st.phase='done';
     btn.setAttribute('aria-busy','false');
     var ok=(outcome==='ok');
-    st.scene.set(ok?'ok':'err');
+    // (26 Okt 2026) adegan penutup ikut dipercepat kalau seluruh proses memang cepat / kejadian beruntun rapat — stick man mengimbangi
+    var _el=Date.now()-(st.t0||Date.now());
+    var _ets=Math.min(2.4,Math.max(_el<4000?2.2:(_el<9000?1.7:(_el<16000?1.3:1)),st.ts||1));
+    clearTimeout(st.spT);
+    st.scene.set(ok?'ok':'err',{ts:_ets});
     _glSetLabel(st,ok?'Selesai. Skrip siap dipakai.':(outcome==='partial'?'Sebagian skrip belum selesai.':'Gagal membuat prompt. Coba lagi ya.'));
-    st.fin=setTimeout(function(){_glRestore(st,false,true);},_glReduce()?1400:(ok?3000:2800));
+    st.fin=setTimeout(function(){_glRestore(st,false,true);},_glReduce()?1400:Math.max(ok?1700:1900,(ok?3000:2800)/_ets));
     return;
   }
   _glRestore(st,false,false);
@@ -23671,6 +23736,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
     // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
     const maxTok=Math.min(8192,600+pending.length*130);
     let fixOut;
+    try{genLogoEvent('rev-call',{n:pending.length,step:si+1,total:plan.length,model:step.key||''});}catch(eGl){} // loader: permintaan perbaikan ke AI dikirim (real-time)
     _vbUsageKindOverride='fix';
     _vbUsageChatModeOverride=useChat?_chatMode:'';
     try{fixOut=await _vbFixRunStep(step,msg,maxTok,onWait,chatArg);}
@@ -23722,6 +23788,8 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
       });
     }
     pending=pending.filter(function(it){return dist(wc(arr[it.pi][it.k]))>0;});
+    try{_vbDraftPush(arr);}catch(eDp){} // teks hasil perbaikan langsung tampil di kotak skrip
+    try{genLogoEvent('rev-result',{left:pending.length,total:all.length});}catch(eGl){}
   }
   }finally{_vbFcFinish(_fcSess,pending.length,all.length,used);}
   // Catat hasil ke statistik perbaikan kata: jumlah percobaan per teks + apakah masih kependekan.
@@ -24315,6 +24383,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
       }
     }
   }catch(eGuard){console.warn('[_vbCallBulkBatch] pengaman skrip nyasar dilewati:',eGuard);}
+  try{_vbDraftPush(arr,_byNo);}catch(_eDp){} // skrip AI sudah masuk -> kotak skrip muncul & langsung tampil (cepat), perbaikan kata menyusul real-time
   if(fixShort)await _vbApplyShortFix(arr,_byNo?arr.map(function(o){return batch[o._bi];}):batch,range,onWait,{system:_vbEffectiveSystemPrompt,text:(_promptParts&&_promptParts[0]&&_promptParts[0].text)||''});
 
   for(let pi=0;pi<arr.length;pi++){
@@ -24627,6 +24696,8 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   }catch(_eInit){console.warn('[_vbRunBulkGenerate] render awal gagal (non-fatal):',_eInit);}
 
   let allResults=priorResults.slice();
+  // (26 Okt 2026, permintaan user) kotak kolom skrip disembunyikan selama loading; muncul begitu skrip pertama berhasil diterima (_vbRevealScriptBox)
+  document.documentElement.classList.add('vb-gen-wait');
   // FIX (label progress): dulu label "(X/total)" dihitung dari b*BATCH_SIZE
   // yang cuma benar kalau semua batch ukurannya sama persis — sejak batch
   // berisi foto dipaksa jadi ukuran 1 (lihat _vbBuildPhotoAwareBatches),
@@ -24698,6 +24769,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // cacheSystem dimatikan (false) juga untuk kasus 1 produk ini; di
       // luar itu (2+ produk / bukan tur) tetap default true seperti biasa.
       let _singleProdukCall=(produkList.length===1);
+      _vbLiveItems=batchItems;_vbLiveArr=null;_vbLiveIdx=null;_vbBatchT0=Date.now();_vbLiveDraftSeen=false; // petakan draft AI ke kartu (lihat _vbDraftPush)
       let batchArr=await _vbCallBulkBatch(batchProducts,targetAudience,undefined,function(waitMs,attempt,status){
         let alasan=_vbWaitReasonLabel(status);
         if(status==='thinking'){updateGenLogoLabel(genLogoState,'🤔 '+alasan+'... '+batchLabelBase);return;}
@@ -24831,6 +24903,8 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       // batch ini tetap kosong sampai render final di akhir, sama seperti
       // perilaku SEBELUM fix ini) — render final tetap aman karena dia
       // mencocokkan produk lewat NAMA (metaLookup), bukan posisi.
+      if(!_vbLiveDraftSeen)_vbTypeBoost=_vbTypeBoostFor(Date.now()-_vbBatchT0);
+      if(batchArr&&batchArr.length)_vbRevealScriptBox(Date.now()-_vbBatchT0); // kotak skrip muncul (kalau belum) — prompt berhasil
       batchArr.forEach(function(o){if(o&&o._idx!=null)_vbUpdateProductCardsLive(o._idx,o);});
       // Jeda antar batch — supaya tiap batch (yang isinya beberapa request:
       // 1 utama + sampai 3 perbaikan-kata) tidak numpuk jadi satu ledakan
@@ -24856,6 +24930,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     // ulang pelan-pelan dari awal untuk SEMUA produk (bukan cuma yang baru)
     // — user akan lihat semua script yang sudah selesai dari tadi tiba-tiba
     // hilang lalu muncul lagi satu-satu.
+    await _vbTypewriterFlush(900); // biarkan ketikan live selesai dulu, baru render final
     await _vbRenderBulkOutput(allResults,produkList,true,false);
     _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*3)+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     // audit Okt 2026 (v11.85): dulu "Selesai!" + kartu step ditandai beres SEBELUM dicek lengkap atau tidak, lalu toast "Hanya N dari M"
@@ -24942,6 +25017,13 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     showToast('Gagal generate: '+(err.toastMsg||err.message),'error');
   }finally{
     // adegan penutup loader: semua produk jadi → centang; sebagian → gagal ringan; error → gagal
+    try{
+      _vbLiveItems=null;_vbLiveArr=null;_vbLiveIdx=null;_vbTypeBoost=1;
+      // gagal total & belum ada teks sama sekali -> jangan tampilkan kartu kosong
+      let _mwx=document.getElementById('vb-multi-output');
+      if(_mwx&&allResults.length===0&&!Array.prototype.some.call(_mwx.querySelectorAll('textarea'),function(t){return (t.value||'').trim();}))_mwx.style.display='none';
+      _vbRevealScriptBox(null);
+    }catch(_eRv){document.documentElement.classList.remove('vb-gen-wait');}
     stopGenLogoBtn(btn,genLogoState,genFailed?(allResults.length>0&&allResults.length<produkList.length?'partial':'err'):(allResults.length>=produkList.length?'ok':'partial'));
     // FIX (laporan user: setelah error 403 tombol utama tetap "Generate Prompt", padahal ada sesi yang bisa dilanjutkan): _vbSyncBulkMainButton() yang dipanggil di dalam catch selalu kena early-return karena tombol MASIH berstatus btn-loading saat itu, lalu stopGenLogoBtn() mengembalikan label lama. Dipanggil ULANG di sini, setelah loading benar-benar dilepas, supaya tombol jadi "Lanjutkan N Produk yang Belum".
     _vbSyncBulkMainButton();
@@ -25450,13 +25532,71 @@ function _vbClearAllCardLoading(){
   if(!wrap)return;
   wrap.querySelectorAll('.vb-ta-wrap.vb-ta-loading').forEach(function(el){el.classList.remove('vb-ta-loading');});
 }
+// ── (26 Okt 2026, permintaan user) KOTAK SKRIP MUNCUL SETELAH PROMPT BERHASIL + TAMPILAN MENGIKUTI KECEPATAN AI ──
+// _vbLiveItems = batch yang sedang diproses (diisi _vbRunBulkGenerate) supaya draft AI bisa dipetakan ke kartu yang benar.
+var _vbLiveItems=null,_vbLiveArr=null,_vbLiveIdx=null,_vbBatchT0=0,_vbLiveDraftSeen=false,_vbTypeBoost=1;
+// makin cepat AI membalas, makin cepat teks muncul di kartu (4x / 2,5x / 1,5x / normal)
+function _vbTypeBoostFor(ms){return ms<5000?4:(ms<12000?2.5:(ms<25000?1.5:1));}
+// munculkan kotak skrip (dicopot dari mode sembunyi) — fade-in cepat kalau AI cepat
+function _vbRevealScriptBox(ms){
+  var h=document.documentElement;
+  if(!h.classList.contains('vb-gen-wait'))return;
+  h.classList.remove('vb-gen-wait');
+  var mw=document.getElementById('vb-multi-output');
+  if(!mw)return;
+  var fast=(ms!=null&&ms<6000);
+  mw.classList.remove('vb-out-reveal','vb-out-fast');void mw.offsetWidth;
+  mw.classList.add('vb-out-reveal');if(fast)mw.classList.add('vb-out-fast');
+  setTimeout(function(){mw.classList.remove('vb-out-reveal','vb-out-fast');},fast?260:520);
+  setTimeout(function(){try{mw.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){}},80);
+}
+// kedip halus pada kartu yang teksnya baru berubah (perbaikan kata / minta ulang ke AI)
+function _vbCardFlash(idx){
+  if(idx===null||idx===undefined)return;
+  var w=document.getElementById('vb-ta-wrap-'+idx);
+  if(!w)return;
+  w.classList.remove('vb-ta-fixflash');void w.offsetWidth;w.classList.add('vb-ta-fixflash');
+  setTimeout(function(){w.classList.remove('vb-ta-fixflash');},1000);
+}
+// Tampilkan draft AI (dan hasil perbaikannya) ke kartu produk batch yang sedang berjalan. Aman: kalau pemetaan tidak pasti, dilewati.
+function _vbDraftPush(arr,byNo){
+  if(!_vbLiveItems||!Array.isArray(arr)||!arr.length)return;
+  if(_vbLiveArr!==arr){
+    if(byNo===undefined)byNo=arr.every(function(o){return o&&o._bi!=null;});
+    var okMap=byNo
+      ?arr.every(function(o){return o&&o._bi!=null&&_vbLiveItems[o._bi]&&_vbLiveItems[o._bi].p&&_vbLiveItems[o._bi].p.nama===o.produk;})
+      :(arr.length===_vbLiveItems.length&&arr.every(function(o,j){return o&&_vbLiveItems[j]&&_vbLiveItems[j].p&&_vbLiveItems[j].p.nama===o.produk;}));
+    if(!okMap){_vbLiveArr=null;_vbLiveIdx=null;return;}
+    _vbLiveArr=arr;
+    _vbLiveIdx=arr.map(function(o,j){return byNo?_vbLiveItems[o._bi].idx:_vbLiveItems[j].idx;});
+  }
+  var el=Date.now()-(_vbBatchT0||Date.now());
+  if(!_vbLiveDraftSeen){
+    _vbLiveDraftSeen=true;
+    _vbTypeBoost=_vbTypeBoostFor(el);
+    try{genLogoEvent('draft');}catch(e){}
+  }
+  _vbRevealScriptBox(el);
+  arr.forEach(function(o,j){if(o&&_vbLiveIdx[j]!=null)_vbUpdateProductCardsLive(_vbLiveIdx[j],o);});
+}
+// tunggu animasi ketik live selesai (maks maxMs) sebelum render final, supaya tidak terpotong mendadak
+function _vbTypewriterFlush(maxMs){
+  _vbTypeBoost=Math.max(_vbTypeBoost,4);
+  return new Promise(function(res){
+    var t0=Date.now();
+    (function w(){if(!_vbTypewriter.timer||Date.now()-t0>=maxMs)return res();setTimeout(w,40);})();
+  });
+}
 const _vbTypewriter={targets:{},timer:null};
 function _vbTypewriterReset(){
+  _vbTypeBoost=1;
   _vbTypewriter.targets={};
   if(_vbTypewriter.timer){clearInterval(_vbTypewriter.timer);_vbTypewriter.timer=null;}
 }
 function _vbTypewriterSetTarget(taId,fullText,onTick){
+  let _prevT=_vbTypewriter.targets[taId];
   _vbTypewriter.targets[taId]={text:fullText||'',onTick:onTick||null};
+  if(_prevT&&_prevT.text&&_prevT.text!==(fullText||''))_vbCardFlash(_vbCardIdxFromTaId(taId)); // teks berubah (perbaikan kata) -> kedip
   if(!_vbTypewriter.timer){
     _vbTypewriter.timer=setInterval(function(){
       let anyPending=false;
@@ -25475,6 +25615,7 @@ function _vbTypewriterSetTarget(taId,fullText,onTick){
           // ketinggalan lama, tapi tetap kelihatan "mengalir" bukan loncat.
           let gap=target.length-shown.length;
           let step=gap>60?Math.ceil(gap/8):(gap>20?3:2);
+          if(_vbTypeBoost>1)step=Math.max(step,Math.ceil(gap*(_vbTypeBoost>=3?.35:.2)),Math.ceil(2*_vbTypeBoost)); // AI cepat -> tampil cepat
           ta.value=target.slice(0,shown.length+step);
           // Masih setengah jalan -> teks tetap blur & logo P kecil tetap jalan.
           _vbCardSetLoading(cardIdx,true);
@@ -25486,6 +25627,7 @@ function _vbTypewriterSetTarget(taId,fullText,onTick){
           _vbCardSetLoading(cardIdx,target.length===0);
           if(typeof t.onTick==='function')t.onTick();
         }else if(target.length>0){
+          if(ta.value!==target){ta.value=target;if(typeof t.onTick==='function')t.onTick();} // panjang sama tapi isi beda (perbaikan kata) -> samakan
           // Sudah pas sama panjang & tidak kosong -> kartu ini SELESAI,
           // matikan blur + logo P-nya (kartu lain yang masih nunggu tidak
           // ikut kena karena ini dicek per-taId, bukan global).
