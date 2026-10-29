@@ -9271,9 +9271,9 @@ function fKonfirmRef(){
   // lanjut hanya dengan foto Produk atau Outfit. Harus ada foto Karakter Sheet
   // (tipe 'wajah') dulu. Subjek 'produk' (Produk Saja) tidak kena aturan ini.
   // Mode import dilewati supaya prompt lama yang diimpor tidak ikut terkunci.
-  if(FS.subjek && FS.subjek!=='produk' && !FS.importActive){
+  if(FS.subjek && FS.subjek!=='produk' && !FS.importActive && !fIsNoChar()){
     if(!FS.refs.some(function(r){return r.type==='wajah';})){
-      showToast('Pilih "Karakter Sheet" dulu ya, baru bisa lanjut!','error');
+      showToast('Pilih "Karakter Sheet" dulu, atau pilih "Produk" + "Lokasi" saja ya!','error');
       return;
     }
   }
@@ -10286,6 +10286,10 @@ function fBack5(){
     let c1=document.getElementById('f1');if(c1)c1.classList.remove('done');
     let a1=document.getElementById('fa1');if(a1)a1.textContent='';
     let c2=document.getElementById('f2');if(c2){c2.classList.remove('done','hidden');c2.classList.add('pending');}
+  } else if(fIsNoChar()){
+    // Produk + Lokasi saja: tidak ada step Pose, kembali ke Cara Tampil
+    fBackTo(5,3);
+    fUpdateProgress(3,'Cara Tampil');
   } else {
     fBackTo(5,4);
     fUpdateProgress(4,'Pose');
@@ -10517,6 +10521,22 @@ function fBack9(){
 const F_STEP_TITLES={f0:'Subjek',f1:'Foto Referensi',f3:'Cara Tampil',f4:'Pose',f5:'Lokasi',f7:'Pencahayaan',f8:'Sudut Kamera',f9:'Mood & Tone'};
 // Foto referensi tipe "Lokasi" ada? Kalau ya, step Lokasi (f5) & Pencahayaan (f7) tidak dipakai —
 // keduanya diambil dari foto lokasi itu sendiri.
+// MODE "PRODUK + LOKASI SAJA" (permintaan user): kalau di Foto Referensi user cuma memilih Produk dan Lokasi
+// (tanpa Karakter Sheet / Outfit / Aksesori), alur tetap boleh lanjut. Hasilnya diperlakukan seperti foto produk
+// tanpa karakter: step Pose dilewati, prompt tidak menyebut karakter, dan Cara Tampil (mis. "di atas meja") dipakai.
+function fIsNoChar(){
+  try{
+    if(!FS||FS.importActive||FS.subjek==='produk'||!FS.refs)return false;
+    var hasP=false,hasL=false;
+    for(var i=0;i<FS.refs.length;i++){
+      var t=FS.refs[i].type;
+      if(t==='produk')hasP=true;
+      else if(t==='lokasi')hasL=true;
+      else if(t==='wajah'||t==='outfit'||t==='atasan'||t==='bawahan'||t==='aksesori'||t==='outfit_random')return false;
+    }
+    return hasP&&hasL;
+  }catch(e){return false;}
+}
 function fHasLokasiRef(){
   return !!(FS&&FS.refs&&FS.refs.some(function(r){return r.type==='lokasi';}));
 }
@@ -10527,6 +10547,7 @@ function fActiveSteps(){
     let hasStep3=(FS.produkMode==='foto'||FS.produkMode==='pegang');
     base=hasStep3?['f0','f1','f3','f4','f5','f7','f8','f9']:['f0','f1','f4','f5','f7','f8','f9'];
   }
+  if(fIsNoChar()) base=base.filter(function(id){return id!=='f4';});
   return fHasLokasiRef()?base.filter(function(id){return id!=='f5'&&id!=='f7';}):base;
 }
 function fTotalSteps(){
@@ -10620,6 +10641,7 @@ function fOpenStepJump(pageId){
     // 'foto', jadi filter f3 di atas TIDAK menangkapnya; harus dicek terpisah.
     if(pageId==='foto' && (c.id==='f3' || c.id==='f4') && typeof FS!=='undefined' && FS &&
        FS.subjek==='produk') return false;
+    if(pageId==='foto' && c.id==='f4' && typeof fIsNoChar==='function' && fIsNoChar()) return false;
     return true;
   });
   let list=document.getElementById('step-jump-list');
@@ -10732,7 +10754,7 @@ function fGenerate(){
     // MODE PRODUK SAJA · POV (lihat blok script pov-js): step Pose & Sudut Kamera tidak dipakai.
     if(FS.refs.some(function(r){return r.type!=='produk';})){showToast('Foto referensi bukan produk saja — buka Foto Ref lalu tekan Lanjut dulu.','error');return;}
     if(!FS.lokasi||!FS.hold||!FS.mood||!FS.cahaya){showToast('Lengkapi semua step dulu!','error');return;}
-  } else if(FS.subjek==='produk'){
+  } else if(FS.subjek==='produk' || fIsNoChar()){
     if(!FS.lokasi||!FS.cahaya||!FS.angle||!FS.mood){showToast('Lengkapi semua step dulu!','error');return;}
   } else {
     let hasOutfitRandom=FS.refs.some(r=>r.type==='outfit_random'&&r.focus);
@@ -10923,6 +10945,9 @@ function _fComputePlacement(ov){
     placement = ov.placementOverride;
   } else if(ov.forceProdukSaja){
     placement = 'displayed clearly and prominently as the sole focus of the frame, no hands or person present, centered composition showing full product detail';
+  } else if(typeof fIsNoChar==='function' && fIsNoChar() && FS.holdKey==='custom' && FS.hold){
+    // Produk + Lokasi saja (tanpa karakter): teks Cara Tampil dari user dipakai apa adanya
+    placement = FS.hold + (/tangan|hand|pegang|hold|dipakai|worn/i.test(FS.hold) ? '' : ', no hands or person present');
   } else if(FS.holdKey === 'dipakai'){
     placement = 'dipakai langsung oleh karakter';
   } else if(FS.holdKey === 'hanger'){
@@ -11718,6 +11743,7 @@ function _fBuildPromptJSON(ov){
   realRefs = fSortRefsForOrder(realRefs);
 
   // Build reference_photos — HANYA dari foto nyata, renumber 1..N
+  let _noCharPS = !!(ov.forceProdukSaja || FS.subjek==='produk' || fIsNoChar());
   let photoCounter = 0;
   let refPhotos = realRefs.map(r => {
     photoCounter++;
@@ -11736,7 +11762,9 @@ function _fBuildPromptJSON(ov){
     if(extractText) obj.extract_only = extractText + (r.ukuran && r.type==='produk' ? '. Product physical size: '+r.ukuran+' — render the product accurately to this size ratio relative to the scene.' : '');
     if(ignoreText) obj.ignore_completely = ignoreText;
     if(r.type==='lokasi'){
-      obj.detail = 'Light the character and outfit exactly the same way the location is lit, so the shadows, highlights, and color cast on skin and clothes match the environment. Add realistic contact shadows on the ground.' + (r.focus ? ' Location notes: ' + r.focus : '');
+      obj.detail = (_noCharPS
+        ? 'Light the product exactly the same way the location is lit, so the shadows, highlights, and color cast on the product match the environment. Add realistic contact shadows on the surface it rests on.'
+        : 'Light the character and outfit exactly the same way the location is lit, so the shadows, highlights, and color cast on skin and clothes match the environment. Add realistic contact shadows on the ground.') + (r.focus ? ' Location notes: ' + r.focus : '');
     } else if(r.focus) obj.detail = r.focus;
     return obj;
   });
@@ -11757,7 +11785,7 @@ function _fBuildPromptJSON(ov){
   }
 
   // ── isProdukSaja: dipaksa true untuk shot "Detail Produk" (tanpa karakter) ──
-  let isProdukSaja = ov.forceProdukSaja || FS.subjek==='produk';
+  let isProdukSaja = ov.forceProdukSaja || FS.subjek==='produk' || fIsNoChar();
   let subjekDesc=isProdukSaja?'product only, no person':({'hijab':'a woman','pria':'a man'}[FS.subjek]||'a person');
 
   // Dipindah lebih awal (sebelumnya dihitung di bawah, setelah Product block) —
@@ -11826,14 +11854,15 @@ function _fBuildPromptJSON(ov){
   let _lokNo = _lokRef ? realRefs.indexOf(_lokRef) + 1 : 0;
   if(_lokRef){
     effLokasi = 'the exact location shown in reference photo ' + _lokNo + ' — same architecture, props, background elements, colors, and atmosphere' + (isProdukSaja ? '' : '; the character looks naturally present in the space with correct scale and perspective');
-    effCahaya = 'taken entirely from reference photo ' + _lokNo + ', with the same light direction, color temperature, softness, contrast, and shadow behavior, copied onto the character and outfit';
+    effCahaya = 'taken entirely from reference photo ' + _lokNo + ', with the same light direction, color temperature, softness, contrast, and shadow behavior, copied onto ' + (isProdukSaja ? 'the product' : 'the character and outfit');
   }
   // FIX: output_quality dulu SELALU menulis "foto HP, bukan studio", "hindari cahaya rata" dan menyebut "wajah" —
   // bentrok dengan Softbox/Studio rata/Dark Moody, mood Clean/Luxury/Editorial, dan mode Produk Saja (tanpa wajah).
   _fAdaptQuality(quality, effCahaya, effMood, isProdukSaja);
   if(_lokRef){
     quality.lighting = 'Follow the lighting of reference photo ' + _lokNo + ' exactly and keep it consistent across the whole frame, on the character, the outfit, and the background; do not add studio lighting or any light that contradicts the location.';
-    quality.camera = String(quality.camera || '') + ' The character must not look cut-out or pasted into the scene.';
+    quality.camera = String(quality.camera || '') + (isProdukSaja ? ' The product must not look cut-out or pasted into the scene.' : ' The character must not look cut-out or pasted into the scene.');
+    if(isProdukSaja) quality.lighting = quality.lighting.replace('on the character, the outfit, and the background','on the product and the background');
   }
 
   // Tambahkan keterangan outfit random ke intro jika ada
@@ -28553,9 +28582,11 @@ function fRenderSummary() {
     }
 
     // Pose — BUG FIX #6: pakai label friendly jika ada
+    if (!fIsNoChar()) {
     let poseDisplay = FS.poseLabel || (FS.pose ? (FS.pose.length > 55 ? FS.pose.substring(0, 55) + '…' : FS.pose) : '—');
     if (!FS.pose) warnings.push('Pose belum dipilih.');
     items.push({ key: 'Pose', val: poseDisplay, editCard: 4 });
+    }
   }
 
   // Lokasi — BUG FIX #6: pakai label friendly jika ada, fallback ke raw string
@@ -33908,6 +33939,7 @@ function live(){
     ['mood',FS.moodLabel||'']
   ]).filter(function(r){
     if(FS.subjek==='produk'&&(r[0]==='pose'||r[0]==='cara_tampil'))return false;
+    if(typeof fIsNoChar==='function'&&fIsNoChar()&&r[0]==='pose')return false;
     return r[0]!=='produk'||r[1]||FS.subjek==='produk';
   });
   var sig=JSON.stringify(rows);
@@ -35145,6 +35177,31 @@ html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm .btn{display:flex
       return;
     }
     return _origShowCard(id);
+  };
+})();
+</script>
+<script id="pb-nochar-js">
+/* MODE PRODUK + LOKASI SAJA (permintaan user): kalau Foto Referensi cuma berisi Produk dan Lokasi,
+   step Pose dilewati (tidak ada karakter) dan chip \"Dipakai ke karakter\" di Cara Tampil disembunyikan.
+   Dibungkus di showCard() supaya semua jalur masuk ke f3/f4 ikut tertangani. */
+(function(){
+  if(typeof showCard!=='function'||typeof fIsNoChar!=='function')return;
+  var _prev=showCard;
+  showCard=function(id){
+    if(id==='f3'){
+      var nc=fIsNoChar();
+      document.querySelectorAll('#f3 .chip[onclick*="fPickHold(\'dipakai\'"]').forEach(function(c){c.style.display=nc?'none':'';});
+    }
+    if(id==='f4'&&fIsNoChar()){
+      FS.pose='';FS.poseLabel='';FS.poseDesc='';
+      var c4=document.getElementById('f4');
+      if(c4){c4.classList.add('done','hidden');c4.classList.remove('pending');}
+      var a4=document.getElementById('fa4');if(a4)a4.textContent='';
+      if(typeof fSyncStepNums==='function')fSyncStepNums();
+      if(typeof fUpdateProgress==='function')fUpdateProgress(5,'Lokasi');
+      return showCard('f5');
+    }
+    return _prev(id);
   };
 })();
 </script>
