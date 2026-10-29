@@ -6670,9 +6670,9 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       <!-- MODE BARU "uiui" (29 Okt 2026) — gaya Fashion Editorial, alur bertahap:
            (1) "Lanjut →" → (2) Nama Produk (wajib, IKUT ditulis ke prompt) → (3) Durasi (cuma 8 detik) →
            (4) STORYBOARD 3 bingkai 9:16 (0–3 / 3–6 / 6–8 dtk). Ketuk bingkai = bottom sheet pilihan:
-           Awal = tab Pembukaan (Unboxing) | Isi (kosong dulu), Tengah = Lihat dekat, Akhir = tab Penutup (Acungkan jempol) | Isi (kosong dulu).
+           Awal = tab Pembukaan (Unboxing) | Isi (Pegang hanger), Tengah = Lihat dekat | Elus di lantai, Akhir = tab Penutup (Acungkan jempol | Gantung di lemari) | Isi (kosong dulu).
            Opsi terpilih = videonya diputar di dalam bingkai. "Generate Prompt" aktif setelah 3 bingkai terisi → 1 prompt + pratinjau
-           versi LENGKAP (video 0-3 → 3-6 → 6-8 berurutan, ulang). Video: media/0-3.mp4, media/3-6.mp4, media/6-8.mp4.
+           versi LENGKAP (video 0-3 → 3-6 → 6-8 berurutan, ulang). Video: media/0-3.mp4, media/3-6.mp4, media/6-8.mp4, media/0-3_dtk.mp4, media/3-6_dtk.mp4, media/6-8_dtk.mp4.
            Lihat vbUiLanjut(), vbUiNamaInput(), vbUiGoDurasi(), vbUiPilihDurasi(), vbUiGoSteps(), vbUiRenderBoard(), vbUiOpenSheet(n),
            vbUiPilih(n,k), vbUiGenerate(), vbUiKembali(), vbCopyUiPrompt() & vbUiResetFlow() (dipanggil dari vbPickRefMode()/vbResetNow()). -->
       <div id="vb-mode-uiui-area" class="hidden" style="margin-bottom:14px;">
@@ -17503,7 +17503,11 @@ function vbCopyT2Prompt(){
 const VB_UI_PROMPT={
   '0-3':'detik 0-3: vidio dimulai dengan sebuah kotak ada di atas meja, tangan masuk dan mengetuk-ngetuk pelan permukaan atas kotak kemasan dengan 3 ujung jari, 3 kali ketukan ritmis, terdengar suara “tok tok tok” khas unboxing. kemudian membuka kotaknya secara natural dan terlihat produk masih didalam kotak tersebut.',
   '3-6':'detik 3-6: vidio dimulai dengan produk ada diatas meja sudah dipegang tanpa ada kotak lagi di atas meja. kemudian kamera sedikit mendekat seolah mau melihat lebih dekat secara natural.',
-  '6-8':'detik 6-8: vidio dimulai dengan produk diletakkan di atas meja kemudian mengacungkan jempol.'
+  '6-8':'detik 6-8: vidio dimulai dengan produk diletakkan di atas meja kemudian mengacungkan jempol.',
+  // Opsi baru (29 Okt 2026)
+  '0-3_dtk':'detik 0-3: vidio dimulai dengan produk sudah terpasang pada hanger dan hanger nya dipegang. Cukup dengan gerakan-gerakan halus aja jangan sampai memperlihatkan bagian yang tidak ada di foto referensi seperti memperlihatkan bagian belakang produk, kalo dalam foto referensi produknya terlihat bagian depan doang. Pada detik 0-3 jangan sampai ada tangan yang masuk selain tangan yang memegang hanger.',
+  '3-6_dtk':'detik 3-6: vidio dimulai dengan produk ada di atas lantai sambil mengelus-elus lembut.',
+  '6-8_dtk':'detik 6-8: vidio dimulai dengan produk sudah terpasang pada hanger dan tangan karakter memegang hanger nya dan karakter berjalan menuju lemari, lemarinya dibuka, dan menggantung produk didalam lemari secara natural.'
 };
 const VB_UI_TAIL=[
   'Sudut pandang : POV (orang pertama), seolah penonton sendiri yang sedang melihat produk tersebut.',
@@ -17515,13 +17519,14 @@ const VB_UI_TAIL=[
   'Larangan: tanpa wajah manusia, tanpa teks atau watermark, tanpa logo tambahan, tanpa efek sinematik berlebihan, tanpa kesan mewah. Kamera tidak pernah mengarah ke atas ke wajah. jangan ada musik.'
 ].join('\n');
 // Video pratinjau tiap opsi: utama media/<k>.mp4 (folder media seperti video lain), cadangan <k>.mp4 di folder yang sama dengan index.html.
-const VB_UI_VIDEO={'0-3':['media/0-3.mp4','0-3.mp4'],'3-6':['media/3-6.mp4','3-6.mp4'],'6-8':['media/6-8.mp4','6-8.mp4']};
+const VB_UI_VIDEO={'0-3':['media/0-3.mp4','0-3.mp4'],'3-6':['media/3-6.mp4','3-6.mp4'],'6-8':['media/6-8.mp4','6-8.mp4'],
+  '0-3_dtk':['media/0-3_dtk.mp4','0-3_dtk.mp4'],'3-6_dtk':['media/3-6_dtk.mp4','3-6_dtk.mp4'],'6-8_dtk':['media/6-8_dtk.mp4','6-8_dtk.mp4']};
 // Storyboard: 3 bingkai. o[].k = kunci prompt/video, o[].cat = tab di sheet (hanya bingkai yang punya tab c), o[].l = label.
-// Tab "Isi" di bingkai Awal & Akhir sengaja masih kosong.
+// Tab "Isi" di bingkai Akhir sengaja masih kosong; tab "Isi" bingkai Awal berisi "Pegang hanger".
 const VB_UI_SLOT=[null,
-  {t:'Awal',r:'0–3 dtk',q:'Bagaimana video dibuka?',c:[{v:'buka',l:'Pembukaan'},{v:'isi',l:'Isi'}],o:[{k:'0-3',cat:'buka',l:'Unboxing'}]},
-  {t:'Tengah',r:'3–6 dtk',q:'Apa yang terjadi di tengah video?',o:[{k:'3-6',l:'Lihat dekat'}]},
-  {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',c:[{v:'penutup',l:'Penutup'},{v:'isi',l:'Isi'}],o:[{k:'6-8',cat:'penutup',l:'Acungkan jempol'}]}];
+  {t:'Awal',r:'0–3 dtk',q:'Bagaimana video dibuka?',c:[{v:'buka',l:'Pembukaan'},{v:'isi',l:'Isi'}],o:[{k:'0-3',cat:'buka',l:'Unboxing'},{k:'0-3_dtk',cat:'isi',l:'Pegang hanger'}]},
+  {t:'Tengah',r:'3–6 dtk',q:'Apa yang terjadi di tengah video?',o:[{k:'3-6',l:'Lihat dekat'},{k:'3-6_dtk',l:'Elus di lantai'}]},
+  {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',c:[{v:'penutup',l:'Penutup'},{v:'isi',l:'Isi'}],o:[{k:'6-8',cat:'penutup',l:'Acungkan jempol'},{k:'6-8_dtk',cat:'penutup',l:'Gantung di lemari'}]}];
 const VB_UI_ICO='<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>';
 let VB_UI_DURASI=null; // cuma 8 yang tersedia
 let VB_UI_PICK={1:null,2:null,3:null}; // kunci opsi terpilih per bingkai (null = belum dipilih)
