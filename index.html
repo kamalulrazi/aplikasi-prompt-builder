@@ -13832,7 +13832,7 @@ function pbUpgSetPlan(k,j){
     :['Tema Obsidian Glass','Prompt foto &amp; video Veo 3']);
   document.getElementById('upg-list').innerHTML=f.map(function(x){return '<li>'+x+'</li>';}).join('');
   document.getElementById('upg-cta-amt').textContent=rp(tot);
-  document.getElementById('upg-cta-sub').textContent=C[t].label+', '+per.label+'. Aktif setelah dikonfirmasi admin';
+  document.getElementById('upg-cta-sub').textContent=C[t].label+', '+per.label+'. Aktif otomatis setelah bayar';
   if(fk){ var nf=d.querySelector(fk); if(nf) nf.focus({preventScroll:true}); }
 }
 function pbUpgInit(){
@@ -13866,7 +13866,7 @@ function pbBackToUpgradePlans(){
   if(p1) p1.style.display='flex';
   if(p2) p2.style.display='none';
 }
-function pbSelectUpgradeTier(tier){
+function pbSelectUpgradeManual(tier){
   var cfg=window.PB_TIER_CONFIG[tier];
   if(!cfg) return;
   _pbUpgradeSelectedTier=tier; _pbUpgradeSelectedPer=_pbUpgPer;
@@ -13877,6 +13877,68 @@ function pbSelectUpgradeTier(tier){
   document.getElementById('upg-pay-amount').textContent='Rp'+pbUpgPrice(tier,_pbUpgradeSelectedPer).toLocaleString('id-ID');
   pbRenderPayMethods();
 }
+// ── PEMBAYARAN iPaymu (31 Okt 2026) ─────────────────────────────────────
+// "Lanjut bayar" → minta link bayar ke Worker (/ipaymu/create) → buka halaman iPaymu
+// (Virtual Account, QRIS, e-wallet). Harga dihitung ulang di server. Setelah bayar,
+// iPaymu memanggil Worker (/ipaymu/callback) yang mengaktifkan paket otomatis, lalu
+// user kembali ke app dengan ?pay=return&ref=... dan app mengecek statusnya.
+// Kalau Worker belum dikonfigurasi (HTTP 501), app jatuh ke panel transfer manual.
+var _pbPayBusy=false;
+function _pbPayBase(){ return (typeof ANTHROPIC_ENDPOINT!=='undefined'&&ANTHROPIC_ENDPOINT)?ANTHROPIC_ENDPOINT:'https://promptbuilder.vid1hihu.workers.dev'; }
+async function pbSelectUpgradeTier(tier){
+  var cfg=window.PB_TIER_CONFIG[tier];
+  if(!cfg||_pbPayBusy) return;
+  _pbPayBusy=true;
+  var btn=document.querySelector('#upgrade-plans-panel .upg-cta'), old=btn?btn.innerHTML:'';
+  if(btn){ btn.disabled=true; btn.textContent='Membuka halaman pembayaran…'; }
+  var redirected=false;
+  try{
+    var tok=''; try{ tok=await _pbGetFirebaseIdToken(); }catch(e){}
+    if(!tok){ showToast('Login dulu ya, lalu coba lagi.','error'); return; }
+    var per=pbUpgPer(_pbUpgPer);
+    var r=await fetch(_pbPayBase()+'/ipaymu/create',{method:'POST',headers:{'Content-Type':'application/json','X-Firebase-Token':tok},body:JSON.stringify({tier:tier,months:per.months})});
+    var j=null; try{ j=await r.json(); }catch(e){}
+    if(r.ok&&j&&j.url){
+      try{ sessionStorage.setItem('pb_pay_ref',j.ref); }catch(e){}
+      redirected=true; location.href=j.url; return;
+    }
+    if(r.status===501){ pbSelectUpgradeManual(tier); return; }
+    showToast((j&&j.error&&j.error.message)||'Gagal membuka pembayaran. Coba lagi.','error');
+  }catch(e){
+    showToast('Gagal terhubung ke server pembayaran. Cek koneksi lalu coba lagi.','error');
+  }finally{
+    _pbPayBusy=false;
+    if(btn&&!redirected){ btn.disabled=false; btn.innerHTML=old; }
+  }
+}
+// Dipanggil saat app dibuka lagi setelah user bayar / batal di halaman iPaymu.
+async function pbCheckPayReturn(){
+  var q; try{ q=new URLSearchParams(location.search); }catch(e){ return; }
+  var st=q.get('pay'); if(!st) return;
+  var ref=q.get('ref')||''; if(!ref){ try{ ref=sessionStorage.getItem('pb_pay_ref')||''; }catch(e){} }
+  try{ history.replaceState(null,'',location.pathname); }catch(e){}
+  if(st==='cancel'){ showToast('Pembayaran dibatalkan. Kamu bisa coba lagi kapan saja.','error'); return; }
+  if(!ref) return;
+  showToast('Memeriksa pembayaranmu…','success');
+  for(var i=0;i<22;i++){
+    try{
+      var tok=await _pbGetFirebaseIdToken();
+      if(tok){
+        var r=await fetch(_pbPayBase()+'/ipaymu/status',{method:'POST',headers:{'Content-Type':'application/json','X-Firebase-Token':tok},body:JSON.stringify({ref:ref})});
+        var j=await r.json();
+        if(j&&j.status==='paid'){
+          try{ if(window.pbReloadTier) await window.pbReloadTier(); }catch(e){}
+          showToast('Pembayaran berhasil! Paketmu sudah aktif.','success');
+          return;
+        }
+        if(j&&j.status==='failed'){ showToast('Pembayaran gagal atau kedaluwarsa. Silakan coba lagi.','error'); return; }
+      }
+    }catch(e){}
+    await new Promise(function(res){ setTimeout(res,4000); });
+  }
+  showToast('Pembayaran belum terkonfirmasi. Kalau kamu sudah bayar, tekan "Muat ulang paket" beberapa menit lagi.','error');
+}
+window.addEventListener('load',function(){ setTimeout(pbCheckPayReturn,1500); });
 function pbPayList(){
   var pay=window.PB_PAYMENT_CONFIG||{};
   return (pay.methods||[]).filter(function(m){ return m && m.noRek && String(m.noRek).indexOf('ISI')!==0 && String(m.atasNama||'').indexOf('ISI')!==0; });
@@ -29105,8 +29167,8 @@ window.addEventListener('beforeunload', function(e){
         <div class="upg-chp" id="upg-chips" role="group" aria-label="Periode langganan" onclick="var b=event.target.closest('.upg-pill');if(b)pbUpgSetPlan(null,+b.dataset.j)"></div>
         <div class="upg-sum" id="upg-sum" aria-live="polite"></div>
         <ul class="upg-ck" id="upg-list"></ul>
-        <button type="button" class="upg-cta" onclick="pbSelectUpgradeTier(_pbUpgPlan)">Lanjut bayar <span id="upg-cta-amt"></span><small id="upg-cta-sub">Aktif setelah dikonfirmasi admin</small></button>
-        <p class="upg-note">Transfer manual, biasanya dikonfirmasi cepat.</p>
+        <button type="button" class="upg-cta" onclick="pbSelectUpgradeTier(_pbUpgPlan)">Lanjut bayar <span id="upg-cta-amt"></span><small id="upg-cta-sub">Aktif otomatis setelah bayar</small></button>
+        <p class="upg-note">Bayar lewat iPaymu: Virtual Account bank, QRIS, atau e-wallet. Paket aktif otomatis setelah pembayaran berhasil.</p>
       </div>
     </div>
 
