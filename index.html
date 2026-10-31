@@ -5006,7 +5006,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.47</div>
+  <div class="splash-version" id="splash-version">v14.51</div>
 </div>
 <script>
   (function(){
@@ -6316,7 +6316,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
            pbGoStep7VideoOpen() & disembunyikan lagi di pbStep7VideoDone()
            atau saat tur di-skip (pbHideOverlay). -->
       <div id="vb-tour-mode-hint" style="display:none;padding:8px 10px;margin-bottom:10px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.45;">
-        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya. Frame Asset, Raw Asset, Motion Control, Mirror Selfie, dan Percobaan kita kunci sementara.
+        Karena masih tahap belajar, kita pakai <strong>Start Frame</strong> dulu ya. Raw Asset, Motion Control, Mirror Selfie, dan Percobaan kita kunci sementara.
       </div>
       <!-- PERMINTAAN USER (Sept 2026): mode disusun vertikal (kolom kiri), kolom
            kanan dikosongkan untuk pratinjau — lihat CSS .vb-mode-row. Pratinjau
@@ -6330,7 +6330,8 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       <div class="vb-mode-row">
         <div class="chips vb-mode-list">
           <div class="chip sel" id="vb-mode-satu" onclick="vbPickRefMode('satu')">Start Frame</div>
-          <div class="chip" id="vb-mode-aset" onclick="vbPickRefMode('aset')">Frame Asset</div>
+          <!-- Okt 2026 (permintaan user): Frame Asset DIGABUNG ke uiui (pilihan "Pakai Dialog / Skrip"). Elemen dibiarkan (disembunyikan) karena kode lama & tur masih mengacu ke id ini. -->
+          <div class="chip" id="vb-mode-aset" style="display:none" onclick="vbPickRefMode('aset')">Frame Asset</div>
           <div class="chip" id="vb-mode-kp" onclick="vbPickRefMode('kp')">Raw Asset</div>
           <div class="chip" id="vb-mode-ikuti" onclick="vbPickRefMode('ikuti')">Motion Control</div>
           <div class="chip" id="vb-mode-mirrorselfie" onclick="vbPickRefMode('mirrorselfie')">Mirror Selfie</div>
@@ -6763,13 +6764,24 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
            vbUiPilih(n,k), vbUiGenerate(), vbUiKembali(), vbCopyUiPrompt() & vbUiResetFlow() (dipanggil dari vbPickRefMode()/vbResetNow()). -->
       <div id="vb-mode-uiui-area" class="hidden" style="margin-bottom:14px;">
         <div id="vb-ui-modebar" class="vb-fe-modebar hidden">
-          <span class="chip sel" style="cursor:default;">uiui</span>
-          <button class="copy-btn" onclick="vbUiResetFlow()">Ubah mode</button>
+          <span class="chip sel" id="vb-ui-modebar-label" style="cursor:default;">uiui</span>
+          <button class="copy-btn" onclick="vbUiUbahMode()">Ubah mode</button>
         </div>
         <div id="vb-ui-step-lanjut">
           <div style="text-align:right;">
             <button class="btn sm" onclick="vbUiLanjut()" style="width:auto;padding:8px 18px;">Lanjut →</button>
           </div>
+        </div>
+        <!-- Okt 2026 (permintaan user): step tambahan setelah "Lanjut →". Pakai Dialog / Skrip = lanjut ke alur Frame Asset
+             (voice over dari foto, refMode 'aset'); Tanpa Skrip = alur uiui seperti biasa (Nama Produk -> Durasi -> storyboard).
+             Lihat vbUiPilihSkrip() & vbUiUbahMode(). -->
+        <div id="vb-ui-step-skrip" class="hidden">
+          <label class="inplabel" style="font-size:var(--fs-2xs);">Pakai skrip atau tanpa skrip?</label>
+          <div class="chips" style="margin:6px 0 4px;">
+            <div class="chip" id="vb-ui-skrip-pakai" onclick="vbUiPilihSkrip(true)">Pakai Dialog / Skrip</div>
+            <div class="chip" id="vb-ui-skrip-tanpa" onclick="vbUiPilihSkrip(false)">Tanpa Skrip</div>
+          </div>
+          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 10px;"><b>Pakai skrip</b>: video voice over dari foto-fotomu, narasi terdengar dari luar layar. <b>Tanpa skrip</b>: video unboxing POV ala rekaman HP tanpa orang bicara.</p>
         </div>
         <div id="vb-ui-step-nama" class="hidden">
           <label class="inplabel" for="vb-ui-nama-input" style="font-size:var(--fs-2xs);">Nama Produk <span style="color:var(--accent);">*wajib</span></label>
@@ -7375,7 +7387,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.47 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.51 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -10709,7 +10721,7 @@ function fOpenStepJump(pageId){
     // Tidak ditampilkan di daftar Lompat ke step (tab foto).
     if(pageId==='foto' && c.id==='f2') return false;
     // Pergerakan Kamera cuma ada di Raw Asset.
-    if(pageId==='video' && c.id==='vcam' && typeof VB!=='undefined' && VB && !(VB.refMode==='kp'||VB.refMode==='satu'||VB.refMode==='aset')) return false;
+    if(pageId==='video' && c.id==='vcam' && typeof VB!=='undefined' && VB && !(VB.refMode==='kp'||VB.refMode==='satu')) return false;
     // FIX: kalau user cuma pilih Karakter Sheet + Outfit (tanpa foto produk),
     // f3 \"Cara Tampil Produk\" memang tidak relevan. Flow sengaja menandainya
     // 'done' (lihat cabang \"Tidak ada foto produk\" di fKonfirmRef) supaya
@@ -16435,7 +16447,7 @@ const VB_FIXED_WORD_RANGE={min:24,max:27,target:25};
 // ubah min/max/target di sini saja kalau mau beda. Prompt AI, penghitung kata, & pemotong batas atas ikut otomatis.
 const VB_PERCOBAAN_WORD_RANGE={min:24,max:27,target:25};
 function vbGetWordRange(){
-  if(typeof VB!=='undefined' && VB && VB.refMode==='percobaan')return VB_PERCOBAAN_WORD_RANGE;
+  if(typeof VB!=='undefined' && VB && (VB.refMode==='percobaan'||VB.refMode==='aset'))return VB_PERCOBAAN_WORD_RANGE;
   return VB_FIXED_WORD_RANGE;
 }
 
@@ -16662,14 +16674,15 @@ function _vbRenderProdukFotoMulti(){
 
 const VB_REF_MODE_TEXT={
   satu:'Use the attached photo as the reference for the character, outfit, and location. Keep every detail consistent throughout the video.',
-  aset:'Use the attached photos as the starting frame for each scene change. For example, if there are 2 photos, use photo 1 for seconds 0-4 and photo 2 for seconds 4-8. If a photo does not show a face, do not show one.',
+  // Okt 2026 (permintaan user): Frame Asset jadi video VOICE OVER tanpa wajah manusia (tangan boleh), transisi cut, narasi dari luar layar. Pola sama dengan Percobaan.
+  aset:'Use all attached reference photos as the starting frame of each scene, in the order attached: photo 1 first, then photo 2, and so on up to the last photo. Each photo is one scene, and every scene gets roughly equal time. If there is only one photo, use that photo as the starting frame for the entire video. Keep everything in the photos exactly the same in every scene. Do not show any human face; hands alone are allowed. Do not create or show anything that is not visible in the reference photos. Use cut transitions between scenes. This is a voice-over video: no one on screen speaks. The narration is heard only as an off-screen voice, flowing in the order of the scenes so that the words roughly match what is visible. No text, no subtitles, no extra logos, no music with lyrics.',
   // MODE BARU "Percobaan" (Okt 2026): video voice over, tiap foto = 1 adegan. Bagian ini = pembuka
   // prompt saja; blok suara narator (gender/usia/nada/aksen/script) dirakit di _vbBuildFlowText.
   percobaan:'Use all attached reference photos as the starting frame of each scene, in the order attached: photo 1 first, then photo 2, and so on up to the last photo. Each photo is one scene, and every scene gets roughly equal time. If there is only one photo, use that photo as the starting frame for the entire video. Keep everything in the photos exactly the same in every scene (shape, color, material, and every small detail). If a photo shows a person, keep the face and outfit consistent across all scenes; if a photo does not show a face, do not show one. Do not create or show anything that is not visible in the reference photos. Use smooth, natural camera movement and soft transitions between scenes. This is a voice-over video: no one on screen speaks. Any person who appears keeps their mouth closed or relaxed, with no lip movement and not talking to the camera. The narration is heard only as an off-screen voice, flowing in the order of the scenes so that the words roughly match what is visible. No text, no subtitles, no extra logos, no music with lyrics.'
 };
 const VB_REF_MODE_DESC={
   satu:'Cukup satu foto bahan aja, yaitu FOTO AI. Video akan mengikuti FOTO AI yang kamu kirim sebagai frame awal. Hasil konsisten tanpa pergantian scene.',
-  aset:'Cocok untuk mempromosikan produk dengan detail kecil dan rumit, video akan mengikuti setiap foto yang kita lampirkan secara konsisten tanpa membuat hasil produk rusak.',
+  aset:'Video voice over tanpa wajah manusia: lampirkan beberapa foto sesuai urutan, tiap foto jadi satu adegan dengan transisi cut. Narasi terdengar sebagai suara dari luar layar. Cocok untuk produk dengan detail kecil dan rumit karena video mengikuti foto secara konsisten.',
   kp:'Mode tercepat tanpa perlu bikin foto AI. Tapi tidak cocok untuk mempromosikan produk dengan kategori fashion dan aksesoris kecil dengan detail yang rumit.',
   ikuti:'FOTO AI akan mengikuti setiap gerakan dari video yang kamu lampirkan, dengan mempertahankan lokasi, outfit, lighting pada FOTO AI.',
   mirrorselfie:'Persiapkan 1 bahan aja, yaitu FOTO AI. FOTO AI wajib dengan pose mirror selfie. Kamu bisa pilih di Pose ketika merakit prompt foto.',
@@ -17756,7 +17769,7 @@ function vbUiResetFlow(){
   vbUiStopFull();
   vbUiCloseSheet(true);
   vbUiLockModes(false); // daftar mode muncul lagi
-  ['vb-ui-step-nama','vb-ui-step-durasi','vb-ui-steps','vb-ui-loading','vb-ui-result','vb-ui-resultview','vb-ui-nama-lanjut-btn','vb-ui-durasi-lanjut-btn'].forEach(function(id){let el=vbUiById(id);if(el)el.classList.add('hidden');});
+  ['vb-ui-step-skrip','vb-ui-step-nama','vb-ui-step-durasi','vb-ui-steps','vb-ui-loading','vb-ui-result','vb-ui-resultview','vb-ui-nama-lanjut-btn','vb-ui-durasi-lanjut-btn'].forEach(function(id){let el=vbUiById(id);if(el)el.classList.add('hidden');});
   let stepLanjut=vbUiById('vb-ui-step-lanjut');
   if(stepLanjut)stepLanjut.classList.remove('hidden');
   let inp=vbUiById('vb-ui-nama-input');
@@ -17774,11 +17787,24 @@ function vbUiResetFlow(){
 }
 function vbUiLanjut(){
   vbUiLockModes(true); // mode lain tidak terlihat lagi
-  let a=vbUiById('vb-ui-step-lanjut'),b=vbUiById('vb-ui-step-nama');
+  // Okt 2026: setelah "Lanjut →" user memilih dulu Pakai Dialog / Skrip atau Tanpa Skrip.
+  let a=vbUiById('vb-ui-step-lanjut'),b=vbUiById('vb-ui-step-skrip');
+  if(a)a.classList.add('hidden');
+  if(b)b.classList.remove('hidden');
+}
+// Pakai Dialog / Skrip -> alur Frame Asset (refMode 'aset', wizard biasa V2-V5). Tanpa Skrip -> alur uiui seperti biasa.
+function vbUiPilihSkrip(pakai){
+  if(pakai){vbPickRefMode('aset');return;}
+  let a=vbUiById('vb-ui-step-skrip'),b=vbUiById('vb-ui-step-nama');
   if(a)a.classList.add('hidden');
   if(b)b.classList.remove('hidden');
   let inp=vbUiById('vb-ui-nama-input');
   if(inp){try{inp.focus({preventScroll:true});}catch(e){}}
+}
+// Tombol "Ubah mode" di bar atas. Dari alur Pakai Skrip (refMode 'aset') kembali ke awal uiui; dari alur Tanpa Skrip cukup reset.
+function vbUiUbahMode(){
+  if(VB.refMode==='aset'){vbPickRefMode('uiui');return;}
+  vbUiResetFlow();
 }
 function vbUiNamaInput(){
   let btn=vbUiById('vb-ui-nama-lanjut-btn');
@@ -18288,7 +18314,7 @@ function vbPickRefMode(mode){
   // PERMINTAAN USER (Sept 2026): pratinjau Video AI + Foto AI di sisi kanan
   // daftar mode — cuma muncul kalau Start Frame yang dipilih.
   vbSyncModePreview(mode==='satu');
-  vbSyncAsetPreview(mode==='aset');
+  vbSyncAsetPreview(false); // Frame Asset kini bagian dari uiui, pratinjaunya tidak dipakai lagi
   vbSyncKpPreview(mode==='kp');
   vbSyncMsPreview(mode==='mirrorselfie');
   vbSyncTessPreview(mode==='tess');
@@ -18328,11 +18354,21 @@ function vbPickRefMode(mode){
   if(mode==='tess2'&&_camPrevMode!=='tess2')vbT2ResetFlow();
   // uiui: pola sama dengan Fashion Editorial — chip, area, reset ke step 1 cuma kalau BENERAN baru masuk dari mode lain.
   let uiuiChip=document.getElementById('vb-mode-uiui');
-  if(uiuiChip)uiuiChip.classList.toggle('sel',mode==='uiui');
+  // Frame Asset ('aset') kini bagian dari uiui (pilihan "Pakai Dialog / Skrip"): chip & area uiui tetap tampil, tapi cuma bar "Ubah mode"-nya.
+  let _inUi=(mode==='uiui'||mode==='aset');
+  if(uiuiChip)uiuiChip.classList.toggle('sel',_inUi);
   let uiuiArea=document.getElementById('vb-mode-uiui-area');
-  if(uiuiArea)uiuiArea.classList.toggle('hidden',mode!=='uiui');
+  if(uiuiArea)uiuiArea.classList.toggle('hidden',!_inUi);
   if(mode==='uiui'&&_camPrevMode!=='uiui')vbUiResetFlow();
-  if(mode!=='uiui'){vbUiPausePreview();vbUiPauseFrames();vbUiCloseSheet(true);vbUiLockModes(false);}
+  // Tanpa syarat _camPrevMode: Riwayat mengisi VB.refMode lebih dulu lalu memanggil vbPickRefMode(VB.refMode), jadi mode sebelumnya sudah sama. Blok ini aman dipanggil berulang.
+  if(mode==='aset'){
+    vbUiStopFull();vbUiCloseSheet(true);
+    ['vb-ui-step-lanjut','vb-ui-step-skrip','vb-ui-step-nama','vb-ui-step-durasi','vb-ui-steps'].forEach(function(id){let el=vbUiById(id);if(el)el.classList.add('hidden');});
+    vbUiLockModes(true);
+  }
+  let _mbl=document.getElementById('vb-ui-modebar-label');
+  if(_mbl)_mbl.textContent=(mode==='aset')?'uiui · Pakai Skrip':'uiui';
+  if(!_inUi){vbUiPausePreview();vbUiPauseFrames();vbUiCloseSheet(true);vbUiLockModes(false);}
   let percobaanChip=document.getElementById('vb-mode-percobaan');
   if(percobaanChip)percobaanChip.classList.toggle('sel',mode==='percobaan');
   let desc=document.getElementById('vb-mode-desc');
@@ -18358,7 +18394,7 @@ function vbPickRefMode(mode){
   // bukan milik mode baru, lalu gambar ulang chip sesuai mode. Pilihan dari Riwayat (mode sama) tidak disentuh.
   try{
     if(_camPrevMode!==mode){
-      if(mode==='satu'||mode==='aset'||mode==='kp'){
+      if(mode==='satu'||mode==='kp'){
         let _okM=(VB_CAM_OPTS[mode]||[]).some(function(o){return o[0]===VB.camMove;});
         let _okH=(VB_CAM_HOOK_OPTS[mode]||[]).some(function(o){return o[0]===VB.camHook;});
         let _cleared=false;
@@ -18520,7 +18556,8 @@ var VB_STEP_META={
 function _vbIsKp(){try{return VB.refMode==='kp';}catch(e){return false;}}
 // Step Pergerakan Kamera (step 6) tampil di Start Frame, Frame Asset, dan Raw Asset (permintaan user, Okt 2026).
 // Mode lain (mis. Percobaan) tetap tanpa step ini.
-function _vbHasCam(){try{return VB.refMode==='kp'||VB.refMode==='satu'||VB.refMode==='aset';}catch(e){return false;}}
+// Okt 2026 (permintaan user): Frame Asset TIDAK punya step Pergerakan Kamera & Visual Hook lagi (video voice over, kamera diserahkan ke AI video).
+function _vbHasCam(){try{return VB.refMode==='kp'||VB.refMode==='satu';}catch(e){return false;}}
 Object.defineProperty(VB_STEP_META,'v5',{enumerable:true,configurable:true,get:function(){return [(_vbHasCam()?7:6),'Script / Dialog'];}});
 // ===== PERGERAKAN KAMERA & VISUAL HOOK (permintaan user, Okt 2026) =====
 // Pilihan kamera SEKARANG BEDA PER MODE (Start Frame / Frame Asset / Raw Asset). Teks sengaja umum
@@ -18545,10 +18582,14 @@ var VB_CAM_OPTS={
       "very dramatic"]
   ],
   aset:[
-    ["aset_other","Dipegang Orang Lain",
-      "handheld phone-camera shot filmed by another person standing a few steps away from the character, with natural handheld sway",
-      "handheld phone-camera shot filmed by another person standing a few steps away from the character, with natural handheld sway",
-      "handheld phone-camera shot filmed by another person standing a few steps away from the character, with natural handheld sway"],
+    ["aset_other","Handheld HP",
+      "handheld phone-camera look with natural subtle handheld sway",
+      "handheld phone-camera look with natural subtle handheld sway",
+      "handheld phone-camera look with natural subtle handheld sway"],
+    ["aset_pushin","Push-in Perlahan",
+      "slow smooth push-in toward the main subject, starting exactly from the composition of the photo, main subject stays sharp and stable",
+      "very slow gentle push-in, barely noticeable, main subject stays steady and clearly visible throughout",
+      "steady push-in that settles on the main subject and holds a clear, stable final frame"],
     ["aset_dramatic","Dramatis Banget",
       "very dramatic",
       "very dramatic",
@@ -18578,9 +18619,10 @@ var VB_CAM_HOOK_OPTS={
     ["satu_h_cat","Kucing Melompat","suddenly a cat jumps in a very dramatic way and hits the character while the character is talking"]
   ],
   aset:[
-    ["aset_h_close","Wajah Dekat ke Kamera","the character brings their face very close to the camera, then at the third second moves back to the original position"],
-    ["aset_h_pat","Tepuk Produk Keras","the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"],
-    ["aset_h_cat","Kucing Melompat","suddenly a cat jumps in a very dramatic way and hits the character while the character is talking"]
+    ["aset_h_zoom","Zoom Cepat ke Detail","a fast snap zoom into the most important detail of the first photo, then at the third second it pulls back smoothly to the full composition"],
+    ["aset_h_shine","Kilau Cahaya","a soft beam of light sweeps across the surface of the product from left to right during the first 3 seconds, the product stays intact and clearly visible"],
+    ["aset_h_shake","Ketukan Dramatis","the camera gives one firm shake in the first second, then quickly stabilizes on the main subject, the product stays intact and clearly visible"],
+    ["aset_h_hand","Tangan Tepuk Produk","only a hand (no face) pats the product firmly and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible"]
   ],
   kp:[
     ["kp_h_close","Wajah Dekat ke Kamera","the character brings their face very close to the camera, then at the third second moves back to the original position"],
@@ -18628,6 +18670,9 @@ var VB_CAM_HOOKS={
   satu_h_ramp:"fast push-in toward the main subject that smoothly slows down at the end (speed ramp)",
   satu_h_focuspop:"starts slightly out of focus, then snaps quickly into crisp sharp focus on the main subject",
   satu_h_jolt:"a small quick handheld jolt like a phone camera being grabbed, then the frame stabilizes on the main subject",
+  aset_h_close:"the character brings their face very close to the camera, then at the third second moves back to the original position",
+  aset_h_pat:"the character slaps and pats the product very hard and repeatedly from second 0 to second 3, energetic and forceful, the product stays intact and clearly visible",
+  aset_h_cat:"suddenly a cat jumps in a very dramatic way and hits the character while the character is talking",
   aset_h_whip:"fast whip pan with motion blur starting from the composition of the first photo and landing cleanly on the composition of the second photo",
   aset_h_ramp:"fast movement at the start that smoothly slows down exactly at the composition of the second photo (speed ramp)",
   aset_h_orbit:"quick orbit from the angle of the first photo to the angle of the second photo, ending stable",
@@ -18639,7 +18684,7 @@ var VB_CAM_HOOKS={
   kp_h_crane:"quick camera rise or drop that stops sharply on the main subject",
   kp_h_dollyzoom:"subtle dolly zoom where the background appears to stretch while the main subject keeps its size"
 };
-var VB_CAM_LABELS={satu_h_snapzoom:"Snap Zoom",satu_h_fastpullback:"Fast Pull-Back Reveal",satu_h_ramp:"Speed Ramp Push-In",satu_h_focuspop:"Focus Pop",satu_h_jolt:"Handheld Jolt",aset_h_whip:"Whip Cut ke Foto 2",aset_h_ramp:"Speed Ramp Transisi",aset_h_orbit:"Fast Orbit Snap",aset_h_rack:"Rack Focus Snap",aset_h_snapzoom:"Snap Zoom Transisi",kp_h_crash:"Crash Zoom",kp_h_orbit:"Fast Orbit",kp_h_whip:"Whip Pan Reveal",kp_h_crane:"Crane Snap",kp_h_dollyzoom:"Dolly Zoom (ringan)",satu_pushin:'Slow Push-In',satu_arc:"Gentle Arc",satu_slide:"Slow Slide",aset_slide:"Slide Transisi",kp_dollyin:"Dolly In ke Produk"};
+var VB_CAM_LABELS={aset_h_close:"Wajah Dekat ke Kamera",aset_h_pat:"Tepuk Produk Keras",aset_h_cat:"Kucing Melompat",satu_h_snapzoom:"Snap Zoom",satu_h_fastpullback:"Fast Pull-Back Reveal",satu_h_ramp:"Speed Ramp Push-In",satu_h_focuspop:"Focus Pop",satu_h_jolt:"Handheld Jolt",aset_h_whip:"Whip Cut ke Foto 2",aset_h_ramp:"Speed Ramp Transisi",aset_h_orbit:"Fast Orbit Snap",aset_h_rack:"Rack Focus Snap",aset_h_snapzoom:"Snap Zoom Transisi",kp_h_crash:"Crash Zoom",kp_h_orbit:"Fast Orbit",kp_h_whip:"Whip Pan Reveal",kp_h_crane:"Crane Snap",kp_h_dollyzoom:"Dolly Zoom (ringan)",satu_pushin:'Slow Push-In',satu_arc:"Gentle Arc",satu_slide:"Slow Slide",aset_slide:"Slide Transisi",kp_dollyin:"Dolly In ke Produk"};
 (function(){
   Object.keys(VB_CAM_OPTS).forEach(function(m){
     VB_CAM_OPTS[m].forEach(function(o){VB_CAM_MOVES[o[0]]=[o[2],o[3],o[4]];VB_CAM_LABELS[o[0]]=o[1];});
@@ -18935,7 +18980,7 @@ function vbUpdateProgress(stepNum,stepName){
 }
 
 function vbConfirmRef(){
-  let modeLabel=VB.refMode==='kp'?'Raw Asset':(VB.refMode==='aset'?'Frame Asset':(VB.refMode==='percobaan'?'Percobaan':'Start Frame'));
+  let modeLabel=VB.refMode==='kp'?'Raw Asset':(VB.refMode==='aset'?'uiui · Pakai Skrip':(VB.refMode==='percobaan'?'Percobaan':'Start Frame'));
   let _wasEdit=doneCard('v1','va1',modeLabel);
   vbAdvanceStep(_wasEdit,'v2',2,'Jenis Kelamin & Usia');
   // Notifikasi "Urutan Foto Tidak Boleh Terbalik" DIHAPUS (permintaan user).
@@ -20088,9 +20133,10 @@ function _vbCharFields(){
   // Gerakan Kamera & Visual Hook (hanya mode Start Frame / Frame Asset / Raw Asset) — bisa diganti per produk setelah skrip muncul.
   if(typeof _vbHasCam==='function'&&_vbHasCam()){
     var _m=VB.refMode;
-    fl.push({key:'camMove',title:'Gerakan Kamera',none:'Tanpa gerakan kamera',ph:'Atau isi sendiri, contoh: slow zoom out from the product to the character',max:200,chips:(VB_CAM_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
-    fl.push({key:'camHook',title:'Visual Hook · kartu Hook',none:'Sesuai isi skrip',ph:'Atau isi sendiri, contoh: the character gasps and points at the product',max:200,chips:(VB_CAM_HOOK_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
+    fl.push({key:'camMove',title:'Gerakan Kamera',none:'Tanpa gerakan kamera',ph:(VB.refMode==='aset'?'Atau isi sendiri, contoh: slow zoom out from the product to the full scene':'Atau isi sendiri, contoh: slow zoom out from the product to the character'),max:200,chips:(VB_CAM_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
+    fl.push({key:'camHook',title:'Visual Hook · kartu Hook',none:'Sesuai isi skrip',ph:(VB.refMode==='aset'?'Atau isi sendiri, contoh: a hand quickly slides the product into the frame':'Atau isi sendiri, contoh: the character gasps and points at the product'),max:200,chips:(VB_CAM_HOOK_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
   }
+  if(VB.refMode==='aset')fl=fl.filter(function(f){return f.key!=='motion';}); // Frame Asset tanpa karakter
   return fl;
 }
 function _vbCharHasOvr(prodIdx){
@@ -28204,7 +28250,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // (apa pun isinya) tetap dipakai apa adanya sebagai prefix.
   // FITUR BARU: Motion Karakter (opsional) — ditempel di antara instruksi foto
   // referensi dan blok "dialogue:". Kosong = output sama persis seperti sebelumnya.
-  let motionTxt=String(vbMotionText(_vbCharVal(idx,'motion'))||'').replace(/[.\s]+$/,'').trim();
+  let motionTxt=(VB.refMode==='aset')?'':String(vbMotionText(_vbCharVal(idx,'motion'))||'').replace(/[.\s]+$/,'').trim(); // Frame Asset = tanpa karakter, Pembawaan tidak dipakai
   if(motionTxt){
     // Kalimat pengaman (3 Okt 2026): gerakan tetap natural & selaras ucapan; wajah/produk tidak berubah.
     // Mode 'aset' (foto tanpa wajah) tidak diberi klausa wajah.
@@ -28213,7 +28259,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     else if(VB.refMode==='satu')_mSafe+='; the face stays consistent';
     if(VB.refMode==='percobaan')_mSafe='Movements stay natural and smooth, in sync with the narration';
     instructionText=instructionText.replace(/\s+$/,'')+' Character demeanor: '+motionTxt+'. '+_mSafe+'. ';
-  }else{
+  }else if(VB.refMode!=='aset'){
     // Permintaan user (21 Okt 2026): step Pembawaan sudah tidak ada di wizard. Kalau user tidak mengubahnya lewat ikon pensil,
     // isinya otomatis mengikuti skrip.
     instructionText=instructionText.replace(/\s+$/,'')+' Character demeanor: sesuaikan dengan isi skrip. ';
@@ -28237,8 +28283,8 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // ("...sepanjang video.dialogue:"). Sekarang selalu tepat 1 spasi.
   let safeScript=String(scriptText==null?'':scriptText).replace(/"/g,"'");
   let flowText=instructionText.replace(/\s+$/,'')+' dialogue:voice_character:age:'+ageFull+',pitch:'+_vbEn(_vbCharVal(idx,'pitch'))+',accent:'+accentFull+',script:"'+safeScript+'"';
-  if(VB.refMode==='percobaan'){
-    // Mode Percobaan: blok suara narator off-screen (bukan format "dialogue:" di mode lain).
+  if(VB.refMode==='percobaan'||VB.refMode==='aset'){
+    // Mode Percobaan & Frame Asset: blok suara narator off-screen (bukan format "dialogue:" di mode lain).
     // Isi script tetap Indonesia; sisanya Inggris. Akhiran 'narration script: "..."' dipakai
     // regex penyalinan Riwayat (lihat _scriptRe) — jangan diubah tanpa menyesuaikan regex itu.
     flowText=instructionText.replace(/\s+$/,'')+' Off-screen voice (narrator), gender and age: '+ageFull+', tone: '+_vbEn(_vbCharVal(idx,'pitch'))+', natural Indonesian accent: '+_vbCharVal(idx,'accent')+', narration script: "'+safeScript+'"';
@@ -28282,10 +28328,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // supaya dua gerakan tidak bertabrakan. Frame Asset: transisi foto 1 -> foto 2 sudah dikerjakan oleh
     // visual hook, jadi setelahnya kamera cukup tenang di komposisi foto 2.
     if(_hasVisHook&&idx%3===0&&!_vbCamIsCustom(_cMove)){
-      if(VB.refMode==='aset'){
-        // Hook tulis sendiri belum tentu mengerjakan transisi foto 1 -> foto 2, jadi gerakan kamera aslinya dipertahankan.
-        if(!_vbCamIsCustom(_cHook))_camVal='the camera stays calm and steady on the composition of the second photo, main subject clearly visible';
-      }else _camVal=VB_CAM_MOVES[_cMove][1];
+      _camVal=VB_CAM_MOVES[_cMove][1];
     }
     if(_camVal)flowText+=' camera_movement: '+((_hasVisHook&&idx%3===0)?'after the visual hook, ':'')+_camVal;
   }
@@ -28295,7 +28338,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     if(overlayTxt){
       // Mode Percobaan: instruksi dasarnya melarang teks ("No text, no subtitles"), padahal overlay
       // Hook adalah teks. Larangan dilonggarkan supaya tidak saling bertentangan.
-      if(VB.refMode==='percobaan')flowText=flowText.replace('No text, no subtitles, no extra logos','No subtitles, no extra logos, no text other than the small overlay described at the end');
+      if(VB.refMode==='percobaan'||VB.refMode==='aset')flowText=flowText.replace('No text, no subtitles, no extra logos','No subtitles, no extra logos, no text other than the small overlay described at the end');
       flowText+=_vbOverlaySentence(overlayTxt);
     }
   }
@@ -28308,7 +28351,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // Okt 2026 (permintaan user): larangan ini kini juga dipasang di Start Frame (satu), Frame Asset (aset) & Percobaan,
     // bukan cuma Raw Asset (kp), dan diperluas: tidak ada keranjang fisik + tidak ada ikon/elemen tampilan belanja.
     // Awal kalimat "Make sure no icon" JANGAN diubah (dipakai regex tombol Salin per kartu).
-    flowText+='. Make sure no icon of any kind appears during the CTA. The keranjang bawah mentioned in the narration is only a checkout button on the shopping platform, so do not show any physical basket, shopping cart, shopping bag, or basket-like object, and the character must not hold, point at, or reach for one. Also do not show any shopping cart icon, basket icon, shopping bag icon, buy button, or any e-commerce interface element anywhere in the frame, as an overlay, sticker, graphic, or animation.';
+    flowText+='. Make sure no icon of any kind appears during the CTA. The keranjang bawah mentioned in the narration is only a checkout button on the shopping platform, so do not show any physical basket, shopping cart, shopping bag, or basket-like object, and '+(VB.refMode==='aset'?'a hand':'the character')+' must not hold, point at, or reach for one. Also do not show any shopping cart icon, basket icon, shopping bag icon, buy button, or any e-commerce interface element anywhere in the frame, as an overlay, sticker, graphic, or animation.';
   }
   return flowText;
 }
