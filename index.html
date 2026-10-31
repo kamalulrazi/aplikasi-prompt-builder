@@ -5716,7 +5716,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
              Disembunyikan default, ditampilkan lewat pbGoStep6() &
              disembunyikan lagi di pbTourResetF1Ui(). -->
         <div id="f1-tour-hint" style="display:none;padding:8px 10px;margin-bottom:12px;font-size:var(--fs-xs2);color:var(--muted);line-height:1.45;">
-          Tap bahan yang udah kakak siapkan, yaitu: karakter sheet dan produk.
+          Tap bahan yang udah kakak siapkan: karakter sheet dan produk. Kalau cuma punya produk dan lokasi, itu juga boleh.
         </div>
         <!-- v12.6: STRIP FILM (tampilan 3 dari preview-foto-referensi, 15 Okt 2026) — hanya tampil di layar Prompt Foto AI; diisi fStripSync() dari FS.refs -->
         <p id="f1-strip-sub">Susun bahan fotonya. Urutannya jadi F1, F2, F3.</p>
@@ -9290,8 +9290,11 @@ function fKonfirmRef(){
   if(typeof pbTourF1Active!=='undefined' && pbTourF1Active){
     let _hasKS=FS.refs.some(function(r){return r.type==='wajah';});
     let _hasProdukTour=FS.refs.some(function(r){return r.type==='produk';});
-    if(!_hasKS || !_hasProdukTour){
-      showToast('Tap "Karakter Sheet" dan "Produk" dulu ya, baru bisa lanjut!','error');
+    // PERMINTAAN USER: di tur pun boleh lanjut cuma dengan "Produk" + "Lokasi"
+    // (tanpa Karakter Sheet). Kalau Karakter Sheet dipakai, tetap wajib bareng Produk.
+    let _noCharTour=(typeof fIsNoChar==='function') && fIsNoChar();
+    if(!_hasProdukTour || (!_hasKS && !_noCharTour)){
+      showToast('Tap "Produk" dan "Karakter Sheet" dulu, atau "Produk" + "Lokasi" saja ya!','error');
       return;
     }
   }
@@ -31484,7 +31487,9 @@ function pbGoStep6(){
   // Chip "Outfit" (foto) tidak relevan di langkah ini — user isi outfit
   // lewat "Isi Outfit Karakter" (teks bebas), bukan lewat foto.
   pbLockChip('#ftb-outfit');
-  pbLockChip('#ftb-lokasi');
+  // PERMINTAAN USER: chip Lokasi TIDAK lagi dikunci di tur, supaya bisa
+  // lanjut dengan "Produk" + "Lokasi" saja (tanpa Karakter Sheet).
+  pbUnlockChip('#ftb-lokasi');
   let outfitRandomBadge=document.getElementById('ftc-outfit_random');
   if(outfitRandomBadge) outfitRandomBadge.textContent='';
   let tourHint=document.getElementById('f1-tour-hint');
@@ -35081,6 +35086,37 @@ html body:not(.pb-tour-active) #video .wrap{padding-bottom:190px!important;}
    begitu dikonfirmasi/dibatalkan (dock dihapus) area Generate muncul lagi otomatis. Hanya tampilan, logika tidak diubah. */
 html body:not(.pb-tour-active) #foto#foto:has(.wcard [id$="-confirmbar"]) #f-gen-area{display:none!important}
 </style>
+<style id="pb-genwait-css">
+/* PERMINTAAN USER: tombol "Generate Prompt Foto" (area Ringkasan) disembunyikan selama masih ada step yang sedang terbuka / belum tuntas diisi. */
+#foto #f-gen-area.pb-gen-wait{display:none!important}
+</style>
+<script id="pb-genwait-js">
+(function(){
+  function stepOpen(){
+    var cards=document.querySelectorAll('#foto .wcard');
+    for(var i=0;i<cards.length;i++){
+      var c=cards[i],cl=c.classList;
+      if(cl.contains('done')||cl.contains('hidden')||cl.contains('pending'))continue;
+      return true;
+    }
+    return false;
+  }
+  function sync(){
+    var ga=document.getElementById('f-gen-area');if(!ga)return;
+    var tour=document.body.classList.contains('pb-tour-active');
+    var imp=(typeof FS!=='undefined'&&FS&&FS.importActive);
+    var wait=!tour&&!imp&&stepOpen();
+    if(wait!==ga.classList.contains('pb-gen-wait'))ga.classList.toggle('pb-gen-wait',wait);
+  }
+  var t=null;function later(){clearTimeout(t);t=setTimeout(sync,30);}
+  function init(){
+    var f=document.getElementById('foto');if(!f)return;
+    new MutationObserver(later).observe(f,{attributes:true,attributeFilter:['class','style'],subtree:true});
+    sync();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
 <script id="pb-dock-js">
 (function(){
   function sync(){
