@@ -35108,10 +35108,12 @@ html body:not(.pb-tour-active) #foto#foto:has(.wcard [id$="-confirmbar"]) #f-gen
     var wait=!tour&&!imp&&stepOpen();
     if(wait!==ga.classList.contains('pb-gen-wait'))ga.classList.toggle('pb-gen-wait',wait);
   }
-  var t=null;function later(){clearTimeout(t);t=setTimeout(sync,30);}
+  /* THROTTLE (bukan debounce): debounce bisa tertunda terus kalau ada animasi yang terus mengubah elemen. */
+  var t=null;function later(){if(t)return;t=setTimeout(function(){t=null;sync();},60);}
   function init(){
     var f=document.getElementById('foto');if(!f)return;
-    new MutationObserver(later).observe(f,{attributes:true,attributeFilter:['class','style'],subtree:true});
+    new MutationObserver(later).observe(f,{attributes:true,attributeFilter:['class'],subtree:true});
+    setInterval(sync,700); /* jaring pengaman */
     sync();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
