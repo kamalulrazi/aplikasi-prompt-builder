@@ -13504,6 +13504,19 @@ function _glBeat(st){
   clearTimeout(st.spT);
   st.spT=setTimeout(function(){if(st.closed||st.phase==='done')return;st.ts=1;try{st.scene.speed(1);}catch(e){}},2600);
 }
+// (31 Okt 2026, permintaan user) AI membalas cepat -> stick man juga cepat (adegan menulis langsung dipercepat saat draft pertama masuk,
+// penutupnya ikut cepat lewat st.fastTs di stopGenLogoBtn). AI lambat -> kecepatan normal.
+function _glFastAI(st){
+  if(!st||st.closed||!st.scene||st.fastAI)return;
+  st.fastAI=true;
+  var el=Date.now()-(st.t0||Date.now());
+  var f=el<4000?2.4:(el<8000?1.9:(el<14000?1.4:1));
+  if(f<=1)return;
+  st.fastTs=f;st.ts=Math.max(st.ts||1,f);
+  try{st.scene.speed(st.ts);}catch(e){}
+  clearTimeout(st.spT);
+  st.spT=setTimeout(function(){if(st.closed||st.phase==='done')return;st.ts=1;try{st.scene.speed(1);}catch(e){}},4000);
+}
 function genLogoEvent(kind,info){
   var st=_glActive;
   if(!st||st.closed||st.phase==='done')return;
@@ -13518,6 +13531,7 @@ function genLogoEvent(kind,info){
     st.rt=setTimeout(function(){if(st.phase==='retrying')_glResume(st);},st.scene?(_glReduce()?350:Math.max(1500,_GL_RT_MS/(st.ts||1))):1800);
   }else if(kind==='draft'){
     _glBeat(st);
+    _glFastAI(st);
     updateGenLogoLabel(st,'Skrip dari AI sudah masuk. Mengecek jumlah kata...');
   }else if(kind==='rev-start'){
     st.rev++; // adegan revisi TIDAK lagi dimulai dari sini — hanya kalau benar-benar ada permintaan ke AI (rev-call)
@@ -13572,6 +13586,8 @@ function _glRestore(st,immediate,sync){
   if(immediate||st.mode!=='scene')apply();else _glMorph(btn,apply);
   if(btn._glState===st)btn._glState=null;
   if(_glActive===st)_glActive=null;
+  // (31 Okt 2026) adegan penutup sudah selesai → baru sekarang kotak skrip dibuka (kecuali loader ini cuma diganti loader baru: immediate)
+  if(st.revealBox&&!immediate){try{_vbRevealScriptBox(null,true);}catch(_eRv2){document.documentElement.classList.remove('vb-gen-wait');}}
   // _vbSyncBulkMainButton() di akhir _vbRunBulkGenerate sempat tertolak karena tombol masih loading → jalankan lagi sekarang
   if(sync){try{if(typeof _vbSyncBulkMainButton==='function')_vbSyncBulkMainButton();}catch(e){}}
 }
@@ -13590,11 +13606,11 @@ function stopGenLogoBtn(btn,state,outcome){
     var ok=(outcome==='ok');
     // (26 Okt 2026) adegan penutup ikut dipercepat kalau seluruh proses memang cepat / kejadian beruntun rapat — stick man mengimbangi
     var _el=Date.now()-(st.t0||Date.now());
-    var _ets=Math.min(2.4,Math.max(_el<4000?2.2:(_el<9000?1.7:(_el<16000?1.3:1)),st.ts||1));
+    var _ets=Math.min(2.4,Math.max(_el<4000?2.2:(_el<9000?1.7:(_el<16000?1.3:1)),st.ts||1,st.fastTs||1));
     clearTimeout(st.spT);
     st.scene.set(ok?'ok':'err',{ts:_ets});
     _glSetLabel(st,ok?'Selesai. Skrip siap dipakai.':(outcome==='partial'?'Sebagian skrip belum selesai.':'Gagal membuat prompt. Coba lagi ya.'));
-    st.fin=setTimeout(function(){_glRestore(st,false,true);},_glReduce()?1400:Math.max(ok?1700:1900,(ok?3000:2800)/_ets));
+    st.fin=setTimeout(function(){_glRestore(st,false,true);},_glReduce()?1400:Math.max(ok?(_el<4000?1250:1700):1900,(ok?3000:2800)/_ets));
     return;
   }
   _glRestore(st,false,false);
@@ -25276,6 +25292,8 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
   try{
     _vbAcquireWakeLock();
     genLogoState=startGenLogoBtn(btn,isResume?'Melanjutkan Sisa Produk...':'Membuat Prompt...');
+    _vbRevealMs=null;
+    if(genLogoState)genLogoState.revealBox=true; // kotak skrip baru dibuka setelah adegan penutup loader selesai (lihat _glRestore)
     for(let b=0;b<batches.length;b++){
       VAI._lastGenTime=Date.now(); // progres per batch: guard 'macet' mengukur waktu tanpa progres
       // BUG FIX KRITIS (lihat catatan lengkap di deklarasi dlCheckBeforeCall/
@@ -25591,6 +25609,9 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
       _vbRevealScriptBox(null);
     }catch(_eRv){document.documentElement.classList.remove('vb-gen-wait');}
     stopGenLogoBtn(btn,genLogoState,genFailed?(allResults.length>0&&allResults.length<produkList.length?'partial':'err'):(allResults.length>=produkList.length?'ok':'partial'));
+    // pengaman: tanpa loader (atau loader sudah tertutup) kotak langsung dibuka; kalau adegan penutup macet, kotak tetap dibuka paling lambat 9 detik
+    try{if(!genLogoState||genLogoState.closed)_vbRevealScriptBox(null,true);}catch(_eRv3){document.documentElement.classList.remove('vb-gen-wait');}
+    setTimeout(function(){if(document.documentElement.classList.contains('vb-gen-wait'))_vbRevealScriptBox(null,true);},9000);
     // FIX (laporan user: setelah error 403 tombol utama tetap "Generate Prompt", padahal ada sesi yang bisa dilanjutkan): _vbSyncBulkMainButton() yang dipanggil di dalam catch selalu kena early-return karena tombol MASIH berstatus btn-loading saat itu, lalu stopGenLogoBtn() mengembalikan label lama. Dipanggil ULANG di sini, setelah loading benar-benar dilepas, supaya tombol jadi "Lanjutkan N Produk yang Belum".
     _vbSyncBulkMainButton();
     VAI._isGenerating=false;
@@ -26104,9 +26125,22 @@ var _vbLiveItems=null,_vbLiveArr=null,_vbLiveIdx=null,_vbBatchT0=0,_vbLiveDraftS
 // makin cepat AI membalas, makin cepat teks muncul di kartu (4x / 2,5x / 1,5x / normal)
 function _vbTypeBoostFor(ms){return ms<5000?4:(ms<12000?2.5:(ms<25000?1.5:1));}
 // munculkan kotak skrip (dicopot dari mode sembunyi) — fade-in cepat kalau AI cepat
-function _vbRevealScriptBox(ms){
+// (31 Okt 2026, permintaan user) Kotak skrip TIDAK lagi dibuka begitu draft AI masuk: selama loader stick man bulk masih jalan
+// (termasuk adegan penutup centang), pembukaan DITUNDA. Kotak baru muncul saat adegan penutup benar-benar selesai
+// (_glRestore memanggil ulang dengan force=true). ms pertama (waktu AI membalas) disimpan supaya fade-in tetap mengikuti kecepatan AI.
+var _vbRevealMs=null;
+function _vbRevealScriptBox(ms,force){
   var h=document.documentElement;
   if(!h.classList.contains('vb-gen-wait'))return;
+  if(!force){
+    var _stR=(typeof _glActive!=='undefined')?_glActive:null;
+    if(_stR&&_stR.revealBox&&!_stR.closed){
+      if(_vbRevealMs===null&&ms!=null)_vbRevealMs=ms;
+      return;
+    }
+  }
+  if(ms==null&&_vbRevealMs!==null)ms=_vbRevealMs;
+  _vbRevealMs=null;
   h.classList.remove('vb-gen-wait');
   var mw=document.getElementById('vb-multi-output');
   if(!mw)return;
