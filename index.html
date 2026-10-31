@@ -35342,6 +35342,23 @@ html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm .btn{display:flex
         fUpdateProgress(8,'Sudut Kamera');
         return _origShowCard('f8');
       }
+      /* FIX LAYAR KOSONG / USER TERJEBAK (dilaporkan user): saat user mengubah "Cara Tampil Produk" (atau step lain)
+         di mode Foto Lokasi / Produk + Lokasi, Lokasi & Pencahayaan otomatis dilewati. Kalau Sudut Kamera (f8) sudah
+         selesai, dulu fungsi ini langsung return tanpa menampilkan apa pun -> semua kartu 'done', header "Siap dibuat",
+         tapi area Generate tetap tersembunyi. Sekarang lanjut ke step berikutnya yang belum selesai (Mood & Tone),
+         dan kalau semuanya sudah terisi, tampilkan area Generate. */
+      var f9=document.getElementById('f9');
+      if(f9&&(!f9.classList.contains('done')||!FS.mood)){
+        fUpdateProgress(9,'Mood & Tone');
+        return _origShowCard('f9');
+      }
+      var _gaSk=document.getElementById('f-gen-area');
+      if(_gaSk){
+        _gaSk.classList.remove('hidden');
+        fUpdateProgress(9,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
+        if(typeof fRunAIConflictCheck==='function')fRunAIConflictCheck(true);
+        setTimeout(function(){_gaSk.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
+      }
       return;
     }
     return _origShowCard(id);
