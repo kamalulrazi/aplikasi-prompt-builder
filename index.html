@@ -2239,12 +2239,18 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
    tetap jadi cadangan kalau canvas tidak tersedia. Warna kanvas dibaca dari token tema
    (--text, --accent, --accent-2, --bg, --surface2, --surface3, --red), jadi otomatis ikut Gratis/Standar/Premium. */
 /* !important: tombol #vb-bulk-btn punya style="padding:13px" inline yang kalau tidak begini mengalahkan padding loader */
-.btn.btn-loading.gen-has-scene{padding:4px 0 2px!important;}
+.btn.btn-loading.gen-has-scene{padding:2px 0 8px!important;scroll-margin-bottom:112px;}
 /* aturan .btn:disabled bawaan meredupkan isi tombol — untuk loader ini dikembalikan penuh */
 .btn.btn-loading.gen-has-scene:disabled{opacity:1;filter:none;cursor:default;transform:none;}
-.gen-scene{width:min(100%,232px);margin:0 auto;animation:genSceneIn .55s cubic-bezier(.16,1,.3,1) both;}
+.gen-scene{width:min(78%,176px);margin:0 auto;animation:genSceneIn .55s cubic-bezier(.16,1,.3,1) both;
+  /* (31 Okt 2026, permintaan user) lebih kecil & lebih halus: tepi kotak kanvas dipudarkan (vignette) supaya tidak terlihat seperti kotak keras */
+  -webkit-mask-image:radial-gradient(ellipse 72% 70% at 50% 54%,#000 58%,transparent 100%);
+          mask-image:radial-gradient(ellipse 72% 70% at 50% 54%,#000 58%,transparent 100%);}
 .gen-canvas{display:block;width:100%;height:auto;aspect-ratio:156/101;}
-.gen-logo-wrap.is-scene .gen-logo-label{min-height:2.9em;display:flex;align-items:flex-start;justify-content:center;transition:opacity .25s;}
+.gen-logo-wrap.is-scene{gap:2px;padding:0;}
+/* label dirapikan: lebih kecil, lebih lebar, baris dibagi seimbang (tidak lagi memotong "Batch 1/1" di tengah) */
+.gen-logo-wrap.is-scene .gen-logo-label{min-height:2.8em;max-width:min(92%,300px);font-size:calc(var(--fs-xs2) - 0.5px);letter-spacing:.1px;line-height:1.5;
+  display:flex;align-items:flex-start;justify-content:center;text-align:center;text-wrap:balance;transition:opacity .25s;}
 @keyframes genSceneIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.gen-scene{animation:none;}}
 .p-layer{transition:transform 1.1s cubic-bezier(0.16,1,0.3,1),opacity 1.1s ease;}
@@ -13472,6 +13478,8 @@ function startGenLogoBtn(btn,label){
     w.classList.add('looping');
   }
   btn._glState=st;_glActive=st;
+  // pastikan loader tidak terpotong bar bawah: setelah tombol selesai melebar, geser halus HANYA kalau memang tertutup (scroll-margin-bottom di CSS)
+  if(st.mode==='scene'){setTimeout(function(){if(st.closed||!btn.isConnected)return;try{btn.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(e){}},650);}
   return st;
 }
 // Update teks label kecil di bawah animasi saat proses masih berjalan (mis. progress "Batch 2/4..."
