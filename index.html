@@ -28,6 +28,39 @@
 <!-- ── PWA: bisa di-install jadi app di HP & laptop ───────────────────── -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#08080A">
+<!-- ── DETEKSI "APP DIBUKA BARU SETELAH DITUTUP TOTAL" vs "RELOAD/REFRESH"
+     (permintaan user: tutup app total → buka lagi → lanjut dari sesi
+     terakhir; sedangkan tarik-kebawah/refresh → mulai baru).
+     SEBELUMNYA dipakai performance.getEntriesByType('navigation')[0].type
+     === 'reload' (Performance Navigation Timing API) buat bedain dua
+     kasus itu. Itu TERNYATA tidak reliable di sebagian browser/WebView
+     mobile (terutama mode PWA standalone iOS/Android) — app yang BARU
+     dibuka lagi dari ikon setelah ditutup total kadang salah kedeteksi
+     sebagai "reload", bikin draft wizard ikut kehapus padahal seharusnya
+     dipulihkan (bug dilaporkan user: sampai Step 3 lalu tutup app →
+     malah mulai baru).
+     FIX: pakai sessionStorage sebagai penanda, bukan Performance API.
+     sessionStorage OTOMATIS musnah kalau tab/app BENAR-BENAR ditutup
+     (proses browser/WebView-nya mati) — tapi TETAP ada kalau halaman
+     cuma di-reload/refresh (F5, pull-to-refresh, location.reload())
+     karena reload tidak menghancurkan sesi tab yang sama. Ini jauh lebih
+     konsisten lintas browser/HP dibanding Performance API. Harus jalan
+     SEPALING AWAL mungkin (sebelum script lain) supaya nilainya akurat
+     untuk seluruh skrip di bawah (lihat pemakaiannya di isReloadNavigation()
+     dan isReloadNavigationTour() — cari "PB_IS_TRUE_RELOAD"). -->
+<script>
+(function(){
+  try{
+    window.PB_IS_TRUE_RELOAD = (sessionStorage.getItem('pb_sess_alive_v1') === '1');
+    sessionStorage.setItem('pb_sess_alive_v1', '1');
+  }catch(e){
+    // sessionStorage diblokir (mis. mode privat ketat) — biarkan null,
+    // caller (isReloadNavigation/isReloadNavigationTour) fallback ke
+    // metode Performance API lama kalau ini null/undefined.
+    window.PB_IS_TRUE_RELOAD = null;
+  }
+})();
+</script>
 <!-- ── TEMA OBSIDIAN GLASS: aktif otomatis untuk paket berbayar ──────────
      Daftar paket yang dapat tema ini ada di GLASS_TIERS di bawah (ubah di
      sini kalau mau, mis. hanya standar). Logika tier & kedaluwarsa disamakan
@@ -928,6 +961,17 @@
     var done = false;
     function nav(){
       if(done) return; done = true;
+      // FIX (regresi dari deteksi reload versi sessionStorage, lihat
+      // PB_IS_TRUE_RELOAD di <head>): location.replace() di bawah TETAP
+      // berada di tab/sesi yang sama, jadi penanda sessionStorage ikut
+      // KEBAWA ke load berikutnya kalau tidak dihapus dulu — akibatnya
+      // restart otomatis ini salah kedeteksi sebagai "reload sengaja"
+      // (splash dilewati, draft wizard ikut terhapus), padahal baris
+      // komentar di atas (RESTART OTOMATIS SETELAH UPGRADE) sudah jelas:
+      // restart ini HARUS dianggap "buka app baru" supaya splash tampil
+      // & draft tetap dipulihkan. Hapus penanda SEBELUM replace() supaya
+      // load berikutnya memang terbaca sebagai sesi baru.
+      try{ sessionStorage.removeItem('pb_sess_alive_v1'); }catch(x){}
       try{
         var u = new URL(location.href); u.searchParams.set('_pbup', String(Date.now()));
         location.replace(u.toString());
@@ -4962,7 +5006,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.44</div>
+  <div class="splash-version" id="splash-version">v14.47</div>
 </div>
 <script>
   (function(){
@@ -4976,17 +5020,29 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     // buang splash TANPA animasi apa pun — user maunya langsung nyambung
     // ke tab & step yang sedang dikerjakan (lihat logika restore tab +
     // draft-cleared-mulai-dari-Step-1 di window.load paling bawah file),
-    // bukan disuguhi animasi logo P dulu tiap kali refresh. Deteksi reload
-    // di sini DIDUPLIKASI (bukan panggil isReloadNavigation() yang ada di
-    // script lain) karena script itu didefinisikan JAUH di bawah file dan
-    // BELUM ke-parse/jalan sama sekali di titik secepat ini — splash harus
-    // sudah tau reload atau bukan SEBELUM baris animasi manapun dieksekusi,
-    // supaya tidak kelihatan "kedip" splash sekilas dulu baru dibuang.
+    // bukan disuguhi animasi logo P dulu tiap kali refresh.
+    // FIX (bug lanjutan dari perbaikan PB_IS_TRUE_RELOAD, lihat IIFE
+    // paling awal di <head>): sebelumnya di sini deteksi reload DIDUPLIKASI
+    // pakai Performance API sendiri (bukan panggil isReloadNavigation())
+    // karena fungsi itu didefinisikan jauh di bawah file dan belum
+    // ke-parse di titik secepat ini. Itu sebabnya waktu Performance API
+    // diganti sessionStorage di isReloadNavigation()/isReloadNavigationTour(),
+    // salinan di sini KETINGGALAN — splash jadi bisa tidak sinkron dengan
+    // draft (mis. splash kelewat padahal draft TETAP dipulihkan, atau
+    // sebaliknya). Sekarang pakai window.PB_IS_TRUE_RELOAD langsung — itu
+    // variabel biasa (bukan pemanggilan fungsi), jadi tidak ada masalah
+    // urutan parse sama sekali, dan nilainya SELALU sama persis dengan
+    // yang dipakai isReloadNavigation() di bawah. Fallback Performance API
+    // lama tetap dipertahankan untuk kasus sessionStorage terblokir.
     var _isReloadNow = false;
     try{
-      var _navEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
-      if(_navEntries && _navEntries.length && _navEntries[0].type) _isReloadNow = (_navEntries[0].type === 'reload');
-      else if(performance.navigation) _isReloadNow = (performance.navigation.type === 1); // fallback API lama
+      if(window.PB_IS_TRUE_RELOAD===true || window.PB_IS_TRUE_RELOAD===false){
+        _isReloadNow = window.PB_IS_TRUE_RELOAD;
+      } else {
+        var _navEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+        if(_navEntries && _navEntries.length && _navEntries[0].type) _isReloadNow = (_navEntries[0].type === 'reload');
+        else if(performance.navigation) _isReloadNow = (performance.navigation.type === 1); // fallback API lama
+      }
     }catch(e){}
     if(_isReloadNow){
       screen.remove();
@@ -7319,7 +7375,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.44 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.47 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -31892,7 +31948,13 @@ function pbPositionSpot(targetEl){
 }
 
 // True kalau load ini hasil refresh/reload (F5, pull-to-refresh) — bukan buka app baru.
+// Prioritas: penanda sessionStorage PB_IS_TRUE_RELOAD (lihat IIFE paling
+// awal di <head>, lebih reliable di HP/PWA) — fallback ke Performance API
+// lama cuma kalau sessionStorage diblokir (null/undefined).
 function isReloadNavigationTour(){
+  try{
+    if(window.PB_IS_TRUE_RELOAD===true || window.PB_IS_TRUE_RELOAD===false) return window.PB_IS_TRUE_RELOAD;
+  }catch(e){}
   try{
     let entries = performance.getEntriesByType && performance.getEntriesByType('navigation');
     if(entries && entries.length && entries[0].type) return entries[0].type === 'reload';
@@ -32317,6 +32379,13 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   // karakter dll sama sekali TIDAK disentuh oleh ini — key-nya
   // memang terpisah total dari draft.
   function isReloadNavigation(){
+    // Prioritas: penanda sessionStorage PB_IS_TRUE_RELOAD (lihat IIFE
+    // paling awal di <head>, lebih reliable di HP/PWA dibanding
+    // Performance API) — fallback ke cara lama cuma kalau sessionStorage
+    // diblokir (null/undefined, bukan true/false).
+    try{
+      if(window.PB_IS_TRUE_RELOAD===true || window.PB_IS_TRUE_RELOAD===false) return window.PB_IS_TRUE_RELOAD;
+    }catch(e){}
     try{
       var entries = performance.getEntriesByType && performance.getEntriesByType('navigation');
       if(entries && entries.length && entries[0].type) return entries[0].type === 'reload';
