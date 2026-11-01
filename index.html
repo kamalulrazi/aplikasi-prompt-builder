@@ -8170,7 +8170,7 @@ function fSyncCardEditDoneBtn(cardId, isNativeVisible){
     // kelihatan di layar" tanpa peduli lewat elemen mana ia disembunyikan.
     let bar=document.getElementById(cardId+'-confirmbar');
     let barVisible=!!(bar && bar.getClientRects().length>0); // getClientRects (bukan offsetParent): bar Lanjut sekarang position:fixed -> offsetParent selalu null
-    let mt12Visible=Array.from(card.querySelectorAll('[data-role="mt12-confirm"]')).some(function(btn){return btn.offsetParent!==null;});
+    let mt12Visible=Array.from(card.querySelectorAll('[data-role="mt12-confirm"]')).some(function(btn){return btn.getClientRects().length>0;}); // getClientRects: tombol Lanjut "isi sendiri" kini position:fixed (dock) -> offsetParent selalu null
     isNativeVisible=barVisible||mt12Visible;
   }
   editBtn.style.display=isNativeVisible?'none':'';
@@ -35303,6 +35303,84 @@ html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm .btn{display:flex
   }
 }
 </style>
+<style id="pb-cdock-css">
+/* PERMINTAAN USER: tombol "Lanjut →" dari kolom "Atau isi sendiri" (f3,f4,f5,f7,f8,f9) tidak lagi terpisah dari tombol Kembali.
+   Sekarang sama seperti step lain: satu bar menempel tepat di atas nav bawah, ikon Kembali di kiri, Lanjut mengisi sisa lebar.
+   Hanya tampilan: tombol & logika aslinya (data-role="mt12-confirm", .wback) tidak diubah. */
+html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]){margin-bottom:76px;}
+html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur] [data-role="mt12-confirm"][style*="display: flex"]{
+  position:fixed!important;top:auto!important;
+  left:calc(max(14px,calc((100vw - 640px)/2 + 14px)) + 50px)!important;
+  right:max(14px,calc((100vw - 640px)/2 + 14px))!important;
+  bottom:calc(var(--pb-dock-b,0px) + 10px)!important;
+  width:auto!important;min-width:0!important;margin:0!important;
+  height:42px!important;min-height:42px!important;padding:0 20px!important;
+  font-size:14.5px!important;border-radius:var(--radius-md,14px)!important;
+  align-items:center;justify-content:center;z-index:99;
+}
+/* latar bar penuh di belakang tombol Lanjut + ikon Kembali (pakai ::after kartu, supaya tidak menimpa warna tombol) */
+html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"])::after{
+  content:""!important;display:block!important;position:fixed!important;left:0;right:0;top:auto;bottom:var(--pb-dock-b,0px);height:62px;z-index:98;pointer-events:none;
+  background:var(--surface2);border-top:1px solid var(--border);box-shadow:0 -6px 18px rgba(0,0,0,.28);
+}
+html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]) .wback{
+  position:fixed!important;top:auto!important;right:auto!important;
+  left:max(14px,calc((100vw - 640px)/2 + 14px))!important;
+  bottom:calc(var(--pb-dock-b,0px) + 10px)!important;
+  width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;
+  margin:0!important;padding:0!important;display:inline-flex!important;align-items:center;justify-content:center;
+  z-index:100;
+}
+@media (min-width:900px){
+  html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur] [data-role="mt12-confirm"][style*="display: flex"]{
+    left:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 50px)!important;
+    right:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 404px)!important;
+  }
+  html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]) .wback{
+    left:max(14px,calc((100vw - 1180px)/2 + 14px))!important;
+  }
+  html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"])::after{right:404px;}
+}
+</style>
+<style id="pb-cdock-video-css">
+/* Wizard Video (Gaya Bicara, Pembawaan, Aksen): tombol Lanjut "isi sendiri" asli disembunyikan (tetap ada untuk logika),
+   diganti tombol pendamping di dalam dock bawah, sebaris dengan Kembali. */
+html body #video .wcard [data-role="mt12-confirm"].pb-cd-orig{visibility:hidden!important;position:absolute!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important;pointer-events:none!important;}
+html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
+</style>
+<script id="pb-cdock-video-js">
+(function(){
+  var raf=0;
+  function run(){
+    raf=0;
+    try{
+      document.querySelectorAll('#video .wcard [data-role="mt12-confirm"]').forEach(function(btn){
+        var card=btn.closest('.wcard'),b=card&&card.querySelector('.wbody'),dock=b&&b.querySelector(':scope>.pbw-dock');
+        var px=btn._pbPx;
+        var show=!!dock&&btn.style.display==='flex'&&!!card.offsetParent&&btn.getClientRects().length>0;
+        if(show&&!px){
+          px=document.createElement('button');px.type='button';px.className='btn sm pb-cd-px';
+          px.textContent=btn.textContent.trim();
+          px.onclick=function(e){e.preventDefault();btn.click();};
+          dock.appendChild(px);btn._pbPx=px;btn.classList.add('pb-cd-orig');
+        }else if(show&&px&&px.parentNode!==dock){dock.appendChild(px);}
+        else if(!show&&px){px.remove();btn._pbPx=null;btn.classList.remove('pb-cd-orig');}
+      });
+      /* dock yang tadinya kosong (disembunyikan) tampil lagi saat tombol pendamping ada */
+      document.querySelectorAll('#video .pbw-dock').forEach(function(d){
+        if(d.querySelector(':scope>.pb-cd-px')&&d.style.display!=='')d.style.display='';
+      });
+    }catch(e){console.warn('pb-cdock-video',e);}
+  }
+  function sch(){if(!raf)raf=requestAnimationFrame(run);}
+  document.addEventListener('input',sch,true);
+  document.addEventListener('click',function(){setTimeout(sch,0);},true);
+  var v=document.getElementById('video');
+  if(v&&window.MutationObserver)new MutationObserver(sch).observe(v,{subtree:true,childList:true,attributes:true,attributeFilter:['style','class']});
+  document.addEventListener('DOMContentLoaded',sch);
+  sch();
+})();
+</script>
 <script id="pb-slimnav-js">
 (function(){
   var RE=/^(konfirmasi\s*&\s*)?lanjut\b/i,raf=0;
