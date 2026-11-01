@@ -4012,7 +4012,24 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
 .pb-flow-lightbox-subwrap{
   display:none;gap:16px;justify-content:center;margin-top:2px;
 }
-.pb-flow-lightbox-subcol{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.pb-flow-lightbox-subcol{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pb-flow-lightbox-subcol:active .pb-flow-lightbox-subimg{opacity:0.8;}
+/* Preview BESAR bahan (1 Nov 2026, permintaan user): tap foto/video bahan di dalam lightbox Video AI -> tampil besar.
+   Layer sendiri di atas #pb-flow-lightbox; tap di mana pun menutup layer ini saja (kembali ke lightbox Video AI). */
+#pb-flow-sublightbox{
+  position:fixed;inset:0;z-index:10003;
+  background:rgba(4,4,6,0.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  opacity:0;pointer-events:none;transition:opacity .2s ease;padding:24px;
+}
+#pb-flow-sublightbox.show{opacity:1;pointer-events:auto;}
+#pb-flow-sublightbox img,#pb-flow-sublightbox video{
+  width:min(88vw,440px);max-height:72vh;object-fit:contain;
+  border-radius:var(--radius);border:1px solid var(--border-hi);
+  box-shadow:0 16px 44px rgba(0,0,0,0.5);background:#000;display:none;
+}
+#pb-flow-sublightbox-label{font-size:var(--fs-sm);font-weight:600;color:var(--text);text-align:center;}
+body.pb-tour-active #pb-flow-sublightbox{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;}
 .pb-flow-lightbox-subimg{
   width:56px;height:56px;object-fit:cover;border-radius:var(--radius-2xs);
   border:1px solid var(--border-hi);display:block;
@@ -4480,6 +4497,17 @@ body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .t sma
 body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .ch{position:absolute;top:18px;right:18px;width:36px;height:36px;margin:0;border-radius:50%;display:grid;place-items:center;background:var(--accent-dim-bg);box-shadow:0 0 0 1px rgba(var(--pulse-rgb),.35);}
 body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools .ft-btn:not(#pfa-entry-btn){justify-content:space-between;min-height:132px;padding:14px;border-radius:18px;}
 body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools .ft-btn:not(#pfa-entry-btn) .ic{width:44px;height:44px;}
+
+/* FITUR BARU (1 Nov 2026): tombol "Outfit Inspirasi" di halaman awal tab Foto — baris penuh di bawah Karakter Sheet / Prompt Lama. */
+#foto-tools #oi-entry-btn{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;color:var(--text);}
+#foto-tools #oi-entry-btn .ch{display:block;}
+body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #oi-entry-btn.ft-btn{grid-column:1/-1!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:12px!important;min-height:78px!important;padding:12px 16px!important;}
+#oi-overlay{position:fixed;inset:0;z-index:9996;background:var(--bg);display:none;flex-direction:column;padding-top:var(--pb-tour-pad-top,0px);}
+#oi-overlay.show{display:flex;}
+#oi-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex:none;}
+#oi-bar button{background:none;border:none;color:var(--muted);cursor:pointer;font:inherit;font-size:var(--fs-sm);padding:6px 8px 6px 0;display:flex;align-items:center;gap:4px;}
+#oi-bar .oi-t{font-size:var(--fs-md);font-weight:600;color:var(--text);}
+#oi-frame{flex:1;width:100%;border:0;background:var(--bg);padding-bottom:env(safe-area-inset-bottom,0px);}
 /* v11.98: layar Prompt Foto AI (HP tinggi) — konten dipusatkan di bawah header, tidak menempel di atas; langkah yang isinya panjang tetap mulai dari atas dan bisa digulir */
 @media (max-width:899px) and (min-height:700px){
   body:not(.pb-tour-active) #foto.page.active.pfa-open{display:flex;flex-direction:column;}
@@ -5006,7 +5034,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.51</div>
+  <div class="splash-version" id="splash-version">v14.55</div>
 </div>
 <script>
   (function(){
@@ -5590,6 +5618,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
       </div>
     </div>
   </div>
+  <button type="button" id="oi-entry-btn" class="ft-btn" onclick="oiOpen()" title="Ambil item outfit dari foto jadi gambar inspirasi simpel"><span class="ic"><svg class="ft-ic-svg" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" fill-opacity=".22" stroke="none"><path d="M12 6.2 3.2 12.4a1.3 1.3 0 0 0 .8 2.4h16a1.3 1.3 0 0 0 .8-2.4z"/></g><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.2V5a2 2 0 1 1 2 2"/><path d="M12 6.2 3.2 12.4a1.3 1.3 0 0 0 .8 2.4h16a1.3 1.3 0 0 0 .8-2.4z"/></g></svg></span><span class="t"><b><span>Outfit Inspirasi</span></b><small>Ambil item outfit dari foto jadi gambar simpel</small></span><span class="ch" aria-hidden="true">›</span></button>
   </div>
 
   <!-- MODAL KARAKTER SHEET -->
@@ -7379,7 +7408,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.51 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.55 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -16953,12 +16982,15 @@ const VB_FE_PROMPT_STEP={
     'detik 0-1: vidio dimulai dari lokasi kosong tanpa ada manusia didalamnya. kemudian karakter mengintip dulu dari sisi kanan frame.',
     'detik 1-3: karakter melangkah masuk ke dalam frame dan melakukan pose dua jari sambil tersenyum jahil.'
   ].join('\n'),
+  '1dekat':'Detik 0-3: Video langsung dimulai dengan karakter mendekat ke arah kamera secara dekat dan natural dengan langkah yang tidak terlalu sempurna seperti manusia dan memperlihatkan outfitnya secara dekat ke kamera.',
   '1garuk':'detik 0-3: Karakter mengangkat satu tangan ke belakang kepala, badan miring sedikit, sambil tersenyum percaya diri.',
   '1isi':[
     'detik 0-1: karakter menoleh sedikit aja ke arah kanan seolah lagi memantau seseorang, jadi ceritanya disini si karakter agak pemalu untuk merekam dirinya sendiri jadi dia jaga-jaga kalo misalkan ada orang lewat,',
     'detik 1-3: karakter memperlihatkan outfitnya dengan gerakan yang anggun tapi versi amatiran'
   ].join('\n'),
   2:'detik 3-6: karakter melakukan pose dimana dia memperlihatkan outfit yang dipakai sambil mengangkat sedikit kakinya.',
+  '2anggun':'Detik 3-6: Karakter melakukan pose yang anggun seperti seorang yang sangat profesional dengan cara memperlihatkan bagian outfit.',
+  '2rapikan':'Detik 3-6: Karakter merapikan outfitnya dengan gerakan natural manusia.',
   '2putar':'detik 3-6: karakter berputar pelan di tempat sampai punggungnya sempat terlihat, lalu kembali menghadap kamera sambil memegang ujung outfit.',
   '2salahtingkah':'detik 3-6: Karakter merentangkan satu tangan dulu, baru tangan satunya menyusul, lalu keduanya menyatu sambil tersenyum canggung.',
   '2tunjuk':'detik 3-6: Karakter menunjuk outfit dari atas ke bawah dengan satu tangan sambil menunduk sedikit melihat outfitnya, lalu menatap kamera.',
@@ -16966,6 +16998,8 @@ const VB_FE_PROMPT_STEP={
   '2pinggang':'detik 3-6: Karakter berdiri dengan satu tangan di pinggang, badan sedikit miring ke samping, lalu memperlihatkan outfit dari depan dan samping.',
   '3kibas':'detik 6-8: Karakter mengibaskan bagian bawah atau lengan outfit pelan dengan kedua tangan, lalu melepasnya sampai bahannya jatuh natural.',
   '3puas':'detik 6-8: Karakter menaruh satu tangan di dagu seperti sedang menilai outfitnya sendiri, miringkan kepala, lalu mengangguk puas.',
+  '3lempar':'Detik 6-8: Karakter mengambil barang atau apapun yang ada di sekitarnya baik itu di lokasi atau pada aksesoris outfitnya, kalo tidak ada, bikin aja karakter mengambil sepatunya dan melemparnya ke arah (kita). pada detik 8 (kita) jatuh kelantai secara natural tanpa gerakan jatuh yang aneh.',
+  '3putarbelakang':'Detik 6-8: Karakter memutar badannya natural seperti manusia yang ingin memperlihatkan bagian outfit bagian belakang dengan mengangkat kedua tangannya.',
   '3isi':'detik 6-8: karakter berjalan mendekat kekamera untuk memperlihatkan wajahnya, di akhir dia memberikan pose imut wajahnya.',
   3:'detik 6-8: karakter mendekat kekamera sampai tangannya memegang kamera dan memberikan senyuman terakhir sebelum kameranya dimatikan. di frame terakhir kamera hitam gelap akibat ditutupi oleh tangan karakter.'
 };
@@ -16978,12 +17012,12 @@ const VB_FE_PROMPT_TAIL=[
 // Video pratinjau tiap step: utama media/N.mp4 (folder media seperti video lain), cadangan N.mp4 di folder yang sama dengan index.html.
 // Kunci '1isi' = opsi "Menoleh" di kategori Isi Step 0-3 (video flow.mp4).
 const VB_FE_VIDEO={1:['media/1.mp4','1.mp4'],'1isi':['media/flow.mp4','flow.mp4'],'1goyang':['media/5.mp4','5.mp4'],'1ngintip':['media/ngintip.mp4','ngintip.mp4'],'1garuk':['media/garuk.mp4','garuk.mp4'],'3puas':['media/puas.mp4','puas.mp4'],'3kibas':['media/menjatuhkan.mp4','menjatuhkan.mp4'],'3isi':['media/4.mp4','4.mp4'],2:['media/2.mp4','2.mp4'],'2pinggang':['media/pinggang.mp4','pinggang.mp4'],'2putar':['media/putar.mp4','putar.mp4'],'2tunjuk':['media/tunjuk.mp4','tunjuk.mp4'],'2lupa':['media/nunjuk.mp4','nunjuk.mp4'],'2salahtingkah':['media/salah_tingkah.mp4','salah_tingkah.mp4'],3:['media/3.mp4','3.mp4']};
-const VB_FE_CAP={1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh','1goyang':'Step 0-3 · Goyang','1ngintip':'Step 0-3 · Mengintip','1garuk':'Step 0-3 · Tangan ke kepala','3puas':'Step 6-8 · Mengangguk puas','3kibas':'Step 6-8 · Mengibas outfit',2:'Step 3-6 · Pose','2pinggang':'Step 3-6 · Tangan di pinggang','2putar':'Step 3-6 · Berputar','2tunjuk':'Step 3-6 · Menunjuk outfit','2lupa':'Step 3-6 · Lupa gerakan','2salahtingkah':'Step 3-6 · Salah tingkah',3:'Step 6-8 · Tutup kamera','3isi':'Step 6-8 · Mendekat'};
+const VB_FE_CAP={'3lempar':'Step 6-8 · Melempar barang','2anggun':'Step 3-6 · Pose anggun','1dekat':'Step 0-3 · Mendekat kamera','2rapikan':'Step 3-6 · Merapikan outfit','3putarbelakang':'Step 6-8 · Memutar badan',1:'Step 0-3 · Muncul','1isi':'Step 0-3 · Menoleh','1goyang':'Step 0-3 · Goyang','1ngintip':'Step 0-3 · Mengintip','1garuk':'Step 0-3 · Tangan ke kepala','3puas':'Step 6-8 · Mengangguk puas','3kibas':'Step 6-8 · Mengibas outfit',2:'Step 3-6 · Pose','2pinggang':'Step 3-6 · Tangan di pinggang','2putar':'Step 3-6 · Berputar','2tunjuk':'Step 3-6 · Menunjuk outfit','2lupa':'Step 3-6 · Lupa gerakan','2salahtingkah':'Step 3-6 · Salah tingkah',3:'Step 6-8 · Tutup kamera','3isi':'Step 6-8 · Mendekat'};
 // Storyboard: 3 bingkai. o[].v = nilai VB_FE_VAR ('buka'|'isi'|'penutup'|'pose'|'pinggang'|'putar'|'tunjuk'|'lupa'|'salahtingkah'), o[].k = kunci video/caption (lihat vbFeKey), o[].l = label.
 const VB_FE_SLOT=[null,
-  {t:'Awal',r:'0–3 dtk',q:'Bagaimana video dibuka?',c:[{v:'buka',l:'Pembukaan'},{v:'isi',l:'Isi'}],o:[{v:'buka',k:1,l:'Muncul'},{v:'goyang',cat:'buka',k:'1goyang',l:'Goyang'},{v:'ngintip',cat:'buka',k:'1ngintip',l:'Mengintip'},{v:'isi',k:'1isi',l:'Menoleh'},{v:'garuk',cat:'isi',k:'1garuk',l:'Tangan ke kepala'}]},
-  {t:'Tengah',r:'3–6 dtk',q:'Pose apa di tengah video?',o:[{v:'pose',k:2,l:'Pose'},{v:'pinggang',k:'2pinggang',l:'Tangan di pinggang'},{v:'putar',k:'2putar',l:'Berputar'},{v:'tunjuk',k:'2tunjuk',l:'Menunjuk outfit'},{v:'lupa',k:'2lupa',l:'Lupa gerakan'},{v:'salahtingkah',k:'2salahtingkah',l:'Salah tingkah'}]},
-  {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',c:[{v:'penutup',l:'Penutup'},{v:'isi',l:'Isi'}],o:[{v:'penutup',k:3,l:'Tutup kamera'},{v:'isi',k:'3isi',l:'Mendekat'},{v:'puas',cat:'isi',k:'3puas',l:'Mengangguk puas'},{v:'kibas',cat:'isi',k:'3kibas',l:'Mengibas outfit'}]}];
+  {t:'Awal',r:'0–3 dtk',q:'Bagaimana video dibuka?',c:[{v:'buka',l:'Pembukaan'},{v:'isi',l:'Isi'}],o:[{v:'buka',k:1,l:'Muncul'},{v:'goyang',cat:'buka',k:'1goyang',l:'Goyang'},{v:'ngintip',cat:'buka',k:'1ngintip',l:'Mengintip'},{v:'dekat',cat:'buka',k:'1dekat',l:'Mendekat kamera'},{v:'isi',k:'1isi',l:'Menoleh'},{v:'garuk',cat:'isi',k:'1garuk',l:'Tangan ke kepala'}]},
+  {t:'Tengah',r:'3–6 dtk',q:'Pose apa di tengah video?',o:[{v:'pose',k:2,l:'Pose'},{v:'pinggang',k:'2pinggang',l:'Tangan di pinggang'},{v:'rapikan',k:'2rapikan',l:'Merapikan outfit'},{v:'anggun',k:'2anggun',l:'Pose anggun'},{v:'putar',k:'2putar',l:'Berputar'},{v:'tunjuk',k:'2tunjuk',l:'Menunjuk outfit'},{v:'lupa',k:'2lupa',l:'Lupa gerakan'},{v:'salahtingkah',k:'2salahtingkah',l:'Salah tingkah'}]},
+  {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',c:[{v:'penutup',l:'Penutup'},{v:'isi',l:'Isi'}],o:[{v:'penutup',k:3,l:'Tutup kamera'},{v:'isi',k:'3isi',l:'Mendekat'},{v:'lempar',cat:'penutup',k:'3lempar',l:'Melempar barang'},{v:'puas',cat:'isi',k:'3puas',l:'Mengangguk puas'},{v:'kibas',cat:'isi',k:'3kibas',l:'Mengibas outfit'},{v:'putarbelakang',cat:'isi',k:'3putarbelakang',l:'Memutar badan'}]}];
 const VB_FE_ICO='<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3a4 4 0 0 1-8 0z"/></svg>';
 let VB_FASHION_DURASI=null; // cuma 8 yang tersedia
 let VB_FE_PICK={1:false,2:false,3:false};
@@ -16996,13 +17030,15 @@ const VB_FE_ICO_EDIT='<svg viewBox="0 0 24 24" width="28" height="28" fill="none
 const VB_FE_ICO_EDIT_S=VB_FE_ICO_EDIT.replace(/width="28" height="28"/,'width="18" height="18"');
 const VB_FE_ICO_DEL_S='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>';
 function vbFeIsCus(n){return !!(VB_FE_PICK[n]&&VB_FE_CUS[n]);}
+// Opsi tanpa video pratinjau (isi sendiri, atau opsi bawaan yang belum punya file video): pratinjau lengkap menampilkan placeholder kosong.
+function vbFeNoVid(n){return vbFeIsCus(n)||!(VB_FE_VIDEO[vbFeKey(n)]||[]).length;}
 function vbFeLabelOf(n){return VB_FE_CUS[n]?(VB_FE_CUS[n].name||'Isi sendiri'):vbFeOptOf(n).l;}
 function vbFeCapOf(n){
   if(VB_FE_CUS[n])return 'Step '+String(VB_FE_SLOT[n].r||'').replace(/ dtk/,'').replace('–','-')+' · '+(VB_FE_CUS[n].name||'Isi sendiri');
   return VB_FE_CAP[vbFeKey(n)]||'';
 }
 function vbFeStepText(n){return VB_FE_CUS[n]?VB_FE_CUS[n].text.trim():VB_FE_PROMPT_STEP[vbFeKey(n)];}   // varian opsi bingkai Awal: 'buka' (Muncul) / 'goyang' (Goyang) / 'isi' (Menoleh); bingkai Akhir: 'penutup' / 'isi' (Mendekat)
-function vbFeKey(n){if(n===1&&VB_FE_VAR[1]==='goyang')return '1goyang';if(n===1&&VB_FE_VAR[1]==='ngintip')return '1ngintip';if(n===1&&VB_FE_VAR[1]==='garuk')return '1garuk';if(n===3&&VB_FE_VAR[3]==='puas')return '3puas';if(n===3&&VB_FE_VAR[3]==='kibas')return '3kibas';if(n===2&&VB_FE_VAR[2]!=='pose')return '2'+VB_FE_VAR[2];return ((n===1||n===3)&&VB_FE_VAR[n]==='isi')?(n+'isi'):n;}
+function vbFeKey(n){if(n===1&&VB_FE_VAR[1]==='goyang')return '1goyang';if(n===1&&VB_FE_VAR[1]==='ngintip')return '1ngintip';if(n===1&&VB_FE_VAR[1]==='garuk')return '1garuk';if(n===1&&VB_FE_VAR[1]==='dekat')return '1dekat';if(n===3&&VB_FE_VAR[3]==='lempar')return '3lempar';if(n===3&&VB_FE_VAR[3]==='putarbelakang')return '3putarbelakang';if(n===3&&VB_FE_VAR[3]==='puas')return '3puas';if(n===3&&VB_FE_VAR[3]==='kibas')return '3kibas';if(n===2&&VB_FE_VAR[2]!=='pose')return '2'+VB_FE_VAR[2];return ((n===1||n===3)&&VB_FE_VAR[n]==='isi')?(n+'isi'):n;}
 let VB_FE_MODE='step'; // 'step' = video 1 opsi diulang, 'full' = versi lengkap 1→2→3
 let VB_FE_GEN_TOKEN=0;
 function vbFePausePreview(){
@@ -17232,6 +17268,7 @@ function vbFeUpdateFrame(n){
     if(idx<list.length){v.src=list[idx];try{v.load();}catch(e){}vbFePlayEl(v);}
     else{v.onerror=null;v.onloadeddata=null;v.removeAttribute('src');fr.classList.remove('has-v','ld');v.classList.add('hidden');}
   };
+  if(!list.length){v.onerror=null;v.onloadeddata=null;v.removeAttribute('src');fr.classList.remove('has-v','ld');v.classList.add('hidden');return;} // belum ada video: tetap tampil ikon baju
   v.src=list[0];
   try{v.load();}catch(e){}
   vbFePlayEl(v);
@@ -17450,7 +17487,7 @@ function vbFePlayFull(){
   let token=++VB_FE_FULL_TOKEN;
   let els=[A,B],order=[1,2,3];
   function siapkan(el,n){ // muat video step n ke elemen el (belum diputar)
-    if(vbFeIsCus(n)){ // opsi isi sendiri: tidak ada video untuk dimuat
+    if(vbFeNoVid(n)){ // opsi isi sendiri / belum ada video: tidak ada video untuk dimuat
       el.onplaying=null;el.onended=null;el.onerror=null;
       try{el.pause();}catch(e){}
       el.removeAttribute('src');try{el.load();}catch(e){}
@@ -17477,14 +17514,14 @@ function vbFePlayFull(){
   function putar(i,cur){ // putar segmen i di elemen els[cur] yang sudah disiapkan
     if(token!==VB_FE_FULL_TOKEN)return;
     let el=els[cur],other=els[1-cur],n=order[i%3],nextI=(i+1)%3;
-    if(vbFeIsCus(n)){ // pratinjau KOSONG selama segmen ini, lalu lanjut ke segmen berikutnya
+    if(vbFeNoVid(n)){ // pratinjau KOSONG selama segmen ini, lalu lanjut ke segmen berikutnya
       els.forEach(function(x){x.onplaying=null;x.onended=null;try{x.pause();}catch(e){}x.style.visibility='hidden';});
       if(ph)ph.classList.remove('hidden');
-      if(phT)phT.innerHTML='Pratinjau kosong<br>(opsi isi sendiri)';
+      if(phT)phT.innerHTML=vbFeIsCus(n)?'Pratinjau kosong<br>(opsi isi sendiri)':'Pratinjau kosong<br>(video belum tersedia)';
       if(cap)cap.textContent='Versi lengkap · '+vbFeCapOf(n);
       setTimeout(function(){
         if(token!==VB_FE_FULL_TOKEN)return;
-        if(!vbFeIsCus(order[nextI]))siapkan(els[cur],order[nextI]);
+        if(!vbFeNoVid(order[nextI]))siapkan(els[cur],order[nextI]);
         putar(nextI,cur);
       },VB_FE_SEGMS[n]||3000);
       return;
@@ -17513,8 +17550,8 @@ function vbFePlayFull(){
 function vbFePilihStep(n,k){
   if(n!==1&&n!==2&&n!==3)return;
   VB_FE_CUS[n]=null; // pilih opsi bawaan = lepas opsi isi sendiri
-  if(n===2)VB_FE_VAR[2]=(k==='pinggang'||k==='putar'||k==='tunjuk'||k==='lupa'||k==='salahtingkah')?k:'pose';
-  else if(n===1||n===3)VB_FE_VAR[n]=(k==='isi')?'isi':((n===1&&(k==='goyang'||k==='ngintip'||k==='garuk')||n===3&&(k==='puas'||k==='kibas'))?k:(n===1?'buka':'penutup'));
+  if(n===2)VB_FE_VAR[2]=(k==='pinggang'||k==='rapikan'||k==='anggun'||k==='putar'||k==='tunjuk'||k==='lupa'||k==='salahtingkah')?k:'pose';
+  else if(n===1||n===3)VB_FE_VAR[n]=(k==='isi')?'isi':((n===1&&(k==='goyang'||k==='ngintip'||k==='garuk'||k==='dekat')||n===3&&(k==='puas'||k==='kibas'||k==='putarbelakang'||k==='lempar'))?k:(n===1?'buka':'penutup'));
   VB_FE_PICK[n]=true;
   vbFeCloseSheet();
   vbFeUpdateFrame(n);
@@ -29407,6 +29444,24 @@ window.addEventListener('beforeunload', function(e){
      unmute" — pola yang sama kayak IG/TikTok. Tombol itu WAJIB
      event.stopPropagation() di onclick-nya, soalnya tap di mana pun
      pada lightbox ini normalnya langsung nutup preview. -->
+<!-- FITUR BARU (1 Nov 2026): "Outfit Inspirasi" — alat mandiri (foto asli + gambar item outfit dari Gemini -> gambar inspirasi siap unduh).
+     Dimuat di iframe srcdoc (CSS/JS-nya terisolasi dari aplikasi), baru dimuat saat pertama dibuka & dibiarkan hidup supaya foto yang sudah diunggah tidak hilang saat ditutup. Dibuka lewat oiOpen(), ditutup lewat oiClose(). -->
+<div id="oi-overlay" role="dialog" aria-label="Outfit Inspirasi">
+  <div id="oi-bar"><button type="button" onclick="oiClose()" aria-label="Kembali">‹ Kembali</button><span class="oi-t">Outfit Inspirasi</span></div>
+  <iframe id="oi-frame" title="Outfit Inspirasi"></iframe>
+</div>
+<script>
+var OI_HTML="<!DOCTYPE html>\n<html lang=\"id\" data-theme=\"dark\"><head><meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n<title>Outfit Inspirasi Simpel<\/title>\n<style>\n:root{--bg:#faf7f4;--cd:#fff;--tx:#2b1d16;--mu:#7a6a60;--ac:#6b4a3a;--on:#fff;--bd:#e4d9d0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n@media(prefers-color-scheme:dark){:root:not([data-theme=\"light\"]){--bg:#171210;--cd:#241c18;--tx:#f3e9e2;--mu:#b7a79c;--ac:#d9b59f;--on:#171210;--bd:#3d3029}}\n:root[data-theme=\"dark\"]{--bg:#171210;--cd:#241c18;--tx:#f3e9e2;--mu:#b7a79c;--ac:#d9b59f;--on:#171210;--bd:#3d3029}\nhtml{scroll-padding-top:env(safe-area-inset-top,0px)}\n*{box-sizing:border-box}\nbody{margin:0 auto;max-width:640px;padding:14px;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif}\nh1{font-size:20px;margin:4px 0 12px}\n.c{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:12px}\nh2{font-size:14px;margin:0 0 8px;color:var(--ac)}\np.s{margin:0 0 8px;color:var(--mu);font-size:13px}\nlabel.f{display:block;font-size:13px;color:var(--mu);margin-top:8px}\ninput[type=text],select,textarea{width:100%;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit}\nbutton{padding:10px 14px;border:0;border-radius:10px;background:var(--ac);color:var(--on);font:inherit;font-weight:600;cursor:pointer}\n.row{display:flex;gap:8px;margin-bottom:8px}.row input{flex:1}button.g{background:transparent;color:var(--ac);border:1px solid var(--ac)}\n#out{width:100%;border-radius:10px;display:block;border:1px solid var(--bd);margin-bottom:8px}\n<\/style><\/head><body>\n<h1>👗 Outfit Inspirasi<\/h1>\n<div class=\"c\"><h2>1. Foto asli<\/h2><input type=\"file\" id=\"f1\" accept=\"image/*\"><\/div>\n<div class=\"c\"><h2>2. Item outfit &amp; Gemini (gratis)<\/h2>\n<p class=\"s\">Tulis item yang mau diambil (misalnya abaya, gelang), tekan Salin prompt, tempel di aplikasi Gemini bersama foto yang sama, lalu unggah gambar hasilnya di bawah.<\/p>\n<div id=\"its\"><\/div><button class=\"g\" id=\"add\">＋ Tambah item<\/button>\n<div style=\"margin:12px 0 8px\"><button id=\"cp\">📋 Salin prompt<\/button> <span id=\"cm\" class=\"s\"><\/span><\/div>\n<input type=\"file\" id=\"f2\" accept=\"image/*\"><\/div>\n<div class=\"c\" id=\"cfg\"><h2>3. Teks<\/h2>\n<label class=\"f\">Judul<input type=\"text\" id=\"judul\" value=\"INSPIRASI OUTFIT\"><\/label>\n<label class=\"f\">Teks “By”<input type=\"text\" id=\"by\" value=\"By : @namaakun\"><\/label>\n<label class=\"f\">Nomor link bio<input type=\"text\" id=\"nomor\" value=\"443\" inputmode=\"numeric\"><\/label>\n<div style=\"margin-top:10px\"><button id=\"simpan\">💾 Simpan<\/button> <span id=\"msg\" class=\"s\"><\/span><\/div><\/div>\n<div class=\"c\"><h2>Hasil<\/h2><img id=\"out\" alt=\"Hasil\"><p class=\"s\" id=\"hint\">Unggah foto asli dan gambar outfit untuk melihat hasil.<\/p><button id=\"dl\">⬇️ Unduh gambar<\/button><\/div>\n<script>\nconst $=i=>document.getElementById(i),K='outfit-simpel-v1',F=['judul','by','nomor'];\nlet img=null,outf=null,tm,cv=null;\ntry{const s=JSON.parse(localStorage.getItem(K)||'null');if(s)F.forEach(f=>{if(s[f]!=null)$(f).value=s[f]})}catch(e){}\n$('simpan').onclick=()=>{let m='Tersimpan ✓';try{const s={};F.forEach(f=>s[f]=$(f).value);s.it=items();localStorage.setItem(K,JSON.stringify(s))}catch(e){m='Penyimpanan tidak tersedia'}$('msg').textContent=m;setTimeout(()=>$('msg').textContent='',2200)};\nfunction row(v){const d=document.createElement('div');d.className='row';d.innerHTML='<input type=\"text\" placeholder=\"mis. gelang\"><button class=\"g\" title=\"Hapus\">✕<\/button>';d.firstChild.value=v||'';d.lastChild.onclick=()=>d.remove();$('its').appendChild(d)}\nfunction items(){return[...document.querySelectorAll('#its input')].map(i=>i.value.trim()).filter(Boolean)}\nlet si=['abaya'];try{const s=JSON.parse(localStorage.getItem(K)||'null');if(s&&Array.isArray(s.it)&&s.it.length)si=s.it}catch(e){}\nsi.forEach(row);$('add').onclick=()=>row('');\n$('cp').onclick=async()=>{const l=items();if(!l.length){$('cm').textContent='Isi minimal satu item';return}\nconst t='Extract only these items worn by the person in this photo: '+l.join(', ')+'. Show them as a clean e-commerce ghost-mannequin product shot, front view, centered, clothing items large and stacked naturally (top above bottom), small accessories placed small beside them, on a pure white (#FFFFFF) background. Remove the person completely: no face, no hijab/scarf, no hands, no arms, no mannequin, no background objects, no text. Keep fabric, color, texture, pleats and details exactly as in the photo. Show the complete garments.';\nlet m='Tersalin ✓';try{await navigator.clipboard.writeText(t)}catch(e){try{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}catch(e2){m='Gagal menyalin'}}$('cm').textContent=m;setTimeout(()=>$('cm').textContent='',2200)};\nfunction ld(f,cb){const o=new Image();o.onload=()=>{const s=Math.min(1,1800/Math.max(o.naturalWidth,o.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(o.naturalWidth*s);c.height=Math.round(o.naturalHeight*s);c.getContext('2d').drawImage(o,0,0,c.width,c.height);cb(c)};o.src=URL.createObjectURL(f)}\n$('f1').onchange=e=>{if(e.target.files[0])ld(e.target.files[0],c=>{img=c;render()})};\n$('f2').onchange=e=>{if(e.target.files[0])ld(e.target.files[0],c=>{outf=crop(c);render()})};\nfunction crop(c){const x=c.getContext('2d'),d=x.getImageData(0,0,c.width,c.height).data;let a=c.width,b=c.height,r=0,t=0;\nfor(let j=0;j<c.height;j++)for(let i=0;i<c.width;i++){const n=(j*c.width+i)*4;if(d[n]<246||d[n+1]<246||d[n+2]<246){if(i<a)a=i;if(i>r)r=i;if(j<b)b=j;if(j>t)t=j}}\nif(r<=a||t<=b)return c;const m=24;a=Math.max(0,a-m);b=Math.max(0,b-m);r=Math.min(c.width-1,r+m);t=Math.min(c.height-1,t+m);const q=document.createElement('canvas');q.width=r-a+1;q.height=t-b+1;q.getContext('2d').drawImage(c,-a,-b);return q}\nfunction ft(x,t,mx,px,wt){let f=px;x.font=wt+' '+f+'px Arial,Helvetica,sans-serif';while(x.measureText(t).width>mx&&f>14){f-=2;x.font=wt+' '+f+'px Arial,Helvetica,sans-serif'}}\ndocument.querySelectorAll('#cfg input').forEach(e=>e.oninput=()=>{clearTimeout(tm);tm=setTimeout(render,120)});\nfunction render(){if(!img)return;\nconst H=1440,pw=Math.round(H*img.width/img.height),lw=Math.round(pw*.85),c=document.createElement('canvas');c.width=lw+pw;c.height=H;\nconst x=c.getContext('2d'),col='#6b4a3a';\nx.fillStyle='#fff';x.fillRect(0,0,lw,H);x.drawImage(img,lw,0,pw,H);\nx.fillStyle=col;x.strokeStyle=col;x.textAlign='center';\nconst jd=$('judul').value;ft(x,jd,lw*.9,64,'900');x.fillText(jd,lw/2,110);\nconst by=$('by').value;if(by.trim()){ft(x,by,lw*.7,30,'600');const w=x.measureText(by).width+44;x.lineWidth=3;x.beginPath();(x.roundRect||x.rect).call(x,(lw-w)/2,135,w,56,28);x.stroke();x.fillText(by,lw/2,173)}\nlet y=235;\nif(outf){const k=Math.min(lw*.8/outf.width,H*.64/outf.height),w=outf.width*k,h=outf.height*k;x.drawImage(outf,(lw-w)/2,y,w,h);y+=h}\nconst tx='📌LINK BIO NO. '+$('nomor').value;ft(x,tx,lw*.92,48,'900');x.fillText(tx,lw/2,(outf?y:H*.5)+75);\ncv=c;$('out').src=c.toDataURL('image/png');$('hint').textContent='Tekan Unduh untuk menyimpan gambar.'}\n$('dl').onclick=async()=>{if(!cv){$('hint').textContent='Unggah foto dulu.';return}try{const b=await new Promise(r=>cv.toBlob(r,'image/png'));const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='outfit-inspirasi.png';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),8000);$('hint').textContent='Kalau tidak terunduh, tekan lama gambar untuk menyimpan.'}catch(e){$('hint').textContent='Unduh gagal. Tekan lama gambar untuk menyimpan.'}};\n<\/script><\/body><\/html>\n";
+function oiOpen(){
+  var f=document.getElementById('oi-frame'),o=document.getElementById('oi-overlay');
+  if(!f||!o)return;
+  if(!f.getAttribute('data-ready')){f.srcdoc=OI_HTML;f.setAttribute('data-ready','1');}
+  o.classList.add('show');
+}
+function oiClose(){var o=document.getElementById('oi-overlay');if(o)o.classList.remove('show');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var o=document.getElementById('oi-overlay');if(o&&o.classList.contains('show'))oiClose();}});
+</script>
+
 <div id="pb-flow-lightbox" onclick="pbFlowLightboxClose()">
   <div class="pb-flow-lightbox-box">
     <div class="pb-flow-lightbox-media">
@@ -29418,6 +29473,12 @@ window.addEventListener('beforeunload', function(e){
     <div class="pb-flow-lightbox-explain" id="pb-flow-lightbox-explain"></div>
     <div class="pb-flow-lightbox-subwrap" id="pb-flow-lightbox-subwrap"></div>
   </div>
+</div>
+<!-- Preview besar foto/video bahan (tap bahan di lightbox Video AI). Lihat pbFlowSubOpen()/pbFlowSubClose(). -->
+<div id="pb-flow-sublightbox" onclick="pbFlowSubClose()">
+  <img id="pb-flow-sublightbox-img" src="" alt="">
+  <video id="pb-flow-sublightbox-video" muted loop playsinline></video>
+  <div id="pb-flow-sublightbox-label"></div>
 </div>
 
 <!-- NOTIFIKASI "PROMPT VIDEO SIAP" — KHUSUS sesi tur panduan pemula
@@ -31459,7 +31520,46 @@ function pbFlowLightboxToggleMute(e){
   vidEl.muted=!vidEl.muted;
   document.getElementById('pb-flow-lightbox-mute').textContent=vidEl.muted?'🔇':'🔊';
 }
+// Tap foto/video bahan di dalam lightbox Video AI -> tampil besar (layer sendiri). Tap lagi untuk menutup, balik ke lightbox Video AI.
+function pbFlowSubOpen(col){
+  let box=document.getElementById('pb-flow-sublightbox');
+  let bi=document.getElementById('pb-flow-sublightbox-img');
+  let bv=document.getElementById('pb-flow-sublightbox-video');
+  let bl=document.getElementById('pb-flow-sublightbox-label');
+  if(!box||!col)return;
+  let v=col.querySelector('video'),im=col.querySelector('img');
+  let lab=col.querySelector('.pb-flow-lightbox-sublabel');
+  if(v){
+    bv.src=v.getAttribute('src')||'';
+    bv.muted=true;bv.currentTime=0;
+    try{let pp=bv.play();if(pp&&pp.catch)pp.catch(function(){});}catch(e){}
+    bv.style.display='block';bi.style.display='none';
+  }else if(im){
+    bi.src=im.getAttribute('src')||'';
+    bi.style.display='block';
+    try{bv.pause();}catch(e){}
+    bv.removeAttribute('src');bv.style.display='none';
+  }else return;
+  bl.textContent=lab?lab.textContent:'';
+  box.classList.add('show');
+}
+function pbFlowSubClose(){
+  let box=document.getElementById('pb-flow-sublightbox');
+  if(box)box.classList.remove('show');
+  let bv=document.getElementById('pb-flow-sublightbox-video');
+  if(bv){try{bv.pause();}catch(e){}}
+}
+(function(){
+  let sw=document.getElementById('pb-flow-lightbox-subwrap');
+  if(!sw)return;
+  sw.addEventListener('click',function(e){
+    let col=e.target.closest?e.target.closest('.pb-flow-lightbox-subcol'):null;
+    e.stopPropagation(); // jangan ikut menutup lightbox Video AI
+    if(col)pbFlowSubOpen(col);
+  });
+})();
 function pbFlowLightboxClose(){
+  pbFlowSubClose();
   document.getElementById('pb-flow-lightbox').classList.remove('show');
   document.getElementById('pb-flow-lightbox-video').pause();
   let _sw=document.getElementById('pb-flow-lightbox-subwrap');
