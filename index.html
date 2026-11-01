@@ -15150,7 +15150,7 @@ function _pbInjectPerCardCopyButtons(root){
         // teks lama yang sempat tersimpan dengan kutip di dalam script tidak
         // terpotong di kutip pertama & terduplikasi.
         let _safeTa=String(ta.value).replace(/"/g,"'");
-        let _scriptRe=/(script:\s*")[\s\S]*?"(?=$| visual_hook:| camera_movement:|\. (?:A very small text overlay|Make sure no icon|Muncul tulisan|Pastikan tidak ada icon))/;
+        let _scriptRe=/(script:\s*")[\s\S]*?"(?=$| visual_hook:| camera_movement:| ambient:|\. (?:A very small text overlay|Make sure no icon|Muncul tulisan|Pastikan tidak ada icon))/;
         if(!_scriptRe.test(txt))_scriptRe=/(script:\s*")[\s\S]*?"/;
         liveTxt=txt.replace(_scriptRe,function(m,pre){return pre+_safeTa+'"';});
       }
@@ -28324,6 +28324,11 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // bukan cuma Raw Asset (kp), dan diperluas: tidak ada keranjang fisik + tidak ada ikon/elemen tampilan belanja.
     // Awal kalimat "Make sure no icon" JANGAN diubah (dipakai regex tombol Salin per kartu).
     flowText+='. Make sure no icon of any kind appears during the CTA. The keranjang bawah mentioned in the narration is only a checkout button on the shopping platform, so do not show any physical basket, shopping cart, shopping bag, or basket-like object, and '+(VB.refMode==='aset'?'a hand':'the character')+' must not hold, point at, or reach for one. Also do not show any shopping cart icon, basket icon, shopping bag icon, buy button, or any e-commerce interface element anywhere in the frame, as an overlay, sticker, graphic, or animation.';
+  }
+  // PERMINTAAN USER (1 Nov 2026): kalimat ambient ditempel PALING AKHIR prompt (setelah overlay Hook / larangan icon CTA)
+  // khusus Start Frame (satu), Raw Asset (kp), dan uiui jalur "Pakai Dialog / Skrip" (refMode 'aset'). Semua kartu Hook/Story/CTA.
+  if(VB.refMode==='satu'||VB.refMode==='kp'||VB.refMode==='aset'){
+    flowText=flowText.replace(/\s+$/,'')+' ambient: human voices sound like they are indoors if the reference photo is indoors; if the reference photo is outdoors, human voices sound like they are outdoors.';
   }
   return flowText;
 }
