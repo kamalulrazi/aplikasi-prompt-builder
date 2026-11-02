@@ -9348,6 +9348,7 @@ function fPickLokasiCustomHandler(val){
   FS.lokasiLabel='Custom';
   FS.lokasiDesc=val;
   doneCard('f5','fa5',val.substring(0,35)+(val.length>35?'…':''));
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
   // kamera tidak di-set di sini — user pilih di step framing
   // FIX EDIT MODE — cek f7+f8+f9 sudah done
   let _f7DoneLCH=document.getElementById('f7')?.classList.contains('done');
@@ -9836,6 +9837,14 @@ function _fSyncPoseToHold(prevKey,newKey){
   return true;
 }
 
+// FIX IMPOR: setelah satu step diedit di mode impor, JANGAN lanjut membuka step berikutnya
+// (Pose/Lokasi/Cahaya/dst). Cukup simpan lalu kembali ke Ringkasan + Generate.
+function _fImportBackToSummary(){
+  let ga=document.getElementById('f-gen-area');
+  if(ga){ga.classList.remove('hidden');try{fRunAIConflictCheck(true);}catch(e){}}
+  try{if(typeof fRenderSummary==='function')fRenderSummary();}catch(e){}
+  setTimeout(function(){if(ga)ga.scrollIntoView({behavior:'smooth',block:'nearest'});},150);
+}
 function fPickHold(key,el,label){
   document.querySelectorAll('#f3 .chip').forEach(c=>c.classList.remove('sel'));
   el.classList.add('sel');
@@ -9890,6 +9899,14 @@ function fPickHoldConfirmed(key,label){
   // key !== 'dipakai': banner sudah di-clear dan ignore outfit sudah di-reset di atas
 
   doneCard('f3','fa3',h.label);
+  if(FS.importActive){ // FIX IMPOR: tidak cascade ke step lain; tapi pose lama yang tidak cocok dengan cara tampil baru tetap dibuang
+    if(FS.pose && !_fSyncPoseToHold(_prevHoldKey,key)){
+      FS.pose='';FS.poseLabel='';FS.poseDesc='';
+      let _fa4=document.getElementById('fa4');if(_fa4)_fa4.textContent='';
+      showToast('Cara tampil berubah — pose lama dibuang, isi ulang lewat Edit di Ringkasan','info');
+    }
+    _fImportBackToSummary();return;
+  }
   // FIX EDIT MODE
   let _f4Done = document.getElementById('f4')?.classList.contains('done');
   let _f5Done = document.getElementById('f5')?.classList.contains('done');
@@ -9955,6 +9972,14 @@ function fPickHoldCustom(){
     FS.refs.forEach(function(r){if(r.type==='outfit')r.ignoreCustom=FTYPE.outfit.ignore;});
   }
   doneCard('f3','fa3','Custom — '+val.substring(0,40)+(val.length>40?'…':''));
+  if(FS.importActive){ // FIX IMPOR: tidak cascade ke step lain; tapi pose lama yang tidak cocok dengan cara tampil baru tetap dibuang
+    if(FS.pose && !_fSyncPoseToHold(_prevHoldKeyC,'custom')){
+      FS.pose='';FS.poseLabel='';FS.poseDesc='';
+      let _fa4=document.getElementById('fa4');if(_fa4)_fa4.textContent='';
+      showToast('Cara tampil berubah — pose lama dibuang, isi ulang lewat Edit di Ringkasan','info');
+    }
+    _fImportBackToSummary();return;
+  }
   // FIX EDIT MODE
   let _f4DoneC = document.getElementById('f4')?.classList.contains('done');
   let _f5DoneC = document.getElementById('f5')?.classList.contains('done');
@@ -10278,6 +10303,7 @@ function fPickPose(el){
     FS.poseLabel=poses[idx][1];
     FS.poseDesc=poses[idx][0];
     doneCard('f4','fa4',poses[idx][1]);
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
     // FIX EDIT MODE
     let _f5DoneP=document.getElementById('f5')?.classList.contains('done');
     if(_f5DoneP&&FS.lokasi){
@@ -10302,6 +10328,7 @@ function fPickPoseCustom(){
   FS.poseLabel='Custom';
   FS.poseDesc=val;
   doneCard('f4','fa4',val.substring(0,35)+(val.length>35?'…':''));
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
   // FIX EDIT MODE
   let _f5DonePC=document.getElementById('f5')?.classList.contains('done');
   if(_f5DonePC&&FS.lokasi){
@@ -10380,6 +10407,7 @@ function fPickLokasi(val,el,label){
     FS.lokasiLabel=label;
     FS.lokasiDesc=val;
     doneCard('f5','fa5',label);
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
     // kamera tidak di-set di sini — user pilih di step framing
     // FIX EDIT MODE — cek f7+f8+f9 sudah done SEBELUM reset
     let _f7DoneL=document.getElementById('f7')?.classList.contains('done');
@@ -10454,6 +10482,7 @@ function fPickCahaya(val,el,label){
     FS.cahayaLabel=label;
     FS.cahayaDesc=val;
     doneCard('f7','fa7',label);
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
     // FIX EDIT MODE — cek f8+f9 sudah done SEBELUM reset
     let _f8DoneCah=document.getElementById('f8')?.classList.contains('done');
     let _f9DoneCah=document.getElementById('f9')?.classList.contains('done');
@@ -10484,6 +10513,7 @@ function fPickCahayaCustom(){
   FS.cahayaLabel='Custom';
   FS.cahayaDesc=val;
   doneCard('f7','fa7',val.substring(0,35)+(val.length>35?'…':''));
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
   // FIX EDIT MODE — cek f8+f9 sudah done SEBELUM reset
   let _f8DoneCahC=document.getElementById('f8')?.classList.contains('done');
   let _f9DoneCahC=document.getElementById('f9')?.classList.contains('done');
@@ -10527,6 +10557,7 @@ function fPickAngle(val,el,label){
     FS.angleLabel=label;
     FS.angleDesc=val;
     doneCard('f8','fa8',label);
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
     fSyncStepNums();
     // FIX EDIT MODE — cek apakah f9 sudah done
     let _f9Done=document.getElementById('f9')?.classList.contains('done');
@@ -10556,6 +10587,7 @@ function fPickAngleCustom(){
   FS.angleLabel='Custom';
   FS.angleDesc=val;
   doneCard('f8','fa8',val.substring(0,35)+(val.length>35?'…':''));
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
   fSyncStepNums();
   // FIX EDIT MODE
   let _f9DoneC=document.getElementById('f9')?.classList.contains('done');
@@ -10602,6 +10634,7 @@ function fPickMood(val,el,label){
     FS.mood=val;
     FS.moodLabel=label;
     doneCard('f9','fa9',label);
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
     fSyncStepNums();
     fUpdateProgress(9,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
     document.getElementById('f-gen-area').classList.remove('hidden');
@@ -10621,6 +10654,7 @@ function fPickMoodCustom(){
   FS.mood=val;
   FS.moodLabel='Custom';
   doneCard('f9','fa9',val.substring(0,35)+(val.length>35?'…':''));
+  if(FS.importActive){_fImportBackToSummary();return;} // FIX IMPOR: tidak cascade ke step lain
   fSyncStepNums();
   fUpdateProgress(9,'<svg class="icon"><use href="#ic-check"></use></svg> Selesai!');
   document.getElementById('f-gen-area').classList.remove('hidden');
@@ -10884,6 +10918,17 @@ function fGenerate(){
   // Lama/Generate Variasi malah disembunyikan TOTAL (pb-tour-result-simple)
   // supaya user pemula cuma lihat hasil prompt-nya saja, tidak dibuat
   // bingung — lihat pbTourAfterGenActive & pbShowSaveJsonNotif() di bawah.
+  // FIX IMPOR: sebutkan step mana yang masih kosong (dulu cuma "Lengkapi semua step dulu!" tanpa petunjuk).
+  if(FS.importActive && !FS.povProduk){
+    let _gm=[];
+    let _gNoPose=(FS.subjek==='produk'||(typeof fIsNoChar==='function'&&fIsNoChar()));
+    if(!_gNoPose && !FS.pose && !FS.refs.some(function(r){return r.type==='outfit_random'&&r.focus;})) _gm.push('Pose');
+    if(!FS.lokasi) _gm.push('Lokasi');
+    if(!FS.cahaya) _gm.push('Cahaya');
+    if(!FS.angle) _gm.push('Sudut Kamera');
+    if(!FS.mood) _gm.push('Mood & Tone');
+    if(_gm.length){showToast('Belum terisi: '+_gm.join(', ')+' — klik Edit di Ringkasan untuk mengisinya','error');return;}
+  }
   if(FS.povProduk){
     // MODE PRODUK SAJA · POV (lihat blok script pov-js): step Pose & Sudut Kamera tidak dipakai.
     if(FS.refs.some(function(r){return r.type!=='produk';})){showToast('Foto referensi bukan produk saja — buka Foto Ref lalu tekan Lanjut dulu.','error');return;}
@@ -11797,7 +11842,7 @@ function fImportPrompt(){
   if(!FS.importIsProdukSaja && !FS.pose && !(FS.refs||[]).some(function(r){return r.type==='outfit_random'&&r.focus;})) _impMissing.push('Pose');
   if((FS.refs||[]).some(function(r){return r.type==='produk'&&!(r.focus&&String(r.focus).trim());})) _impMissing.push('Nama produk (di Foto Referensi)');
   if(statusBox){
-    statusBox.innerHTML = 'Berhasil diimpor: <strong>' + esc(filled.join(', ')) + '</strong>. Tap "ubah" di step manapun buat ganti sebelum generate ulang.' + (_impMissing.length ? '<br><span style="color:var(--red);">Belum terisi: <strong>' + esc(_impMissing.join(', ')) + '</strong> — tap "ubah" dan isi dulu, kalau tidak prompt-nya bolong.</span>' : '') + '<br><button onclick="fCancelImport()" style="background:none;border:none;color:var(--red);font-size:var(--fs-xs);text-decoration:underline;cursor:pointer;padding:4px 0 0;"><svg class="icon"><use href="#ic-close"></use></svg> Batal, mulai dari awal</button>';
+    statusBox.innerHTML = 'Berhasil diimpor: <strong>' + esc(filled.join(', ')) + '</strong>. Tap "Edit" di Ringkasan buat ganti isian sebelum generate ulang.' + (_impMissing.length ? '<br><span style="color:var(--red);">Belum terisi: <strong>' + esc(_impMissing.join(', ')) + '</strong> — tap "Edit" di Ringkasan dan isi dulu, kalau tidak prompt-nya bolong.</span>' : '') + '<br><button onclick="fCancelImportAsk()" style="background:none;border:none;color:var(--red);font-size:var(--fs-xs);text-decoration:underline;cursor:pointer;padding:4px 0 0;"><svg class="icon"><use href="#ic-close"></use></svg> Batal, mulai dari awal</button>';
     if(parsed.__loose) statusBox.innerHTML += '<br><span style="color:var(--muted);">JSON-nya terpotong/rusak, jadi hanya isian yang terbaca yang diambil. Foto referensi &amp; nama produk tidak ikut — tambahkan lagi di Step Foto Referensi.</span>';
     statusBox.classList.remove('hidden');
   }
