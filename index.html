@@ -1974,6 +1974,13 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 .vbc-label{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.25;margin-top:4px;}
 .vbc-sub{font-size:11.5px;line-height:1.35;color:var(--muted2);margin-top:-1px;}
 .vbc-sub-ai{color:var(--accent);font-weight:600;}
+/* uiui: pratinjau 2 video berdampingan (Tanpa Skrip | Pakai Skrip) dengan garis pemisah di tengah.
+   Kalau cuma satu yang dipilih, kolom lainnya disembunyikan (class .hidden) dan garis pemisah ikut hilang. */
+#vb-ui-split{margin:0 0 12px;animation:vbModePreviewIn .28s ease;}
+#vb-ui-split .vb-ui-split-row{display:flex;align-items:stretch;}
+#vb-ui-split .vb-ui-split-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;padding:10px 8px 11px;}
+#vb-ui-split .vb-ui-split-div{width:1px;flex:0 0 1px;background:var(--border-hi);align-self:stretch;margin:10px 0;}
+#vb-ui-split .pb-flow-thumb.vbc-thumb{width:min(150px,100%);height:auto;aspect-ratio:9/16;border-radius:8px;}
 /* LOKASI: baris tombol kategori (Kamar/Indoor/Outdoor) + grup chip yang
    muncul/hilang bergantian saat salah satu kategori diklik. */
 
@@ -6387,8 +6394,6 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
           <div class="chip" id="vb-mode-tess" onclick="vbPickRefMode('tess')">Produk Editorial</div>
           <!-- MODE BARU (18 Okt 2026): Fashion Editorial — video fashion 8 detik dari foto karakter + outfit. Self-contained seperti tess: Lanjut -> Nama Produk -> Durasi (cuma 8 detik) -> Generate -> 2 prompt (bahasa Inggris). Tanpa wizard V2-V5. -->
           <div class="chip" id="vb-mode-fashion" onclick="vbPickRefMode('fashion')">Fashion Editorial</div>
-          <!-- MODE BARU (20 Okt 2026): tess (id internal 'tess2' karena id 'tess' sudah dipakai Produk Editorial) — video POV UGC pakaian di hanger dari 1 foto referensi. Self-contained: Lanjut -> Nama Produk -> Durasi (cuma 8 detik) -> Generate -> 1 prompt (bahasa Indonesia, nama produk ikut masuk ke prompt). Tanpa wizard V2-V5. -->
-          <div class="chip" id="vb-mode-tess2" onclick="vbPickRefMode('tess2')">tess</div>
           <!-- MODE BARU (29 Okt 2026): uiui — gaya Fashion Editorial untuk video unboxing produk. Self-contained: Lanjut -> Nama Produk (wajib) -> Durasi (cuma 8 detik) -> 3 bingkai (0-3 / 3-6 / 6-8) -> Generate -> 1 prompt (bahasa Indonesia). Tanpa wizard V2-V5. -->
           <div class="chip" id="vb-mode-uiui" onclick="vbPickRefMode('uiui')">uiui</div>
         </div>
@@ -6740,57 +6745,6 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
         </div>
       </div>
 
-      <!-- MODE BARU "tess" (id internal tess2, 20 Okt 2026) — alur bertahap:
-           (1) tombol "Lanjut →" → (2) isi Nama Produk (wajib, IKUT ditulis ke
-           dalam prompt) → (3) pilih Durasi: 4/6/10 detik dikunci (toast
-           "belum tersedia"), cuma "8 detik" yang bisa dipilih → (4) "Generate
-           Prompt" → loading sebentar → (5) tampil 1 prompt bahasa Indonesia.
-           Lihat vbT2Lanjut(), vbT2NamaInput(), vbT2GoDurasi(),
-           vbT2PilihDurasi(), vbT2DurasiLocked(), vbT2Generate(),
-           vbCopyT2Prompt() & vbT2ResetFlow() (dipanggil dari
-           vbPickRefMode()/vbResetNow()). -->
-      <div id="vb-mode-tess2-area" class="hidden" style="margin-bottom:14px;">
-        <div id="vb-t2-step-lanjut">
-          <div style="text-align:right;">
-            <button class="btn sm" onclick="vbT2Lanjut()" style="width:auto;padding:8px 18px;">Lanjut →</button>
-          </div>
-        </div>
-        <div id="vb-t2-step-nama" class="hidden">
-          <label class="inplabel" style="font-size:var(--fs-2xs);">Nama Produk <span style="color:var(--accent);">*wajib</span></label>
-          <div class="inp-wrap"><input class="inp" id="vb-t2-nama-input" maxlength="80" placeholder="Contoh: dress anak usia 5 tahun" oninput="vbT2NamaInput()" /></div>
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 10px;">Nama produk yang kamu ketik akan ditulis di dalam prompt.</p>
-          <div style="text-align:right;">
-            <button class="btn sm hidden" id="vb-t2-nama-lanjut-btn" onclick="vbT2GoDurasi()" style="width:auto;padding:8px 18px;">Lanjut →</button>
-          </div>
-        </div>
-        <div id="vb-t2-step-durasi" class="hidden">
-          <label class="inplabel" style="font-size:var(--fs-2xs);">Pilih Durasi</label>
-          <div class="chips" style="margin:6px 0 4px;">
-            <div class="chip tess-durasi-locked" onclick="vbT2DurasiLocked()">4 detik</div>
-            <div class="chip tess-durasi-locked" onclick="vbT2DurasiLocked()">6 detik</div>
-            <div class="chip" id="vb-t2-durasi-8" onclick="vbT2PilihDurasi(8)">8 detik</div>
-            <div class="chip tess-durasi-locked" onclick="vbT2DurasiLocked()">10 detik</div>
-          </div>
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Durasi 4/6/10 detik belum tersedia — pakai 8 detik dulu ya.</p>
-          <div style="text-align:right;">
-            <button class="btn sm hidden" id="vb-t2-generate-btn" onclick="vbT2Generate()" style="width:auto;padding:8px 18px;">Generate Prompt</button>
-          </div>
-        </div>
-        <div id="vb-t2-loading" class="hidden" style="text-align:center;padding:18px 0;color:var(--muted2);font-size:var(--fs-xs2);">⏳ Membuat prompt…</div>
-        <div id="vb-t2-result" class="hidden">
-          <p style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;">Prompt ini untuk satu klip video (8 detik).</p>
-          <div class="out-card">
-            <div class="out-head">
-              <div class="out-label">Prompt — tess (POV Pakaian di Hanger)</div>
-              <div style="display:flex;align-items:center;gap:7px;">
-                <button class="copy-btn" onclick="vbCopyT2Prompt()">Salin</button>
-              </div>
-            </div>
-            <div class="out-body"><pre id="vb-t2-prompt-text" style="white-space:pre-wrap;"></pre></div>
-          </div>
-        </div>
-      </div>
-
       <!-- MODE BARU "uiui" (29 Okt 2026) — gaya Fashion Editorial, alur bertahap:
            (1) "Lanjut →" → (2) Nama Produk (wajib, IKUT ditulis ke prompt) → (3) Durasi (cuma 8 detik) →
            (4) STORYBOARD 3 bingkai 9:16 (0–3 / 3–6 / 6–8 dtk). Ketuk bingkai = bottom sheet pilihan:
@@ -6803,6 +6757,26 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
         <div id="vb-ui-modebar" class="vb-fe-modebar hidden">
           <span class="chip sel" id="vb-ui-modebar-label" style="cursor:default;">uiui</span>
           <button class="copy-btn" onclick="vbUiUbahMode()">Ubah mode</button>
+        </div>
+        <!-- PERMINTAAN USER (Nov 2026): pratinjau uiui. Pertama kali (klik chip uiui & sesudah "Lanjut →") kedua video tampil
+             berdampingan dengan garis pemisah di tengah. Pilih Tanpa Skrip = cuma video 1, Pakai Skrip = cuma video 2.
+             Diatur vbSyncUiSplit(). Ada DI LUAR .vb-mode-row, jadi tidak ikut tersembunyi saat daftar mode dikunci. -->
+        <div id="vb-ui-split" class="hidden">
+          <div class="vbc-card">
+            <div class="vb-ui-split-row">
+              <div class="vb-ui-split-col" id="vb-ui-split-col-tanpa">
+                <div class="pb-flow-thumb vbc-thumb" id="vb-ui-split-tanpa-thumb" data-label="Tanpa Skrip" onclick="pbFlowLightboxOpen(this)"><video id="vb-ui-split-tanpa-video" muted loop playsinline preload="none"></video></div>
+                <div class="vbc-label">🎬 Tanpa Skrip</div>
+                <div class="vbc-sub vbc-sub-ai">unboxing POV</div>
+              </div>
+              <div class="vb-ui-split-div" id="vb-ui-split-div"></div>
+              <div class="vb-ui-split-col" id="vb-ui-split-col-pakai">
+                <div class="pb-flow-thumb vbc-thumb" id="vb-ui-split-pakai-thumb" data-label="Pakai Skrip" onclick="pbFlowLightboxOpen(this)"><video id="vb-ui-split-pakai-video" muted loop playsinline preload="none"></video></div>
+                <div class="vbc-label">🎬 Pakai Skrip</div>
+                <div class="vbc-sub vbc-sub-ai">voice over</div>
+              </div>
+            </div>
+          </div>
         </div>
         <div id="vb-ui-step-lanjut">
           <div style="text-align:right;">
@@ -16781,7 +16755,6 @@ const VB_REF_MODE_DESC={
   tess:'Memanfaatkan foto produk untuk menjadikan video dengan berbagai opsi visual.',
   fashion:'Khusus untuk fashion. Disini karakter tidak akan berbicara dan tidak ada musik. Pastikan produk yang ingin kamu promosikan sudah terlihat jelas dalam foto AI.',
   uiui:'Video unboxing produk gaya POV ala rekaman HP: kotak diketuk, dibuka, produk dilihat dari dekat, lalu ditutup dengan jempol. Tanpa orang bicara dan tanpa musik.',
-  tess2:'Video POV ala rekaman HP untuk pakaian di hanger. Cukup satu foto referensi sebagai frame awal, tanpa suara orang bicara dan tanpa musik.',
   percobaan:'Video voice over: lampirkan beberapa foto sesuai urutan, tiap foto jadi satu adegan dengan durasi kurang lebih sama. Tidak ada orang yang bicara di layar, narasi terdengar sebagai suara dari luar layar.'
 };
 // ── MODE 4 — "Ikuti Gerakan Video Referensi": beda total dari Mode 1-3.
@@ -17737,100 +17710,6 @@ function vbSyncFashionPreview(show){
     try{ vid.pause(); }catch(e){}
   }
 }
-// ── MODE BARU "tess" (id internal 'tess2', 20 Okt 2026) ─────────────────────
-// Self-contained seperti Fashion Editorial: Lanjut → Nama Produk → Durasi
-// (cuma 8 detik) → Generate → 1 prompt. BEDANYA: teks prompt bahasa
-// INDONESIA (permintaan user, ditulis apa adanya) dan Nama Produk yang
-// diketik user IKUT ditulis ke dalam prompt (baris "Nama produk: ...").
-const VB_T2_PROMPT_HEAD='Gunakan foto referensi sebagai frame awal.';
-const VB_T2_PROMPT_BODY=[
-  'Sudut pandang POV (orang pertama), seolah penonton sendiri yang sedang melihat pakaian itu.',
-  'Aksi: kamera perlahan bergerak mendekat untuk mengambil pakaian setelah itu memperlihatkan 2 sampai 3 detail khas pakaian. Jangan pernah membalikkan atau memutar pakaian, pokoknya jangan pernah membuat sesuatu yang tidak pernah ada di dalam foto referensi. Cukup satu tangan saja yang terlihat di dalam video.',
-  '',
-  'Kamera: handheld dengan guncangan halus, fokus sedikit bergeser seperti rekaman HP asli, melambat dan stabil di akhir.',
-  '',
-  'Suara: hanya suara ambient ruangan dan suara lembut sentuhan pada kain. Tanpa musik, tanpa dialog, tanpa narasi.',
-  '',
-  'Larangan: tanpa wajah manusia, tanpa teks atau watermark, tanpa logo tambahan, tanpa efek sinematik berlebihan, tanpa kesan mewah. Kamera tidak pernah mengarah ke atas ke wajah, frame selalu setinggi dada ke bawah.'
-].join('\n');
-let VB_T2_DURASI=null; // cuma 8 yang tersedia
-function vbT2BuildPrompt(){
-  let namaInp=document.getElementById('vb-t2-nama-input');
-  let nama=namaInp?namaInp.value.trim():'';
-  return VB_T2_PROMPT_HEAD+'\nNama produk: '+nama+'\n\n'+VB_T2_PROMPT_BODY;
-}
-function vbT2ResetFlow(){
-  let ids=['vb-t2-step-nama','vb-t2-step-durasi','vb-t2-loading','vb-t2-result','vb-t2-nama-lanjut-btn','vb-t2-generate-btn'];
-  ids.forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
-  let stepLanjut=document.getElementById('vb-t2-step-lanjut');
-  if(stepLanjut)stepLanjut.classList.remove('hidden');
-  let namaInp=document.getElementById('vb-t2-nama-input');
-  if(namaInp)namaInp.value='';
-  let durasi8=document.getElementById('vb-t2-durasi-8');
-  if(durasi8)durasi8.classList.remove('sel');
-  VB_T2_DURASI=null;
-}
-function vbT2Lanjut(){
-  let stepLanjut=document.getElementById('vb-t2-step-lanjut');
-  let stepNama=document.getElementById('vb-t2-step-nama');
-  if(stepLanjut)stepLanjut.classList.add('hidden');
-  if(stepNama)stepNama.classList.remove('hidden');
-  let namaInp=document.getElementById('vb-t2-nama-input');
-  if(namaInp)namaInp.focus();
-}
-function vbT2NamaInput(){
-  let namaInp=document.getElementById('vb-t2-nama-input');
-  let namaLanjutBtn=document.getElementById('vb-t2-nama-lanjut-btn');
-  if(!namaInp||!namaLanjutBtn)return;
-  namaLanjutBtn.classList.toggle('hidden',!namaInp.value.trim());
-}
-// Nama Produk wajib & terisi → lanjut ke step pilih Durasi.
-function vbT2GoDurasi(){
-  let namaInp=document.getElementById('vb-t2-nama-input');
-  if(!namaInp||!namaInp.value.trim())return;
-  let stepNama=document.getElementById('vb-t2-step-nama');
-  let stepDurasi=document.getElementById('vb-t2-step-durasi');
-  let durasi8=document.getElementById('vb-t2-durasi-8');
-  let genBtn=document.getElementById('vb-t2-generate-btn');
-  if(stepNama)stepNama.classList.add('hidden');
-  if(stepDurasi)stepDurasi.classList.remove('hidden');
-  VB_T2_DURASI=null;
-  if(durasi8)durasi8.classList.remove('sel');
-  if(genBtn)genBtn.classList.add('hidden');
-}
-// Klik chip durasi yang masih dikunci (4/6/10 detik) — cuma kasih tahu belum tersedia.
-function vbT2DurasiLocked(){
-  showToast('Durasi ini belum tersedia','error');
-}
-function vbT2PilihDurasi(n){
-  if(n!==8){vbT2DurasiLocked();return;}
-  VB_T2_DURASI=8;
-  let durasi8=document.getElementById('vb-t2-durasi-8');
-  let genBtn=document.getElementById('vb-t2-generate-btn');
-  if(durasi8)durasi8.classList.add('sel');
-  if(genBtn)genBtn.classList.remove('hidden');
-}
-function vbT2Generate(){
-  let namaInp=document.getElementById('vb-t2-nama-input');
-  if(!namaInp||!namaInp.value.trim())return;
-  if(!VB_T2_DURASI)return;
-  let stepDurasi=document.getElementById('vb-t2-step-durasi');
-  let loading=document.getElementById('vb-t2-loading');
-  let result=document.getElementById('vb-t2-result');
-  if(stepDurasi)stepDurasi.classList.add('hidden');
-  if(result)result.classList.add('hidden');
-  if(loading)loading.classList.remove('hidden');
-  setTimeout(function(){
-    if(loading)loading.classList.add('hidden');
-    let p=document.getElementById('vb-t2-prompt-text');
-    if(p)p.textContent=vbT2BuildPrompt();
-    if(result)result.classList.remove('hidden');
-  },900);
-}
-function vbCopyT2Prompt(){
-  let txt=vbT2BuildPrompt();
-  _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
-}
 // ── MODE BARU "uiui" (29 Okt 2026) ──────────────────────────────────────────
 // Gaya Fashion Editorial (storyboard 3 bingkai + bottom sheet), tapi dengan alur:
 // Lanjut → Nama Produk (wajib, IKUT ditulis ke prompt) → Durasi (cuma 8 detik) → 3 bingkai → Generate Prompt.
@@ -17915,6 +17794,42 @@ function vbUiLockModes(on){
   let bar=vbUiById('vb-ui-modebar');
   if(bar)bar.classList.toggle('hidden',!on);
 }
+// Pratinjau uiui: tampilkan kedua video (default), atau cuma satu setelah user memilih Tanpa Skrip / Pakai Skrip.
+// Sumber: window.PB_IMG_VBUI_TANPA (video 1) & window.PB_IMG_VBUI_PAKAI (video 2) — lihat daftar media di bawah.
+function vbSyncUiSplit(){
+  let box=document.getElementById('vb-ui-split');
+  if(!box) return;
+  let mode=null;
+  try{mode=VB.refMode;}catch(e){}
+  let colT=document.getElementById('vb-ui-split-col-tanpa'),colP=document.getElementById('vb-ui-split-col-pakai'),div=document.getElementById('vb-ui-split-div');
+  let vT=document.getElementById('vb-ui-split-tanpa-video'),vP=document.getElementById('vb-ui-split-pakai-video');
+  let show=(mode==='uiui'||mode==='aset');
+  box.classList.toggle('hidden',!show);
+  if(!show||!vT||!vP){
+    [vT,vP].forEach(function(v){if(v){try{v.pause();}catch(e){}}});
+    return;
+  }
+  let wantT=false,wantP=false;
+  if(mode==='aset'){wantP=true;}
+  else if(window.VB_UI_SKRIP==='tanpa'){wantT=true;}
+  else{wantT=true;wantP=true;}
+  colT.classList.toggle('hidden',!wantT);
+  colP.classList.toggle('hidden',!wantP);
+  div.classList.toggle('hidden',!(wantT&&wantP));
+  function prep(v,thumb,url,want){
+    if(!want){try{v.pause();}catch(e){}return;}
+    if(!v.getAttribute('src')&&url)v.src=url;
+    v.muted=true;
+  }
+  prep(vT,null,window.PB_IMG_VBUI_TANPA,wantT);
+  prep(vP,null,window.PB_IMG_VBUI_PAKAI,wantP);
+  // kalau dua-duanya tampil, mulai dari detik 0 bersamaan supaya jalan barengan
+  if(wantT&&wantP){try{vT.currentTime=0;vP.currentTime=0;}catch(e){}}
+  [[vT,wantT],[vP,wantP]].forEach(function(a){
+    if(!a[1])return;
+    try{let pr=a[0].play();if(pr&&pr.catch)pr.catch(function(){});}catch(e){}
+  });
+}
 function vbUiResetFlow(){
   VB_UI_GEN_TOKEN++; // batalkan generate yang masih menunggu
   vbUiStopFull();
@@ -17935,6 +17850,8 @@ function vbUiResetFlow(){
   VB_UI_DURASI=null;
   VB_UI_PICK={1:null,2:null,3:null};
   vbUiRenderBoard(); // semua bingkai kosong lagi
+  window.VB_UI_SKRIP=null;
+  try{vbSyncUiSplit();}catch(e){}
 }
 function vbUiLanjut(){
   vbUiLockModes(true); // mode lain tidak terlihat lagi
@@ -17945,7 +17862,9 @@ function vbUiLanjut(){
 }
 // Pakai Dialog / Skrip -> alur Frame Asset (refMode 'aset', wizard biasa V2-V5). Tanpa Skrip -> alur uiui seperti biasa.
 function vbUiPilihSkrip(pakai){
-  if(pakai){vbPickRefMode('aset');return;}
+  if(pakai){window.VB_UI_SKRIP='pakai';vbPickRefMode('aset');return;}
+  window.VB_UI_SKRIP='tanpa';
+  try{vbSyncUiSplit();}catch(e){} // Tanpa Skrip: cuma video 1 yang tampil
   let a=vbUiById('vb-ui-step-skrip'),b=vbUiById('vb-ui-step-nama');
   if(a)a.classList.add('hidden');
   if(b)b.classList.remove('hidden');
@@ -18467,12 +18386,6 @@ function vbPickRefMode(mode){
   if(fashionArea)fashionArea.classList.toggle('hidden',mode!=='fashion');
   if(mode==='fashion'&&_camPrevMode!=='fashion')vbFeResetFlow();
   if(mode!=='fashion'){vbFePausePreview();vbFePauseFrames();vbFeCloseSheet(true);vbFeLockModes(false);}
-  // tess (id internal tess2): pola sama — chip, area, reset ke step 1 cuma kalau BENERAN baru masuk dari mode lain.
-  let tess2Chip=document.getElementById('vb-mode-tess2');
-  if(tess2Chip)tess2Chip.classList.toggle('sel',mode==='tess2');
-  let tess2Area=document.getElementById('vb-mode-tess2-area');
-  if(tess2Area)tess2Area.classList.toggle('hidden',mode!=='tess2');
-  if(mode==='tess2'&&_camPrevMode!=='tess2')vbT2ResetFlow();
   // uiui: pola sama dengan Fashion Editorial — chip, area, reset ke step 1 cuma kalau BENERAN baru masuk dari mode lain.
   let uiuiChip=document.getElementById('vb-mode-uiui');
   // Frame Asset ('aset') kini bagian dari uiui (pilihan "Pakai Dialog / Skrip"): chip & area uiui tetap tampil, tapi cuma bar "Ubah mode"-nya.
@@ -18489,6 +18402,7 @@ function vbPickRefMode(mode){
   }
   let _mbl=document.getElementById('vb-ui-modebar-label');
   if(_mbl)_mbl.textContent=(mode==='aset')?'uiui · Pakai Skrip':'uiui';
+  try{vbSyncUiSplit();}catch(e){} // pratinjau 2 video uiui (atau 1 saja sesuai pilihan skrip)
   if(!_inUi){vbUiPausePreview();vbUiPauseFrames();vbUiCloseSheet(true);vbUiLockModes(false);}
   let percobaanChip=document.getElementById('vb-mode-percobaan');
   if(percobaanChip)percobaanChip.classList.toggle('sel',mode==='percobaan');
@@ -18506,11 +18420,11 @@ function vbPickRefMode(mode){
   if(selfieArea)selfieArea.classList.toggle('hidden',mode!=='mirrorselfie');
   if(mode==='mirrorselfie')_vbMirrorRefresh();
   let normalFooter=document.getElementById('vb-mode-normal-footer');
-  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='mirrorselfie'||mode==='tess'||mode==='fashion'||mode==='tess2'||mode==='uiui');
+  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='mirrorselfie'||mode==='tess'||mode==='fashion'||mode==='uiui');
   if(justSwitchedToKp)vbMode3ResetSteps();
   // try/catch: dipanggil juga saat app baru dimuat, ketika STEP_PAUSE_STACK/VB bisa belum terdefinisi (TDZ).
   // Motion Control & Mirror Selfie self-contained (tidak lewat wizard V2-V5) — jangan utak-atik kartu kamera di situ.
-  if(mode!=='ikuti'&&mode!=='mirrorselfie'&&mode!=='tess'&&mode!=='fashion'&&mode!=='tess2'&&mode!=='uiui'){try{_vbReconcileCamStep();}catch(e){}}
+  if(mode!=='ikuti'&&mode!=='mirrorselfie'&&mode!=='tess'&&mode!=='fashion'&&mode!=='uiui'){try{_vbReconcileCamStep();}catch(e){}}
   // Pilihan kamera & Visual Hook beda per mode: kalau mode BENAR-BENAR berganti, buang pilihan yang
   // bukan milik mode baru, lalu gambar ulang chip sesuai mode. Pilihan dari Riwayat (mode sama) tidak disentuh.
   try{
@@ -28654,7 +28568,6 @@ function vbResetNow(){
     // tidak kebawa nama produk / hasil prompt dari sesi sebelumnya.
     vbTessResetFlow();
     vbFeResetFlow();
-    vbT2ResetFlow();
     vbUiResetFlow();
     document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
     let bulkRows=document.getElementById('vb-bulk-rows'); if(bulkRows)bulkRows.innerHTML='';
@@ -29845,6 +29758,9 @@ window.PB_IMG_VBMS_FOTO='media/vbms-foto.jpg';
 // Media pratinjau mode tess (Okt 2026): VIDEO = hasil akhir (720x1280, 10 detik, ada suara) dipakai apa adanya tanpa kompres; FOTO = foto produk (tas hitam).
 // Media pratinjau Fashion Editorial (18 Okt 2026): video saja, 720x1280, ada suara, dipakai apa adanya.
 window.PB_IMG_VBFASHION_VIDEO='media/fashion-video.mp4';
+// Media pratinjau uiui (Nov 2026): video 1 = Tanpa Skrip (unboxing POV), video 2 = Pakai Skrip (voice over). 720x1280, 8 detik, dipakai apa adanya.
+window.PB_IMG_VBUI_TANPA='media/uiui-tanpa-skrip.mp4';
+window.PB_IMG_VBUI_PAKAI='media/uiui-pakai-skrip.mp4';
 window.PB_IMG_VBFASHION_FOTO='media/fashion-foto.jpg';
 window.PB_IMG_VBTESS_VIDEO='media/tess-video.mp4';
 window.PB_IMG_VBTESS_FOTO='media/tess-foto.jpg';
@@ -29924,7 +29840,7 @@ function pbMediaGet(url){
 }
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){} // minta browser jangan menghapus penyimpanan ini saat memori penuh
 (function(){
-  var VID_KEYS=['PB_IMG_VBASET_VIDEO','PB_IMG_VBMS_VIDEO','PB_IMG_VBTESS_VIDEO','PB_IMG_VBTESS_VIDEO_DINAMIS','PB_IMG_VBTESS_VIDEO_ESTETIK','PB_IMG_VBTESS_VIDEO_UGC','PB_IMG_VBKP_VIDEO','PB_IMG_VBREF_VIDEO','PB_IMG_VBIKUTI_VIDEO','PB_IMG_VBIKUTI_REF'];
+  var VID_KEYS=['PB_IMG_VBASET_VIDEO','PB_IMG_VBMS_VIDEO','PB_IMG_VBTESS_VIDEO','PB_IMG_VBTESS_VIDEO_DINAMIS','PB_IMG_VBTESS_VIDEO_ESTETIK','PB_IMG_VBTESS_VIDEO_UGC','PB_IMG_VBKP_VIDEO','PB_IMG_VBREF_VIDEO','PB_IMG_VBIKUTI_VIDEO','PB_IMG_VBIKUTI_REF','PB_IMG_VBUI_TANPA','PB_IMG_VBUI_PAKAI'];
   var PHOTO_KEYS=['PB_IMG_VBREF_FOTO','PB_IMG_VBASET_FOTO1','PB_IMG_VBASET_FOTO2','PB_IMG_VBMS_FOTO','PB_IMG_VBTESS_FOTO','PB_IMG_VBFASHION_FOTO','PB_IMG_VBKP_FOTO1','PB_IMG_VBKP_FOTO2','PB_IMG_VBIKUTI_FOTO','PB_IMG_VBIKUTI_REFPOSTER'];
   var started=false;
   function warmPhotos(){
@@ -30516,7 +30432,6 @@ function pbHideOverlay(endingTour){
     pbUnlockChip('#vb-mode-percobaan');
     pbUnlockChip('#vb-mode-tess');
     pbUnlockChip('#vb-mode-fashion');
-  pbUnlockChip('#vb-mode-tess2');
   pbUnlockChip('#vb-mode-uiui');
     let hintEl=document.getElementById('vb-tour-mode-hint');
     if(hintEl) hintEl.style.display='none';
@@ -30840,7 +30755,6 @@ function pbGoStep7VideoOpen(){
   pbLockChip('#vb-mode-percobaan');
   pbLockChip('#vb-mode-tess');
   pbLockChip('#vb-mode-fashion');
-  pbLockChip('#vb-mode-tess2');
   pbLockChip('#vb-mode-uiui');
   document.body.classList.add('pb-tour-blur-context');
   let hint=document.getElementById('vb-tour-mode-hint');
@@ -30883,7 +30797,6 @@ function pbStep7VideoDone(){
   pbUnlockChip('#vb-mode-percobaan');
   pbUnlockChip('#vb-mode-tess');
   pbUnlockChip('#vb-mode-fashion');
-  pbUnlockChip('#vb-mode-tess2');
   pbUnlockChip('#vb-mode-uiui');
   let hint=document.getElementById('vb-tour-mode-hint');
   if(hint) hint.style.display='none';
