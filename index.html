@@ -6898,6 +6898,27 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
     </div>
   </div>
 
+  <!-- STEP BARU (Nov 2026): DURASI VIDEO — cuma untuk Start Frame, Raw Asset, dan POV Produk (Pakai Skrip). Posisi: setelah Mode Referensi Foto.
+       24 detik = alur lama (3 prompt Hook/Story/CTA @8 detik). 10 detik DIKUNCI dulu (belum tersedia). Nomor step dinamis (pb-fork-js steps()).
+       Logika: _vbHasDur(), vbPickDurasi(), vbDurLocked(), vbDurLanjut() di dekat vbConfirmRef(). -->
+  <style id="vdur-css">
+  #video #vdur .vb-dur-tag{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font:500 10.5px 'Hanken Grotesk',system-ui,sans-serif;letter-spacing:.2px;border:1px solid var(--border-hi);color:var(--muted);background:transparent;vertical-align:middle}
+  #video #vdur .vb-dur-rec{border-color:var(--accent);color:var(--accent-2);background:rgba(var(--pulse-rgb),.12)}
+  #video #vdur .chips{flex-wrap:wrap}
+  </style>
+  <div class="wcard pending" id="vdur">
+    <div class="whead"><div class="wnum">2</div><div class="wtitle">Durasi Video</div><span class="wedit-pill">ubah</span><div class="wanswer" id="vadur"></div></div>
+    <div class="wbody">
+      <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.7;">Mau bikin video berapa lama?</p>
+      <div class="chips" id="vb-dur-chips" style="margin-bottom:8px;">
+        <div class="chip tess-durasi-locked" id="vb-dur-10" onclick="vbDurLocked()">10 detik <span class="vb-dur-tag">Segera</span></div>
+        <div class="chip" id="vb-dur-24" onclick="vbPickDurasi(24)">24 detik <span class="vb-dur-tag vb-dur-rec">Rekomendasi</span></div>
+      </div>
+      <p id="vb-dur-hint" style="font-size:var(--fs-2xs);color:var(--muted2);margin:0 0 10px;line-height:1.6;">Durasi 10 detik belum tersedia — pakai 24 detik dulu ya. Hasilnya 3 prompt (Hook, Story, CTA), masing-masing 8 detik.</p>
+      <button class="btn sm" id="vb-dur-go" disabled onclick="vbDurLanjut()">Lanjut →</button>
+    </div>
+  </div>
+
   <!-- V2: USIA SUARA -->
   <div class="wcard pending" id="v2">
     <div class="whead"><div class="wnum">2</div><div class="wtitle">Jenis Kelamin & Usia</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va2"></div></div>
@@ -18641,6 +18662,8 @@ function _vbIsKp(){try{return VB.refMode==='kp';}catch(e){return false;}}
 // Mode lain (mis. Percobaan) tetap tanpa step ini.
 // Okt 2026 (permintaan user): Frame Asset TIDAK punya step Pergerakan Kamera & Visual Hook lagi (video voice over, kamera diserahkan ke AI video).
 function _vbHasCam(){try{return VB.refMode==='kp'||VB.refMode==='satu';}catch(e){return false;}}
+// Step Durasi Video (Nov 2026): cuma Start Frame, Raw Asset, dan POV Produk · Pakai Skrip (aset). Mode lain (mis. Percobaan) tidak punya step ini.
+function _vbHasDur(){try{return VB.refMode==='kp'||VB.refMode==='satu'||VB.refMode==='aset';}catch(e){return false;}}
 Object.defineProperty(VB_STEP_META,'v5',{enumerable:true,configurable:true,get:function(){return [(_vbHasCam()?7:6),'Script / Dialog'];}});
 // ===== PERGERAKAN KAMERA & VISUAL HOOK (permintaan user, Okt 2026) =====
 // Pilihan kamera SEKARANG BEDA PER MODE (Start Frame / Frame Asset / Raw Asset). Teks sengaja umum
@@ -19065,8 +19088,37 @@ function vbUpdateProgress(stepNum,stepName){
 function vbConfirmRef(){
   let modeLabel=VB.refMode==='kp'?'Raw Asset':(VB.refMode==='aset'?'POV Produk · Pakai Skrip':(VB.refMode==='percobaan'?'Percobaan':'Start Frame'));
   let _wasEdit=doneCard('v1','va1',modeLabel);
-  vbAdvanceStep(_wasEdit,'v2',2,'Jenis Kelamin & Usia');
+  if(_vbHasDur()){
+    // Step Durasi Video muncul dulu kalau belum dijawab (24 detik = alur lama, tidak ada yang berubah setelahnya).
+    if(VB.durasi!==24){vbAdvanceStep(_wasEdit,'vdur',2,'Durasi Video');return;}
+  }else{
+    // Mode tanpa step Durasi (mis. Percobaan): pastikan kartunya tidak nyangkut kalau sebelumnya sempat dibuka.
+    try{
+      let _dc=document.getElementById('vdur');
+      if(_dc){_dc.classList.remove('done');_dc.classList.add('pending');}
+      let _da=document.getElementById('vadur');if(_da)_da.textContent='';
+      VB.durasi=0;
+    }catch(e){}
+  }
+  vbAdvanceStep(_wasEdit,'v2',_vbHasDur()?3:2,'Jenis Kelamin & Usia');
   // Notifikasi "Urutan Foto Tidak Boleh Terbalik" DIHAPUS (permintaan user).
+}
+
+// ── Step Durasi Video (Nov 2026) ──
+// Opsi: 10 detik (DIKUNCI dulu) dan 24 detik (Rekomendasi). 24 detik = alur yang sudah ada (Hook/Story/CTA @8 detik).
+function vbDurLocked(){
+  if(typeof showToast==='function')showToast('Durasi 10 detik belum tersedia, pakai 24 detik dulu ya','error');
+}
+function vbPickDurasi(n){
+  if(n!==24){vbDurLocked();return;}
+  VB.durasi=24;
+  document.querySelectorAll('#vb-dur-chips .chip').forEach(function(c){c.classList.toggle('sel',c.id==='vb-dur-24');});
+  let go=document.getElementById('vb-dur-go');if(go)go.disabled=false;
+}
+function vbDurLanjut(){
+  if(VB.durasi!==24)return;
+  let _wasEdit=doneCard('vdur','vadur','24 detik');
+  vbAdvanceStep(_wasEdit,'v2',3,'Jenis Kelamin & Usia');
 }
 
 // ── Urutan foto Raw Asset (video): blok alur yang sama seperti tab Foto, tampil
@@ -28533,6 +28585,15 @@ function vbResetNow(){
       let ans=document.getElementById('va'+(i+1)); if(ans)ans.textContent='';
       let cb=document.getElementById(id+'-confirmbar'); if(cb)cb.remove();
     });
+    // Step Durasi Video (id vdur, di luar daftar v1-v5): kembalikan ke kondisi awal. VB.durasi ikut kosong lewat reset VB.
+    (function(){
+      let dc=document.getElementById('vdur');
+      if(dc){if(dc.dataset)delete dc.dataset.reopened;dc.classList.remove('done','hidden');dc.classList.add('pending');}
+      let da=document.getElementById('vadur');if(da)da.textContent='';
+      let dcb=document.getElementById('vdur-confirmbar');if(dcb)dcb.remove();
+      document.querySelectorAll('#vb-dur-chips .chip').forEach(function(c){c.classList.remove('sel');});
+      let dg=document.getElementById('vb-dur-go');if(dg)dg.disabled=true;
+    })();
     document.querySelectorAll('#vb-gender-chips .chip').forEach(c=>c.classList.remove('sel'));
     // FIX BUG#11: vbReset() sebelumnya cuma bersihin class 'sel' di chip Gender,
     // padahal VB.age/pitch/accent juga ikut dikosongkan di atas. Chip Usia
@@ -33477,7 +33538,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 /* Opsi B: progres bertahap, chip ringkasan yang bisa diketuk, tombol aksi menempel di bawah.
    Hanya tampilan; logika step & state VB tidak diubah. Dipanggil dari render() layer pb-fork. */
 (function(){
-  var $=function(i){return document.getElementById(i);},IDS=['v1','v2','vcam','vfork','v3','vmotion','v4','v5'];
+  var $=function(i){return document.getElementById(i);},IDS=['v1','vdur','v2','vcam','vfork','v3','vmotion','v4','v5'];
   function act(c){return !!c&&!c.classList.contains('done')&&!c.classList.contains('pending')&&!c.classList.contains('hidden')&&c.style.display!=='none';}
   function vis(e){return getComputedStyle(e).display!=='none';}
   function navH(){var h=0;[].forEach.call(document.querySelectorAll('nav'),function(n){var s=getComputedStyle(n),r=n.getBoundingClientRect();if(s.position==='fixed'&&r.height>20&&r.bottom>=innerHeight-2)h=Math.round(r.height);});document.documentElement.style.setProperty('--pbw-nav',h+'px');}
@@ -33495,6 +33556,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
   function val(i,v){var e=$(i);if(e)e.value=v;}
   function cnt(i,t){var e=$(i);if(e){e.textContent=t;e.className='inp-counter';}}
   var CLR={
+    vdur:function(){VB.durasi=0;off('#vb-dur-chips .chip');var g=$('vb-dur-go');if(g)g.disabled=true;},
     v2:function(){VB.gender='';VB.genderLabel='';VB.age='';VB.ageLabel='';off('#vb-gender-chips .chip,#vb-age-chips .chip');val('v2-custom','');try{v2RangeReset();}catch(e){}cnt('v2-counter','Maks. 120 tahun');},
     vcam:function(){VB.camMove='';VB.camHook='';off('#vcam .chip');try{_vbCamPendMove='';_vbCamPendHook='';_vbRenderCamChips();}catch(e){}try{vbCamTab('kamera',true);}catch(e){}},
     vfork:function(){if(window.pbSelectPath)window.pbSelectPath('');},
@@ -33558,7 +33620,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
    (nada = Ramah & aksen = Netral otomatis, supaya jalur manual tetap lengkap datanya). */
 (function(){
   var $=function(i){return document.getElementById(i);};
-  var NAME={v1:'Mode Referensi Foto',v2:'Jenis Kelamin & Usia',vcam:'Pergerakan Kamera',vfork:'Cara Bikin Script',v3:'Gaya Bicara',vmotion:'Pembawaan',v4:'Aksen',v5:'Script / Dialog'};
+  var NAME={v1:'Mode Referensi Foto',vdur:'Durasi Video',v2:'Jenis Kelamin & Usia',vcam:'Pergerakan Kamera',vfork:'Cara Bikin Script',v3:'Gaya Bicara',vmotion:'Pembawaan',v4:'Aksen',v5:'Script / Dialog'};
   var prev=null;
   function inferred(){
     try{
@@ -33574,7 +33636,9 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
   function path(){try{return VB.pbPath||inferred();}catch(e){return '';}}
   function forkDone(){try{return VB.pbDone||inferred();}catch(e){return '';}}
   function steps(){
-    var p=path(),s=[['v1',NAME.v1],['v2',NAME.v2]],cam=_vbHasCam();
+    var p=path(),s=[['v1',NAME.v1]],cam=_vbHasCam();
+    if(_vbHasDur())s.push(['vdur',NAME.vdur]);
+    s.push(['v2',NAME.v2]);
     s.push(['vfork',NAME.vfork]);
     if(p==='ai'){s.push(['v3',NAME.v3,1],['v4',NAME.v4,1]);if(cam)s.push(['vcam',NAME.vcam]);s.push(['v5','Info Produk & Audiens',1]);}
     else if(p==='manual'){if(cam)s.push(['vcam',NAME.vcam]);s.push(['v5','Tulis Script']);}
@@ -33582,7 +33646,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
   }
   window.pbStepTotal=function(){
     /* jalur belum dipilih: pakai total jalur terpanjang (AI) supaya bar tidak penuh lalu turun saat jalur dipilih */
-    if(!path())return 6+(_vbHasCam()?1:0);
+    if(!path())return 6+(_vbHasCam()?1:0)+(_vbHasDur()?1:0);
     return steps().length;
   };
   Object.keys(NAME).forEach(function(id){
@@ -33683,7 +33747,7 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
     return r;
   };
   var raf=0,mo=new MutationObserver(function(){cancelAnimationFrame(raf);raf=requestAnimationFrame(render);});
-  ['v1','v2','vcam','vfork','v3','vmotion','v4','v5'].forEach(function(id){var c=$(id);if(c)mo.observe(c,{attributes:true,attributeFilter:['class']});});
+  ['v1','vdur','v2','vcam','vfork','v3','vmotion','v4','v5'].forEach(function(id){var c=$(id);if(c)mo.observe(c,{attributes:true,attributeFilter:['class']});});
   render();
 })();
 </script>
@@ -33812,18 +33876,18 @@ html.pb-premium .cp{--cp-card:linear-gradient(180deg,#191D27,#11141B);--cp-top:r
 </style>
 <style id="pb-c-look">
 /* TAMPILAN "SKALA" (opsi C dari preview, permintaan user 10 Okt 2026): step video 2..akhir tanpa kotak/panel. Step 1 (#v1 Mode Referensi Foto) TIDAK disentuh. Semua id & onclick lama tetap; chip usia asli disembunyikan (bukan display:none) dan diketuk lewat titik skala. */
-#video #vcam .wbody .inplabel:has(+ .cp),#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inplabel:has(+ .chips),#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.inplabel{margin:30px 0 14px;padding:0;background:none;border:0;border-radius:0;text-align:center;font:450 13.5px 'Hanken Grotesk',sans-serif;letter-spacing:0;text-transform:none;color:var(--muted)}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inplabel:has(+ .chips)+.chips,#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips:not(.vb-mode-list):not(.hidden){display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:0;background:none;border:0;border-radius:0}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip:not(.context-highlight){flex-direction:row;align-items:baseline;justify-content:center;gap:8px;min-height:0;padding:13px 22px!important;border-radius:999px!important;background:rgba(255,255,255,.025)!important;border:1px solid var(--border-hi)!important;font-weight:450;transition:.3s}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip>span{display:inline;font:400 12.5px 'Hanken Grotesk',system-ui,sans-serif;color:var(--muted);opacity:1!important}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip.sel:not(.context-highlight){border-color:var(--accent)!important;color:var(--accent-2)!important;background:linear-gradient(180deg,rgba(var(--pulse-rgb),.2),rgba(var(--pulse-rgb),.05))!important;box-shadow:0 0 26px -6px rgba(var(--pulse-rgb),.6)}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inp{background:transparent;border:0;border-bottom:1px solid var(--border-hi);border-radius:0;padding:10px 2px;box-shadow:none}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inp:focus{border-bottom-color:var(--accent);box-shadow:none}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap):not(#v4-style-wrap){background:none;border:0;border-radius:0;margin-top:8px}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.inp-wrap{margin:0}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.btn{width:fit-content;margin:16px auto 0;padding:12px 30px;border-radius:999px}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .btn{border-radius:999px}
-#video .wcard:is(#v2,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wback{background:none!important;border:0!important;padding:12px 4px!important;font-size:14.5px}
+#video #vcam .wbody .inplabel:has(+ .cp),#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inplabel:has(+ .chips),#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.inplabel{margin:30px 0 14px;padding:0;background:none;border:0;border-radius:0;text-align:center;font:450 13.5px 'Hanken Grotesk',sans-serif;letter-spacing:0;text-transform:none;color:var(--muted)}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inplabel:has(+ .chips)+.chips,#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips:not(.vb-mode-list):not(.hidden){display:flex;flex-wrap:wrap;justify-content:center;gap:10px;padding:0;background:none;border:0;border-radius:0}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip:not(.context-highlight){flex-direction:row;align-items:baseline;justify-content:center;gap:8px;min-height:0;padding:13px 22px!important;border-radius:999px!important;background:rgba(255,255,255,.025)!important;border:1px solid var(--border-hi)!important;font-weight:450;transition:.3s}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip>span{display:inline;font:400 12.5px 'Hanken Grotesk',system-ui,sans-serif;color:var(--muted);opacity:1!important}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .chips .chip.sel:not(.context-highlight){border-color:var(--accent)!important;color:var(--accent-2)!important;background:linear-gradient(180deg,rgba(var(--pulse-rgb),.2),rgba(var(--pulse-rgb),.05))!important;box-shadow:0 0 26px -6px rgba(var(--pulse-rgb),.6)}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inp{background:transparent;border:0;border-bottom:1px solid var(--border-hi);border-radius:0;padding:10px 2px;box-shadow:none}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .inp:focus{border-bottom-color:var(--accent);box-shadow:none}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap):not(#v4-style-wrap){background:none;border:0;border-radius:0;margin-top:8px}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.inp-wrap{margin:0}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .mt12:has(>.inp-wrap)>.btn{width:fit-content;margin:16px auto 0;padding:12px 30px;border-radius:999px}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wbody .btn{border-radius:999px}
+#video .wcard:is(#v2,#vdur,#vfork,#v3,#vmotion,#v4,#vcam,#v5) .wback{background:none!important;border:0!important;padding:12px 4px!important;font-size:14.5px}
 #video .pb-tour-back{border-radius:999px}
 #video #v2 #v2-custom{text-align:center;font:400 30px 'Newsreader',Georgia,serif}
 #video #v2 .inp-counter{text-align:center}
