@@ -30657,7 +30657,7 @@ function pbHideOverlay(endingTour){
 // ── LANGKAH 1 — modal, sambutan ──────────────────────────────────
 function pbGoStep1(){
   pbSaveTourStepState('pbGoStep1');
-  pbShowModal(1,'Salam kenal, kakak! 👋','Kali ini aku bakalan menemani kakak dari 0 sampai kakak bisa membuat video AI pertama kakak.','Lanjut',pbGoStep2);
+  pbShowModal(1,'Salam kenal','Aku akan pandu kamu membuat video AI dari 0, TANPA BASA-BASI.','Lanjut',pbGoStep2);
 }
 // ── LANGKAH 2 — modal, siapkan foto ──────────────────────────────
 function pbGoStep2(){
@@ -32306,10 +32306,41 @@ function pbAutoStartTourOnLoad(){
     pbTourReleaseCurtain(); // akun ini sudah selesai/lewati tur → mode normal
     return;
   }
+  // PILIHAN MODE (Profesional / Pemula) — hanya untuk user baru (tur akun ini
+  // belum selesai). Kalau app di-refresh di TENGAH tur (pb_tour_in_progress
+  // = '1'), pilihan tidak ditanya lagi: tur langsung mulai dari Langkah 1.
+  var _sedangTur=false;
+  try{ _sedangTur = localStorage.getItem(PB_TOUR_INPROGRESS_KEY)==='1'; }catch(e){}
+  if(!_sedangTur){
+    pbModeShowChooser();
+    return;
+  }
   pbStartTour(false);
   // Backdrop tur sudah menutup layar penuh; lepas tirai setelahnya (dijeda
   // sedikit supaya tidak ada kedipan saat backdrop masih fade-in).
   setTimeout(pbTourReleaseCurtain,700);
+}
+// ── LAYAR PILIHAN MODE (user baru) ───────────────────────────────────
+// Profesional → tur ditandai selesai (pbMarkTourDone, ikut sinkron cloud)
+//   lalu masuk tampilan biasa. Jadi akun ini tidak ditanya lagi, di
+//   perangkat mana pun.
+// Pemula → tur dimulai dari Langkah 1 seperti biasa.
+function pbModeShowChooser(){
+  var el=document.getElementById('pb-mode-chooser');
+  if(!el) return;
+  el.classList.add('show');
+  pbTourReleaseCurtain(); // chooser (z-index lebih tinggi) sudah menutup layar
+}
+function pbModePick(mode){
+  var el=document.getElementById('pb-mode-chooser');
+  if(mode==='pro'){
+    pbMarkTourDone();
+    if(el) el.classList.remove('show');
+    return;
+  }
+  // pemula: tur dulu dimulai (backdrop tur menutup layar), baru chooser dilepas
+  pbStartTour(false);
+  setTimeout(function(){ if(el) el.classList.remove('show'); },350);
 }
 // Tunggu data cloud akun yang login turun dulu (status "tur selesai" ikut
 // disinkron lewat pb_tour_done), baru putuskan mulai tur atau tidak. Batas
@@ -35936,6 +35967,30 @@ html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
   });
 })();
 </script>
+<style>
+#pb-mode-chooser{position:fixed;inset:0;z-index:10050;display:none;background:var(--bg,#08080A);color:var(--text,#F2F0EC);overflow-y:auto;-webkit-overflow-scrolling:touch}
+#pb-mode-chooser.show{display:flex;animation:pbModeIn .45s ease both}
+@keyframes pbModeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#pb-mode-chooser .pbm-wrap{display:flex;flex-direction:column;justify-content:center;gap:14px;width:100%;max-width:440px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 24px) 24px calc(env(safe-area-inset-bottom,0px) + 24px);min-height:100%}
+#pb-mode-chooser .pbm-q{font:400 36px/1.1 'Newsreader',Georgia,serif;letter-spacing:-.015em;margin:0}
+#pb-mode-chooser .pbm-sub{color:#8B8892;font-size:15px;line-height:1.6;margin:2px 0 14px}
+#pb-mode-chooser .pbm-card{display:flex;align-items:center;gap:16px;text-align:left;width:100%;padding:20px 18px;border-radius:18px;background:linear-gradient(180deg,#141418,#101013);border:1px solid rgba(255,255,255,.14);color:inherit;font:inherit;cursor:pointer;transition:transform .15s,border-color .2s;-webkit-tap-highlight-color:transparent}
+#pb-mode-chooser .pbm-card:active{transform:scale(.98)}
+#pb-mode-chooser .pbm-card:hover{border-color:#A98A52}
+#pb-mode-chooser .pbm-card:focus-visible{outline:2px solid #D9B876;outline-offset:3px}
+#pb-mode-chooser .pbm-card.hi{border-color:#A98A52;box-shadow:0 14px 40px rgba(217,184,118,.10),inset 0 1px 0 rgba(255,255,255,.05)}
+#pb-mode-chooser .pbm-ic{flex:none;width:50px;height:50px;border-radius:15px;display:grid;place-items:center;border:1px solid rgba(217,184,118,.35);background:#1E1911}
+#pb-mode-chooser .pbm-card b{display:block;font:500 19px 'Hanken Grotesk',system-ui,sans-serif;margin-bottom:3px}
+#pb-mode-chooser .pbm-d{color:#8B8892;font-size:14px}
+#pb-mode-chooser .pbm-go{margin-left:auto;color:#D9B876}
+@media(prefers-reduced-motion:reduce){#pb-mode-chooser.show{animation:none}}
+</style>
+<div id="pb-mode-chooser" role="dialog" aria-modal="true" aria-labelledby="pbm-title"><div class="pbm-wrap">
+<h1 class="pbm-q" id="pbm-title">Mulai dari mana?</h1>
+<p class="pbm-sub">Pilih yang paling pas dengan kamu.</p>
+<button type="button" class="pbm-card" onclick="pbModePick('pro')"><span class="pbm-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E6CD97" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span><span><b>Profesional</b><span class="pbm-d">Langsung pakai, tanpa panduan</span></span><span class="pbm-go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+<button type="button" class="pbm-card hi" onclick="pbModePick('new')"><span class="pbm-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E6CD97" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M12 21v-9"/><path d="M12 13c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z"/></svg></span><span><b>Pemula</b><span class="pbm-d">Belajar dari 0</span></span><span class="pbm-go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+</div></div>
 </body>
 </html>
 <!-- PENGINGAT (baris paling akhir): setelah mengedit file ini, naikkan versi di DUA tempat dengan angka SAMA — baris "vX.Y · by Kamalul Razi" dan elemen id="splash-version". -->
