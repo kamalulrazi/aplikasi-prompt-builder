@@ -3399,6 +3399,28 @@ body.pb-tour-single-produk #vb-mode-manual{opacity:0.35;pointer-events:none;filt
 .pb-tour-desc [style*="font-size"]{font-size:13.5px!important;}
 .pb-tour-desc button{min-height:46px;font-size:14.5px!important;}
 .pb-tour-desc img{width:88%;max-width:88%;border-radius:var(--radius-sm);border:1px solid var(--border-hi);display:block;margin:8px auto 14px;}
+/* Player video panduan Langkah 3 tur (foto produk): putar/jeda + mundur/maju 5 detik */
+.pb-vid-wrap{display:flex;flex-direction:column;align-items:center;margin:0 0 14px;}
+.pb-vid-frame{position:relative;height:min(44vh,400px);aspect-ratio:9/16;max-width:100%;border-radius:var(--radius-sm);border:1px solid var(--border-hi);background:#000;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pb-vid-frame video{width:100%;height:100%;object-fit:contain;display:block;}
+.pb-vid-big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;transition:opacity .2s ease;}
+.pb-vid-big span{width:56px;height:56px;border-radius:50%;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;color:#fff;}
+.pb-vid-big svg{width:26px;height:26px;margin-left:3px;}
+.pb-vid-wrap.playing .pb-vid-big{opacity:0;}
+.pb-vid-seekrow{display:flex;align-items:center;gap:10px;width:100%;max-width:300px;margin-top:12px;}
+.pb-vid-seekrow input[type=range]{flex:1;min-width:0;height:24px;margin:0;accent-color:var(--accent);cursor:pointer;background:transparent;}
+.pb-vid-time{font-size:12px;color:var(--pb-tour-text);font-variant-numeric:tabular-nums;white-space:nowrap;opacity:.85;}
+.pb-vid-ctrls{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:6px;}
+.pb-tour-desc .pb-vid-btn{width:46px;min-height:46px;height:46px;padding:0;border-radius:50%;background:var(--surface2);color:var(--accent);border:1px solid var(--border-hi);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pb-tour-desc .pb-vid-btn.pb-vid-main{width:54px;height:54px;min-height:54px;background:var(--surface3);}
+.pb-vid-btn:active{transform:scale(.94);}
+.pb-vid-btn svg{width:26px;height:26px;display:block;}
+.pb-vid-main svg{width:24px;height:24px;}
+#vb-videoguide-card{max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+#vb-videoguide-card .pb-vid-frame{height:min(38vh,360px);}
+.pb-vid-wrap .pb-vid-ic-pause{display:none;}
+.pb-vid-wrap.playing .pb-vid-ic-pause{display:block;}
+.pb-vid-wrap.playing .pb-vid-ic-play{display:none;}
 .pb-tour-desc ol{margin:0;padding-left:22px;}
 /* ── FRAME SCREENSHOT PANDUAN (permintaan user: screenshot polos+panah
    coretan tangan kesannya "murahan"). Sekarang tiap screenshot dibungkus
@@ -5050,7 +5072,7 @@ body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.62</div>
+  <div class="splash-version" id="splash-version">v14.65</div>
 </div>
 <script>
   (function(){
@@ -7436,7 +7458,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.62 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.65 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -27353,7 +27375,22 @@ function vbShowVideoGuide(){
   let el=document.getElementById('vb-videoguide-overlay');
   if(el) el.classList.add('show');
 }
+// PERMINTAAN USER: seluruh langkah 1-20 panduan Video AI (PB_STEPVIDEOAI_ITEMS,
+// termasuk entri {waitCopy:N}) diganti SATU video panduan (PB_VID_VIDEO_AI).
+// Tombolnya langsung "Selesai" (animasi menyusut ke tab Panduan, lihat
+// vbVideoGuideFinish). Versi lama per-langkah dibiarkan di bawah sebagai
+// referensi (vbRenderVideoGuideLegacy), tidak dipanggil lagi.
 function vbRenderVideoGuide(){
+  let titleEl=document.getElementById('vb-videoguide-title');
+  let bodyEl=document.getElementById('vb-videoguide-body');
+  let btn=document.getElementById('vb-videoguide-btn');
+  let backBtn=document.getElementById('vb-videoguide-back-btn');
+  if(backBtn) backBtn.style.display='none';
+  if(titleEl) titleEl.textContent='Yuk, bikin video AI-nya';
+  if(bodyEl) bodyEl.innerHTML=pbVidPlayerHtml(PB_VID_VIDEO_AI);
+  if(btn){ btn.textContent='Selesai'; btn.onclick=vbVideoGuideFinish; }
+}
+function vbRenderVideoGuideLegacy(){
   let item=PB_STEPVIDEOAI_ITEMS[pbVideoGuideIndex];
   // FITUR BARU (permintaan user): entri {waitCopy:N} bukan kartu teks biasa —
   // begitu ketemu, langsung tutup overlay panduan & pindah ke tampilan kartu
@@ -27424,6 +27461,7 @@ function vbVideoGuideNext(){
   }
 }
 function vbVideoGuideFinish(){
+  if(typeof pbStep2bVidStop==='function') pbStep2bVidStop();
   let el=document.getElementById('vb-videoguide-overlay');
   let card=document.getElementById('vb-videoguide-card');
   let navEl=document.querySelector('.nav');
@@ -27485,6 +27523,7 @@ function vbVideoGuideFinish(){
 // bisa dipanggil BAIK langsung MAUPUN setelah animasi "menyusut" di atas
 // selesai) — isinya sama persis seperti vbVideoGuideFinish() versi lama.
 function _vbVideoGuideFinishCleanup(){
+  if(typeof pbStep2bVidStop==='function') pbStep2bVidStop();
   let el=document.getElementById('vb-videoguide-overlay');
   if(el) el.classList.remove('show');
   // Ini titik akhir SEBENARNYA seluruh tur (tahap terakhir "Video AI") —
@@ -29820,6 +29859,15 @@ document.addEventListener('DOMContentLoaded',function(){
 const PB_IMG_FLOW_PRODUK='media/flow-produk.jpg';
 const PB_IMG_FLOW_FOTOAI='media/flow-fotoai.jpg';
 const PB_IMG_FLOW_VIDEOAI='media/flow-videoai.mp4';
+// Video panduan Langkah 3 tur (cara cari & screenshot foto produk di TikTok).
+// File-nya ada di folder media/ — tanpa suara, 1080x1920, ±17 detik.
+const PB_VID_CARI_FOTO='media/cari-foto-produk-tiktok.mp4';
+// Video panduan step "Foto AI" (cara bikin foto AI di Google Flow) — menggantikan
+// butir 1-10 (PB_STEP6EXT_ITEMS). 1080x1920, tanpa suara, ±69 detik.
+const PB_VID_FOTO_AI='media/foto-ai-google-flow.mp4';
+// Video panduan tahap terakhir "Video AI" (upload Foto AI, atur Video, bikin 3 video
+// Hook/Cerita Produk/CTA) — menggantikan seluruh PB_STEPVIDEOAI_ITEMS. 1080x1920, tanpa suara, ±100 detik.
+const PB_VID_VIDEO_AI='media/video-ai-google-flow.mp4';
 // Media pratinjau Start Frame di Mode Referensi Foto (Builder Prompt Video):
 // video 288x288 (ada suara, tampil mute di thumbnail; suara dinyalakan lewat lightbox) + foto 288x288, hasil crop persegi dari file asli.
 // Pakai window.* (bukan const) supaya aman diakses dari script lain yang
@@ -30254,6 +30302,7 @@ function pbTourProgressHide(){
   document.documentElement.style.setProperty('--pb-tour-bar-h','0px');
 }
 function pbSetText(title,desc){
+  if(typeof pbStep2bVidStop==='function') pbStep2bVidStop(); // video Langkah 3 jangan nyangkut jalan saat kartu ganti isi
   document.getElementById('pb-tour-title').textContent=title;
   // innerHTML (bukan textContent) supaya desc bisa berisi link <a> yang
   // beneran bisa diklik (dipakai langkah 9 — link Google Flow). Semua
@@ -30478,6 +30527,7 @@ function pbEndTour(){
 // termasuk "hilang total" di langkah 6→7) TANPA menandai tur sudah
 // selesai — dipisah dari pbEndTour() supaya bisa dipanggil ulang.
 function pbHideOverlay(endingTour){
+  if(typeof pbStep2bVidStop==='function') pbStep2bVidStop();
   pbTourHideBack();
   pbDisarmDoneWait();
   pbWaitingCopyClick=false;
@@ -30594,6 +30644,7 @@ function pbHideOverlay(endingTour){
   if(typeof pbTourWaitingVideoGuideEnd!=='undefined') pbTourWaitingVideoGuideEnd=false;
   let srEl=document.getElementById('vb-scriptready-overlay');
   if(srEl) srEl.classList.remove('show');
+  if(typeof pbStep2bVidStop==='function') pbStep2bVidStop();
   let vgEl=document.getElementById('vb-videoguide-overlay');
   if(vgEl) vgEl.classList.remove('show');
   window.removeEventListener('resize',pbRepositionCurrent);
@@ -30903,8 +30954,10 @@ function pbStep7VideoDone(){
 // ── LANGKAH 3 (BARU) — siapkan foto produk ───────────────────────
 // Fase 1: thumbnail "Foto Produk" di kartu Langkah 2 sedikit membesar
 // sesaat (efek "muncul dari situ"), lalu kartu tur berpindah ke Langkah 3
-// yang menaruh foto produk yang sama di paling atas (ukuran kecil) diikuti
-// instruksi screenshot produk dari toko TikTok, lalu tombol "Udah?".
+// yang berisi VIDEO panduan cara cari & screenshot produk di toko TikTok
+// (PB_VID_CARI_FOTO) — bisa diputar/dijeda, mundur 5 dtk, maju 5 dtk, dan
+// digeser lewat bar durasi. Di bawah video ada tulisan "Foto produk sudah
+// siap?" lalu tombol "Udah".
 // Fase 2 (pbGoStep2bCamera): tampilan fase 1 diganti total jadi cuma
 // icon kamera untuk upload. Begitu foto dipilih, foto itu dipakai beneran
 // (dibaca jadi data URL) buat mengganti thumbnail Foto Produk di Langkah 2,
@@ -30921,25 +30974,97 @@ function pbGoStep2b(){
     pbRenderStep2b();
   },thumb?260:0);
 }
+// HTML player video panduan tur (putar/jeda, mundur/maju 5 dtk, bar durasi) —
+// dipakai Langkah 3 (foto produk) dan step Foto AI. Hanya 1 player tampil
+// sekaligus, jadi id elemennya sama.
+function pbVidPlayerHtml(src){
+  let icBack='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4 3.8v4.2h4.2"/><text x="12" y="15.4" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" font-family="Hanken Grotesk,sans-serif">5</text></svg>';
+  let icFwd='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.4-5.5"/><path d="M20 3.8v4.2h-4.2"/><text x="12" y="15.4" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" font-family="Hanken Grotesk,sans-serif">5</text></svg>';
+  let icPlay='<svg class="pb-vid-ic-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>';
+  let icPause='<svg class="pb-vid-ic-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>';
+  return '<div class="pb-vid-wrap" id="pb-step2b-wrap">'
+    +   '<div class="pb-vid-frame" onclick="pbStep2bVidToggle()">'
+    +     '<video id="pb-step2b-video" src="'+src+'#t=0.1" preload="metadata" playsinline disablepictureinpicture'
+    +       ' onloadedmetadata="pbStep2bVidSync()" ontimeupdate="pbStep2bVidSync()" onplay="pbStep2bVidSync()" onpause="pbStep2bVidSync()" onended="pbStep2bVidSync()" onseeked="pbStep2bVidSync()"></video>'
+    +     '<div class="pb-vid-big"><span>'+icPlay+'</span></div>'
+    +   '</div>'
+    +   '<div class="pb-vid-seekrow">'
+    +     '<input type="range" id="pb-step2b-seek" min="0" max="1000" value="0" step="1" aria-label="Posisi video"'
+    +       ' oninput="pbStep2bVidSeek(this.value)" onpointerdown="pbVidSeeking=true" onpointerup="pbVidSeeking=false" onpointercancel="pbVidSeeking=false" onchange="pbVidSeeking=false">'
+    +     '<span class="pb-vid-time" id="pb-step2b-time">0:00 / 0:00</span>'
+    +   '</div>'
+    +   '<div class="pb-vid-ctrls">'
+    +     '<button type="button" class="pb-vid-btn" onclick="pbStep2bVidSkip(-5)" aria-label="Mundur 5 detik">'+icBack+'</button>'
+    +     '<button type="button" class="pb-vid-btn pb-vid-main" onclick="pbStep2bVidToggle()" aria-label="Putar atau jeda">'+icPlay+icPause+'</button>'
+    +     '<button type="button" class="pb-vid-btn" onclick="pbStep2bVidSkip(5)" aria-label="Maju 5 detik">'+icFwd+'</button>'
+    +   '</div>'
+    + '</div>';
+}
 function pbRenderStep2b(){
-  let desc = '<div style="display:flex;justify-content:center;margin:0 0 14px;">'
-    + '<img src="'+PB_IMG_FLOW_PRODUK+'" alt="Foto produk" style="width:72px;height:72px;object-fit:cover;border-radius:var(--radius-2xs);border:1px solid var(--border-hi);">'
-    + '</div>'
-    + '<p style="margin-top:0;text-align:center;">Sekarang kakak siapkan foto produk.<br>Caranya cukup masuk ke toko di TikTok terus screenshot produknya.</p>'
-    + '<div style="display:flex;justify-content:center;margin-top:16px;">'
-    // v6.82: gaya tombol "Udah?" disamakan dengan .btn
-    + '<button type="button" onclick="pbGoStep2bCamera()" style="background:var(--surface3);color:var(--accent-text-on-dark);font-weight:500;font-size:var(--fs-sm);font-family:Hanken Grotesk,sans-serif;letter-spacing:-0.2px;text-shadow:0 1px 1.5px rgba(0,0,0,0.5),0 -1px 0 rgba(255,255,255,0.05);border:1px solid transparent;box-shadow:0 0 22px rgba(var(--pulse-rgb),0.16);border-radius:var(--radius);padding:11px 30px;cursor:pointer;">Udah?</button>'
+  let desc = pbVidPlayerHtml(PB_VID_CARI_FOTO)
+    + '<p style="margin:0;text-align:center;font-weight:500;color:var(--text);">Foto produk sudah siap?</p>'
+    + '<div style="display:flex;justify-content:center;margin-top:12px;">'
+    // v6.82: gaya tombol "Udah" disamakan dengan .btn
+    + '<button type="button" onclick="pbGoStep2bCamera()" style="background:var(--surface3);color:var(--accent-text-on-dark);font-weight:500;font-size:var(--fs-sm);font-family:Hanken Grotesk,sans-serif;letter-spacing:-0.2px;text-shadow:0 1px 1.5px rgba(0,0,0,0.5),0 -1px 0 rgba(255,255,255,0.05);border:1px solid transparent;box-shadow:0 0 22px rgba(var(--pulse-rgb),0.16);border-radius:var(--radius);padding:11px 30px;cursor:pointer;">Udah</button>'
     + '</div>';
   pbShowModal(3,'Siapkan foto produk',desc,'Lanjut',pbGoStep2Next);
   // Tombol "Lanjut" tur disembunyikan — di langkah ini user lanjut lewat
-  // tombol "Udah?" sendiri, bukan tombol bawaan tur.
+  // tombol "Udah" sendiri, bukan tombol bawaan tur.
   let nextBtn=document.getElementById('pb-tour-next-btn');
   if(nextBtn) nextBtn.style.display='none';
+}
+// ── Player video Langkah 3 (foto produk) ─────────────────────────
+var pbVidSeeking=false;
+function pbStep2bVid(){ return document.getElementById('pb-step2b-video'); }
+function pbStep2bVidFmt(sec){
+  sec=Math.max(0,Math.floor(sec||0));
+  return Math.floor(sec/60)+':'+('0'+(sec%60)).slice(-2);
+}
+// Hentikan video kalau kartu tur pindah/ditutup (elemen yang sudah dilepas
+// dari halaman kadang tetap jalan di sebagian browser).
+function pbStep2bVidStop(){
+  let v=pbStep2bVid();
+  if(v){ try{ v.pause(); }catch(e){} }
+}
+function pbStep2bVidToggle(){
+  let v=pbStep2bVid(); if(!v) return;
+  if(v.paused||v.ended){
+    if(v.ended){ try{ v.currentTime=0; }catch(e){} }
+    let pr=v.play();
+    if(pr&&pr.catch) pr.catch(function(){});
+  } else { v.pause(); }
+}
+// Mundur (-5) / maju (+5) detik, dibatasi 0 s/d durasi video.
+function pbStep2bVidSkip(delta){
+  let v=pbStep2bVid(); if(!v) return;
+  let dur=v.duration||0;
+  let t=(v.currentTime||0)+delta;
+  if(t<0) t=0;
+  if(dur && t>dur) t=dur;
+  try{ v.currentTime=t; }catch(e){}
+  pbStep2bVidSync();
+}
+function pbStep2bVidSeek(val){
+  let v=pbStep2bVid(); if(!v||!v.duration) return;
+  try{ v.currentTime=(parseFloat(val)||0)/1000*v.duration; }catch(e){}
+  let tEl=document.getElementById('pb-step2b-time');
+  if(tEl) tEl.textContent=pbStep2bVidFmt(v.currentTime)+' / '+pbStep2bVidFmt(v.duration);
+}
+function pbStep2bVidSync(){
+  let v=pbStep2bVid(); if(!v) return;
+  let wrap=document.getElementById('pb-step2b-wrap');
+  if(wrap) wrap.classList.toggle('playing',!v.paused&&!v.ended);
+  let dur=v.duration||0;
+  let seek=document.getElementById('pb-step2b-seek');
+  if(seek && dur && !pbVidSeeking) seek.value=String(Math.round((v.currentTime/dur)*1000));
+  let tEl=document.getElementById('pb-step2b-time');
+  if(tEl) tEl.textContent=pbStep2bVidFmt(v.currentTime)+' / '+pbStep2bVidFmt(dur);
 }
 // Fase 2 Langkah 3 — ganti isi kartu total jadi cuma icon kamera (tampilan
 // foto+teks+tombol "Udah?" fase 1 dilepas semua, sesuai permintaan).
 function pbGoStep2bCamera(){
   pbSaveTourStepState('pbGoStep2bCamera');
+  pbStep2bVidStop();
   let desc = '<input type="file" accept="image/*" id="pb-step2b-photo-input" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;" onchange="pbStep2bPhotoPicked(this)">'
     + '<div style="display:flex;justify-content:center;margin:18px 0 4px;">'
     + '<div onclick="document.getElementById(\'pb-step2b-photo-input\').click()" style="width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1px solid var(--border-hi);display:flex;align-items:center;justify-content:center;cursor:pointer;">'
@@ -31215,20 +31340,11 @@ function pbGoStep6Ext(){
 // kartu tur, bukan numpuk ke bawah kayak Langkah 3. Tombol "Kembali"
 // cuma muncul kalau bukan butir pertama.
 function pbRenderStep6Ext(){
-  let item=PB_STEP6EXT_ITEMS[pbStep6ExtIndex];
-  let isLast=(pbStep6ExtIndex===PB_STEP6EXT_ITEMS.length-1);
-  let n=pbStep6ExtIndex+1;
-  let desc=item.body
-    + pbFrameShot(item.img,item.alt)
-    + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.65;">'+item.note+'</p>'):'');
-  pbShowModal(6,n+'. '+item.title,desc,isLast?'Selesai':'Lanjut',isLast?pbStep6ExtFinish:pbStep6ExtNext);
-  // PERMINTAAN USER: tombol "Kembali ke langkah sebelumnya" yang dulu
-  // tombol lebar penuh di dalam isi kartu, sekarang jadi tombol footer
-  // di SAMPING "Lanjut" dan tulisannya cukup "Kembali" saja — pola yang
-  // sama persis dengan Langkah 3 (lihat pbRenderStep3).
-  if(pbStep6ExtIndex>0) pbTourShowBack(pbStep6ExtBack);
-  // Butir baru selalu mulai dibaca dari atas, jangan nyangkut di posisi
-  // scroll butir sebelumnya.
+  // PERMINTAAN USER: butir 1-10 (PB_STEP6EXT_ITEMS, foto+teks per langkah)
+  // diganti SATU video panduan (PB_VID_FOTO_AI). Array butir lama sengaja
+  // dibiarkan sebagai referensi, tapi tidak dipakai lagi. "Lanjut" langsung
+  // ke layar upload Foto AI (pbGoStep6ExtUpload).
+  pbShowModal(6,'Yuk, bikin foto AI-nya',pbVidPlayerHtml(PB_VID_FOTO_AI),'Lanjut',pbStep6ExtFinish);
   let tourCard=document.getElementById('pb-tour-card');
   if(tourCard) tourCard.scrollTop=0;
 }
