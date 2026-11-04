@@ -29627,6 +29627,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var o=docum
       <img id="pb-flow-lightbox-img" src="" alt="">
       <video id="pb-flow-lightbox-video" muted loop playsinline></video>
       <button type="button" id="pb-flow-lightbox-mute" class="pb-flow-lightbox-mute" onclick="pbFlowLightboxToggleMute(event)">🔇</button>
+      <button type="button" id="pb-flow-lightbox-zoom" class="pb-vz-btn" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
     </div>
     <div class="pb-flow-lightbox-label" id="pb-flow-lightbox-label"></div>
     <div class="pb-flow-lightbox-explain" id="pb-flow-lightbox-explain"></div>
@@ -30662,12 +30663,10 @@ function pbGoStep1(){
 // ── LANGKAH 2 — modal, siapkan foto ──────────────────────────────
 function pbGoStep2(){
   pbSaveTourStepState('pbGoStep2');
-  let desc = '<p style="margin-top:0;">Aku akan ringkas dulu apa yang akan kita kerjakan ke depannya.</p>'
-    + '<p>Ini lho yang bakal kakak punya nanti — <strong>video AI</strong> yang berkualitas:</p>'
-    + '<div class="pb-flow-wrap">'
+  let desc = '<div class="pb-flow-wrap">'
     +   '<div class="pb-flow-row">'
     +     '<div class="pb-flow-box pb-flow-hero">'
-    +       '<div class="pb-flow-thumb" data-label="Video AI" data-explain="Untuk menghasilkan video AI dibutuhkan 1 bahan" data-sub1-src="'+PB_IMG_FLOW_FOTOAI+'" data-sub1-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><video src="'+PB_IMG_FLOW_VIDEOAI+'" muted autoplay loop playsinline></video></div>'
+    +       '<div class="pb-flow-thumb" data-label="Video AI" data-explain="Untuk menghasilkan video AI dibutuhkan 1 bahan" data-sub1-src="'+PB_IMG_FLOW_FOTOAI+'" data-sub1-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><video src="'+PB_IMG_FLOW_VIDEOAI+'" muted autoplay loop playsinline></video><button type="button" class="pb-vz-btn pb-vz-sm" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button></div>'
     +       '<div class="pb-flow-label">🎬 Video AI</div>'
     +       '<div class="pb-flow-sub pb-flow-sub-ai">hasil akhirnya</div>'
     +     '</div>'
@@ -30680,7 +30679,6 @@ function pbGoStep2(){
     +         (pbFotoAiUploaded?'<div style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--surface2);"><svg class="icon" style="width:12px;height:12px;color:#08080A;"><use href="#ic-check"></use></svg></div>':'')
     +       '</div>'
     +       '<div class="pb-flow-label">Foto AI</div>'
-    +       '<div class="pb-flow-sub'+(pbFotoAiUploaded?' pb-flow-sub-ai':'')+'">'+(pbFotoAiUploaded?'sudah dibuat':'akan kita buat bersama')+'</div>'
     +     '</div>'
     +   '</div>'
     +   '<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh 2 bahan</span></div>'
@@ -30691,7 +30689,6 @@ function pbGoStep2(){
     +         (pbKsFotoUploaded?'<div style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--surface2);"><svg class="icon" style="width:12px;height:12px;color:#08080A;"><use href="#ic-check"></use></svg></div>':'')
     +       '</div>'
     +       '<div class="pb-flow-label">Foto Karakter Sheet</div>'
-    +       '<div class="pb-flow-sub'+(pbKsFotoUploaded?' pb-flow-sub-ai':'')+'">'+(pbKsFotoUploaded?'sudah dibuat':'kita akan buat sama-sama')+'</div>'
     +     '</div>'
     +     '<div class="pb-flow-box">'
     +       '<div style="position:relative;display:inline-block;">'
@@ -30699,7 +30696,6 @@ function pbGoStep2(){
     +         (pbProdukFotoUploaded?'<div style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--surface2);"><svg class="icon" style="width:12px;height:12px;color:#08080A;"><use href="#ic-check"></use></svg></div>':'')
     +       '</div>'
     +       '<div class="pb-flow-label">Foto Produk</div>'
-    +       '<div class="pb-flow-sub'+(pbProdukFotoUploaded?' pb-flow-sub-ai':'')+'">'+(pbProdukFotoUploaded?'sudah disiapkan':'cukup foto produk aja yang perlu kakak siapkan')+'</div>'
     +     '</div>'
     +   '</div>'
     + '</div>'
@@ -30710,7 +30706,7 @@ function pbGoStep2(){
   // Sekarang SELALU 'Lanjut' — begitu Foto AI sudah lengkap, tur tidak
   // berhenti di sini, tapi lanjut ke langkah baru "bikin prompt video"
   // (lihat pbGoStep7VideoIntro).
-  pbShowModal(2,'Ringkasan alurnya dulu, ya',desc,'Lanjut',pbGoStep2Next);
+  pbShowModal(2,'Alur pembuatan',desc,'Lanjut',pbGoStep2Next);
   // PERMINTAAN USER: tiap kali user BALIK ke kartu "Ringkasan alurnya
   // dulu, ya" (sesudah upload foto), tampilan pertamanya jangan mentok
   // di atas — geser sedikit ke bawah supaya foto yang barusan ter-upload
@@ -30990,6 +30986,7 @@ function pbVidPlayerHtml(src){
     +     '<video id="pb-step2b-video" src="'+src+'#t=0.1" preload="metadata" playsinline disablepictureinpicture'
     +       ' onloadedmetadata="pbStep2bVidSync()" ontimeupdate="pbStep2bVidSync()" onplay="pbStep2bVidSync()" onpause="pbStep2bVidSync()" onended="pbStep2bVidSync()" onseeked="pbStep2bVidSync()"></video>'
     +     '<div class="pb-vid-big"><span>'+icPlay+'</span></div>'
+    +     '<button type="button" class="pb-vz-btn" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>'
     +   '</div>'
     +   '<div class="pb-vid-seekrow">'
     +     '<input type="range" id="pb-step2b-seek" min="0" max="1000" value="0" step="1" aria-label="Posisi video"'
@@ -31672,6 +31669,7 @@ function pbFlowLightboxOpen(el){
     imgEl.style.display='none';
     muteBtn.style.display='flex';
     muteBtn.textContent='🔇';
+    let zb=document.getElementById('pb-flow-lightbox-zoom'); if(zb) zb.style.display='flex';
   }else if(srcImg){
     imgEl.src=srcImg.getAttribute('src');
     imgEl.style.display='block';
@@ -31679,6 +31677,7 @@ function pbFlowLightboxOpen(el){
     vidEl.removeAttribute('src');
     vidEl.style.display='none';
     muteBtn.style.display='none';
+    let zb2=document.getElementById('pb-flow-lightbox-zoom'); if(zb2) zb2.style.display='none';
   }else{
     return;
   }
@@ -31700,7 +31699,7 @@ function pbFlowLightboxOpen(el){
       subsHtml+='<div class="pb-flow-lightbox-subcol">'
         +'<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span></div>'
         +(el.getAttribute('data-sub'+i+'-video')
-          ? '<video class="pb-flow-lightbox-subimg" src="'+el.getAttribute('data-sub'+i+'-video')+'" poster="'+src+'" muted loop autoplay playsinline></video>'
+          ? '<span class="pb-vz-host"><video class="pb-flow-lightbox-subimg" src="'+el.getAttribute('data-sub'+i+'-video')+'" poster="'+src+'" muted loop autoplay playsinline></video><button type="button" class="pb-vz-btn pb-vz-sm" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button></span>'
           : '<img class="pb-flow-lightbox-subimg" src="'+src+'" alt="'+(label||'')+'">')
         +'<div class="pb-flow-lightbox-sublabel">'+(label||'')+'</div>'
         +'</div>';
@@ -35991,6 +35990,58 @@ html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
 <button type="button" class="pbm-card" onclick="pbModePick('pro')"><span class="pbm-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E6CD97" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></span><span><b>Profesional</b><span class="pbm-d">Langsung pakai, tanpa panduan</span></span><span class="pbm-go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
 <button type="button" class="pbm-card hi" onclick="pbModePick('new')"><span class="pbm-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E6CD97" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M12 21v-9"/><path d="M12 13c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z"/></svg></span><span><b>Pemula</b><span class="pbm-d">Belajar dari 0</span></span><span class="pbm-go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
 </div></div>
+<style>
+/* PERBESAR VIDEO TUR — ikon di pojok kiri bawah tiap video tur membuka jendela
+   pemutar yang lebih besar (bukan layar penuh): tinggi maks 80% layar. */
+.pb-vz-btn{position:absolute;left:8px;bottom:8px;z-index:3;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(4,4,6,.68);border:1px solid rgba(255,255,255,.22);color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.pb-vz-btn svg{width:16px;height:16px}
+.pb-vz-btn.pb-vz-sm{width:22px;height:22px;left:4px;bottom:4px}
+.pb-vz-btn.pb-vz-sm svg{width:12px;height:12px}
+.pb-vz-btn:focus-visible{outline:2px solid var(--accent,#D9B876);outline-offset:2px}
+.pb-flow-thumb{position:relative}
+.pb-vz-host{position:relative;display:inline-block;line-height:0}
+#pb-vz{position:fixed;inset:0;z-index:10100;display:none;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 20px) 20px calc(env(safe-area-inset-bottom,0px) + 20px);background:rgba(4,4,6,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#pb-vz.show{display:flex;animation:pbVzIn .22s ease both}
+@keyframes pbVzIn{from{opacity:0}to{opacity:1}}
+#pb-vz .pb-vz-box{position:relative;display:flex;max-width:min(92vw,460px);max-height:80vh;border-radius:16px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 70px rgba(0,0,0,.6)}
+#pb-vz video{display:block;max-width:100%;max-height:80vh;width:auto;height:auto;background:#000}
+#pb-vz .pb-vz-close{position:absolute;top:8px;right:8px;z-index:2;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(4,4,6,.7);border:1px solid rgba(255,255,255,.22);color:#fff;font-size:18px;line-height:1;cursor:pointer}
+@media(prefers-reduced-motion:reduce){#pb-vz.show{animation:none}}
+</style>
+<div id="pb-vz" role="dialog" aria-modal="true" aria-label="Video diperbesar" onclick="if(event.target===this)pbVzClose()"><div class="pb-vz-box"><video id="pb-vz-video" controls playsinline controlslist="nodownload noremoteplayback"></video><button type="button" class="pb-vz-close" aria-label="Tutup" onclick="pbVzClose()">&#10005;</button></div></div>
+<script>
+// Buka video tur dalam jendela lebih besar. Video asal dijeda; posisi putar
+// ikut dipindah ke jendela dan dikembalikan saat ditutup.
+var pbVzSrcVideo=null, pbVzWasPlaying=false;
+function pbVzOpen(btn){
+  try{
+    var host=btn.parentElement, v=host&&host.querySelector('video');
+    if(!v) return;
+    var box=document.getElementById('pb-vz'), z=document.getElementById('pb-vz-video');
+    pbVzSrcVideo=v; pbVzWasPlaying=!v.paused&&!v.ended;
+    var t=v.currentTime||0, src=v.getAttribute('src')||v.currentSrc||'';
+    try{ v.pause(); }catch(e){}
+    z.muted=false; z.loop=!!v.loop;
+    z.src=src.split('#')[0];
+    z.onloadedmetadata=function(){ try{ if(t) z.currentTime=t; }catch(e){} var p=z.play(); if(p&&p.catch)p.catch(function(){}); };
+    z.load();
+    box.classList.add('show');
+  }catch(e){}
+}
+function pbVzClose(){
+  var box=document.getElementById('pb-vz'), z=document.getElementById('pb-vz-video');
+  if(!box||!box.classList.contains('show')) return;
+  var t=0; try{ t=z.currentTime||0; z.pause(); }catch(e){}
+  z.removeAttribute('src'); try{ z.load(); }catch(e){}
+  box.classList.remove('show');
+  var v=pbVzSrcVideo; pbVzSrcVideo=null;
+  if(v&&v.isConnected){
+    try{ if(t&&isFinite(t)) v.currentTime=t; }catch(e){}
+    if(pbVzWasPlaying){ var p=v.play(); if(p&&p.catch)p.catch(function(){}); }
+  }
+}
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') pbVzClose(); });
+</script>
 </body>
 </html>
 <!-- PENGINGAT (baris paling akhir): setelah mengedit file ini, naikkan versi di DUA tempat dengan angka SAMA — baris "vX.Y · by Kamalul Razi" dan elemen id="splash-version". -->
