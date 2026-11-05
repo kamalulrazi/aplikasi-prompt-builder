@@ -3422,6 +3422,17 @@ html.pb-tour-curtain body::before{
    panduan aktif — dari pbStartTour() sampai pbEndTour() — supaya user
    fokus ke tur tanpa godaan pindah tab. */
 .nav.pb-tour-navhide{display:none;}
+/* PERMINTAAN USER: HALAMAN DEPAN TERKUNCI SAAT TUR.
+   Sebelum masuk ke Karakter Sheet / Prompt Foto AI, user dibawa dulu ke halaman depan
+   (daftar tombol fitur, sama seperti di luar tur). Hanya SATU tombol yang bisa ditekan,
+   semua fitur lain (dan nav bawah) dibuat pudar & tidak bisa ditekan.
+   Class body diatur oleh pbTourHomeLockShow() dan dilepas oleh pbTourHomeTap(). */
+body.pb-tour-homelock .nav.pb-tour-navhide{display:flex;pointer-events:none;opacity:.35;filter:grayscale(.6);}
+body.pb-tour-homelock #foto-tools .ft-btn,
+body.pb-tour-homelock #os-entry-btn,
+body.pb-tour-homelock #f-import-toggle-wrap{pointer-events:none!important;opacity:.35!important;filter:grayscale(.6)!important;}
+body.pb-tour-homelock.pb-tour-home-ks #cs-entry-btn,
+body.pb-tour-homelock.pb-tour-home-pfa #pfa-entry-btn{pointer-events:auto!important;opacity:1!important;filter:none!important;}
 /* FITUR BARU (permintaan user): selama tur panduan pemula di wizard Video,
    pengaturan JUMLAH PRODUK disembunyikan total — baik jalur "Kami Bantu
    Isi" (#vb-bulk-count) maupun "Tulis Manual Sendiri" (#vb-manual-count) —
@@ -5132,7 +5143,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.70</div>
+  <div class="splash-version" id="splash-version">v14.71</div>
 </div>
 <script>
   (function(){
@@ -7518,7 +7529,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.70 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.71 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -29894,9 +29905,9 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var o=docum
   <div class="pb-flow-lightbox-box">
     <div class="pb-flow-lightbox-media">
       <img id="pb-flow-lightbox-img" src="" alt="">
-      <video id="pb-flow-lightbox-video" muted loop playsinline></video>
+      <video id="pb-flow-lightbox-video" muted loop playsinline onclick="event.stopPropagation();pbVzOpen(this)" style="cursor:pointer"></video>
       <button type="button" id="pb-flow-lightbox-mute" class="pb-flow-lightbox-mute" onclick="pbFlowLightboxToggleMute(event)">🔇</button>
-      <button type="button" id="pb-flow-lightbox-zoom" class="pb-vz-btn" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+      
     </div>
     <div class="pb-flow-lightbox-label" id="pb-flow-lightbox-label"></div>
     <div class="pb-flow-lightbox-explain" id="pb-flow-lightbox-explain"></div>
@@ -30864,6 +30875,11 @@ function pbHideOverlay(endingTour){
   // pbEndTour(), tur beneran ditutup/skip) — pemanggil lain (mis.
   // pbOpenCharacterSheetFromTour()) memanggil tanpa argumen ini supaya
   // status Langkah 5/6 tidak ikut ke-reset.
+  // Lepas kunci halaman depan tur kalau tur ditutup/di-skip persis saat halaman itu tampil.
+  if(endingTour){
+    pbTourHomeNext=null;
+    document.body.classList.remove('pb-tour-homelock','pb-tour-home-ks','pb-tour-home-pfa');
+  }
   if(endingTour){
     if(typeof pbTourResetF0Ui==='function') pbTourResetF0Ui();
     if(typeof pbTourResetF1Ui==='function') pbTourResetF1Ui();
@@ -30938,7 +30954,7 @@ function pbGoStep2(){
   let desc = '<div class="pb-flow-wrap">'
     +   '<div class="pb-flow-row">'
     +     '<div class="pb-flow-box pb-flow-hero">'
-    +       '<div class="pb-flow-thumb" data-label="Video AI" data-explain="Untuk menghasilkan video AI dibutuhkan 1 bahan" data-sub1-src="'+PB_IMG_FLOW_FOTOAI+'" data-sub1-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><video src="'+PB_IMG_FLOW_VIDEOAI+'" muted autoplay loop playsinline></video><button type="button" class="pb-vz-btn pb-vz-sm" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button></div>'
+    +       '<div class="pb-flow-thumb" data-label="Video AI" data-explain="Untuk menghasilkan video AI dibutuhkan 1 bahan" data-sub1-src="'+PB_IMG_FLOW_FOTOAI+'" data-sub1-label="Foto AI" onclick="pbFlowLightboxOpen(this)"><video src="'+PB_IMG_FLOW_VIDEOAI+'" muted autoplay loop playsinline></video></div>'
     +       '<div class="pb-flow-label">🎬 Video AI</div>'
     +       '<div class="pb-flow-sub pb-flow-sub-ai">hasil akhirnya</div>'
     +     '</div>'
@@ -31062,8 +31078,10 @@ var pbKsFotoDataUrl=null;
 function pbGoStep2Next(){
   pbSaveTourStepState('pbGoStep2Next');
   if(!pbProdukFotoUploaded){ pbGoStep2b(); }
-  else if(!pbKsFotoUploaded){ pbFlowKsThumbTapThenOpen(); }
-  else if(!pbFotoAiUploaded){ pbGoStep5(); }
+  // PERMINTAAN USER: jangan langsung masuk. Bawa user dulu ke halaman depan (daftar fitur),
+  // fitur lain dikunci, user harus menekan sendiri tombol yang menyala.
+  else if(!pbKsFotoUploaded){ pbTourHomeLockShow('ks',pbOpenCharacterSheetFromTour); }
+  else if(!pbFotoAiUploaded){ pbTourHomeLockShow('pfa',pbGoStep5); }
   else { pbGoStep7VideoIntro(); }
 }
 // FITUR BARU (permintaan user): sebelum modal Karakter Sheet kebuka dari
@@ -31074,6 +31092,57 @@ function pbGoStep2Next(){
 // thumbnail-nya entah kenapa tidak ketemu (mis. re-render tertunda),
 // langsung lanjut buka modal tanpa nunggu — supaya tombol "Lanjut" tidak
 // pernah kelihatan "diam"/tidak merespons. ─────────────────────────────
+// ── PERMINTAAN USER: HALAMAN DEPAN TERKUNCI ─────────────────────────────
+// Dipakai di 2 titik tur: sebelum Karakter Sheet ('ks') dan sebelum Prompt Foto AI ('pfa').
+// Halaman depan tampil seperti di luar tur; hanya tombol yang dituju yang bisa ditekan.
+// Begitu ditekan, kunci dilepas lalu fungsi lanjutan (next) dijalankan — yaitu isi langkah
+// yang dulu langsung terbuka. Nama fungsi sengaja TANPA kata "Step"/"Render" supaya tidak
+// ikut dibungkus sistem undo.
+var pbTourHomeNext=null;
+var pbTourHomeHadPfa=false;
+function pbTourHomeLockShow(which,next){
+  pbTourHomeNext=next;
+  var b=document.body;
+  pbTourHomeHadPfa=b.classList.contains('pb-tour-pfa');
+  // Pastikan layar Prompt Foto AI & modal Karakter Sheet tertutup, jadi yang kelihatan halaman depan.
+  try{ if(typeof window.pfaClose==='function') window.pfaClose(); }catch(e){}
+  try{ var m=document.getElementById('cs-modal'); if(m && m.style.display!=='none' && typeof csCloseModal==='function') csCloseModal(); }catch(e){}
+  // Tombol fitur disembunyikan oleh blur-context; harus dilepas supaya halaman depan kelihatan.
+  b.classList.remove('pb-tour-blur-context');
+  b.classList.remove('pb-tour-home-ks','pb-tour-home-pfa');
+  b.classList.add('pb-tour-pfa','pb-tour-homelock','pb-tour-home-'+which);
+  var shell=document.getElementById('app-shell'); if(shell) shell.scrollTop=0;
+  pbTourProgressShow(which==='ks'?0:1);
+  var judul=(which==='ks')?'Buka Karakter Sheet':'Buka Prompt Foto AI';
+  var isi=(which==='ks')
+    ?'Tekan tombol <b>Karakter Sheet</b> yang menyala. Fitur lain dikunci dulu.'
+    :'Tekan tombol <b>Prompt Foto AI</b> yang menyala. Fitur lain dikunci dulu.';
+  pbShowInteractive(0,judul,isi,(which==='ks')?'#cs-entry-btn':'#pfa-entry-btn');
+}
+// Dipanggil saat user menekan tombol yang menyala di halaman depan terkunci.
+function pbTourHomeTap(){
+  var next=pbTourHomeNext; pbTourHomeNext=null;
+  var b=document.body;
+  var wasKs=b.classList.contains('pb-tour-home-ks');
+  b.classList.remove('pb-tour-homelock','pb-tour-home-ks','pb-tour-home-pfa');
+  // Untuk Karakter Sheet, kembalikan class seperti sebelum halaman depan ditampilkan.
+  if(wasKs && !pbTourHomeHadPfa) b.classList.remove('pb-tour-pfa');
+  pbHideOverlay();
+  if(typeof next==='function') next();
+}
+// Tangkap ketukan di fase capture supaya onclick asli tombol (csOpenModal/pfaOpen) tidak jalan
+// sendiri — yang membuka fitur adalah fungsi lanjutan lewat pbTourHomeTap().
+document.addEventListener('click',function(ev){
+  if(!pbTourHomeNext) return;
+  var b=document.body;
+  var sel=b.classList.contains('pb-tour-home-ks')?'#cs-entry-btn':(b.classList.contains('pb-tour-home-pfa')?'#pfa-entry-btn':'');
+  if(!sel) return;
+  var t=(ev.target&&ev.target.closest)?ev.target.closest(sel):null;
+  if(!t) return;
+  ev.stopPropagation(); ev.preventDefault();
+  pbTourHomeTap();
+},true);
+
 function pbFlowKsThumbTapThenOpen(){
   let thumbEl=document.getElementById('pb-flow-ks-thumb');
   if(!thumbEl){ pbOpenCharacterSheetFromTour(); return; }
@@ -31257,11 +31326,11 @@ function pbVidPlayerHtml(src){
   let icPlay='<svg class="pb-vid-ic-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>';
   let icPause='<svg class="pb-vid-ic-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>';
   return '<div class="pb-vid-wrap" id="pb-step2b-wrap">'
-    +   '<div class="pb-vid-frame" onclick="pbStep2bVidToggle()">'
+    +   '<div class="pb-vid-frame" onclick="pbVzOpen(this)">'
     +     '<video id="pb-step2b-video" src="'+src+'#t=0.1" preload="metadata" playsinline disablepictureinpicture'
     +       ' onloadedmetadata="pbStep2bVidSync()" ontimeupdate="pbStep2bVidSync()" onplay="pbStep2bVidSync()" onpause="pbStep2bVidSync()" onended="pbStep2bVidSync()" onseeked="pbStep2bVidSync()"></video>'
     +     '<div class="pb-vid-big"><span>'+icPlay+'</span></div>'
-    +     '<button type="button" class="pb-vz-btn" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>'
+    +     ''
     +   '</div>'
     +   '<div class="pb-vid-seekrow">'
     +     '<input type="range" id="pb-step2b-seek" min="0" max="1000" value="0" step="1" aria-label="Posisi video"'
@@ -31964,7 +32033,7 @@ function pbFlowLightboxOpen(el){
       subsHtml+='<div class="pb-flow-lightbox-subcol">'
         +'<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span></div>'
         +(el.getAttribute('data-sub'+i+'-video')
-          ? '<span class="pb-vz-host"><video class="pb-flow-lightbox-subimg" src="'+el.getAttribute('data-sub'+i+'-video')+'" poster="'+src+'" muted loop autoplay playsinline></video><button type="button" class="pb-vz-btn pb-vz-sm" aria-label="Perbesar video" onclick="event.stopPropagation();pbVzOpen(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button></span>'
+          ? '<span class="pb-vz-host"><video class="pb-flow-lightbox-subimg" src="'+el.getAttribute('data-sub'+i+'-video')+'" poster="'+src+'" muted loop autoplay playsinline style="cursor:pointer" onclick="event.stopPropagation();pbVzOpen(this)"></video></span>'
           : '<img class="pb-flow-lightbox-subimg" src="'+src+'" alt="'+(label||'')+'">')
         +'<div class="pb-flow-lightbox-sublabel">'+(label||'')+'</div>'
         +'</div>';
@@ -36320,13 +36389,8 @@ html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
 <button type="button" class="pbm-card hi" onclick="pbModePick('new')"><span class="pbm-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E6CD97" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M12 21v-9"/><path d="M12 13c0-4 3-6 7-6 0 4-3 6-7 6z"/><path d="M12 16c0-3-2-5-6-5 0 3 2 5 6 5z"/></svg></span><span><b>Pemula</b><span class="pbm-d">Belajar dari 0</span></span><span class="pbm-go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
 </div></div>
 <style>
-/* PERBESAR VIDEO TUR — ikon di pojok kiri bawah tiap video tur membuka jendela
+/* PERBESAR VIDEO TUR — klik videonya langsung (tanpa ikon) untuk membuka jendela
    pemutar yang lebih besar (bukan layar penuh): tinggi maks 80% layar. */
-.pb-vz-btn{position:absolute;right:8px;bottom:8px;z-index:3;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(4,4,6,.68);border:1px solid rgba(255,255,255,.22);color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.pb-vz-btn svg{width:16px;height:16px}
-.pb-vz-btn.pb-vz-sm{width:22px;height:22px;right:4px;bottom:4px}
-.pb-vz-btn.pb-vz-sm svg{width:12px;height:12px}
-.pb-vz-btn:focus-visible{outline:2px solid var(--accent,#D9B876);outline-offset:2px}
 .pb-flow-thumb{position:relative}
 .pb-vz-host{position:relative;display:inline-block;line-height:0}
 #pb-vz{position:fixed;inset:0;z-index:10100;display:none;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,0px) + 20px) 20px calc(env(safe-area-inset-bottom,0px) + 20px);background:rgba(4,4,6,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
@@ -36353,7 +36417,7 @@ html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
 var pbVzSrcVideo=null, pbVzWasPlaying=false;
 function pbVzOpen(btn){
   try{
-    var host=btn.parentElement, v=host&&host.querySelector('video');
+    var v=(btn.tagName==='VIDEO')?btn:((btn.querySelector&&btn.querySelector('video'))||(btn.parentElement&&btn.parentElement.querySelector('video')));
     if(!v) return;
     var box=document.getElementById('pb-vz'), z=document.getElementById('pb-vz-video');
     pbVzSrcVideo=v; pbVzWasPlaying=!v.paused&&!v.ended;
