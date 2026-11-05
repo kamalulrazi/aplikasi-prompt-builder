@@ -3427,6 +3427,10 @@ html.pb-tour-curtain body::before{
    (daftar tombol fitur, sama seperti di luar tur). Hanya SATU tombol yang bisa ditekan,
    semua fitur lain (dan nav bawah) dibuat pudar & tidak bisa ditekan.
    Class body diatur oleh pbTourHomeLockShow() dan dilepas oleh pbTourHomeTap(). */
+/* FIX: banner tur (docked, menempel di atas layar) dulu menimpa bagian atas halaman depan
+   sehingga kartu Karakter Sheet kepotong. Sekarang isi halaman didorong turun setinggi
+   banner (--pb-home-banner-h diukur JS di pbTourHomeFitBanner), jadi mulai persis di bawahnya. */
+body.pb-tour-homelock #app-shell{padding-top:max(0px,calc(var(--pb-home-banner-h,0px) - var(--pb-tour-bar-h,0px)));}
 body.pb-tour-homelock .nav.pb-tour-navhide{display:flex;pointer-events:none;opacity:.35;filter:grayscale(.6);}
 body.pb-tour-homelock #foto-tools .ft-btn,
 body.pb-tour-homelock #os-entry-btn,
@@ -31115,10 +31119,25 @@ function pbTourHomeLockShow(which,next){
   pbTourProgressShow(which==='ks'?0:1);
   var judul=(which==='ks')?'Buka Karakter Sheet':'Buka Prompt Foto AI';
   var isi=(which==='ks')
-    ?'Tekan tombol <b>Karakter Sheet</b> yang menyala. Fitur lain dikunci dulu.'
-    :'Tekan tombol <b>Prompt Foto AI</b> yang menyala. Fitur lain dikunci dulu.';
+    ?'Tekan tombol <b>Karakter Sheet</b> yang menyala.'
+    :'Tekan tombol <b>Prompt Foto AI</b> yang menyala.';
   pbShowInteractive(0,judul,isi,(which==='ks')?'#cs-entry-btn':'#pfa-entry-btn');
+  pbTourHomeFitBanner();
+  setTimeout(pbTourHomeFitBanner,120);
+  setTimeout(pbTourHomeFitBanner,400);
 }
+// Ukur tinggi banner tur lalu simpan ke CSS variable; dipakai CSS body.pb-tour-homelock #app-shell.
+function pbTourHomeFitBanner(){
+  try{
+    var b=document.body;
+    if(!b.classList.contains('pb-tour-homelock')) return;
+    var card=document.getElementById('pb-tour-card');
+    var h=card?Math.ceil(card.getBoundingClientRect().height):0;
+    b.style.setProperty('--pb-home-banner-h',h+'px');
+    var shell=document.getElementById('app-shell'); if(shell) shell.scrollTop=0;
+  }catch(e){}
+}
+window.addEventListener('resize',function(){ pbTourHomeFitBanner(); });
 // Dipanggil saat user menekan tombol yang menyala di halaman depan terkunci.
 function pbTourHomeTap(){
   var next=pbTourHomeNext; pbTourHomeNext=null;
