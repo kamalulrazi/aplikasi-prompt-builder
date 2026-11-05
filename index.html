@@ -2510,10 +2510,22 @@ html.vb-gen-wait #vb-multi-output,html.vb-gen-wait #vb-order-flow{display:none!i
 .fo-sub{font-family:'Hanken Grotesk',sans-serif;font-size:var(--fs-sm);color:var(--muted);letter-spacing:0;margin:2px 0 14px;}
 .fo-flow{display:flex;overflow-x:auto;max-width:480px;padding-bottom:2px;}
 .fo-step{position:relative;flex:1 0 76px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 4px;text-align:center;}
-.fo-step:not(:last-child)::after{content:"";position:absolute;top:14px;left:calc(50% + 20px);right:calc(-50% + 20px);height:2px;background:var(--accent-dim);opacity:.6;}
+.fo-step:not(:last-child)::after{content:"";position:absolute;top:14px;left:calc(50% + 20px);right:calc(-50% + 20px);height:2px;background:var(--border-hi);}
 .fo-num{width:30px;height:30px;border-radius:50%;background:var(--accent-2);color:var(--bg);font-family:'Hanken Grotesk',sans-serif;font-size:var(--fs-md);font-weight:600;display:grid;place-items:center;position:relative;z-index:1;}
 .fo-ic{font-size:28px;color:var(--accent-2);flex-shrink:0;}
 .fo-lbl{font-family:'Hanken Grotesk',sans-serif;font-size:var(--fs-xs2);line-height:1.3;color:var(--text);letter-spacing:0;}
+/* FITUR BARU (permintaan user): titik cahaya berjalan di sepanjang garis urutan
+   foto (dari fo-step ke fo-step berikutnya), biar user fokus ke urutannya.
+   Posisi pakai calc(%) yang sama dengan garis ::after di atas supaya otomatis
+   pas berapa pun jumlah step-nya (bukan cuma 2). */
+.fo-dot{position:absolute;top:11px;left:calc(50% + 20px);width:8px;height:8px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 8px 2px rgba(var(--pulse-rgb),.7);animation:foDotTravel 2.4s cubic-bezier(.45,0,.55,1) infinite;z-index:1;}
+@keyframes foDotTravel{
+  0%{left:calc(50% + 20px);opacity:0;}
+  8%{opacity:1;}
+  85%{left:calc(150% - 20px);opacity:1;}
+  93%{opacity:0;}
+  100%{left:calc(150% - 20px);opacity:0;}
+}
 .fo-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
 .copy-btn{background:var(--surface3);color:var(--text);border:1px solid var(--border-hi);padding:var(--space-2) 13px;border-radius:var(--radius-pill);font-size:var(--fs-xs2);font-weight:450;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;font-family:'Hanken Grotesk',sans-serif;}
 /* v6.82: disamakan dengan .btn (v6.81) — biar semua tombol aksi utama satu bahasa visual */
@@ -12277,10 +12289,12 @@ function _fBuildOutLabelBoxesHTML(realRefs){
   let steps = realRefs.map(function(r, i){
     let iconId = FTYPE_ICON_MAP[r.type] || 'ic-camera';
     let label = FTYPE_SHORT_LABEL[r.type] || 'Foto';
+    let dot = (i < realRefs.length - 1) ? '<span class="fo-dot" style="animation-delay:'+(i*0.4)+'s"></span>' : '';
     return '<div class="fo-step">'
       + '<span class="fo-num">'+(i+1)+'</span>'
       + '<svg class="icon fo-ic"><use href="#'+iconId+'"></use></svg>'
       + '<span class="fo-lbl">'+esc(label)+'</span>'
+      + dot
       + '</div>';
   }).join('');
   return '<div class="fo-title">Upload ke Google Flow sesuai urutan ini</div>'
@@ -19262,9 +19276,12 @@ function vbDurLanjut(){
 // (lewat MutationObserver) dan mode (VB.refMode==='kp'). ──
 function _foFlowHTML(items, sub){
   let steps = items.map(function(it, i){
+    let dot = (i < items.length - 1) ? '<span class="fo-dot" style="animation-delay:'+(i*0.4)+'s"></span>' : '';
     return '<div class="fo-step"><span class="fo-num">'+(i+1)+'</span>'
       + '<svg class="icon fo-ic"><use href="#'+it.icon+'"></use></svg>'
-      + '<span class="fo-lbl">'+esc(it.label)+'</span></div>';
+      + '<span class="fo-lbl">'+esc(it.label)+'</span>'
+      + dot
+      + '</div>';
   }).join('');
   return '<div class="fo-title">Upload ke Google Flow sesuai urutan ini</div>'
     + '<div class="fo-sub">'+esc(sub)+'</div>'
