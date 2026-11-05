@@ -4434,25 +4434,36 @@ html.pb-premium #ptr-indicator.looping .p-layer{animation:pbDrawLoop 3.2s ease-i
 /* PROMPT FOTO AI — Live Console: strip langkah + satu kartu aktif + panel Prompt live + ubin ikon. Tidak aktif saat tur panduan. */
 .pfa-btn{display:flex;grid-column:1/-1;}
 body.pb-tour-active .pfa-btn{display:none!important;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools{display:grid!important;grid-template-columns:1fr 1fr;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #f-progress-wrap{display:none!important;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) .wrap>:not(#foto-tools):not(:has(#foto-tools)){display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools{display:grid!important;grid-template-columns:1fr 1fr;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #f-progress-wrap{display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) .wrap>:not(#foto-tools):not(:has(#foto-tools)){display:none!important;}
 #pfa-bar{display:none;}
-body:not(.pb-tour-active) #foto.pfa-open{position:fixed;inset:0;z-index:5000;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open{position:fixed;inset:0;z-index:5000;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
 /* FIX: nav bawah (Foto/Video/Riwayat/Panduan) TETAP tampil di dalam Prompt Foto AI. Dulu di-hide (display:none) dan ketutup layar penuh #foto (z-index 5000).
    Sekarang nav naik di atas layar itu, dan layar wizard berhenti tepat di atas nav (tinggi nav diukur JS ke --pfa-nav). Tombol Lanjut tetap di bawah, menempel di atas nav. */
-body.pfa-on:not(.pb-tour-active) .nav{display:flex;z-index:5001;}
-body:not(.pb-tour-active) #foto.pfa-open{bottom:var(--pfa-nav,84px);}
+body.pfa-on:is(:not(.pb-tour-active),.pb-tour-pfa) .nav{display:flex;z-index:5001;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open{bottom:var(--pfa-nav,84px);}
 /* saat keyboard HP terbuka, nav memang disembunyikan (html.pb-kb-open) -> layar wizard turun penuh supaya tidak ada celah kosong di atas keyboard */
-html.pb-kb-open body:not(.pb-tour-active) #foto.pfa-open{bottom:0;}
+html.pb-kb-open body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open{bottom:0;}
 @media (min-width:1024px){
-  body.pfa-on:not(.pb-tour-active):has(#foto.pfa-open) .nav{position:fixed;top:0;bottom:auto;left:0;right:0;}
-  body:not(.pb-tour-active) #foto.pfa-open{top:var(--pfa-nav,60px);bottom:0;}
-  body:not(.pb-tour-active) #foto.pfa-open #f-progress-wrap{top:calc(var(--pfa-nav,60px) + 8px);}
+  body.pfa-on:is(:not(.pb-tour-active),.pb-tour-pfa):has(#foto.pfa-open) .nav{position:fixed;top:0;bottom:auto;left:0;right:0;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open{top:var(--pfa-nav,60px);bottom:0;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f-progress-wrap{top:calc(var(--pfa-nav,60px) + 8px);}
 }
 
+/* PERMINTAAN USER: Builder di dalam tur = Builder di luar tur. Satu-satunya
+   penyesuaian: layar penuh dimulai DI BAWAH bar bintang tur (bukan ketutup),
+   dan tombol "kembali" (<) disembunyikan supaya user tidak keluar dari alur tur. */
+html body.pb-tour-pfa.pb-tour-bar-on #foto.pfa-open{top:var(--pb-tour-bar-h);}
+html body.pb-tour-pfa.pb-tour-bar-on #foto.pfa-open #pfa-bar{padding-top:6px;}
+html body.pb-tour-pfa.pb-tour-bar-on #foto.pfa-open #f-progress-wrap{top:calc(var(--pb-tour-bar-h) + 8px);}
+body.pb-tour-pfa #pfa-bar .pfa-back{visibility:hidden;pointer-events:none;}
+@media (min-width:1024px){
+  html body.pb-tour-pfa.pb-tour-bar-on #foto.pfa-open{top:calc(var(--pfa-nav,60px) + var(--pb-tour-bar-h));}
+  html body.pb-tour-pfa.pb-tour-bar-on.pfa-on:has(#foto.pfa-open) .nav{top:var(--pb-tour-bar-h);}
+}
 /* ── header: kembali · judul · penghitung · strip langkah · segmen (HP) ── */
-body:not(.pb-tour-active) #foto.pfa-open #pfa-bar{display:block;position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:calc(env(safe-area-inset-top,0px) + 6px) 0 0;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #pfa-bar{display:block;position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:calc(env(safe-area-inset-top,0px) + 6px) 0 0;}
 #pfa-bar .pfa-row{display:flex;align-items:center;gap:6px;padding:0 14px;max-width:1180px;margin:0 auto;}
 .pfa-back{width:36px;height:36px;display:grid;place-items:center;margin-left:-8px;background:none;border:none;color:var(--muted);cursor:pointer;}
 .pfa-back svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
@@ -4476,35 +4487,35 @@ body:not(.pb-tour-active) #foto.pfa-open #pfa-bar{display:block;position:sticky;
 #pfa-seg button.on{background:var(--surface3);color:var(--text);box-shadow:0 0 0 1px var(--border-hi);}
 
 /* ── bidang kerja: sembunyikan kerangka lama, satu kartu aktif ── */
-body:not(.pb-tour-active) #foto.pfa-open #foto-tools,
-body:not(.pb-tour-active) #foto.pfa-open .desktop-step-nav,
-body:not(.pb-tour-active) #foto.pfa-open #f-preview-placeholder{display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open .wrap{max-width:1180px;border:none;box-shadow:none;min-height:0;margin:0 auto;padding:14px 14px 120px;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl]{display:block!important;padding:0;background:none;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=off]{display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl]::before,
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl]::after{content:none!important;display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open .tl-dot{display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open .tl-fold{display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=done],
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=todo],
-body:not(.pb-tour-active) #foto.pfa-open .wcard.done,
-body:not(.pb-tour-active) #foto.pfa-open .wcard.pending{max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:0!important;opacity:0;visibility:hidden;pointer-events:none;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=cur],
-body:not(.pb-tour-active) #foto.pfa-open .wcard:not(.done):not(.pending){background:var(--surface);border:1px solid var(--border);border-radius:16px;margin:0 0 12px;box-shadow:none;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=cur] .whead,
-body:not(.pb-tour-active) #foto.pfa-open .wcard:not(.done):not(.pending) .whead{padding:16px 18px 4px;cursor:default;min-height:0;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard .wnum,
-body:not(.pb-tour-active) #foto.pfa-open .wcard .wedit-pill,
-body:not(.pb-tour-active) #foto.pfa-open .wcard .wanswer{display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard:not(.done):not(.pending) .wtitle{font-size:var(--fs-lg,17px);font-weight:600;color:var(--text);}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=cur] .wbody,
-body:not(.pb-tour-active) #foto.pfa-open .wcard:not(.done):not(.pending) .wbody{padding:6px 18px 18px;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=cur] .wtitle{font-size:17px;font-weight:600;letter-spacing:0;}
-body:not(.pb-tour-active) #foto.pfa-open .wcard[data-tl=cur] [id$="-confirmbar"]{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #foto-tools,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .desktop-step-nav,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f-preview-placeholder{display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap{max-width:1180px;border:none;box-shadow:none;min-height:0;margin:0 auto;padding:14px 14px 120px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl]{display:block!important;padding:0;background:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=off]{display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl]::before,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl]::after{content:none!important;display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .tl-dot{display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .tl-fold{display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=done],
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=todo],
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard.done,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard.pending{max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:0!important;opacity:0;visibility:hidden;pointer-events:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=cur],
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard:not(.done):not(.pending){background:var(--surface);border:1px solid var(--border);border-radius:16px;margin:0 0 12px;box-shadow:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=cur] .whead,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard:not(.done):not(.pending) .whead{padding:16px 18px 4px;cursor:default;min-height:0;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard .wnum,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard .wedit-pill,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard .wanswer{display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard:not(.done):not(.pending) .wtitle{font-size:var(--fs-lg,17px);font-weight:600;color:var(--text);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=cur] .wbody,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard:not(.done):not(.pending) .wbody{padding:6px 18px 18px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=cur] .wtitle{font-size:17px;font-weight:600;letter-spacing:0;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wcard[data-tl=cur] [id$="-confirmbar"]{bottom:calc(env(safe-area-inset-bottom,0px) + 8px);}
 
 /* panel kanan = konsol Prompt (desktop: sticky di kanan, HP: tab "Prompt") */
-body:not(.pb-tour-active) #foto.pfa-open .wrap{display:block;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap{display:block;}
 #pfa-live{display:none;border:1px solid var(--border);border-radius:16px;background:var(--surface);overflow:hidden;flex-shrink:0;}
 #pfa-live .lh{display:flex;align-items:center;gap:8px;width:100%;margin:0;background:none;border:none;font-family:inherit;text-align:left;cursor:pointer;padding:11px 14px;border-bottom:1px solid var(--border);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
 #pfa-live .lh:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
@@ -4522,16 +4533,16 @@ body:not(.pb-tour-active) #foto.pfa-open .wrap{display:block;}
 #pfa-live .ln.fl{animation:pfaFlash 1.4s ease-out;}
 @keyframes pfaFlash{0%{background:var(--accent-dim-bg);box-shadow:inset 2px 0 0 var(--accent);}100%{background:transparent;box-shadow:inset 2px 0 0 transparent;}}
 @media (prefers-reduced-motion:reduce){#pfa-live .ln.fl{animation:none;}}
-body:not(.pb-tour-active) #foto.pfa-open #f-right-col{display:none;flex-direction:column;gap:14px;margin-top:0;}
-body:not(.pb-tour-active) #foto.pfa-open.pfa-v-prompt #f-right-col{display:flex;}
-body:not(.pb-tour-active) #foto.pfa-open.pfa-v-prompt .wrap>:not(#f-right-col){display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open #pfa-seg{display:flex;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f-right-col{display:none;flex-direction:column;gap:14px;margin-top:0;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open.pfa-v-prompt #f-right-col{display:flex;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open.pfa-v-prompt .wrap>:not(#f-right-col){display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #pfa-seg{display:flex;}
 @media (min-width:900px){
-  body:not(.pb-tour-active) #foto.pfa-open .wrap{display:grid!important;grid-template-columns:minmax(0,1fr) 380px;gap:0 24px;align-items:start;padding-top:20px;}
-  body:not(.pb-tour-active) #foto.pfa-open .wrap>*{grid-column:1;}
-  body:not(.pb-tour-active) #foto.pfa-open .wrap>#f-right-col{display:flex!important;grid-column:2;grid-row:1/span 40;position:sticky;top:132px;align-self:start;max-height:calc(100vh - 150px);overflow-y:auto;}
-  body:not(.pb-tour-active) #foto.pfa-open.pfa-v-prompt .wrap>:not(#f-right-col){display:revert!important;}
-  body:not(.pb-tour-active) #foto.pfa-open #pfa-seg{display:none;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap{display:grid!important;grid-template-columns:minmax(0,1fr) 380px;gap:0 24px;align-items:start;padding-top:20px;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap>*{grid-column:1;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap>#f-right-col{display:flex!important;grid-column:2;grid-row:1/span 40;position:sticky;top:132px;align-self:start;max-height:calc(100vh - 150px);overflow-y:auto;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open.pfa-v-prompt .wrap>:not(#f-right-col){display:revert!important;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #pfa-seg{display:none;}
 }
 
 /* ── ubin ikon: aturan asli (juga dipakai saat tur) ── */
@@ -4546,66 +4557,66 @@ body:not(.pb-tour-active) #foto.pfa-open #pfa-seg{display:flex;}
 .pfa-ic.wd svg{width:38px;height:24px;}
 
 /* ── ubin ikon: tampilan Live Console (hanya di layar Prompt Foto AI) ── */
-body:not(.pb-tour-active) #foto.pfa-open :is(.pfa-grid,.pfa-lg){display:grid!important;grid-column:1/-1;flex:1 1 100%;width:100%;box-sizing:border-box;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;}
-@media (min-width:600px){body:not(.pb-tour-active) #foto.pfa-open :is(.pfa-grid,.pfa-lg){grid-template-columns:repeat(4,minmax(0,1fr))!important;}}
-body:not(.pb-tour-active) #foto.pfa-open :is(.pfa-grid,.pfa-lg)>:not(.chip){grid-column:1/-1!important;}
-body:not(.pb-tour-active) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt){position:relative;display:flex!important;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;width:auto;min-width:0;min-height:92px;padding:10px 6px 8px;border-radius:12px;text-align:center;font-size:11.5px;line-height:1.3;}
-body:not(.pb-tour-active) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt)>div{text-align:center;}
-body:not(.pb-tour-active) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt) .text-title-sm{font-size:11.5px;line-height:1.3;}
-body:not(.pb-tour-active) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt) .text-title-sm span,#foto .chip.pfa-t .text-hint{display:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open :is(.pfa-grid,.pfa-lg){display:grid!important;grid-column:1/-1;flex:1 1 100%;width:100%;box-sizing:border-box;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;}
+@media (min-width:600px){body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open :is(.pfa-grid,.pfa-lg){grid-template-columns:repeat(4,minmax(0,1fr))!important;}}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open :is(.pfa-grid,.pfa-lg)>:not(.chip){grid-column:1/-1!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt){position:relative;display:flex!important;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;width:auto;min-width:0;min-height:92px;padding:10px 6px 8px;border-radius:12px;text-align:center;font-size:11.5px;line-height:1.3;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt)>div{text-align:center;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt) .text-title-sm{font-size:11.5px;line-height:1.3;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt) .text-title-sm span,#foto .chip.pfa-t .text-hint{display:none;}
 .pfa-ic{flex:none;width:56px;height:46px;border-radius:9px;display:grid;place-items:center;background:transparent;color:var(--accent);overflow:hidden;transition:background .15s,color .15s;}
 .pfa-ic svg{width:32px;height:32px;}
 .pfa-ic.wd svg{width:38px;height:24px;}
-body:not(.pb-tour-active) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt).sel{border-color:var(--accent);background:var(--accent-dim-bg);}
-body:not(.pb-tour-active) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt).sel .pfa-ic{background:transparent;color:var(--accent);}
-@media (max-width:899px){body:not(.pb-tour-active) #foto.pfa-open .wrap{padding-bottom:140px;}}
-body:not(.pb-tour-active) #foto.pfa-open #pfa-live{display:block;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt).sel{border-color:var(--accent);background:var(--accent-dim-bg);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .chip:is(.pfa-t,.pfa-lt).sel .pfa-ic{background:transparent;color:var(--accent);}
+@media (max-width:899px){body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap{padding-bottom:140px;}}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #pfa-live{display:block;}
 #f5 .pfa-ic{display:none;}
-body:not(.pb-tour-active) #foto.pfa-open #f5 .pfa-ic{display:grid;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f5 .pfa-ic{display:grid;}
 
 /* tombol Simpan ke Riwayat + chip "Lanjut Riwayat" (ada di header progres lama) tetap dipakai */
-body:not(.pb-tour-active) #foto.pfa-open #f-progress-wrap{display:block!important;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:max(12px,calc((100vw - 1180px)/2 + 12px));z-index:101;width:auto;margin:0!important;padding:0!important;background:none!important;border:none!important;box-shadow:none!important;-webkit-backdrop-filter:none;backdrop-filter:none;}
-body:not(.pb-tour-active) #foto.pfa-open #f-progress-wrap :is(.pb-bar-title,.progress-bar-track,.progress-label,.progress-jump-hint,#f0-tour-process-badge){display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open #f-progress-wrap .progress-steps{display:block;padding:0;margin:0;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f-progress-wrap{display:block!important;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:max(12px,calc((100vw - 1180px)/2 + 12px));z-index:101;width:auto;margin:0!important;padding:0!important;background:none!important;border:none!important;box-shadow:none!important;-webkit-backdrop-filter:none;backdrop-filter:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f-progress-wrap :is(.pb-bar-title,.progress-bar-track,.progress-label,.progress-jump-hint,#f0-tour-process-badge){display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f-progress-wrap .progress-steps{display:block;padding:0;margin:0;}
 #pfa-bar .pfa-row{padding-right:56px;}
 /* v11.95: HP tinggi — panel Prompt live tampil di bawah kartu langkah (tanpa tab Pilih/Prompt), jadi separuh layar bawah tidak kosong */
 @media (max-width:899px) and (min-height:700px){
-  body:not(.pb-tour-active) #foto.pfa-open #pfa-seg{display:none;}
-  body:not(.pb-tour-active) #foto.pfa-open #f-right-col{display:flex;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #pfa-seg{display:none;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f-right-col{display:flex;}
 }
 /* v11.96: layar awal tab Foto (tiga ubin) — diletakkan di tengah area antara header & nav bawah, tidak menempel di atas */
-body:not(.pb-tour-active) #foto.page.active:not(.pfa-open){display:flex;flex-direction:column;min-height:calc(100vh - 136px - var(--safe-t) - var(--safe-b));min-height:calc(100dvh - 136px - var(--safe-t) - var(--safe-b));}
-body:not(.pb-tour-active) #foto:not(.pfa-open) .wrap{width:100%;margin-top:auto;margin-bottom:auto;padding-top:16px;padding-bottom:48px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.page.active:not(.pfa-open){display:flex;flex-direction:column;min-height:calc(100vh - 136px - var(--safe-t) - var(--safe-b));min-height:calc(100dvh - 136px - var(--safe-t) - var(--safe-b));}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) .wrap{width:100%;margin-top:auto;margin-bottom:auto;padding-top:16px;padding-bottom:48px;}
 /* v11.97: layar awal tab Foto — judul + ubin utama besar, supaya layar terasa utuh (bukan tiga kotak melayang) */
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools{grid-template-rows:auto clamp(176px,30dvh,280px) auto;gap:10px;margin:0;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn{flex-direction:column;align-items:flex-start;justify-content:space-between;gap:14px;min-height:0;padding:18px;border-radius:20px;overflow:hidden;border-color:rgba(var(--pulse-rgb),.28);background:radial-gradient(120% 90% at 100% 0%,rgba(var(--pulse-rgb),.2),transparent 62%),linear-gradient(180deg,var(--surface2),var(--bg));}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn::before{content:"";position:absolute;right:-46px;bottom:-46px;width:170px;height:170px;border-radius:50%;border:1px solid rgba(var(--pulse-rgb),.16);box-shadow:0 0 0 22px rgba(var(--pulse-rgb),.045),0 0 0 44px rgba(var(--pulse-rgb),.025);pointer-events:none;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .ic{width:56px;height:56px;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .ft-ic-svg{width:32px;height:32px;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .t b{font-size:var(--fs-xl);letter-spacing:-.2px;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .t small{font-size:var(--fs-sm);}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .ch{position:absolute;top:18px;right:18px;width:36px;height:36px;margin:0;border-radius:50%;display:grid;place-items:center;background:var(--accent-dim-bg);box-shadow:0 0 0 1px rgba(var(--pulse-rgb),.35);}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools .ft-btn:not(#pfa-entry-btn){justify-content:space-between;min-height:132px;padding:14px;border-radius:18px;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools .ft-btn:not(#pfa-entry-btn) .ic{width:44px;height:44px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools{grid-template-rows:auto clamp(176px,30dvh,280px) auto;gap:10px;margin:0;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn{flex-direction:column;align-items:flex-start;justify-content:space-between;gap:14px;min-height:0;padding:18px;border-radius:20px;overflow:hidden;border-color:rgba(var(--pulse-rgb),.28);background:radial-gradient(120% 90% at 100% 0%,rgba(var(--pulse-rgb),.2),transparent 62%),linear-gradient(180deg,var(--surface2),var(--bg));}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn::before{content:"";position:absolute;right:-46px;bottom:-46px;width:170px;height:170px;border-radius:50%;border:1px solid rgba(var(--pulse-rgb),.16);box-shadow:0 0 0 22px rgba(var(--pulse-rgb),.045),0 0 0 44px rgba(var(--pulse-rgb),.025);pointer-events:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .ic{width:56px;height:56px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .ft-ic-svg{width:32px;height:32px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .t b{font-size:var(--fs-xl);letter-spacing:-.2px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .t small{font-size:var(--fs-sm);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #pfa-entry-btn .ch{position:absolute;top:18px;right:18px;width:36px;height:36px;margin:0;border-radius:50%;display:grid;place-items:center;background:var(--accent-dim-bg);box-shadow:0 0 0 1px rgba(var(--pulse-rgb),.35);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools .ft-btn:not(#pfa-entry-btn){justify-content:space-between;min-height:132px;padding:14px;border-radius:18px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools .ft-btn:not(#pfa-entry-btn) .ic{width:44px;height:44px;}
 
 /* FITUR BARU (3 Nov 2026): "Outfit Studio" menggantikan Outfit Inspirasi + Rekomendasi Outfit + Album (1 tombol, 1 layar penuh). */
 #foto-tools #os-entry-btn{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;min-height:78px;color:var(--text);}
 #foto-tools #os-entry-btn .ch{display:block;}
-body:not(.pb-tour-active) #foto:not(.pfa-open) #foto-tools #os-entry-btn.ft-btn{grid-column:1/-1!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:12px!important;min-height:78px!important;padding:12px 16px!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto:not(.pfa-open) #foto-tools #os-entry-btn.ft-btn{grid-column:1/-1!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:12px!important;min-height:78px!important;padding:12px 16px!important;}
 #os-overlay{position:fixed;inset:0;z-index:9996;background:var(--bg);display:none;flex-direction:column;padding-top:var(--pb-tour-pad-top,0px);}
 #os-overlay.show{display:flex;}
 #os-frame{flex:1;width:100%;border:0;background:var(--bg);padding-bottom:env(safe-area-inset-bottom,0px);}
 /* v11.98: layar Prompt Foto AI (HP tinggi) — konten dipusatkan di bawah header, tidak menempel di atas; langkah yang isinya panjang tetap mulai dari atas dan bisa digulir */
 @media (max-width:899px) and (min-height:700px){
-  body:not(.pb-tour-active) #foto.page.active.pfa-open{display:flex;flex-direction:column;}
-  body:not(.pb-tour-active) #foto.pfa-open #pfa-bar{flex:none;}
-  body:not(.pb-tour-active) #foto.pfa-open .wrap{display:flex;flex-direction:column;justify-content:center;flex:1 0 auto;width:100%;padding-bottom:32px;}
-  body:not(.pb-tour-active) #foto.pfa-open .wrap>*{flex-shrink:0;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.page.active.pfa-open{display:flex;flex-direction:column;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #pfa-bar{flex:none;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap{display:flex;flex-direction:column;justify-content:center;flex:1 0 auto;width:100%;padding-bottom:32px;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap>*{flex-shrink:0;}
 }
 /* v11.99: ringkasan langkah (pengganti strip langkah) — di posisi panel Prompt live; panel live disembunyikan saat ringkasan tampil */
 #pfa-sum{display:none;border:1px solid var(--border);border-radius:16px;background:var(--surface);overflow:hidden;flex-shrink:0;}
-body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-live{display:none;}
-body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-sum{display:block;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open.pfa-done #pfa-live{display:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open.pfa-done #pfa-sum{display:block;}
 #pfa-sum .sh{display:flex;align-items:center;gap:8px;width:100%;padding:12px 14px;margin:0;background:none;border:none;border-bottom:1px solid var(--border);font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text);text-align:left;cursor:pointer;}
 #pfa-sum .sh:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
 #pfa-sum .sh svg{flex:none;width:16px;height:16px;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s ease;}
@@ -4613,7 +4624,7 @@ body:not(.pb-tour-active) #foto.pfa-open.pfa-done #pfa-sum{display:block;}
 #pfa-sum:not(.open) .sh{border-bottom-color:transparent;}
 #pfa-sum:not(.open) #pfa-sum-body{display:none;}
 /* v12.3: saat Prompt live / Ringkasan dibuka, tata letak berhenti dipusatkan vertikal supaya isinya tumbuh ke bawah, bukan menggeser kartu ke atas */
-body:not(.pb-tour-active) #foto.pfa-open.pfa-keep .wrap{justify-content:flex-start!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open.pfa-keep .wrap{justify-content:flex-start!important;}
 #pfa-sum .sh em{margin-left:auto;font-style:normal;font-weight:400;font-size:var(--fs-xs);color:var(--muted2);}
 #pfa-sum .sr{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:10px 14px;background:none;border:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
 #pfa-sum .sr+.sr{border-top:1px solid var(--border);}
@@ -4623,11 +4634,11 @@ body:not(.pb-tour-active) #foto.pfa-open.pfa-keep .wrap{justify-content:flex-sta
 #pfa-sum .st{font-size:var(--fs-xs);color:var(--muted);}
 #pfa-sum .sa{font-size:var(--fs-md);line-height:1.35;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 #pfa-sum .sb{flex:none;padding:6px 13px;border-radius:999px;border:1px solid var(--border-hi);font-size:var(--fs-xs2);color:var(--accent);}
-@media (min-width:900px){body:not(.pb-tour-active) #foto.pfa-open .wrap>#f-right-col{top:84px;max-height:calc(100vh - 102px);}}
+@media (min-width:900px){body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open .wrap>#f-right-col{top:84px;max-height:calc(100vh - 102px);}}
 /* v12.5: BINGKAI HIDUP di langkah Subjek Foto (hanya di layar Prompt Foto AI, bukan saat tur) — bingkai kamera yang mengikuti kartu terpilih; tiga kartu jadi baris tombol */
 #f0-frame,#f0 .f0-ic,#f0 .f0-lb{display:none;}
-body:not(.pb-tour-active) #foto.pfa-open #f0-frame{display:block;position:relative;max-width:420px;margin:4px auto 14px;aspect-ratio:4/4.3;border-radius:18px;background:radial-gradient(120% 90% at 50% 0%,rgba(var(--pulse-rgb),.10),transparent 60%),var(--surface);border:1px solid var(--border);overflow:hidden;}
-@media (max-height:699px){body:not(.pb-tour-active) #foto.pfa-open #f0-frame{aspect-ratio:4/3;}}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0-frame{display:block;position:relative;max-width:420px;margin:4px auto 14px;aspect-ratio:4/4.3;border-radius:18px;background:radial-gradient(120% 90% at 50% 0%,rgba(var(--pulse-rgb),.10),transparent 60%),var(--surface);border:1px solid var(--border);overflow:hidden;}
+@media (max-height:699px){body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0-frame{aspect-ratio:4/3;}}
 #f0-frame .th{position:absolute;inset:0;pointer-events:none;background:
   linear-gradient(to right,transparent calc(33.33% - .5px),rgba(255,255,255,.06) calc(33.33% - .5px),rgba(255,255,255,.06) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.06) calc(66.66% - .5px),rgba(255,255,255,.06) calc(66.66% + .5px),transparent calc(66.66% + .5px)),
   linear-gradient(to bottom,transparent calc(33.33% - .5px),rgba(255,255,255,.06) calc(33.33% - .5px),rgba(255,255,255,.06) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.06) calc(66.66% - .5px),rgba(255,255,255,.06) calc(66.66% + .5px),transparent calc(66.66% + .5px));}
@@ -4646,24 +4657,24 @@ body:not(.pb-tour-active) #foto.pfa-open #f0-frame{display:block;position:relati
 #f0-frame .pl span{min-width:0;max-width:33%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 10px;border-radius:999px;border:1px dashed var(--border-hi);font-size:11px;color:var(--muted2);}
 #f0-frame .pl span.on{border-style:solid;border-color:var(--accent-dim);color:var(--text);background:var(--accent-dim-bg);}
 #f0 .f0-ic .fig,#f0-frame .sil .fig{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .f0-cards{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card{flex-direction:row;align-items:center;justify-content:center;gap:7px;min-height:48px;padding:0 6px;border-radius:14px;text-align:left;transform:none;box-shadow:none;}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card:active{transform:scale(.98);}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card.sel{border-color:var(--accent);background:var(--accent-dim-bg);}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .sk-icon,
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .sk-info{display:none;}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-ic{display:grid;place-items:center;flex:none;width:22px;height:22px;color:var(--accent);}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-ic svg{width:22px;height:22px;}
-body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-lb{display:block;font-size:13px;font-weight:500;color:var(--text);min-width:0;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .f0-cards{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card{flex-direction:row;align-items:center;justify-content:center;gap:7px;min-height:48px;padding:0 6px;border-radius:14px;text-align:left;transform:none;box-shadow:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card:active{transform:scale(.98);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card.sel{border-color:var(--accent);background:var(--accent-dim-bg);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card .sk-icon,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card .sk-info{display:none;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card .f0-ic{display:grid;place-items:center;flex:none;width:22px;height:22px;color:var(--accent);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card .f0-ic svg{width:22px;height:22px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card .f0-lb{display:block;font-size:13px;font-weight:500;color:var(--text);min-width:0;}
 @media (max-width:379px){
-  body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card{flex-direction:column;gap:4px;padding:8px 4px;}
-  body:not(.pb-tour-active) #foto.pfa-open #f0 .subjek-card .f0-lb{font-size:12px;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card{flex-direction:column;gap:4px;padding:8px 4px;}
+  body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f0 .subjek-card .f0-lb{font-size:12px;}
 }
 @media (prefers-reduced-motion:reduce){#f0-frame .sil{transition:none;}}
 /* v12.6: STRIP FILM di langkah Foto Referensi (hanya layar Prompt Foto AI, bukan saat tur) — bingkai F1/F2/F3 terisi sesuai FS.refs; 3 kartu bahan jadi baris tombol ringkas */
 #f1-strip,#f1-strip-sub{display:none;}
-body:not(.pb-tour-active) #foto.pfa-open #f1-strip-sub{display:block;margin:0 2px 12px;font-size:var(--fs-sm);line-height:1.55;color:var(--muted);}
-body:not(.pb-tour-active) #foto.pfa-open #f1-strip{display:block;margin:0 0 18px;border-radius:14px;background:#06050B;border:1px solid var(--border);overflow:hidden;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-strip-sub{display:block;margin:0 2px 12px;font-size:var(--fs-sm);line-height:1.55;color:var(--muted);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-strip{display:block;margin:0 0 18px;border-radius:14px;background:#06050B;border:1px solid var(--border);overflow:hidden;}
 #f1-strip .f1s-perf{height:16px;background:radial-gradient(circle,var(--surface) 3px,transparent 3.6px) 0 50%/18px 16px repeat-x;}
 #f1-strip .f1s-frs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px;padding:2px 8px;}
 #f1-strip .f1s-fr{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;aspect-ratio:3/4;border-radius:8px;border:1px dashed var(--border-hi);color:var(--muted2);font-size:var(--fs-xs2);text-align:center;}
@@ -4675,12 +4686,12 @@ body:not(.pb-tour-active) #foto.pfa-open #f1-strip{display:block;margin:0 0 18px
 #f1-strip .f1s-x i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.35);}
 #f1-strip .f1s-x svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;}
 #f1-strip .f1s-fr:focus-visible,#f1-strip .f1s-x:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special){flex-direction:row;align-items:center;justify-content:center;gap:7px;min-height:52px;padding:0 6px;border-radius:14px;}
-body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .col-tight{flex:0 1 auto;width:auto;}
-body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .f1chip-sub,
-body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .f1chip-badge{display:none!important;}
-body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special)>svg.icon{color:var(--accent);opacity:1;font-size:20px!important;}
-body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special).has{background-color:var(--accent-dim-bg);background-image:none;border-color:var(--accent);}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special){flex-direction:row;align-items:center;justify-content:center;gap:7px;min-height:52px;padding:0 6px;border-radius:14px;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .col-tight{flex:0 1 auto;width:auto;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .f1chip-sub,
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special) .f1chip-badge{display:none!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special)>svg.icon{color:var(--accent);opacity:1;font-size:20px!important;}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-special).has{background-color:var(--accent-dim-bg);background-image:none;border-color:var(--accent);}
 @media (prefers-reduced-motion:reduce){#f1-strip *{transition:none!important;}}
 </style>
 <style id="pst-css">
@@ -4688,7 +4699,7 @@ body:not(.pb-tour-active) #foto.pfa-open #f1-type-chips .f1chip:not(.f1chip-spec
 position:relative;aspect-ratio:4/4.3;border-radius:20px;border:1px solid var(--b);overflow:hidden;margin-bottom:14px;background:radial-gradient(120% 90% at 50% 0%,var(--glow,rgba(217,184,118,.13)),transparent 62%),var(--base,#121215)}@media(max-height:699px){#pst{aspect-ratio:4/3}}#pst[data-sub=f].of{--g:#2E6B5A;--h:#E6D8BA}#pst[data-sub=m].of{--g:#27364F;--j:#9A7B52;--sl:#9A7B52}#pst.pr{--f1:#F0D9A0;--f2:#B8965F;--f3:#D9B876;--fs:rgba(255,255,255,.3);--fd:none;--rb:#7a5f33}#pst .th{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent 33.2%,rgba(255,255,255,.05) 33.2% 33.5%,transparent 33.5% 66.5%,rgba(255,255,255,.05) 66.5% 66.8%,transparent 66.8%),linear-gradient(0deg,transparent 33.2%,rgba(255,255,255,.05) 33.2% 33.5%,transparent 33.5% 66.5%,rgba(255,255,255,.05) 66.5% 66.8%,transparent 66.8%)}#pst .c{position:absolute;width:20px;height:20px;border:2px solid var(--a);opacity:.8;z-index:2}#pst .c1{left:12px;top:12px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}#pst .c2{right:12px;top:12px;border-left:0;border-bottom:0;border-radius:0 6px 0 0}#pst .c3{left:12px;bottom:12px;border-right:0;border-top:0;border-radius:0 0 0 6px}#pst .c4{right:12px;bottom:12px;border-left:0;border-top:0;border-radius:0 0 6px 0}#pst .beam{position:absolute;left:50%;top:0;width:78%;height:86%;transform:translateX(-50%);background:linear-gradient(180deg,rgba(240,217,160,.15),transparent 85%);clip-path:polygon(38% 0,62% 0,100% 100%,0 100%);filter:blur(8px);pointer-events:none}#pst .floor{position:absolute;left:12%;right:12%;bottom:15%;height:11%;border-radius:50%;background:radial-gradient(closest-side,rgba(217,184,118,.22),transparent)}#pst .scan{position:absolute;left:0;right:0;top:12%;height:2px;background:linear-gradient(90deg,transparent,var(--a2),transparent);box-shadow:0 0 18px 4px rgba(240,217,160,.45);opacity:0;pointer-events:none;z-index:2}#pst.ks .scan{animation:pst-scan 1.1s ease-out}@keyframes pst-scan{0%{top:12%;opacity:0}15%{opacity:1}100%{top:84%;opacity:0}}#pst .slots{position:absolute;top:14px;left:0;right:0;display:flex;flex-wrap:wrap;gap:5px;padding:0 8px;justify-content:center;z-index:3;transition:opacity .3s}#pst[data-sub=""] .slots{opacity:0}#pst[data-sub=p] .slots span:not(#pst-sp):not(#pst-sl):not(#pst-sc):not(#pst-sa):not(#pst-sm){display:none}#pst .slots span{display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:99px;border:1px dashed var(--bh);font-size:11px;color:#8f8b99;background:rgba(8,8,10,.4);backdrop-filter:blur(6px);transition:.35s}#pst .slots span::before{content:"";width:6px;height:6px;border-radius:50%;border:1px solid currentColor}#pst .slots span.on{border:1px solid rgba(217,184,118,.55);color:var(--a2);background:var(--ab)}#pst .slots span.on::before{background:var(--a);border-color:var(--a)}#pst .em{position:absolute;inset:18% 27% 22%;border:1.5px dashed rgba(217,184,118,.35);border-radius:50% 50% 16px 16px/34% 34% 16px 16px;display:none;place-items:center;color:rgba(217,184,118,.75);font-size:30px;font-weight:300}#pst[data-sub=""] .em{display:grid}#pst .cap{position:absolute;left:0;right:0;bottom:16px;text-align:center;font-size:12.5px;color:var(--m);padding:0 24px;z-index:3;line-height:1.35}#pst .cap b{display:block;color:var(--t);font-weight:600;font-size:14px}#pst .fig{position:absolute;left:0;top:12%;width:100%;height:72%;overflow:visible}#pst .fem,#pst .mal,#pst .prod,#pst .char{display:none}#pst[data-sub=f] .fem,#pst[data-sub=m] .mal{display:inline}#pst[data-sub=f] .char,#pst[data-sub=m] .char{display:inline}#pst[data-sub=p] .prod{display:inline}#pst .fig *{transition:fill .6s,stroke .6s,opacity .6s,transform .8s cubic-bezier(.3,1.35,.5,1)}#pst .s{fill:rgba(217,184,118,.06);stroke:rgba(217,184,118,.55);stroke-width:1.4;stroke-dasharray:4 5}#pst.ks .s{fill:var(--g);stroke:rgba(217,184,118,.75);stroke-dasharray:none}#pst.ks .s.h{fill:var(--h)}#pst.ks .s.hr{fill:var(--hr)}#pst.ks .s.nk{fill:#DDBE9A}#pst .sk{fill:#E3C4A1;stroke:rgba(217,184,118,.5);stroke-width:1;opacity:0}#pst.ks .sk{opacity:1}#pst .fc{opacity:0;fill:none;stroke:#4a3426;stroke-width:1.6;stroke-linecap:round}#pst.ks .fc{opacity:1}#pst .arm{fill:none;stroke:rgba(217,184,118,.2);stroke-width:11;stroke-linecap:round}#pst.ks .arm{stroke:var(--sl)}#pst .od{opacity:0}#pst.of .od{opacity:1}#pst .sp{opacity:0;fill:var(--a2)}#pst.of .sp{animation:pst-tw 1.3s ease-out both}@keyframes pst-tw{0%{opacity:0;transform:scale(0)}40%{opacity:1;transform:scale(1.4) rotate(45deg)}100%{opacity:0;transform:scale(.6) rotate(90deg)}}#pst .ps,#pst .bd,#pst .ua,#pst .fa{transform-box:view-box}#pst .ps,#pst .bd{transform-origin:100px 252px}#pst .ua{transform-origin:130px 134px}#pst .fa{transform-origin:130px 166px}#pst.ks .bd{animation:pst-sway 4.2s ease-in-out infinite alternate}@keyframes pst-sway{from{transform:rotate(-1.4deg)}to{transform:rotate(1.4deg)}}#pst.pr .ua{transform:rotate(-40deg)}#pst.pr .fa{transform:rotate(-128deg)}#pst .pd{opacity:0;transform:scale(.3);transform-box:fill-box;transform-origin:50% 100%}#pst.pr .pd{opacity:1;transform:scale(1);transition-delay:.35s}#pst.hang .bx{display:none}#pst[data-pose=menoleh] .ps{transform:rotate(-3deg) translateX(-4px)}#pst[data-pose=jalan] .ps{animation:pst-walk .8s ease-in-out infinite alternate}@keyframes pst-walk{from{transform:translateY(0)}to{transform:translateY(-4px) rotate(1deg)}}#pst .pc{animation:pst-flt 3s ease-in-out infinite alternate}@keyframes pst-flt{from{transform:translateY(5px)}to{transform:translateY(-6px)}}#pst .hw{opacity:0;transform-box:view-box;transform-origin:157px 127px}#pst.hang.pr .hw{opacity:1}#pst .rg{fill:none;stroke:var(--a2);stroke-width:1.5;opacity:0;transform-box:fill-box;transform-origin:center}#pst .fy{opacity:0;--f1:#F0D9A0;--f2:#B8965F;--f3:#D9B876;--fs:rgba(255,255,255,.3);--fd:none;--rb:#7a5f33;transform-box:fill-box;transform-origin:center}#pst .sw{opacity:0}#pst.hs.pr .ua{animation:pst-lu .8s cubic-bezier(.3,1.35,.5,1)}#pst.hs.pr .fa{animation:pst-lf .8s cubic-bezier(.3,1.35,.5,1)}@keyframes pst-lu{from{transform:none}}@keyframes pst-lf{from{transform:none}}#pst.hs[data-hold=tangan] .pd{animation:pst-aim 2.8s .8s ease-in-out infinite}#pst.hs[data-hold=tangan] .rg{animation:pst-ping 2.8s .8s ease-out infinite}@keyframes pst-aim{0%,100%{transform:scale(1)}35%,65%{transform:scale(1.55) rotate(-6deg)}}@keyframes pst-ping{0%,28%{opacity:0;transform:scale(.7)}38%{opacity:.9}75%,100%{opacity:0;transform:scale(2.4)}}#pst.hs[data-hold=hanger] .hw{animation:pst-hin .5s ease-out,pst-swing 1.5s .5s ease-in-out infinite alternate}@keyframes pst-hin{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:rotate(-10deg)}}@keyframes pst-swing{from{transform:rotate(-10deg)}to{transform:rotate(10deg)}}#pst.hs[data-hold=dipakai] .fy{animation:pst-fly .9s .1s ease-in both}#pst.hs[data-hold=dipakai] .ps{animation:pst-twirl 1s .85s ease-in-out}#pst.hs[data-hold=dipakai] .sp{animation:pst-tw2 2s ease-out both}#pst.hs[data-hold=dipakai] .sw{animation:pst-sweep 1.1s .8s ease-in-out both}@keyframes pst-fly{0%{opacity:1;transform:translate(0,0) scale(1)}70%{opacity:1}100%{opacity:0;transform:translate(-62px,42px) scale(.2)}}@keyframes pst-twirl{0%,100%{transform:scaleX(1)}25%,75%{transform:scaleX(0)}50%{transform:scaleX(-1)}}@keyframes pst-tw2{0%,45%{opacity:0;transform:scale(0)}65%{opacity:1;transform:scale(1.4) rotate(45deg)}100%{opacity:0;transform:scale(.6) rotate(90deg)}}@keyframes pst-sweep{0%{opacity:0;transform:translateX(-50px)}20%,80%{opacity:1}100%{opacity:0;transform:translateX(150px)}}#pst.lk{position:sticky;top:0;z-index:6;box-shadow:0 14px 24px -10px rgba(0,0,0,.7)}#pst .sf{position:absolute;left:0;right:0;bottom:0;height:30%;background-color:var(--sf,transparent);border-top:1px solid rgba(255,255,255,.1);opacity:0;transition:opacity .5s,background-color .6s}#pst:not([data-loc=""]) .sf{opacity:1}#pst[data-pt=marble] .sf{background-image:repeating-linear-gradient(118deg,transparent 0 26px,rgba(90,90,100,.28) 26px 27px,transparent 27px 61px),linear-gradient(180deg,rgba(255,255,255,.18),transparent)}#pst[data-pt=wood] .sf{background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.2) 0 1px,transparent 1px 8px),repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 2px,transparent 2px 13px)}#pst[data-pt=linen] .sf{background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.12) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(0,0,0,.08) 0 1px,transparent 1px 3px)}#pst[data-pt=conc] .sf{background-image:radial-gradient(rgba(0,0,0,.2) 1px,transparent 1.5px),radial-gradient(rgba(255,255,255,.1) 1px,transparent 1.5px);background-size:7px 7px,11px 11px;background-position:0 0,3px 4px}#pst[data-pt=tile] .sf{background-image:linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(0deg,rgba(255,255,255,.06) 1px,transparent 1px);background-size:36px 100%,100% 20px}#pst[data-pt=fold] .sf{background-image:repeating-linear-gradient(172deg,transparent 0 24px,rgba(0,0,0,.14) 24px 26px,rgba(255,255,255,.09) 26px 30px,transparent 30px 58px)}#pst[data-pt=glass] .sf{background-image:linear-gradient(115deg,transparent 28%,rgba(255,255,255,.12) 40%,transparent 54%)}#pst .scn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}#pst .scr{position:absolute;inset:auto 0 0;height:34%;background:linear-gradient(transparent,rgba(8,8,10,.78));pointer-events:none}#pst .L{opacity:0;transition:opacity .5s}#pst .L.on{opacity:1}#pst .lt{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s}#pst[data-li]:not([data-li=""]) .lt{opacity:1}#pst .beam,#pst .fig{transition:transform .7s,opacity .6s,filter .6s}#pst[data-li=gold] .lt{background:radial-gradient(90% 70% at 84% 6%,rgba(255,170,70,.42),transparent 70%),linear-gradient(200deg,rgba(255,150,50,.16),transparent 60%)}#pst[data-li=gold] .beam{transform:translateX(-50%) rotate(26deg);transform-origin:50% 0}#pst[data-li=soft] .lt{background:radial-gradient(110% 80% at 50% 0%,rgba(255,255,255,.28),rgba(255,255,255,.09) 60%,transparent)}#pst[data-li=side] .lt{background:linear-gradient(90deg,rgba(255,240,215,.34),rgba(255,240,215,.06) 45%,rgba(0,0,0,.6))}#pst[data-li=side] .beam{transform:translateX(-50%) rotate(-30deg);transform-origin:50% 0}#pst[data-li=rim] .lt{background:radial-gradient(60% 50% at 50% 30%,rgba(240,217,160,.42),transparent 70%),rgba(0,0,0,.42)}#pst[data-li=rim] .fig{filter:brightness(.8) drop-shadow(0 0 5px rgba(240,217,160,.85))}#pst[data-li=flat] .lt{background:rgba(255,255,255,.13)}#pst[data-li=flat] .beam{opacity:.15}#pst[data-li=dark] .lt{background:radial-gradient(65% 55% at 50% 42%,transparent,rgba(0,0,0,.82))}#pst[data-li=dark] .fig{filter:brightness(.72) contrast(1.15)}#pst[data-li=dark] .beam{opacity:.35}#pst .scn{transition:transform .7s}#pst .sf{transition:opacity .5s,background-color .6s,height .7s}#pst[data-an=low] .fig{transform:perspective(520px) rotateX(9deg) scale(1.06);transform-origin:50% 100%}#pst[data-an=high] .fig{transform:perspective(520px) rotateX(-10deg) scale(.94);transform-origin:50% 100%}#pst[data-an=low] .scn{transform:scale(1.1);transform-origin:50% 100%}#pst[data-an=high] .scn{transform:scale(1.1);transform-origin:50% 0}#pst[data-an=low] .sf{height:23%}#pst[data-an=high] .sf{height:38%}#pst[data-an=atas] .sf{height:100%;border-top:0}#pst .pa,#pst .pa-tgn{display:none}#pst:not([data-an=atas]):not([data-an=depan]):not([data-an=q34]) .pa0,#pst[data-an=atas] .pa-atas,#pst[data-an=depan] .pa-depan,#pst[data-an=q34] .pa-q34,#pst[data-an=tgn] .pa-tgn{display:inline}#pst[data-an=tgn] .pa0{transform:translateY(-14px)}#pst .pa-atas,#pst .pa-depan,#pst .pa-q34{stroke:var(--fs);stroke-width:2.2;stroke-linejoin:round;stroke-dasharray:var(--fd)}#pst .cm{position:absolute;right:12px;top:48px;width:58px;height:74px;padding:5px;z-index:3;overflow:visible;opacity:0;transition:opacity .4s;pointer-events:none;background:rgba(8,8,10,.55);border:1px solid var(--b);border-radius:12px;backdrop-filter:blur(6px);fill:none;stroke:var(--a2);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}#pst[data-an]:not([data-an=""]):not([data-an=custom]) .cm{opacity:1}#pst .cm .cg{stroke:rgba(255,255,255,.22)}#pst .cm .hc{stroke:var(--m)}#pst .cm .hp{stroke:var(--m);fill:rgba(255,255,255,.06)}#pst[data-sub=p] .cm .hc,#pst:not([data-sub=p]) .cm .hp{display:none}#pst .cm .cc{fill:rgba(217,184,118,.22);transform:translate(var(--cx,10px),var(--cy,40px)) rotate(var(--ca,0deg));transform-box:view-box;transform-origin:0 0;transition:transform .6s cubic-bezier(.3,1.35,.5,1)}#pst .cm .sg{stroke-dasharray:2 3;stroke-opacity:.7}#pst[data-an=low]{--cx:10px;--cy:62px;--ca:-30deg}#pst[data-an=eye]{--cx:10px;--cy:40px;--ca:0deg}#pst[data-an=high]{--cx:10px;--cy:14px;--ca:30deg}#pst[data-an=atas]{--cx:46px;--cy:8px;--ca:90deg}#pst[data-an=d45]{--cx:12px;--cy:30px;--ca:45deg}#pst[data-an=depan],#pst[data-an=tgn]{--cx:10px;--cy:63px;--ca:0deg}#pst[data-an=q34]{--cx:10px;--cy:50px;--ca:14deg}#pst{isolation:isolate;--gn:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}#pst .mo{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;transition:opacity .6s,backdrop-filter .7s,-webkit-backdrop-filter .7s;-webkit-backdrop-filter:saturate(var(--ms,1)) contrast(var(--mc,1)) brightness(var(--mb,1)) blur(var(--mbl,0px));backdrop-filter:saturate(var(--ms,1)) contrast(var(--mc,1)) brightness(var(--mb,1)) blur(var(--mbl,0px))}#pst .mo::before,#pst .mo::after{content:"";position:absolute;inset:0}#pst .mo::before{background:var(--mt,none)}#pst .mo::after{background:var(--mx,none);opacity:var(--mxo,1)}#pst[data-mo]:not([data-mo=""]) .mo{opacity:1}#pst.mk .mo::before,#pst.mk .mo::after{animation:pst-mf .7s ease-out}@keyframes pst-mf{from{opacity:0}}#pst[data-mo=cln]{--ms:.9;--mc:.88;--mb:1.3;--mt:linear-gradient(rgba(255,255,255,.34),rgba(255,255,255,.16))}#pst[data-mo=pas]{--ms:.85;--mc:.84;--mb:1.2;--mbl:.5px;--mt:linear-gradient(160deg,rgba(255,176,208,.4),rgba(184,168,255,.34))}#pst[data-mo=vib]{--ms:1.9;--mc:1.2;--mb:1.1;--mt:linear-gradient(125deg,rgba(255,50,130,.3),transparent 46%,rgba(30,200,255,.28))}#pst[data-mo=edt]{--ms:.5;--mc:1.4;--mb:1.05;--mt:linear-gradient(98deg,rgba(255,255,255,.3),transparent 42%,rgba(0,0,0,.55))}#pst[data-mo=nat]{--ms:1.05;--mb:1.06;--mt:rgba(255,214,168,.1);--mx:var(--gn);--mxo:.22}#pst[data-mo=czy]{--ms:1.2;--mc:.95;--mb:1.05;--mt:linear-gradient(rgba(255,150,50,.3),rgba(255,100,30,.2));--mx:radial-gradient(circle 18px at 18% 16%,rgba(255,214,140,.5),transparent),radial-gradient(circle 12px at 34% 8%,rgba(255,214,140,.4),transparent),radial-gradient(circle 22px at 82% 20%,rgba(255,200,120,.5),transparent),radial-gradient(circle 10px at 70% 9%,rgba(255,214,140,.35),transparent)}#pst[data-mo=hp]{--ms:.85;--mc:1.2;--mb:1.1;--mbl:.6px;--mt:rgba(255,255,255,.05);--mx:radial-gradient(48% 42% at 50% 40%,rgba(255,255,255,.38),transparent 72%),radial-gradient(120% 100% at 50% 50%,transparent 55%,rgba(0,0,0,.45)),var(--gn)}#pst[data-mo=dm]{--ms:.8;--mc:1.25;--mb:.66;--mt:linear-gradient(rgba(10,40,52,.3),rgba(40,18,10,.25));--mx:radial-gradient(68% 58% at 50% 44%,transparent,rgba(0,0,0,.72))}#pst[data-mo=lux]{--ms:1.02;--mc:1.12;--mb:.97;--mt:linear-gradient(rgba(217,184,118,.14),transparent 55%);--mx:linear-gradient(112deg,transparent 28%,rgba(240,217,160,.34) 46%,transparent 64%),radial-gradient(120% 100% at 50% 50%,transparent 62%,rgba(0,0,0,.38))}#pst[data-mo=custom]{--ms:1.1;--mc:1.06;--mt:linear-gradient(135deg,rgba(217,184,118,.2),rgba(110,150,255,.16))}
 #pst-w{--s:#121215;--s2:#18181C;--s3:#202024;--b:rgba(255,255,255,.07);--bh:rgba(255,255,255,.14);--t:#F2F0EC;--m:#8B8892;--a:#D9B876;--a2:#F0D9A0;--ab:rgba(217,184,118,.12);display:none;flex:none;position:relative;padding:8px 12px 10px;background:var(--bg);border-bottom:1px solid rgba(255,255,255,.07)}
 /* FIX (pratinjau panggung selalu nempel saat scroll): dulu position:sticky;top:var(--pbh);z-index:50 sehingga menutupi layar terus. Sekarang ikut ter-scroll seperti kartu lain. */
-body:not(.pb-tour-active) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block}
+body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #pst-w{display:block}
 #pst{width:min(100%,340px);margin:0 auto;aspect-ratio:4/3}
 @media(max-height:699px){#pst{width:min(100%,260px)}}
 #f0-frame{display:none!important}
@@ -12477,7 +12488,7 @@ function csGoPage(n){
   let backBtn=document.getElementById('cs-back-btn');
   if(backBtn) backBtn.style.display=(n>1)?'':'none';
   let lbl=document.getElementById('cs-page-label');
-  if(lbl){ lbl.textContent='Langkah '+n+' dari '+CS_TOTAL_PAGES; lbl.style.display=(n===1)?'none':''; }
+  if(lbl){ lbl.textContent='Langkah '+n+' dari '+CS_TOTAL_PAGES; lbl.style.display='none'; }
   let genBtn=document.getElementById('cs-generate-btn');
   if(genBtn && n===4) genBtn.classList.add('cs-pulse-btn');
   let scrollBox=document.getElementById('cs-modal');
@@ -30786,7 +30797,7 @@ function pbGoStep2(){
     +   '</div>'
     + '</div>'
     + '<hr class="pb-flow-divider">'
-    + '<p style="margin-top:0;">'+(pbFotoAiUploaded?'Yuk, sekarang kita bikin "prompt" untuk video AI.':(pbProdukFotoUploaded&&pbKsFotoUploaded?'Oke, Sekarang kita udah punya 2 bahannya nih. Saatnya kita bikin FOTO AI.......':(pbProdukFotoUploaded?'klik lanjut untuk membuat foto karakter sheet.':'Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.')))+'</p>';
+    + '<p style="margin-top:0;">'+(pbFotoAiUploaded?'Yuk, sekarang kita bikin "prompt" untuk video AI.':(pbProdukFotoUploaded&&pbKsFotoUploaded?'2 bahan sudah ada. Saatnya bikin FOTO AI':(pbProdukFotoUploaded?'klik lanjut untuk membuat foto karakter sheet.':'Singkatnya, kita bikin dulu foto karakter AI memegang produk terus dari foto tersebut kita animasikan sebagai sebuah video promosi.')))+'</p>';
   // FITUR BARU (permintaan user): dulu tombol ini jadi 'Selesai' begitu
   // pbFotoAiUploaded true (langsung pbEndTour() dari pbGoStep2Next di bawah).
   // Sekarang SELALU 'Lanjut' — begitu Foto AI sudah lengkap, tur tidak
@@ -31678,19 +31689,9 @@ function pbStep4ShowSuccessNotif(){
 // Isi judul + pesan di-set di sini, confetti-nya dibikin ulang tiap kali
 // supaya animasinya selalu mulai dari awal, baru notifikasi ditampilkan.
 function pbPnShowCelebration(title,msg){
-  let notif=document.getElementById('pb-premium-notif');
-  if(!notif) return;
-  let titleEl=document.getElementById('pb-pn-title');
-  if(titleEl) titleEl.textContent=title||'';
-  let msgEl=document.getElementById('pb-pn-msg');
-  if(msgEl) msgEl.textContent=msg||'';
-  pbPnSpawnConfetti();
-  // Lepas dulu class 'show' & paksa reflow — kalau notifikasi ini dibuka
-  // untuk KEDUA kalinya (Foto AI sesudah Karakter Sheet), animasi CSS-nya
-  // tidak akan jalan lagi tanpa reset ini.
-  notif.classList.remove('show');
-  void notif.offsetWidth;
-  notif.classList.add('show');
+  // PERMINTAAN USER: tidak mau ada layar perayaan lagi. Langsung lanjut
+  // seperti user sudah menekan "Lanjut" di notifikasi (kembali ke Langkah 2).
+  pbStep4NotifTap();
 }
 // Bikin butiran confetti (elemen <i>) dengan posisi, warna, kecepatan,
 // putaran & jeda acak. Dibersihkan lagi lewat pbPnClearConfetti() begitu
@@ -31901,6 +31902,19 @@ var pbTourExtActive=false;
 // fCopy() di bawah. Selama flag ini true, area Ringkasan/Karakter
 // Sheet/dll disembunyikan lewat class pb-tour-result-simple di body.
 var pbTourAfterGenActive=false;
+// Lepas layout Builder-di-dalam-tur begitu mode tur berakhir (selesai / di-skip).
+(function(){
+  function sync(){
+    var b=document.body;
+    if(!b) return;
+    if(b.classList.contains('pb-tour-pfa') && !b.classList.contains('pb-tour-active')){
+      b.classList.remove('pb-tour-pfa');
+    }
+  }
+  try{
+    new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:['class']});
+  }catch(e){}
+})();
 function pbGoStep5(){
   pbSaveTourStepState('pbGoStep5');
   // FITUR BARU (permintaan user): Karakter Sheet sudah lengkap, bar
@@ -31924,14 +31938,24 @@ function pbGoStep5(){
   // "Jenis kelamin..." yang sudah ada — supaya user paham KENAPA dia
   // ditanya-tanya begini (karena untuk bikin karakter memegang/memakai
   // produk, dibutuhkan "prompt", jadi harus diselesaikan dulu wizard-nya).
-  if(f0Desc) f0Desc.innerHTML='untuk membuat si karakter memegang/memakai produk kita butuh "prompt" jadi selesaikan aja pembuatan prompt-nya ya.<br><br>Jenis kelamin foto karakter sheet kakak apa?';
+  // PERMINTAAN USER: tampilan Builder di dalam tur harus SAMA dengan di luar tur —
+  // kalimat penjelas khusus tur, badge "Sedang membuat prompt", dan thumbnail
+  // Karakter Sheet di kartu Subjek Foto dihapus. Teks kartu = teks biasa.
+  if(f0Desc) f0Desc.textContent='Pilih jenis kelamin karakter sheet kakak.';
   // FITUR BARU (permintaan user): badge status "sedang membuat prompt" di
   // pojok kiri atas layar (fixed, terpisah dari kartu f0) — biar pemula
   // ngerti kenapa mereka ditanya-tanya begini. Dipasang di sini (Langkah 5),
   // dilepas lagi di pbTourResetF0Ui() begitu subjek dipilih atau tur di-skip.
   let f0ProcessBadge=document.getElementById('f0-tour-process-badge');
-  if(f0ProcessBadge) f0ProcessBadge.style.display='flex';
-  pbF0KsThumbSync();
+  if(f0ProcessBadge) f0ProcessBadge.style.display='none';
+  let f0KsThumb=document.getElementById('f0-ks-thumb');
+  if(f0KsThumb) f0KsThumb.style.display='none';
+  // PERMINTAAN USER: Builder di dalam tur memakai layout layar penuh yang
+  // SAMA dengan Builder di luar tur (kelas pb-tour-pfa mengaktifkan semua
+  // aturan CSS "luar tur" selama tur masih jalan; dilepas otomatis begitu
+  // tur selesai/di-skip — lihat observer di bawah).
+  document.body.classList.add('pb-tour-pfa');
+  try{ if(typeof window.pfaOpen==='function') window.pfaOpen(); }catch(e){}
 }
 // Kembalikan chip "Produk Saja" + tampilan kartu Subjek Foto seperti
 // semula (dipanggil begitu subjek dipilih & alur lanjut ke foto
@@ -34464,7 +34488,7 @@ body:has(#vb-tour-hookcopy-actions:not(.hidden)){padding-bottom:110px;}
 /* denyutan kotak di seluruh kartu dimatikan — denyutan cuma di tombol */
 .vb-box-pulse-gold{animation:none!important;}
 /* PERMINTAAN USER (16 Okt 2026): tampilan "Susun bahan fotonya" + strip 3 bingkai F1/F2/F3 di Foto Referensi dihapus (makan tempat). Markup & JS dibiarkan supaya tidak ada error. */
-body #f1-strip,body #f1-strip-sub,body:not(.pb-tour-active) #foto.pfa-open #f1-strip,body:not(.pb-tour-active) #foto.pfa-open #f1-strip-sub{display:none!important;}
+body #f1-strip,body #f1-strip-sub,body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-strip,body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open #f1-strip-sub{display:none!important;}
 </style>
 <style id="typo-b">
 /* Tipografi opsi B (Majalah) */
@@ -35603,7 +35627,7 @@ html body #foto#foto .wcard:has([id$="-confirmbar"]) .wback{display:none!importa
    (.pbw-dock + footer Step 1) dan wizard Foto (bar -confirmbar). Tidak aktif saat tur (nav memang disembunyikan).
    Tinggi nav diukur skrip pb-dock-js ke --pb-dock-b (0 kalau nav di atas / keyboard terbuka). */
 :root{--pb-dock-b:0px}
-html body:not(.pb-tour-active) :is(.pbw-dock,#foto#foto .wcard [id$="-confirmbar"]){
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) :is(.pbw-dock,#foto#foto .wcard [id$="-confirmbar"]){
   position:fixed!important;left:0!important;right:0!important;top:auto!important;bottom:var(--pb-dock-b,0px)!important;
   z-index:99;width:auto!important;max-width:none!important;box-sizing:border-box;
   margin:0!important;padding:10px max(14px,calc((100vw - 640px)/2 + 14px)) 10px!important;
@@ -35612,26 +35636,26 @@ html body:not(.pb-tour-active) :is(.pbw-dock,#foto#foto .wcard [id$="-confirmbar
   box-shadow:0 -6px 18px rgba(0,0,0,.28);
 }
 /* di dalam dock: Kembali (ikon) di kiri, Lanjut mengisi sisa lebar */
-html body:not(.pb-tour-active) .pbw-dock .btn:not(.ghost):not(.pbw-bk),
-html body:not(.pb-tour-active) #foto#foto .wcard [id$="-confirmbar"] .btn:not(.pb-bk-ic){
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) .pbw-dock .btn:not(.ghost):not(.pbw-bk),
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard [id$="-confirmbar"] .btn:not(.pb-bk-ic){
   flex:1 1 auto!important;width:auto!important;min-width:0!important;margin:0!important;
   height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;
   display:inline-flex;align-items:center;justify-content:center;
 }
-html body:not(.pb-tour-active) .pbw-dock [id$="-confirmbar"]{flex:1 1 auto!important;min-width:0;padding:0!important;margin:0!important;background:none!important;box-shadow:none!important;border:0!important;position:static!important;display:flex;}
-html body:not(.pb-tour-active) .pbw-dock [id$="-confirmbar"] .btn{width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;}
-html body:not(.pb-tour-active) :is(.pbw-dock .pbw-bk,.pbw-dock .wback,#foto#foto .wcard [id$="-confirmbar"] .pb-bk-ic){
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) .pbw-dock [id$="-confirmbar"]{flex:1 1 auto!important;min-width:0;padding:0!important;margin:0!important;background:none!important;box-shadow:none!important;border:0!important;position:static!important;display:flex;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) .pbw-dock [id$="-confirmbar"] .btn{width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) :is(.pbw-dock .pbw-bk,.pbw-dock .wback,#foto#foto .wcard [id$="-confirmbar"] .pb-bk-ic){
   flex:0 0 42px!important;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;
 }
-html body:not(.pb-tour-active) .pbw-dock .btn.ghost:not(.pbw-bk){flex:0 0 auto!important;height:42px!important;min-height:42px!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) .pbw-dock .btn.ghost:not(.pbw-bk){flex:0 0 auto!important;height:42px!important;min-height:42px!important;}
 /* KHUSUS Step 1 "Mode Referensi Foto" (permintaan user): Lanjut TIDAK didock di atas nav, tapi muncul langsung di bawah kotak pratinjau video. */
-html body:not(.pb-tour-active) #v1 .wbody>#vb-mode-normal-footer{position:static!important;bottom:auto!important;margin:2px 0 0!important;padding:0!important;background:none!important;box-shadow:none!important;border:0!important;}
-html body:not(.pb-tour-active) #v1 .wbody>#vb-mode-normal-footer .btn{display:flex!important;align-items:center;justify-content:center;width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;margin:0!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #v1 .wbody>#vb-mode-normal-footer{position:static!important;bottom:auto!important;margin:2px 0 0!important;padding:0!important;background:none!important;box-shadow:none!important;border:0!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #v1 .wbody>#vb-mode-normal-footer .btn{display:flex!important;align-items:center;justify-content:center;width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;margin:0!important;}
 /* ruang di bawah isi supaya kartu terakhir tidak tertutup dock */
-html body:not(.pb-tour-active) #video .wrap{padding-bottom:190px!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #video .wrap{padding-bottom:190px!important;}
 /* wizard Foto layar lebar: sejajarkan dengan kolom kiri (kolom kanan = panel Prompt 380px + jarak 24px) */
 @media (min-width:900px){
-  html body:not(.pb-tour-active) #foto#foto .wcard [id$="-confirmbar"]{
+  html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard [id$="-confirmbar"]{
     padding-left:max(14px,calc((100vw - 1180px)/2 + 14px))!important;
     padding-right:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 404px)!important;
   }
@@ -35642,7 +35666,7 @@ html body:not(.pb-tour-active) #video .wrap{padding-bottom:190px!important;}
 /* FIX TUMPUK TOMBOL (Okt 2026): saat user MENGEDIT satu step (semua step sudah terisi), area Generate tetap tampil dan
    tertimpa dock "Konfirmasi & Lanjut" — dua tombol emas bertumpuk. Selama dock konfirmasi step ada, sembunyikan area Generate;
    begitu dikonfirmasi/dibatalkan (dock dihapus) area Generate muncul lagi otomatis. Hanya tampilan, logika tidak diubah. */
-html body:not(.pb-tour-active) #foto#foto:has(.wcard [id$="-confirmbar"]) #f-gen-area{display:none!important}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto:has(.wcard [id$="-confirmbar"]) #f-gen-area{display:none!important}
 </style>
 <style id="pb-genwait-css">
 /* PERMINTAAN USER: tombol "Generate Prompt Foto" (area Ringkasan) disembunyikan selama masih ada step yang sedang terbuka / belum tuntas diisi. */
@@ -35720,17 +35744,17 @@ html body #f1 .f1-ref-input>[id^="pc-err-"]{grid-column:1/-1;grid-row:3;min-widt
 html body #f1 .f1-ref-input>[id^="adv-area-"]{grid-column:1/-1;grid-row:4;}
 html body #f1 .f1-adv-toggle{white-space:nowrap;}
 #f1-dock{display:contents;}
-html body:not(.pb-tour-active) #foto#foto #f1-dock{
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto #f1-dock{
   position:fixed!important;left:0;right:0;top:auto;bottom:var(--pb-dock-b,0px);z-index:99;box-sizing:border-box;
   display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:8px;
   margin:0;padding:10px max(14px,calc((100vw - 640px)/2 + 14px));
   background:var(--surface2);border-top:1px solid var(--border);box-shadow:0 -6px 18px rgba(0,0,0,.28);
 }
-html body:not(.pb-tour-active) #foto#foto #f1-dock .wback{order:1;flex:0 0 42px;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;margin:0!important;}
-html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm{order:2;flex:1 1 auto;min-width:0;margin:0!important;padding:0!important;}
-html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm .btn{display:flex;align-items:center;justify-content:center;width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;margin:0!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto #f1-dock .wback{order:1;flex:0 0 42px;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;margin:0!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto #f1-dock #f1-confirm{order:2;flex:1 1 auto;min-width:0;margin:0!important;padding:0!important;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto #f1-dock #f1-confirm .btn{display:flex;align-items:center;justify-content:center;width:100%!important;height:42px!important;min-height:42px!important;font-size:14.5px!important;padding:0 20px!important;margin:0!important;}
 @media (min-width:900px){
-  html body:not(.pb-tour-active) #foto#foto #f1-dock{
+  html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto #f1-dock{
     padding-left:max(14px,calc((100vw - 1180px)/2 + 14px));
     padding-right:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 404px);
   }
@@ -35740,8 +35764,8 @@ html body:not(.pb-tour-active) #foto#foto #f1-dock #f1-confirm .btn{display:flex
 /* PERMINTAAN USER: tombol "Lanjut →" dari kolom "Atau isi sendiri" (f3,f4,f5,f7,f8,f9) tidak lagi terpisah dari tombol Kembali.
    Sekarang sama seperti step lain: satu bar menempel tepat di atas nav bawah, ikon Kembali di kiri, Lanjut mengisi sisa lebar.
    Hanya tampilan: tombol & logika aslinya (data-role="mt12-confirm", .wback) tidak diubah. */
-html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]){margin-bottom:76px;}
-html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur] [data-role="mt12-confirm"][style*="display: flex"]{
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]){margin-bottom:76px;}
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard[data-tl=cur] [data-role="mt12-confirm"][style*="display: flex"]{
   position:fixed!important;top:auto!important;
   left:calc(max(14px,calc((100vw - 640px)/2 + 14px)) + 50px)!important;
   right:max(14px,calc((100vw - 640px)/2 + 14px))!important;
@@ -35752,11 +35776,11 @@ html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur] [data-role="mt12-c
   align-items:center;justify-content:center;z-index:99;
 }
 /* latar bar penuh di belakang tombol Lanjut + ikon Kembali (pakai ::after kartu, supaya tidak menimpa warna tombol) */
-html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"])::after{
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"])::after{
   content:""!important;display:block!important;position:fixed!important;left:0;right:0;top:auto;bottom:var(--pb-dock-b,0px);height:62px;z-index:98;pointer-events:none;
   background:var(--surface2);border-top:1px solid var(--border);box-shadow:0 -6px 18px rgba(0,0,0,.28);
 }
-html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]) .wback{
+html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]) .wback{
   position:fixed!important;top:auto!important;right:auto!important;
   left:max(14px,calc((100vw - 640px)/2 + 14px))!important;
   bottom:calc(var(--pb-dock-b,0px) + 10px)!important;
@@ -35765,14 +35789,14 @@ html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt
   z-index:100;
 }
 @media (min-width:900px){
-  html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur] [data-role="mt12-confirm"][style*="display: flex"]{
+  html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard[data-tl=cur] [data-role="mt12-confirm"][style*="display: flex"]{
     left:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 50px)!important;
     right:calc(max(14px,calc((100vw - 1180px)/2 + 14px)) + 404px)!important;
   }
-  html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]) .wback{
+  html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"]) .wback{
     left:max(14px,calc((100vw - 1180px)/2 + 14px))!important;
   }
-  html body:not(.pb-tour-active) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"])::after{right:404px;}
+  html body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto#foto .wcard[data-tl=cur]:has([data-role="mt12-confirm"][style*="display: flex"])::after{right:404px;}
 }
 </style>
 <style id="pb-cdock-video-css">
