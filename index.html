@@ -6443,7 +6443,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
   <div class="wcard" id="v1">
     <div class="whead"><div class="wnum">1</div><div class="wtitle">Mode Referensi Foto</div><span class="wedit-pill">ubah</span><div class="wanswer" id="va1"></div><span id="vb-mode-difficulty" style="display:none;font-size:var(--fs-2xs);color:var(--muted);text-align:right;line-height:1.35;max-width:150px;">Tingkat kesulitan: sedang<br>Hasil bagus mengikuti foto AI</span></div>
     <div class="wbody">
-      <label class="inplabel">Pilih Start Frame aja ya kak, cocok untuk pemula dengan kualitas bagus.</label>
+      <label class="inplabel">Pilih Start Frame aja, cocok untuk pemula dengan kualitas bagus.</label>
       <!-- Pengganti kartu instruksi tur + spotlight KHUSUS step "kunci
            Mode 2/3/4" di dalam tur panduan — pola sama seperti f1-tour-hint
            di tab Foto: teks abu-abu netral di dalam kartu asli, TANPA
@@ -7377,16 +7377,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
   <div id="vb-order-flow" style="display:none;margin-top:12px;"></div>
   <div id="vb-multi-output" style="display:none;flex-direction:column;gap:8px;margin-top:12px;"></div>
 
-  <!-- FITUR BARU (permintaan user): tombol "Lanjut →" khusus tur panduan
-       pemula, muncul di bawah kartu-kartu skrip SETELAH user klik "Salin"
-       di kartu Hook (lihat copyBtn.onclick di _vbBuildEditableCard &
-       vbShowHookCopiedNotif). Sengaja disembunyikan default (class
-       "hidden") — baru ditampilkan lewat vbScriptReadyNext(). Klik tombol
-       ini yang BARU memunculkan kolom "Panduan Video AI" (18 foto), lewat
-       vbHookCopyLanjutClick(). -->
-  <div id="vb-tour-hookcopy-actions" class="hidden" style="display:flex;justify-content:flex-end;margin-top:10px;">
-    <button type="button" class="vb-scriptready-btn" onclick="vbHookCopyLanjutClick()">Lanjut →</button>
-  </div>
+  <!-- (Nov 2026) Tombol "Lanjut →" setelah Salin Hook dihapus: sekarang tombol Salin Story muncul setelah Hook disalin, Salin CTA setelah Story disalin, lalu tombol "Akhiri tur". -->
 
 </div>
 </div>
@@ -27187,8 +27178,8 @@ function vbBulkUpdateJson(i){
 // begitu 3 script dari mode "Kami Bantu Isi" (1 produk) selesai lengkap
 // tampil di kartu hasil.
 function vbShowScriptReadyNotif(){
-  let el=document.getElementById('vb-scriptready-overlay');
-  if(el)el.classList.add('show');
+  // (Nov 2026) Tampilan lama "Prompt vidio Ai udah siap" diganti video panduan Video AI.
+  vbTourVidShow();
 }
 function vbCloseScriptReadyNotif(){
   let el=document.getElementById('vb-scriptready-overlay');
@@ -27220,7 +27211,11 @@ function vbScriptReadyNext(){
   // salah pencet. Dicari lewat pola id vb-bulk-copy-N, bukan angka tetap,
   // supaya tetap aman kalau suatu saat ada >3 kartu (mis. mode bulk).
   document.querySelectorAll('[id^="vb-bulk-copy-"]').forEach(function(btn){
-    if(btn.id!=='vb-bulk-copy-0') btn.classList.add('vb-copy-locked');
+    if(btn.id!=='vb-bulk-copy-0'){
+      btn.classList.add('vb-copy-locked');
+      // (Nov 2026) Salin Story & Salin CTA disembunyikan total sampai gilirannya.
+      btn.classList.add('vb-tour-copy-hide');
+    }
   });
   // FITUR BARU (permintaan user): begitu skrip sudah selesai ditampilkan
   // di kolom skrip, kunci juga SEMUA tombol lain di kolom itu (Tampilan,
@@ -27731,6 +27726,184 @@ function vbVideoGuideResumeAfterCopy(){
   let el=document.getElementById('vb-videoguide-overlay');
   if(el) el.classList.add('show');
 }
+
+// ══ (Nov 2026) VIDEO PANDUAN VIDEO AI DI AWAL TAHAP SALIN + IKON + AKHIRI TUR ══
+// Alur baru: skrip siap -> video panduan tampil (menggantikan tampilan "Prompt vidio
+// Ai udah siap") -> "Mengerti" -> video menyusut ke ikon (#vb-vid-fab) -> Salin Hook
+// -> muncul Salin Story -> muncul Salin CTA -> muncul tombol "Akhiri tur" (kanan bawah)
+// -> dialog "Kamu akan mengakhiri panduannya." (Ya / Tidak).
+var vbTourVidState={seen:false,time:0,busy:false};
+function vbTourVidEls(){
+  return {el:document.getElementById('vb-videoguide-overlay'),card:document.getElementById('vb-videoguide-card'),fab:document.getElementById('vb-vid-fab'),body:document.getElementById('vb-videoguide-body')};
+}
+function vbTourVidRenderOnce(){
+  let E=vbTourVidEls();
+  let titleEl=document.getElementById('vb-videoguide-title');
+  let btn=document.getElementById('vb-videoguide-btn');
+  let backBtn=document.getElementById('vb-videoguide-back-btn');
+  if(backBtn) backBtn.style.display='none';
+  if(titleEl) titleEl.textContent='Yuk, bikin video AI-nya';
+  // Elemen <video> dipertahankan selama tur supaya detik terakhir tontonan tidak hilang.
+  if(E.body && !E.body.querySelector('#pb-step2b-video')) E.body.innerHTML=pbVidPlayerHtml(PB_VID_VIDEO_AI);
+  if(btn){ btn.textContent='Mengerti'; btn.onclick=vbTourVidMengerti; }
+}
+function vbTourVidShow(){
+  let E=vbTourVidEls();
+  if(!E.el) return;
+  vbTourVidState.seen=false; vbTourVidState.time=0; vbTourVidState.busy=false;
+  if(E.body) E.body.innerHTML='';
+  vbTourVidRenderOnce();
+  E.el.classList.remove('vb-vid-pop');
+  E.el.classList.add('show');
+}
+function vbTourVidMengerti(){
+  vbTourVidClose(function(){
+    if(!vbTourVidState.seen){
+      vbTourVidState.seen=true;
+      vbScriptReadyNext();      // mulai tahap Salin Hook
+      vbTourFocusCard(0);
+    }
+  });
+}
+// Kartu video menyusut & terbang ke ikon, lalu overlay ditutup.
+function vbTourVidClose(cb){
+  let E=vbTourVidEls();
+  if(vbTourVidState.busy) return;
+  if(!E.el||!E.card||!E.fab||!E.el.classList.contains('show')){ if(cb) cb(); return; }
+  let v=document.getElementById('pb-step2b-video');
+  if(v){ vbTourVidState.time=v.currentTime||0; try{ v.pause(); }catch(e){} }
+  vbTourVidState.busy=true;
+  E.fab.classList.add('show','vb-fab-fly');
+  document.body.classList.add('vb-tour-fab-on');
+  let cr=E.card.getBoundingClientRect(), fr=E.fab.getBoundingClientRect();
+  let dx=(fr.left+fr.width/2)-(cr.left+cr.width/2), dy=(fr.top+fr.height/2)-(cr.top+cr.height/2);
+  let sc=Math.max(0.06,fr.width/cr.width);
+  E.card.style.transition='transform 0.55s cubic-bezier(.3,.9,.4,1), opacity 0.5s ease 0.05s';
+  E.card.style.transformOrigin='center center';
+  void E.card.offsetWidth;
+  E.card.style.transform='translate('+dx+'px,'+dy+'px) scale('+sc+')';
+  E.card.style.opacity='0';
+  setTimeout(function(){
+    // Tutup overlay DULU (memudar), baru gaya kartu dikembalikan — kalau dibalik,
+    // kartu sempat "muncul lagi" sekilas di tengah layar saat overlay memudar.
+    E.el.classList.remove('show');
+    setTimeout(function(){
+      E.card.style.transition='';E.card.style.transform='';E.card.style.opacity='';E.card.style.transformOrigin='';
+      E.el.classList.remove('vb-vid-pop');
+      E.fab.classList.remove('vb-fab-fly');
+      vbTourVidState.busy=false;
+      if(cb) cb();
+    },320);
+  },600);
+}
+// Klik ikon: video muncul lagi (kartu melayang) di detik terakhir tontonan.
+function vbTourVidOpenFromFab(){
+  let E=vbTourVidEls();
+  if(!E.el||!E.card||!E.fab||vbTourVidState.busy||E.el.classList.contains('show')) return;
+  vbTourVidRenderOnce();
+  let v=document.getElementById('pb-step2b-video');
+  if(v && Math.abs((v.currentTime||0)-vbTourVidState.time)>0.3){ try{ v.currentTime=vbTourVidState.time; }catch(e){} }
+  vbTourVidState.busy=true;
+  E.el.classList.add('vb-vid-pop');
+  E.card.style.transition='none'; E.card.style.transform='none';
+  let cr=E.card.getBoundingClientRect(), fr=E.fab.getBoundingClientRect();
+  let dx=(fr.left+fr.width/2)-(cr.left+cr.width/2), dy=(fr.top+fr.height/2)-(cr.top+cr.height/2);
+  let sc=Math.max(0.06,fr.width/cr.width);
+  E.card.style.transformOrigin='center center';
+  E.card.style.transform='translate('+dx+'px,'+dy+'px) scale('+sc+')';
+  E.card.style.opacity='0';
+  void E.card.offsetWidth;
+  E.el.classList.add('show');
+  E.card.style.transition='transform 0.5s cubic-bezier(.16,1,.3,1), opacity 0.35s ease';
+  E.card.style.transform='none'; E.card.style.opacity='1';
+  setTimeout(function(){
+    E.card.style.transition='';E.card.style.transform='';E.card.style.opacity='';E.card.style.transformOrigin='';
+    vbTourVidState.busy=false;
+  },560);
+}
+// Klik di luar kartu video (hanya saat dibuka dari ikon) => menyusut lagi.
+function vbVidPopBackdrop(e){
+  let el=document.getElementById('vb-videoguide-overlay');
+  if(el && e.target===el && el.classList.contains('vb-vid-pop')) vbTourVidClose();
+}
+function vbTourFocusCard(i){
+  let card=document.getElementById('vb-card-'+i);
+  if(card) card.scrollIntoView({behavior:'smooth',block:'center'});
+}
+// Memunculkan tombol Salin kartu ke-i (berdenyut) dan mengunci tombol lain.
+function vbTourEnableCopy(i){
+  if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
+  let b=document.getElementById('vb-bulk-copy-'+i);
+  if(b){ b.classList.remove('vb-tour-copy-hide'); b.classList.remove('vb-copy-locked'); b.classList.add('vb-pulse-yellow'); }
+  let card=document.getElementById('vb-card-'+i);
+  if(card) card.classList.add('vb-box-pulse-gold');
+  if(typeof vbAccEnsureOpen==='function') vbAccEnsureOpen(Math.floor(i/3));
+  pbLockScriptAreaExtras('vb-bulk-copy-'+i);
+}
+function vbTourAfterHookCopy(){
+  let badge=document.getElementById('vb-tour-process-badge');
+  if(badge) badge.style.display='none';
+  pbTourWaitingProdukCopy=true;
+  vbTourEnableCopy(1);
+}
+function vbTourAfterStoryCopy(){
+  pbTourWaitingCtaCopy=true;
+  vbTourEnableCopy(2);
+  vbTourFocusCard(2);
+}
+function vbTourAfterCtaCopy(){
+  if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
+  document.querySelectorAll('.vb-tour-copy-hide').forEach(function(el){el.classList.remove('vb-tour-copy-hide');});
+  pbTourProgressShow(4); // tahap terakhir: Video AI
+  let eb=document.getElementById('vb-tour-end-btn');
+  if(eb) eb.classList.add('show');
+  document.body.classList.add('vb-tour-fab-on');
+}
+function vbTourEndAsk(){
+  if(document.getElementById('vb-tour-end-confirm')) return;
+  let overlay=document.createElement('div');
+  overlay.id='vb-tour-end-confirm';
+  overlay.className='confirm-overlay pb-tour-notif';
+  let box=document.createElement('div'); box.className='confirm-box';
+  let p=document.createElement('p'); p.textContent='Kamu akan mengakhiri panduannya.';
+  let btns=document.createElement('div'); btns.style.cssText='display:flex;gap:10px;';
+  let yes=document.createElement('button'); yes.type='button'; yes.textContent='Ya'; yes.style.flex='1';
+  let no=document.createElement('button'); no.type='button'; no.textContent='Tidak'; no.style.flex='1';
+  no.style.setProperty('background','transparent','important');
+  no.style.setProperty('color','var(--text)','important');
+  no.style.setProperty('border','1px solid var(--border-hi)','important');
+  no.style.setProperty('box-shadow','none','important');
+  btns.appendChild(yes); btns.appendChild(no);
+  box.appendChild(p); box.appendChild(btns);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  no.onclick=function(){ overlay.remove(); };
+  yes.onclick=function(){ overlay.remove(); vbTourEndYes(); };
+}
+function vbTourEndYes(){
+  vbTourVidReset();
+  if(typeof PB_TOUR_STAR_STAGE!=='undefined' && PB_TOUR_STAR_STAGE!==4) pbTourProgressShow(4);
+  if(typeof pbTourWaitingVideoGuideEnd!=='undefined') pbTourWaitingVideoGuideEnd=false;
+  pbEndTour();
+  _vbVideoGuideFinishCleanup(); // menandai tur selesai + kembali ke tab Panduan
+}
+// Bersihkan ikon, tombol Akhiri tur, dan video (dipanggil saat tur berakhir/di-skip).
+function vbTourVidReset(){
+  vbTourVidState.seen=false; vbTourVidState.time=0; vbTourVidState.busy=false;
+  let fab=document.getElementById('vb-vid-fab');
+  if(fab) fab.classList.remove('show','vb-fab-fly');
+  let eb=document.getElementById('vb-tour-end-btn');
+  if(eb) eb.classList.remove('show');
+  document.body.classList.remove('vb-tour-fab-on');
+  let dlg=document.getElementById('vb-tour-end-confirm');
+  if(dlg) dlg.remove();
+  let el=document.getElementById('vb-videoguide-overlay');
+  if(el){ el.classList.remove('show'); el.classList.remove('vb-vid-pop'); }
+  let card=document.getElementById('vb-videoguide-card');
+  if(card){ card.style.transition='';card.style.transform='';card.style.opacity=''; }
+  let body=document.getElementById('vb-videoguide-body');
+  if(body && body.querySelector('#pb-step2b-video')){ try{ pbStep2bVidStop(); }catch(e){} body.innerHTML=''; }
+}
 var pbTourWaitingProdukCopy=false;
 var pbTourWaitingCtaCopy=false;
 
@@ -27839,8 +28012,8 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
         // lagi persis begitu Hook benar-benar sudah disalin.
         if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
         vbShowHookCopiedNotif();
-        let hcActions=document.getElementById('vb-tour-hookcopy-actions');
-        if(hcActions) hcActions.classList.remove('hidden');
+        // (Nov 2026) Tombol Salin Story muncul setelah Hook disalin.
+        vbTourAfterHookCopy();
       }
       // FITUR BARU (permintaan user): pasangan vbVideoGuideWaitCardCopy(1/2)
       // di panduan Video AI — begitu kartu Cerita Produk (ii===1) atau CTA
@@ -27861,7 +28034,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
         // muncul lagi begitu kartu Cerita Produk selesai disalin.
         if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
         else document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
-        vbVideoGuideResumeAfterCopy();
+        vbTourAfterStoryCopy();
       }
       if(ii===2 && typeof pbTourWaitingCtaCopy!=='undefined' && pbTourWaitingCtaCopy){
         pbTourWaitingCtaCopy=false;
@@ -27871,7 +28044,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
         // FIX (sama seperti di atas untuk kartu Cerita Produk).
         if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
         else document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
-        vbVideoGuideResumeAfterCopy();
+        vbTourAfterCtaCopy();
       }
     },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
   };})(idx,copyBtn,doneLabel);
@@ -29737,41 +29910,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var o=docum
   <div id="pb-flow-sublightbox-label"></div>
 </div>
 
-<!-- NOTIFIKASI "PROMPT VIDEO SIAP" — KHUSUS sesi tur panduan pemula
-     (pbTourVideoScriptActive). Dulu ini dipanggil OTOMATIS dari
-     vbGenerate3AI begitu 3 script selesai dibuat AI — tampil buat SEMUA
-     user (tur maupun mode biasa). Sekarang cuma dipanggil dari wrapper
-     copyBtn.onclick di _vbBuildEditableCard(), dan HANYA kalau tur
-     sedang aktif — persis begitu user beneran menekan "Salin" di salah
-     satu kartu Hook/Story/CTA (lihat pbStep7VideoDone & vbScriptReadyNext
-     untuk alur lengkapnya). Di mode biasa, klik Salin tidak memicu
-     notifikasi ini sama sekali. Jelasin kenapa dikasih 3 prompt (aturan
-     durasi TikTok) + diagram mini gaya sama seperti diagram alur Langkah
-     2. Tombol "Lanjut" cuma menutup notifikasi ini (skrip di baliknya
-     sudah siap dipakai). -->
-<div id="vb-scriptready-overlay" class="vb-scriptready-overlay">
-  <div class="vb-scriptready-card">
-    <div class="vb-scriptready-msg">Prompt vidio Ai udah siap nih kak, nah sekarang aku akan jelasin dulu ya.</div>
-    <div class="vb-scriptready-explain">Mempromosikan produk dengan durasi video di bawah 15 detik akan dianggap tidak berkualitas oleh TikTok. Makanya aku kasih 3 prompt supaya bisa bikin 3 video sekaligus.</div>
-    <div class="pb-flow-wrap">
-      <div class="vb-fb-row">
-        <div class="vb-fb vb-fb-hero"><div class="l">🎬 Video AI</div><div class="s">24 detik</div></div>
-      </div>
-      <div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span></div>
-      <div class="vb-fb-connector"></div>
-      <div class="vb-fb-row" style="margin-top:6px;">
-        <div class="vb-fb"><div class="l">Hook</div><div class="s">8 detik</div></div>
-        <div class="vb-fb"><div class="l">Cerita Produk</div><div class="s">8 detik</div></div>
-        <div class="vb-fb"><div class="l">CTA</div><div class="s">8 detik</div></div>
-      </div>
-    </div>
-    <!-- FITUR BARU (permintaan user): kalimat tugas ini menuntun user balik
-         ke kolom skrip (bukan langsung lanjut ke kolom Video AI) buat klik
-         "Salin" di kartu Hook dulu — lihat vbScriptReadyNext(). -->
-    <div class="vb-scriptready-hint">Sekarang tugasnya adalah klik salin pada bagian hook.</div>
-    <div class="vb-scriptready-actions vb-scriptready-actions-center"><button type="button" class="vb-scriptready-btn vb-scriptready-btn-sm" onclick="vbScriptReadyNext()">Mengerti</button></div>
-  </div>
-</div>
+<!-- (Permintaan user, Nov 2026) Tampilan lama "Prompt vidio Ai udah siap nih kak..."
+     (penjelasan + diagram Hook/Cerita Produk/CTA) DIHAPUS. Di posisi yang sama
+     sekarang tampil video panduan Video AI — lihat #vb-videoguide-overlay &
+     vbTourVidShow(). -->
 
 <!-- FITUR BARU (permintaan user, direvisi 2x): notifikasi begitu user
      benar-benar klik "Salin" di kartu Hook. Awalnya toast hijau yang
@@ -29788,7 +29930,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var o=docum
   <div class="vb-scriptready-card">
     <div class="vb-scriptready-msg">Yang disalin itu adalah "prompt vidio" untuk hook (pembuka video).</div>
     <div class="vb-scriptready-explain">Simpan baik-baik ya kak, karena sekarang kita akan pakai prompt ini.</div>
-    <div class="vb-scriptready-actions vb-scriptready-actions-center"><button type="button" class="vb-scriptready-btn vb-scriptready-btn-sm" onclick="vbCloseHookCopiedNotif();vbHookCopyLanjutClick();">Mengerti</button></div>
+    <div class="vb-scriptready-actions vb-scriptready-actions-center"><button type="button" class="vb-scriptready-btn vb-scriptready-btn-sm" onclick="vbCloseHookCopiedNotif();vbTourFocusCard(1);">Mengerti</button></div>
   </div>
 </div>
 
@@ -29798,13 +29940,40 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var o=docum
      notifikasi di atas. SENGAJA DIBIARKAN KOSONG dulu (isinya — foto &
      tampilan tambahan — menyusul dikirim user, lihat PB_STEPVIDEOAI_ITEMS
      di script bawah, saat ini masih array kosong). -->
-<div id="vb-videoguide-overlay" class="vb-scriptready-overlay">
+<div id="vb-videoguide-overlay" class="vb-scriptready-overlay" onclick="vbVidPopBackdrop(event)">
   <div class="vb-scriptready-card" id="vb-videoguide-card">
     <div class="pb-tour-title" id="vb-videoguide-title"></div>
     <div class="pb-tour-desc" id="vb-videoguide-body"></div>
     <div class="vb-scriptready-actions"><button type="button" class="pb-tour-back" id="vb-videoguide-back-btn" style="display:none;min-height:44px;" onclick="vbVideoGuidePrev()">← Kembali</button><button type="button" class="vb-scriptready-btn" id="vb-videoguide-btn" onclick="vbVideoGuideFinish()">Lanjut →</button></div>
   </div>
 </div>
+
+<style id="vb-tourvid-css">
+/* Ikon video panduan (Video AI) — tempat video menyusut setelah "Mengerti" */
+#vb-vid-fab{position:fixed;left:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:9500;width:52px;height:52px;border-radius:50%;display:none;align-items:center;justify-content:center;padding:0;cursor:pointer;background:var(--surface3);color:var(--accent);border:1px solid var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.45);-webkit-tap-highlight-color:transparent;}
+#vb-vid-fab.show{display:flex;animation:vbFabIn .35s ease .3s both,vbFabGlow 2.4s ease-out 1s 2;}
+#vb-vid-fab.vb-fab-fly{z-index:10002;}
+#vb-vid-fab:active{transform:scale(.94);}
+#vb-vid-fab svg{width:24px;height:24px;margin-left:2px;}
+@keyframes vbFabIn{from{opacity:0;}to{opacity:1;}}
+@keyframes vbFabGlow{0%{box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 0 0 rgba(var(--pulse-rgb),.55);}70%{box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 0 12px rgba(var(--pulse-rgb),0);}100%{box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 0 0 rgba(var(--pulse-rgb),0);}}
+/* Tombol "Akhiri tur" (pojok kanan bawah) — muncul setelah Salin CTA */
+#vb-tour-end-btn{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:9500;display:none;min-height:48px;padding:0 22px;border-radius:16px;font:600 15px 'Hanken Grotesk',sans-serif;letter-spacing:-.2px;cursor:pointer;color:#1B1407;background:linear-gradient(180deg,#F0D599,#E3C27E);border:1px solid #F6E2B0;box-shadow:0 10px 28px rgba(227,194,126,.30),inset 0 1px 0 rgba(255,255,255,.35);}
+#vb-tour-end-btn.show{display:block;animation:vbLanjutBtnPulse 1.6s ease-out infinite;}
+#vb-tour-end-btn:active{transform:scale(.97);}
+html.pb-premium #vb-tour-end-btn{background:linear-gradient(180deg,#FFFFFF 0%,#E4E9F2 48%,#BDC6D6 100%);color:#10131A;border-color:#fff;}
+/* yang menggulir adalah .app-shell (bukan body), jadi ruang bawah ditambahkan di sana supaya kartu terbawah tidak tertutup ikon/tombol */
+body.vb-tour-fab-on .app-shell{padding-bottom:calc(var(--space-7,24px) + env(safe-area-inset-bottom,0px) + 110px);}
+/* Tombol Salin Story/CTA disembunyikan sampai giliran-nya */
+.vb-tour-copy-hide,body .rsC-top [id^="vb-bulk-copy-"].vb-tour-copy-hide{display:none!important;}
+/* Video dibuka lagi dari ikon: tampil sebagai kartu melayang, klik di luar = menyusut */
+body.pb-tour-active #vb-videoguide-overlay.vb-vid-pop{background:rgba(4,4,6,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);justify-content:center;padding:20px;}
+body.pb-tour-active #vb-videoguide-overlay.vb-vid-pop .vb-scriptready-card{flex:0 0 auto;width:min(92vw,360px);max-width:360px;background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border-hi);border-radius:var(--radius);padding:18px;box-shadow:0 20px 52px rgba(0,0,0,.55);max-height:calc(100vh - 40px);overflow-y:auto;}
+body.pb-tour-active #vb-videoguide-overlay.vb-vid-pop .vb-scriptready-card>:first-child{margin-top:0;}
+body.pb-tour-active #vb-videoguide-overlay.vb-vid-pop .vb-scriptready-actions{position:static;margin-top:6px;padding:10px 0 0;background:transparent;}
+</style>
+<button type="button" id="vb-vid-fab" aria-label="Lihat lagi video panduan" title="Lihat lagi video panduan" onclick="vbTourVidOpenFromFab()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg></button>
+<button type="button" id="vb-tour-end-btn" onclick="vbTourEndAsk()">Akhiri tur</button>
 
 <div id="step-jump-overlay" onclick="if(event.target===this)fCloseStepJump()">
   <div class="step-jump-sheet">
@@ -30619,6 +30788,11 @@ function pbEndTour(){
   let hookTaWrap=document.getElementById('vb-card-0');
   if(hookTaWrap) hookTaWrap.classList.remove('vb-box-pulse-gold');
   document.querySelectorAll('.vb-copy-locked').forEach(function(el){el.classList.remove('vb-copy-locked');});
+  // (Nov 2026) Lepas juga tombol Salin Story/CTA yang disembunyikan + penanda tunggu-salinnya.
+  document.querySelectorAll('.vb-tour-copy-hide,.vb-pulse-yellow').forEach(function(el){el.classList.remove('vb-tour-copy-hide','vb-pulse-yellow');});
+  document.querySelectorAll('.vb-box-pulse-gold').forEach(function(el){el.classList.remove('vb-box-pulse-gold');});
+  if(typeof pbTourWaitingProdukCopy!=='undefined') pbTourWaitingProdukCopy=false;
+  if(typeof pbTourWaitingCtaCopy!=='undefined') pbTourWaitingCtaCopy=false;
   // Jaga-jaga juga (permintaan user): kalau tur di-skip persis waktu
   // tombol Revisi/Ubah Suara Karakter masih disembunyikan, tampilkan lagi.
   if(typeof pbUnlockScriptAreaExtras==='function') pbUnlockScriptAreaExtras();
@@ -30747,6 +30921,7 @@ function pbHideOverlay(endingTour){
   if(typeof pbStep2bVidStop==='function') pbStep2bVidStop();
   let vgEl=document.getElementById('vb-videoguide-overlay');
   if(vgEl) vgEl.classList.remove('show');
+  if(typeof vbTourVidReset==='function') vbTourVidReset();
   window.removeEventListener('resize',pbRepositionCurrent);
   let shell=document.getElementById('app-shell');
   if(shell) shell.removeEventListener('scroll',pbRepositionCurrent);
