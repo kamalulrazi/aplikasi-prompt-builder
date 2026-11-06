@@ -3373,6 +3373,14 @@ html.pb-tour-curtain body::before{
 .pb-tour-eyebrow:empty{display:none;margin-bottom:0;}
 .pb-tour-title{font-size:24px;font-weight:600;color:var(--text);margin-bottom:14px;line-height:1.3;letter-spacing:-0.3px;}
 .pb-tour-title:empty{display:none;margin-bottom:0;}
+/* GAYA "BINGKAI MENYALA" (dipilih user, 6 Nov 2026): judul langkah tur Siapkan foto produk, Karakter Sheet, Foto AI, Video AI.
+   Judul masuk kapsul; garis cahaya berputar 2x lalu diam jadi bingkai tipis. Class dipasang lewat pbGlowTitle(). */
+@property --pbga{syntax:"<angle>";inherits:false;initial-value:0deg}
+.pb-tour-title.pb-glow{position:relative;display:block;width:fit-content;max-width:100%;margin:0 auto 18px;padding:12px 28px;border-radius:26px;text-align:center;font-size:26px;line-height:1.25;box-shadow:0 0 30px rgba(var(--pulse-rgb),.12);}
+.pb-tour-title.pb-glow-long{font-size:20px;padding:12px 22px;}
+.pb-tour-title.pb-glow::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:2px;pointer-events:none;background:conic-gradient(from var(--pbga),rgba(var(--pulse-rgb),.18),var(--accent-2) 12%,rgba(var(--pulse-rgb),.18) 40%,rgba(var(--pulse-rgb),.18));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;animation:pbGlowSpin 1.6s linear 2;}
+@keyframes pbGlowSpin{to{--pbga:360deg}}
+@media(prefers-reduced-motion:reduce){.pb-tour-title.pb-glow::before{animation:none;}}
 
 /* ── BAR PROGRES BINTANG (permintaan user, lihat foto coretan tangan) ──
    Garis panjang di PALING ATAS layar selama sesi tur berlangsung, isinya
@@ -27536,7 +27544,7 @@ function vbRenderVideoGuide(){
   let btn=document.getElementById('vb-videoguide-btn');
   let backBtn=document.getElementById('vb-videoguide-back-btn');
   if(backBtn) backBtn.style.display='none';
-  if(titleEl) titleEl.textContent='Yuk, bikin video AI-nya';
+  if(titleEl){ titleEl.textContent='Yuk, bikin video AI-nya'; pbGlowTitle(titleEl); }
   if(bodyEl) bodyEl.innerHTML=pbVidPlayerHtml(PB_VID_VIDEO_AI);
   if(btn){ btn.textContent='Selesai'; btn.onclick=vbVideoGuideFinish; }
 }
@@ -27799,7 +27807,7 @@ function vbTourVidRenderOnce(){
   let btn=document.getElementById('vb-videoguide-btn');
   let backBtn=document.getElementById('vb-videoguide-back-btn');
   if(backBtn) backBtn.style.display='none';
-  if(titleEl) titleEl.textContent='Yuk, bikin video AI-nya';
+  if(titleEl){ titleEl.textContent='Yuk, bikin video AI-nya'; pbGlowTitle(titleEl); }
   // Elemen <video> dipertahankan selama tur supaya detik terakhir tontonan tidak hilang.
   if(E.body && !E.body.querySelector('#pb-step2b-video')) E.body.innerHTML=pbVidPlayerHtml(PB_VID_VIDEO_AI);
   if(btn){ btn.textContent='Mengerti'; btn.onclick=vbTourVidMengerti; }
@@ -30633,7 +30641,13 @@ function pbTourProgressHide(){
   document.body.classList.remove('pb-tour-bar-on');
   document.documentElement.style.setProperty('--pb-tour-bar-h','0px');
 }
+function pbGlowTitle(el){
+  el=el||document.getElementById('pb-tour-title'); if(!el||!el.textContent) return;
+  el.classList.remove('pb-glow','pb-glow-long'); void el.offsetWidth; // ulang animasi tiap tampil
+  el.classList.add('pb-glow'); if(el.textContent.length>28) el.classList.add('pb-glow-long');
+}
 function pbSetText(title,desc){
+  document.getElementById('pb-tour-title').classList.remove('pb-glow','pb-glow-long');
   if(typeof pbStep2bVidStop==='function') pbStep2bVidStop(); // video Langkah 3 jangan nyangkut jalan saat kartu ganti isi
   document.getElementById('pb-tour-title').textContent=title;
   document.getElementById('pb-tour-title').style.textAlign=''; // reset; kartu "Alur pembuatan" mengaturnya sendiri (rata tengah)
@@ -31409,6 +31423,7 @@ function pbRenderStep2b(){
     + '<button type="button" onclick="pbGoStep2bCamera()" style="background:var(--surface3);color:var(--accent-text-on-dark);font-weight:500;font-size:var(--fs-sm);font-family:Hanken Grotesk,sans-serif;letter-spacing:-0.2px;text-shadow:0 1px 1.5px rgba(0,0,0,0.5),0 -1px 0 rgba(255,255,255,0.05);border:1px solid transparent;box-shadow:0 0 22px rgba(var(--pulse-rgb),0.16);border-radius:var(--radius);padding:11px 30px;cursor:pointer;">Udah</button>'
     + '</div>';
   pbShowModal(3,'Siapkan foto produk',desc,'Lanjut',pbGoStep2Next);
+  pbGlowTitle();
   // Tombol "Lanjut" tur disembunyikan — di langkah ini user lanjut lewat
   // tombol "Udah" sendiri, bukan tombol bawaan tur.
   let nextBtn=document.getElementById('pb-tour-next-btn');
@@ -31559,8 +31574,8 @@ var PB_VID_KS_FLOW='media/karakter-sheet-google-flow.mp4';
 // dengan video "foto produk" (pbVidPlayerHtml). Setelah "Lanjut" → pbGoStep4 (upload foto).
 var PB_STEP3_ITEMS=[
   {
-    title:'',
-    body:'<p style="margin-top:0;">Ikutin step by step setiap langkah yang ada di vidio dibawah ini.</p>',
+    title:'Ikutin step by step setiap langkah yang ada di vidio dibawah ini.',
+    body:'',
     video:PB_VID_KS_FLOW,
     note:'Kalau sudah selesai dan fotonya sudah diunduh, klik "Lanjut".'
   }
@@ -31586,6 +31601,7 @@ function pbRenderStep3(){
     + (item.video?pbVidPlayerHtml(item.video):pbFrameShot(item.img,item.alt))
     + (item.note?('<p style="font-size:var(--fs-xs2);color:var(--muted);margin:10px 0 0;line-height:1.65;">'+item.note+'</p>'):'');
   pbShowModal(4,(PB_STEP3_ITEMS.length>1?pbStep3Revealed+'. ':'')+item.title,desc,'Lanjut',isLast?function(){pbStep2bVidStop();pbGoStep4();}:pbStep3RevealNext);
+  pbGlowTitle();
   // PERMINTAAN USER: tombol "Kembali" dipasang di footer tur, di samping
   // "Lanjut" (bukan lagi tombol lebar penuh di bawah isi kartu). Muncul
   // begitu bukan butir pertama.
@@ -31714,6 +31730,7 @@ function pbRenderStep6Ext(){
   // dibiarkan sebagai referensi, tapi tidak dipakai lagi. "Lanjut" langsung
   // ke layar upload Foto AI (pbGoStep6ExtUpload).
   pbShowModal(6,'Ikutin setiap langkah dalam video di bawah untuk membuat foto AI.',pbVidPlayerHtml(PB_VID_FOTO_AI),'Lanjut',pbStep6ExtFinish);
+  pbGlowTitle();
   let tourCard=document.getElementById('pb-tour-card');
   if(tourCard) tourCard.scrollTop=0;
 }
