@@ -4168,6 +4168,15 @@ body.pb-tour-active #pb-flow-sublightbox{background:var(--bg);backdrop-filter:no
   line-height:1.2;max-width:66px;
 }
 
+.pb-flow-tutrow{display:flex;align-items:center;gap:6px;}
+.pb-flow-tut{width:32px;height:32px;flex:none;display:grid;place-items:center;padding:0;border-radius:50%;border:1px solid rgba(217,184,118,.45);background:rgba(217,184,118,.12);color:var(--accent);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pb-flow-tut svg{width:13px;height:13px;fill:currentColor;margin-left:1px;}
+.pb-flow-tut:active{opacity:.7;}
+.pb-flow-lightbox-subwrap2{display:flex;gap:12px;justify-content:center;}
+.vbc-tut-wrap{display:flex;justify-content:center;padding:12px 9px 2px;background:var(--surface3);}
+.vbc-tut-btn{padding:9px 30px;border-radius:999px;border:1px solid var(--border-hi);background:var(--surface2);color:var(--text);font-family:'Hanken Grotesk',sans-serif;font-size:var(--fs-sm);font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.vbc-tut-btn:active{opacity:.75;}
+
 /* ── NOTIFIKASI "PROMPT VIDEO SIAP" — muncul setelah 3 script (Kami Bantu
    Isi, mode 1 produk) selesai digenerate AI & sudah lengkap tampil di
    kartu hasil. Menjelaskan kenapa dikasih 3 prompt (aturan durasi TikTok)
@@ -6638,11 +6647,14 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
         </div>
         <div id="vb-mode-preview" class="hidden">
           <div class="vbc-card">
-            <div class="vbc-req" data-label="Foto AI" onclick="pbFlowLightboxOpen(this)">
+            <!-- Baris "Syarat: 1 bahan" disembunyikan (permintaan user, 6 Nov 2026) dan diganti tombol Tutorial di tengah.
+                 Elemen lama dibiarkan (hidden) karena vbSyncModePreview() masih mengisi gambarnya. -->
+            <div class="vbc-req" data-label="Foto AI" style="display:none" onclick="pbFlowLightboxOpen(this)">
               <div class="vbc-box">1</div>
               <span class="vbc-req-text">Syarat: 1 bahan</span>
               <div class="vbc-mini"><img id="vb-mode-preview-foto" alt="Foto"></div>
             </div>
+            <div class="vbc-tut-wrap"><button type="button" class="vbc-tut-btn" id="vb-mode-preview-tut" onclick="vbOpenStartFrameTutorial()">Tutorial</button></div>
             <div class="vbc-res"><div class="vbc-note" role="note"><span class="vbc-note-i"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18M9 4l-2 5 5 11M15 4l2 5-5 11"/></svg></span><span class="vbc-note-t"><b>Cocok untuk semua produk</b></span></div>
               <div class="pb-flow-thumb vbc-thumb" id="vb-mode-preview-video-thumb" data-label="Video AI" onclick="pbFlowLightboxOpen(this)"><video id="vb-mode-preview-video" muted autoplay loop playsinline preload="none"></video></div>
               <div class="vbc-label">🎬 Video AI</div>
@@ -18394,6 +18406,7 @@ function vbSyncModePreview(show){
         vt.setAttribute('data-explain','Untuk menghasilkan video AI dibutuhkan 1\u00A0bahan');
         vt.setAttribute('data-sub1-src',window.PB_IMG_VBREF_FOTO);
         vt.setAttribute('data-sub1-label','Foto AI');
+        vt.setAttribute('data-sub1-extra','startframe');
       }
       try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
     }
@@ -32056,6 +32069,42 @@ function pbStep4NotifTap(){
 // Kotak Video AI isinya <video>, 3 kotak lain isinya <img> — jadi cuma
 // salah satu dari #pb-flow-lightbox-img / #pb-flow-lightbox-video yang
 // ditampilin, tergantung mana yang ketemu di dalam elemen yang di-tap.
+// ── TUTORIAL BAHAN (6 Nov 2026) — ikon video kecil di samping Foto AI / Karakter Sheet / Foto Produk
+// pada lightbox Video AI mode Start Frame. Isi URL video di PB_TUTORIAL_VIDEOS kalau videonya sudah
+// jadi (mis. fotoai:'media/tutorial-fotoai.mp4'). Selama masih kosong, ikon menampilkan "video segera hadir".
+window.PB_TUTORIAL_VIDEOS={fotoai:'',karaktersheet:'',produk:''};
+window.PB_FLOW_EXTRA={startframe:{tut:'fotoai',mats:[
+  {label:'Karakter Sheet',tut:'karaktersheet',side:'left',src:function(){return typeof PB_IMG_FLOW_KARAKTERSHEET!=='undefined'?PB_IMG_FLOW_KARAKTERSHEET:'';}},
+  {label:'Foto Produk',tut:'produk',side:'right',src:function(){return typeof PB_IMG_FLOW_PRODUK!=='undefined'?PB_IMG_FLOW_PRODUK:'';}}
+]}};
+function pbTutBtnHtml(key,name){
+  return '<button type="button" class="pb-flow-tut" data-tut="'+key+'" aria-label="Tutorial '+(name||'')+'"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.2v9.6L10.6 6z"/></svg></button>';
+}
+function pbTutOpen(key,ariaLabel){
+  let box=document.getElementById('pb-flow-sublightbox');
+  let bi=document.getElementById('pb-flow-sublightbox-img');
+  let bv=document.getElementById('pb-flow-sublightbox-video');
+  let bl=document.getElementById('pb-flow-sublightbox-label');
+  if(!box||!bl)return;
+  let src=(window.PB_TUTORIAL_VIDEOS||{})[key]||'';
+  let nama=(ariaLabel||'Tutorial').replace(/^Tutorial\s*/,'');
+  if(bi)bi.style.display='none';
+  if(src&&bv){
+    bv.src=src;bv.controls=true;bv.muted=false;bv.currentTime=0;
+    bv.onclick=function(e){e.stopPropagation();};
+    bv.style.display='block';
+    try{let pp=bv.play();if(pp&&pp.catch)pp.catch(function(){});}catch(e){}
+    bl.textContent='Tutorial '+nama;
+  }else{
+    if(bv){try{bv.pause();}catch(e){} bv.removeAttribute('src');bv.style.display='none';}
+    bl.textContent='Tutorial '+nama+' — video segera hadir';
+  }
+  box.classList.add('show');
+}
+function vbOpenStartFrameTutorial(){
+  let vt=document.getElementById('vb-mode-preview-video-thumb');
+  if(vt)pbFlowLightboxOpen(vt);
+}
 function pbFlowLightboxOpen(el){
   let imgEl=document.getElementById('pb-flow-lightbox-img');
   let vidEl=document.getElementById('pb-flow-lightbox-video');
@@ -32098,12 +32147,29 @@ function pbFlowLightboxOpen(el){
       let src=el.getAttribute('data-sub'+i+'-src');
       let label=el.getAttribute('data-sub'+i+'-label');
       if(!src)continue;
+      // Kolom tambahan (mis. Start Frame: Foto AI -> Karakter Sheet + Foto Produk) dan ikon tutorial; lihat PB_FLOW_EXTRA.
+      let exKey=el.getAttribute('data-sub'+i+'-extra');
+      let ex=(exKey&&window.PB_FLOW_EXTRA)?window.PB_FLOW_EXTRA[exKey]:null;
+      let mediaHtml=el.getAttribute('data-sub'+i+'-video')
+          ? '<span class="pb-vz-host"><video class="pb-flow-lightbox-subimg" src="'+el.getAttribute('data-sub'+i+'-video')+'" poster="'+src+'" muted loop autoplay playsinline style="cursor:pointer" onclick="event.stopPropagation();pbVzOpen(this)"></video></span>'
+          : '<img class="pb-flow-lightbox-subimg" src="'+src+'" alt="'+(label||'')+'">';
+      if(ex&&ex.tut) mediaHtml='<div class="pb-flow-tutrow">'+mediaHtml+pbTutBtnHtml(ex.tut,label)+'</div>';
+      let extraHtml='';
+      if(ex&&ex.mats&&ex.mats.length){
+        extraHtml='<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span><span class="tx">butuh '+ex.mats.length+' bahan</span></div><div class="pb-flow-lightbox-subwrap2">';
+        ex.mats.forEach(function(m){
+          let ms=(typeof m.src==='function')?m.src():m.src;
+          let btn=m.tut?pbTutBtnHtml(m.tut,m.label):'';
+          let im='<img class="pb-flow-lightbox-subimg" src="'+(ms||'')+'" alt="'+m.label+'">';
+          extraHtml+='<div class="pb-flow-lightbox-subcol"><div class="pb-flow-tutrow">'+(m.side==='left'?btn+im:im+btn)+'</div><div class="pb-flow-lightbox-sublabel">'+m.label+'</div></div>';
+        });
+        extraHtml+='</div>';
+      }
       subsHtml+='<div class="pb-flow-lightbox-subcol">'
         +'<div class="pb-flow-arrow"><span class="ln"></span><span class="ic">↓</span></div>'
-        +(el.getAttribute('data-sub'+i+'-video')
-          ? '<span class="pb-vz-host"><video class="pb-flow-lightbox-subimg" src="'+el.getAttribute('data-sub'+i+'-video')+'" poster="'+src+'" muted loop autoplay playsinline style="cursor:pointer" onclick="event.stopPropagation();pbVzOpen(this)"></video></span>'
-          : '<img class="pb-flow-lightbox-subimg" src="'+src+'" alt="'+(label||'')+'">')
+        +mediaHtml
         +'<div class="pb-flow-lightbox-sublabel">'+(label||'')+'</div>'
+        +extraHtml
         +'</div>';
     }
     subwrapEl.innerHTML=subsHtml;
@@ -32153,12 +32219,14 @@ function pbFlowSubClose(){
   let box=document.getElementById('pb-flow-sublightbox');
   if(box)box.classList.remove('show');
   let bv=document.getElementById('pb-flow-sublightbox-video');
-  if(bv){try{bv.pause();}catch(e){}}
+  if(bv){try{bv.pause();}catch(e){} bv.controls=false;bv.onclick=null;}
 }
 (function(){
   let sw=document.getElementById('pb-flow-lightbox-subwrap');
   if(!sw)return;
   sw.addEventListener('click',function(e){
+    let tb=e.target.closest?e.target.closest('.pb-flow-tut'):null;
+    if(tb){ e.stopPropagation(); pbTutOpen(tb.getAttribute('data-tut'),tb.getAttribute('aria-label')); return; }
     let col=e.target.closest?e.target.closest('.pb-flow-lightbox-subcol'):null;
     e.stopPropagation(); // jangan ikut menutup lightbox Video AI
     if(col)pbFlowSubOpen(col);
