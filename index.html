@@ -10866,7 +10866,18 @@ const F_STEP_TITLES={f0:'Subjek',f1:'Foto Referensi',f3:'Cara Tampil',f4:'Pose',
 // tanpa karakter: step Pose dilewati, prompt tidak menyebut karakter, dan Cara Tampil (mis. "di atas meja") dipakai.
 function fIsNoChar(){
   try{
-    if(!FS||FS.importActive||FS.subjek==='produk'||!FS.refs)return false;
+    if(!FS||FS.subjek==='produk'||!FS.refs)return false;
+    // FIX IMPOR PRODUK+LOKASI: dulu mode impor selalu dianggap "ada karakter", jadi prompt lama yang
+    // fotonya cuma Produk + Lokasi (tanpa pose) tetap dipaksa isi Pose. Sekarang prompt impor dianggap
+    // tanpa karakter kalau JSON-nya memang tidak punya pose dan subject-nya kosong / "product only, no person".
+    var _impProdOnly=false;
+    if(FS.importActive){
+      if(FS.pose||FS.poseDesc)return false;
+      var _is=String(FS.importSubject||'').trim().toLowerCase();
+      if(_is&&!/product only|no person/.test(_is))return false;
+      // Prompt lama bekas mode "Produk Saja" (subject "product only, no person") yang fotonya cuma Produk, tanpa foto Lokasi, juga tanpa karakter.
+      _impProdOnly=!!_is;
+    }
     var hasP=false,hasL=false;
     for(var i=0;i<FS.refs.length;i++){
       var t=FS.refs[i].type;
@@ -10874,7 +10885,7 @@ function fIsNoChar(){
       else if(t==='lokasi')hasL=true;
       else if(t==='wajah'||t==='outfit'||t==='atasan'||t==='bawahan'||t==='aksesori'||t==='outfit_random')return false;
     }
-    return hasP&&hasL;
+    return (hasP&&hasL)||_impProdOnly;
   }catch(e){return false;}
 }
 function fHasLokasiRef(){
@@ -11092,6 +11103,14 @@ function fGenerate(){
   // bingung — lihat pbTourAfterGenActive & pbShowSaveJsonNotif() di bawah.
   // FIX IMPOR: sebutkan step mana yang masih kosong (dulu cuma "Lengkapi semua step dulu!" tanpa petunjuk).
   if(FS.importActive && !FS.povProduk){
+    // FIX IMPOR + FOTO LOKASI: kalau user menambah foto Lokasi setelah impor, Lokasi & Cahaya otomatis diambil dari foto itu
+    // (sama seperti alur manual), bukan dianggap "Belum terisi".
+    if(typeof fHasLokasiRef==='function' && fHasLokasiRef() && (!FS.lokasi||!FS.cahaya)){
+      let _lr=fSortRefsForOrder(FS.refs.filter(function(r){return r.type!=='outfit_random';})),_ln=1;
+      for(let _i=0;_i<_lr.length;_i++){if(_lr[_i].type==='lokasi'){_ln=_i+1;break;}}
+      if(!FS.lokasi){FS.lokasi=FS.lokasiLabel='Dari foto lokasi';FS.lokasiDesc='the exact location shown in reference photo '+_ln+' — same architecture, props, background elements, colors, and atmosphere';}
+      if(!FS.cahaya){FS.cahaya=FS.cahayaLabel='Dari foto lokasi';FS.cahayaDesc='taken entirely from reference photo '+_ln+', with the same light direction, color temperature, softness, contrast, and shadow behavior';}
+    }
     let _gm=[];
     let _gNoPose=(FS.subjek==='produk'||(typeof fIsNoChar==='function'&&fIsNoChar()));
     if(!_gNoPose && !FS.pose && !FS.refs.some(function(r){return r.type==='outfit_random'&&r.focus;})) _gm.push('Pose');
@@ -11120,7 +11139,7 @@ function fGenerate(){
   // Jika user back dan ganti produkMode/holdKey, FS.pose bisa berisi nilai lama yang tidak sesuai.
   // Cara paling aman: cek apakah f4 masih dalam state 'done'. Jika tidak (user back tapi belum pilih ulang), blok.
   let f4card=document.getElementById('f4');
-  if(!FS.povProduk&&(!f4card||!f4card.classList.contains('done'))){
+  if(!FS.povProduk&&!(typeof fIsNoChar==='function'&&fIsNoChar())&&(!f4card||!f4card.classList.contains('done'))){
     showToast('Pilih pose terlebih dahulu (Step Pose belum diisi)!','error');
     return;
   }
@@ -11359,7 +11378,8 @@ function _fBuildImportedPromptJSON(ov){
   // isinya kontradiksi sendiri (bilang ada orang & bilang tidak ada orang
   // sekaligus). Disamakan dengan pola jalur normal (_fBuildPromptJSON, baris
   // "ov.forceProdukSaja || FS.subjek==='produk'") supaya konsisten.
-  let isProdukSaja = !!ov.forceProdukSaja || !!FS.importIsProdukSaja;
+  let _impNoCharOnly = !ov.forceProdukSaja && !FS.importIsProdukSaja && (typeof fIsNoChar==='function') && fIsNoChar();
+  let isProdukSaja = !!ov.forceProdukSaja || !!FS.importIsProdukSaja || _impNoCharOnly;
 
   // FIX BUG KONTRADIKSI TANGAN: sebelumnya mode produk-saja di jalur import
   // SELALU menganggap "tidak ada tangan/orang" (intro hardcode "no person or
@@ -11392,7 +11412,7 @@ function _fBuildImportedPromptJSON(ov){
   // paksa forceProdukSaja ke _fComputePlacement — kalau dipaksa, cabang
   // "no hands or person present" di _fComputePlacement selalu menang duluan
   // dan hasilnya tidak akan pernah bisa jadi teks "ada tangan" di bawah.
-  let placementOv = (isProdukSaja && !angleHasHand) ? Object.assign({}, ov, {forceProdukSaja:true}) : ov;
+  let placementOv = (isProdukSaja && !angleHasHand && !_impNoCharOnly) ? Object.assign({}, ov, {forceProdukSaja:true}) : ov;
   // FIX BUG NAMA PRODUK TIDAK KE-UPDATE: sebelumnya "name" di sini selalu
   // pakai FS.importProductBlock.name (beku dari JSON awal), padahal user BISA
   // mengedit nama produk lewat tombol "ubah" di Ringkasan (lihat
@@ -11411,6 +11431,9 @@ function _fBuildImportedPromptJSON(ov){
   // Tangan" tapi placement masih kosong (holdKey/hold memang tidak diisi
   // untuk mode produk-saja), isi teks default yang konsisten dengan angle-nya
   // — sama seperti fallback di _fBuildPromptJSON (angleHasHand).
+  if(!effPlacementImp && isProdukSaja && !angleHasHand){
+    effPlacementImp = 'displayed clearly and prominently as the sole focus of the frame, no hands or person present, centered composition showing full product detail';
+  }
   if(angleHasHand){
     // v11.58: produk-saja + angle "Dipegang Tangan" SELALU pakai teks tangan, bukan sisa FS.hold impor
     // (dulu jadi "held or displayed by the character — held by a hand…" yang kontradiktif).
@@ -11602,6 +11625,20 @@ function _fBuildImportedPromptJSON(ov){
     output_quality: effQualityImp
   };
   if(FS.importStyleReference) fullJson.style_reference = FS.importStyleReference;
+
+  // FIX NOMOR FOTO LOKASI BASI PASCA-EDIT IMPOR: teks Lokasi/Cahaya dari JSON lama menyebut nomor foto ("reference photo 2").
+  // Kalau user menghapus/menambah foto lain di Foto Referensi, nomor foto lokasi bergeser, tapi teks lama tetap menyebut nomor lama
+  // -> JSON merujuk foto yang salah. Sekarang nomor itu dihitung ulang dari urutan foto yang aktif (hanya untuk teks lokasi & cahaya).
+  try{
+    let _ordL = FS.refs ? fSortRefsForOrder(FS.refs.filter(function(r){return r.type!=='outfit_random';})) : [], _nL = 0;
+    for(let _i=0;_i<_ordL.length;_i++){ if(_ordL[_i].type==='lokasi'){ _nL=_i+1; break; } }
+    if(_nL){
+      let _fix = function(t){ return (typeof t==='string') ? t.replace(/reference photo \d+/g,'reference photo '+_nL) : t; };
+      if(fullJson.scene){ fullJson.scene.location=_fix(fullJson.scene.location); fullJson.scene.lighting=_fix(fullJson.scene.lighting); }
+      if(fullJson.output_quality && typeof fullJson.output_quality==='object') fullJson.output_quality.lighting=_fix(fullJson.output_quality.lighting);
+      if(typeof fullJson.prompt==='string') fullJson.prompt=fullJson.prompt.replace(/((?:location shown in|taken entirely from|lighting of) reference photo )\d+/g,'$1'+_nL);
+    }
+  }catch(_e){}
 
   let subjekLabel = ov.label || 'Prompt Diimpor';
   // FIX BUG NOTICE URUTAN FOTO TIDAK SINKRON PASCA-EDIT IMPOR: sebelumnya
@@ -11840,7 +11877,7 @@ function fImportPrompt(){
   // (tanpa pose) hanya dipakai kalau subject tidak mengenali karakter.
   let _impSubjTxt = String(parsed.subject || (parsed.prompt ? _fImportExtractField(cleaned,'subject') : '') || '').trim().toLowerCase();
   FS.importIsProdukSaja = false; // mode "Produk Saja" sudah dihapus
-  if(_impSubjTxt === 'product only, no person') showToast('Mode "Produk Saja" sudah dihapus — prompt ini diimpor sebagai karakter, silakan pilih pose-nya.','error');
+  let _impSubjProdukOnly = (_impSubjTxt === 'product only, no person');
   FS.importActive = true;
   FS.importSubject = parsed.subject || (parsed.prompt ? _fImportExtractField(cleaned,'subject') : '') || '';
   FS.importRefPhotos = Array.isArray(parsed.reference_photos) ? parsed.reference_photos : [];
@@ -11931,7 +11968,8 @@ function fImportPrompt(){
   FS.importProdukNoPhoto = !!(FS.importProductBlock && FS.importProductBlock.name && !FS.hasProdukFoto);
   // Tanda tangan cahaya+mood+mode saat impor — dipakai builder untuk tahu apakah output_quality
   // asli dari JSON masih cocok, atau harus disesuaikan ulang karena user mengedit cahaya/mood.
-  FS.importSceneSig = String(FS.cahayaDesc||FS.cahaya||'')+'||'+String(FS.mood||'')+'||'+(FS.importIsProdukSaja?'1':'0');
+  FS.importSceneSig = String(FS.cahayaDesc||FS.cahaya||'')+'||'+String(FS.mood||'')+'||'+((FS.importIsProdukSaja||(typeof fIsNoChar==='function'&&fIsNoChar()))?'1':'0');
+  if(_impSubjProdukOnly && !(typeof fIsNoChar==='function'&&fIsNoChar())) showToast('Mode "Produk Saja" sudah dihapus — prompt ini diimpor sebagai karakter, silakan pilih pose-nya.','error');
 
   // Subjek — cocokkan teks "subject" dari prompt lama ke jenis subjek yang dikenal
   let subjMatch = _fSUBJECT_TEXT_MAP[String(FS.importSubject||'').trim().toLowerCase()];
@@ -12007,11 +12045,11 @@ function fImportPrompt(){
   if(typeof fRenderSummary === 'function') fRenderSummary();
 
   let _impMissing = [];
-  if(!FS.lokasi) _impMissing.push('Lokasi');
-  if(!FS.cahaya) _impMissing.push('Cahaya');
+  if(!FS.lokasi && !(typeof fHasLokasiRef==='function' && fHasLokasiRef())) _impMissing.push('Lokasi');
+  if(!FS.cahaya && !(typeof fHasLokasiRef==='function' && fHasLokasiRef())) _impMissing.push('Cahaya');
   if(!FS.angle) _impMissing.push('Sudut Kamera');
   if(!FS.mood) _impMissing.push('Mood & Tone');
-  if(!FS.importIsProdukSaja && !FS.pose && !(FS.refs||[]).some(function(r){return r.type==='outfit_random'&&r.focus;})) _impMissing.push('Pose');
+  if(!FS.importIsProdukSaja && !(typeof fIsNoChar==='function'&&fIsNoChar()) && !FS.pose && !(FS.refs||[]).some(function(r){return r.type==='outfit_random'&&r.focus;})) _impMissing.push('Pose');
   if((FS.refs||[]).some(function(r){return r.type==='produk'&&!(r.focus&&String(r.focus).trim());})) _impMissing.push('Nama produk (di Foto Referensi)');
   if(statusBox){
     statusBox.innerHTML = 'Berhasil diimpor: <strong>' + esc(filled.join(', ')) + '</strong>. Tap "Edit" di Ringkasan buat ganti isian sebelum generate ulang.' + (_impMissing.length ? '<br><span style="color:var(--red);">Belum terisi: <strong>' + esc(_impMissing.join(', ')) + '</strong> — tap "Edit" di Ringkasan dan isi dulu, kalau tidak prompt-nya bolong.</span>' : '') + '<br><button onclick="fCancelImportAsk()" style="background:none;border:none;color:var(--red);font-size:var(--fs-xs);text-decoration:underline;cursor:pointer;padding:4px 0 0;"><svg class="icon"><use href="#ic-close"></use></svg> Batal, mulai dari awal</button>';
@@ -30105,6 +30143,7 @@ function fRenderSummary() {
   let _hl = fHasLokasiRef();
   let lokasiDisplay = _hl ? 'Dari foto lokasi' : FS.lokasiLabel || (FS.lokasi ? (FS.lokasi.length > 55 ? FS.lokasi.substring(0, 55) + '…' : FS.lokasi) : '—');
   if (!FS.lokasi && !_hl) warnings.push('Lokasi belum dipilih.');
+  if (FS.importActive && !_hl && /reference photo \d+/i.test(String(FS.lokasiDesc||FS.lokasi||'')+' '+String(FS.cahayaDesc||FS.cahaya||''))) warnings.push('Lokasi/Cahaya masih merujuk foto lokasi yang sudah dihapus — ganti lewat Edit di Ringkasan.');
   items.push({ key: 'Lokasi', val: lokasiDisplay, editCard: _hl ? 0 : 5 });
 
   // Pencahayaan — BUG FIX #6: pakai label friendly jika ada
