@@ -2449,7 +2449,7 @@ body.pb-tour-active #vb-videoguide-overlay .vb-scriptready-btn{width:auto;flex:1
 /* (26 Okt 2026, permintaan user) Selama loading generate skrip bulk (stick man), kotak kolom skrip DISEMBUNYIKAN dulu;
    class vb-gen-wait dipasang di <html> oleh _vbRunBulkGenerate dan dicopot oleh _vbRevealScriptBox() begitu skrip pertama
    berhasil diterima dari AI (atau di finally kalau gagal). Kotak lalu muncul dengan fade-in; kalau AI cepat, fade-in-nya juga cepat. */
-html.vb-gen-wait #vb-multi-output,html.vb-gen-wait #vb-order-flow{display:none!important;}
+html.vb-gen-wait #vb-multi-output,html.vb-gen-wait #vb-order-flow{visibility:hidden!important;height:0!important;min-height:0!important;margin-top:0!important;margin-bottom:0!important;padding-top:0!important;padding-bottom:0!important;border-width:0!important;overflow:hidden!important;pointer-events:none!important;}
 #vb-multi-output.vb-out-reveal{animation:vbOutReveal .42s cubic-bezier(.16,1,.3,1) both;}
 #vb-multi-output.vb-out-reveal.vb-out-fast{animation-duration:.18s;}
 @keyframes vbOutReveal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -13737,6 +13737,7 @@ this.set=function(s,o){o=o||{};st=s;stT=o.from||0;ts=o.ts||1;rh=o.hold?1:0;sk=''
  if(s==='loop'){ink=[];pg.x=pg.y=0;pg.a=1;S.hl.x=0;S.hl.v=0}
  if(red){settle(s==='loop'?150:s==='rev'?90:s==='retry'?118:s==='ok'?100:80)}};
 this.stop=function(){cancelAnimationFrame(raf)};
+this.time=function(){return stT}; /* waktu adegan berjalan (detik) — dipakai stopGenLogoBtn agar adegan penutup selesai UTUH */
 /* API kecepatan & sinkron real-time (26 Okt 2026): speed = skala waktu adegan; hold = tahan di "menunggu AI"; revGo = hasil AI sudah datang, lanjut menulis perbaikan; revLeft = sisa detik sampai tulisan perbaikan selesai */
 this.speed=function(v){ts=v>0?v:1};
 this.hold=function(v){rh=v?1:0};
@@ -13990,7 +13991,7 @@ function _glRestore(st,immediate,sync){
   if(btn._glState===st)btn._glState=null;
   if(_glActive===st)_glActive=null;
   // (31 Okt 2026) adegan penutup sudah selesai → baru sekarang kotak skrip dibuka (kecuali loader ini cuma diganti loader baru: immediate)
-  if(st.revealBox&&!immediate){try{_vbRevealScriptBox(null,true);}catch(_eRv2){document.documentElement.classList.remove('vb-gen-wait');}}
+  if(st.revealBox&&!immediate){var _doRv=function(){try{_vbRevealScriptBox(null,true);}catch(_eRv2){document.documentElement.classList.remove('vb-gen-wait');}};try{requestAnimationFrame(function(){requestAnimationFrame(_doRv);});}catch(_eRaf){_doRv();}}
   // _vbSyncBulkMainButton() di akhir _vbRunBulkGenerate sempat tertolak karena tombol masih loading → jalankan lagi sekarang
   if(sync){try{if(typeof _vbSyncBulkMainButton==='function')_vbSyncBulkMainButton();}catch(e){}}
 }
@@ -14003,6 +14004,9 @@ function stopGenLogoBtn(btn,state,outcome){
   if(!st){btn.disabled=false;btn.classList.remove('btn-loading');return;}
   if(st.closed)return;
   if(outcome&&st.scene&&st.phase!=='done'){
+    // (8 Nov 2026, permintaan user) loader tampil MINIMAL 5 detik sejak mulai (hanya untuk hasil berhasil/sebagian; gagal langsung ditutup)
+    var _minWait=(outcome==='err'||st.minWaited)?0:Math.max(0,5000-(Date.now()-(st.t0||Date.now())));
+    if(_minWait>0){st.minWaited=true;clearTimeout(st.fin);st.fin=setTimeout(function(){stopGenLogoBtn(btn,st,outcome);},_minWait);return;}
     clearTimeout(st.rt);clearTimeout(st.revT);
     st.phase='done';
     btn.setAttribute('aria-busy','false');
@@ -14013,7 +14017,22 @@ function stopGenLogoBtn(btn,state,outcome){
     clearTimeout(st.spT);
     st.scene.set(ok?'ok':'err',{ts:_ets});
     _glSetLabel(st,ok?'Selesai. Skrip siap dipakai.':(outcome==='partial'?'Sebagian skrip belum selesai.':'Gagal membuat prompt. Coba lagi ya.'));
-    st.fin=setTimeout(function(){_glRestore(st,false,true);},_glReduce()?1400:Math.max(ok?(_el<4000?1250:1700):1900,(ok?3000:2800)/_ets));
+    // FIX (laporan user: animasi belum selesai tapi layar sudah kosong lalu skrip baru muncul):
+    // dulu penutupnya pakai timer jam-dinding (±1,3 dtk saat AI cepat), padahal waktu adegan dibatasi per-frame (dt maks 33ms) —
+    // saat halaman berat (render kartu skrip) FPS turun, adegan baru jalan separuh lalu dipotong. Sekarang tombol baru dilepas
+    // setelah WAKTU ADEGAN benar-benar sampai ujung (centang/ekspresi gagal tampil penuh) DAN ketikan skrip di kartu sudah tuntas,
+    // lalu ditahan sebentar. Batas aman 6,5 dtk supaya tidak pernah macet.
+    if(_glReduce()){st.fin=setTimeout(function(){_glRestore(st,false,true);},1400);return;}
+    var _need=ok?2.9:2.7,_t0=Date.now();
+    var _poll=function(){
+      if(st.closed)return;
+      var sc=_need;try{sc=st.scene.time();}catch(_e){}
+      var typing=false;try{typing=!!(typeof _vbTypewriter!=='undefined'&&_vbTypewriter.timer);}catch(_e2){}
+      var real=Date.now()-_t0;
+      if(real>6500||(sc>=_need&&!typing)){st.fin=setTimeout(function(){_glRestore(st,false,true);},450);return;}
+      st.fin=setTimeout(_poll,60);
+    };
+    _poll();
     return;
   }
   _glRestore(st,false,false);
@@ -25666,7 +25685,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     // ulang pelan-pelan dari awal untuk SEMUA produk (bukan cuma yang baru)
     // — user akan lihat semua script yang sudah selesai dari tadi tiba-tiba
     // hilang lalu muncul lagi satu-satu.
-    await _vbTypewriterFlush(900); // biarkan ketikan live selesai dulu, baru render final
+    await _vbTypewriterFlush(4000); // biarkan ketikan live selesai dulu, baru render final
     await _vbRenderBulkOutput(allResults,produkList,true,false);
     _vbBuildCombinedHistoryEntry('Bulk '+allResults.length+' produk ('+(allResults.length*_vbPer())+' script)'+(VB.bulkTargetAudience?' — '+VB.bulkTargetAudience:''));
     // audit Okt 2026 (v11.85): dulu "Selesai!" + kartu step ditandai beres SEBELUM dicek lengkap atau tidak, lalu toast "Hanya N dari M"
@@ -25763,7 +25782,7 @@ async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResul
     stopGenLogoBtn(btn,genLogoState,genFailed?(allResults.length>0&&allResults.length<produkList.length?'partial':'err'):(allResults.length>=produkList.length?'ok':'partial'));
     // pengaman: tanpa loader (atau loader sudah tertutup) kotak langsung dibuka; kalau adegan penutup macet, kotak tetap dibuka paling lambat 9 detik
     try{if(!genLogoState||genLogoState.closed)_vbRevealScriptBox(null,true);}catch(_eRv3){document.documentElement.classList.remove('vb-gen-wait');}
-    setTimeout(function(){if(document.documentElement.classList.contains('vb-gen-wait'))_vbRevealScriptBox(null,true);},9000);
+    setTimeout(function(){if(document.documentElement.classList.contains('vb-gen-wait'))_vbRevealScriptBox(null,true);},16000);
     // FIX (laporan user: setelah error 403 tombol utama tetap "Generate Prompt", padahal ada sesi yang bisa dilanjutkan): _vbSyncBulkMainButton() yang dipanggil di dalam catch selalu kena early-return karena tombol MASIH berstatus btn-loading saat itu, lalu stopGenLogoBtn() mengembalikan label lama. Dipanggil ULANG di sini, setelah loading benar-benar dilepas, supaya tombol jadi "Lanjutkan N Produk yang Belum".
     _vbSyncBulkMainButton();
     VAI._isGenerating=false;
@@ -26363,17 +26382,9 @@ function _vbTypewriterSetTarget(taId,fullText,onTick){
         let target=t.text||'';
         let cardIdx=_vbCardIdxFromTaId(taId2);
         if(shown.length<target.length){
-          anyPending=true;
-          // Kecepatan dasar ~2 karakter/tik (terasa seperti ngetik natural).
-          // Kalau jaraknya jauh (chunk besar baru masuk / lagi susul-menyusul
-          // antar produk di mode bulk), dipercepat proporsional supaya tidak
-          // ketinggalan lama, tapi tetap kelihatan "mengalir" bukan loncat.
-          let gap=target.length-shown.length;
-          let step=gap>60?Math.ceil(gap/8):(gap>20?3:2);
-          if(_vbTypeBoost>1)step=Math.max(step,Math.ceil(gap*(_vbTypeBoost>=3?.35:.2)),Math.ceil(2*_vbTypeBoost)); // AI cepat -> tampil cepat
-          ta.value=target.slice(0,shown.length+step);
-          // Masih setengah jalan -> teks tetap blur & logo P kecil tetap jalan.
-          _vbCardSetLoading(cardIdx,true);
+          // tanpa animasi ketik: teks langsung tampil utuh (anyPending tidak dipakai lagi)
+          ta.value=target; // (8 Nov 2026, permintaan user) TANPA efek ketik: teks langsung tampil utuh
+          _vbCardSetLoading(cardIdx,false); // teks sudah penuh -> blur & logo P kecil dimatikan
           if(typeof t.onTick==='function')t.onTick();
         }else if(shown.length>target.length){
           // Kasus jarang: target (hasil terbaru) lebih pendek dari yang
@@ -26421,7 +26432,7 @@ function _vbTypewriterSequentialRun(items){
       let item=items[idx];
       let ta=document.getElementById(item.taId);
       let cardIdx=_vbCardIdxFromTaId(item.taId);
-      let words=(item.text||'').match(/\S+\s*/g)||[]; // per-kata (termasuk spasi setelahnya)
+      let words=item.text?[item.text]:[]; // (8 Nov 2026, permintaan user) TANPA efek ketik: seluruh teks sekaligus
       if(!ta||words.length===0){_vbCardSetLoading(cardIdx,false);idx++;nextItem();return;}
       ta.value='';
       // Giliran kartu INI mulai diketik -> pastikan blur & logo P kecil
@@ -26442,7 +26453,7 @@ function _vbTypewriterSequentialRun(items){
           idx++;
           nextItem();
         }
-      },55); // ~55ms/kata — cukup pelan buat kebaca, cukup cepat biar ga lama nunggu 3 script
+      },1); // ~55ms/kata — cukup pelan buat kebaca, cukup cepat biar ga lama nunggu 3 script
     }
     nextItem();
   });
