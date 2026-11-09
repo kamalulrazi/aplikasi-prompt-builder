@@ -5205,7 +5205,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.83</div>
+  <div class="splash-version" id="splash-version">v14.84</div>
 </div>
 <script>
   (function(){
@@ -7580,7 +7580,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.83 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.84 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -23360,7 +23360,7 @@ function _vbSapaanRule(){
 // Contoh di bawah = OPSI 1 (VB_REF_OPSI1_COMBO, kunci: nadaKey+'|'+aksen; VB_REF_OPSI1_DEFAULT = cadangan umum).
 // Opsi baru: bikin pasangan VB_REF_OPSI2_DEFAULT + VB_REF_OPSI2_COMBO dengan format yang sama, lalu daftarkan di VB_REFERENCE_OPTIONS.
 // Tiap kali skrip diminta ke AI, SATU opsi dipilih acak.
-var VB_REFERENCE_HEAD='REFERENCE (EXAMPLE ONLY): the sample script below is about a DIFFERENT product and is NOT your product. Use it only to feel the tone, rhythm and signature dialect words. Do not copy or paraphrase its sentences, jokes, scenario, problem, product, place or word order, and never mention its product. Write every sentence fresh and original for the product in DATA; the situation and order of events must come from that product.\n';
+var VB_REFERENCE_HEAD='REFERENCE (EXAMPLE ONLY): the sample script below is about a DIFFERENT product and is NOT your product. Use it only to feel the tone, rhythm and signature dialect words. Do not copy or paraphrase its sentences, jokes, scenario, problem, product, place or word order, and never mention its product. Write every sentence fresh and original for the product in DATA; the situation and order of events must come from that product. The product name, its use and its daily problem come ONLY from DATA, and the script must say the product name from DATA.\n';
 // Contoh referensi 24 detik (3 bagian: hook, story, cta). Nov 2026: Opsi 2-8 ditulis ulang; CTA Opsi 9-20 dibuat beda-beda;
 // pembuka story Opsi 10-20 divariasikan (tidak lagi semua "Bayangin kamu"); aksen Jawa dihapus karena sudah tidak dipakai.
 // CTA 24 detik TIDAK memakai aturan 16 detik (satu kalimat ajakan di akhir); tetap 2 kalimat bebas.
@@ -25147,7 +25147,14 @@ function _vbOffTopicWords(p,bp,extra){
   var own=(String(bp&&bp.nama||'')+' '+String(bp&&bp.keunggulan||'')+' '+String(bp&&bp.topik||'')+' '+String(extra||'')).toLowerCase();
   var txt=[p&&p.hook,p&&p.story,p&&p.cta].join(' ').toLowerCase();
   var _fw=_vb16()?VB_FOREIGN_SAMPLE_WORDS.concat(VB_FOREIGN_SAMPLE_WORDS_16):VB_FOREIGN_SAMPLE_WORDS;
-  return _fw.filter(function(w){return txt.indexOf(w)>-1&&own.indexOf(w)===-1;});
+  var hit=_fw.filter(function(w){return txt.indexOf(w)>-1&&own.indexOf(w)===-1;});
+  // 9 Nov 2026: skrip yang tidak menyebut SATU PUN kata nama produk (>=4 huruf, dicocokkan lewat 5 huruf awal supaya imbuhan tetap kena)
+  // dianggap nyasar juga, karena AI bisa meniru skenario contoh tanpa menyebut nama produk contohnya.
+  try{
+    var nm=String(bp&&bp.nama||'').toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu,' ').split(/\s+/).filter(function(w){return w.length>=4;});
+    if(nm.length&&txt.trim()&&!nm.some(function(w){return txt.indexOf(w.slice(0,5))>-1;}))hit.push('(nama produk tidak disebut)');
+  }catch(eNm){}
+  return hit;
 }
 function _vbPostChecks(arr,batch){
   var aligned=(arr.length===batch.length);
