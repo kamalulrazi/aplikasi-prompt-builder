@@ -4216,6 +4216,30 @@ body.pb-tour-active #pb-flow-sublightbox{background:var(--bg);backdrop-filter:no
 .pb-flow-tut svg{width:13px;height:13px;fill:currentColor;margin-left:1px;}
 .pb-flow-tut:active{opacity:.7;}
 .pb-flow-lightbox-subwrap2{display:flex;gap:12px;justify-content:center;}
+/* ── TUTORIAL START FRAME: tampilan "Resep" (opsi B) — Karakter Sheet + Foto Produk → Foto AI → Video AI (hasil akhir).
+   Hanya aktif saat lightbox dibuka dari Start Frame (class .recipe di .pb-flow-lightbox-box, diatur di pbFlowLightboxOpen). */
+#pb-flow-lightbox{overflow-y:auto;overscroll-behavior:contain;}
+.pb-flow-lightbox-box.recipe{width:min(86vw,320px);margin:auto;gap:0;}
+.pb-flow-lightbox-box.recipe .pb-flow-lightbox-subwrap{order:-1;flex-direction:column;align-items:center;gap:0;margin:0;}
+.pb-flow-lightbox-box.recipe .pb-flow-lightbox-media{width:120px;border-radius:var(--radius);outline:1px solid rgba(169,138,82,.35);outline-offset:4px;}
+.pb-flow-lightbox-box.recipe .pb-flow-lightbox-media video{border-color:rgba(169,138,82,.45);box-shadow:none;}
+.pb-flow-lightbox-box.recipe .pb-flow-lightbox-media .pb-flow-tut{position:absolute;right:-9px;bottom:-9px;width:38px;height:38px;z-index:2;background:#1E1911;border-color:#A98A52;color:#E6CD97;}
+.pb-flow-lightbox-box.recipe .pb-flow-lightbox-label{margin-top:14px;text-align:center;}
+.pb-flow-lightbox-label small{display:block;font-weight:400;font-size:12px;color:var(--muted);margin-top:1px;}
+.pb-flow-lightbox-box.recipe .pb-flow-lightbox-explain{margin-top:16px;font-size:12px;}
+.rc-hd{text-align:center;margin-bottom:16px;}
+.rc-hd h2{font-size:17px;font-weight:700;letter-spacing:-.01em;color:var(--text);margin:0;}
+.rc-hd p{font-size:12.5px;color:var(--muted);margin:3px 0 0;}
+.rc-pair{display:flex;gap:12px;align-items:flex-start;}
+.rc-plus{margin-top:28px;color:#B8965F;font-size:22px;line-height:1;width:12px;text-align:center;}
+.rc-link{display:flex;flex-direction:column;align-items:center;margin:12px 0;}
+.rc-link i{width:1px;height:12px;background:rgba(169,138,82,.45);}
+.rc-link span{font-size:12px;color:#E6CD97;border:1px solid rgba(169,138,82,.45);background:#1E1911;border-radius:99px;padding:3px 12px;}
+.rc-item{gap:0;}
+.rc-tile{position:relative;width:var(--w,84px);aspect-ratio:1;}
+.rc-tile .pb-flow-lightbox-subimg{width:100%;height:100%;border-radius:14px;border-color:rgba(169,138,82,.45);}
+.rc-tile .pb-flow-tut{position:absolute;right:-9px;bottom:-9px;width:34px;height:34px;background:#1E1911;border-color:#A98A52;color:#E6CD97;}
+.rc-cap{margin-top:10px;font-size:12.5px;font-weight:600;color:var(--text);max-width:none;line-height:1.3;}
 .vbc-tut-wrap{display:flex;justify-content:center;padding:12px 9px 2px;background:var(--surface3);}
 .vbc-tut-btn{padding:9px 30px;border-radius:999px;border:1px solid var(--border-hi);background:var(--surface2);color:var(--text);font-family:'Hanken Grotesk',sans-serif;font-size:var(--fs-sm);font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .vbc-tut-btn:active{opacity:.75;}
@@ -33025,11 +33049,35 @@ function pbTutOpen(key,ariaLabel){
   }
   box.classList.add('show');
 }
+// ── TUTORIAL START FRAME — tampilan "Resep" (opsi B). Dirender ke #pb-flow-lightbox-subwrap; kotak Video AI memakai media utama lightbox (dipindah ke bawah lewat CSS order).
+function pbRecipeTile(src,label,tut,w){
+  return '<div class="pb-flow-lightbox-subcol rc-item"><div class="rc-tile" style="--w:'+w+'px"><img class="pb-flow-lightbox-subimg" src="'+(src||'')+'" alt="'+label+'">'+(tut?pbTutBtnHtml(tut,label):'')+'</div><div class="pb-flow-lightbox-sublabel rc-cap">'+label+'</div></div>';
+}
+function pbRecipeHtml(ex,fotoSrc){
+  let m=ex.mats.map(function(x){return pbRecipeTile(typeof x.src==='function'?x.src():x.src,x.label,x.tut,84);});
+  return '<div class="rc-hd"><h2>Cara membuat Video AI</h2><p>Dua bahan jadi Foto AI, lalu jadi video.</p></div>'
+    +'<div class="rc-pair">'+m.join('<span class="rc-plus">+</span>')+'</div>'
+    +'<div class="rc-link"><i></i><span>digabung jadi</span><i></i></div>'
+    +pbRecipeTile(fotoSrc,'Foto AI',ex.tut,100)
+    +'<div class="rc-link"><i></i><span>diubah jadi video</span><i></i></div>';
+}
+(function(){
+  let mw=document.querySelector('#pb-flow-lightbox .pb-flow-lightbox-media');
+  if(!mw)return;
+  mw.addEventListener('click',function(e){
+    let tb=e.target.closest?e.target.closest('.pb-flow-tut'):null;
+    if(tb){ e.stopPropagation(); pbTutOpen(tb.getAttribute('data-tut'),tb.getAttribute('aria-label')); }
+  });
+})();
 function vbOpenStartFrameTutorial(){
   let vt=document.getElementById('vb-mode-preview-video-thumb');
   if(vt)pbFlowLightboxOpen(vt);
 }
 function pbFlowLightboxOpen(el){
+  let isRecipe=!!(el.getAttribute('data-sub1-extra')==='startframe'&&window.PB_FLOW_EXTRA&&window.PB_FLOW_EXTRA.startframe);
+  let rcBox=document.querySelector('#pb-flow-lightbox .pb-flow-lightbox-box');
+  if(rcBox)rcBox.classList.toggle('recipe',isRecipe);
+  document.querySelectorAll('#pb-flow-lightbox .pb-flow-lightbox-media .pb-flow-tut').forEach(function(b){b.remove();});
   let imgEl=document.getElementById('pb-flow-lightbox-img');
   let vidEl=document.getElementById('pb-flow-lightbox-video');
   let muteBtn=document.getElementById('pb-flow-lightbox-mute');
@@ -33059,7 +33107,12 @@ function pbFlowLightboxOpen(el){
   let lblEl=document.getElementById('pb-flow-lightbox-label');
   lblEl.textContent=el.getAttribute('data-label')||'';
   let tutKey=el.getAttribute('data-tut');
-  if(tutKey){ lblEl.insertAdjacentHTML('beforeend',pbTutBtnHtml(tutKey,el.getAttribute('data-label')||'Video AI')); lblEl.classList.add('has-tut'); }
+  if(tutKey&&isRecipe){
+    lblEl.innerHTML='Video AI<small>hasil akhir</small>'; lblEl.classList.remove('has-tut');
+    let mw=document.querySelector('#pb-flow-lightbox .pb-flow-lightbox-media');
+    if(mw) mw.insertAdjacentHTML('beforeend',pbTutBtnHtml(tutKey,'Video AI'));
+  }
+  else if(tutKey){ lblEl.insertAdjacentHTML('beforeend',pbTutBtnHtml(tutKey,el.getAttribute('data-label')||'Video AI')); lblEl.classList.add('has-tut'); }
   else lblEl.classList.remove('has-tut');
   // Bahan tambahan — cuma ada di kotak Video AI & Foto AI (data-explain
   // di-set di HTML-nya). Kotak Karakter Sheet/Produk nggak punya
@@ -33067,7 +33120,12 @@ function pbFlowLightboxOpen(el){
   let explainEl=document.getElementById('pb-flow-lightbox-explain');
   let subwrapEl=document.getElementById('pb-flow-lightbox-subwrap');
   let explain=el.getAttribute('data-explain');
-  if(explain){
+  if(isRecipe){
+    explainEl.textContent='Ketuk tombol putar di pojok gambar untuk melihat penjelasannya.';
+    explainEl.style.display='block';
+    subwrapEl.innerHTML=pbRecipeHtml(window.PB_FLOW_EXTRA.startframe,el.getAttribute('data-sub1-src'));
+    subwrapEl.style.display='flex';
+  }else if(explain){
     explainEl.textContent=explain;
     explainEl.style.display='block';
     let subsHtml='';
