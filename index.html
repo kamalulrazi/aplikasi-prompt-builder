@@ -14098,18 +14098,29 @@ function _glCheck(st,info){
   h.rows.forEach(function(r){W+=r.n;});
   var wd=Math.max(.004,(Tc-R*(G+V))/Math.max(1,W));
   _glSetLabel(st,'Mengecek jumlah kata ('+R+' skrip)...');
-  st.scene.set('chk',{ts:st.ts||1,wd:wd,G:G,V:V,items:h.rows.map(function(r){return{n:r.n,k:r.miss,dir:r.dir||1,ok:r.ok,lens:r.w.map(function(x){return x.length;})};})});
+  try{
+    st.scene.set('chk',{ts:st.ts||1,wd:wd,G:G,V:V,items:h.rows.map(function(r){return{n:r.n,k:r.miss,dir:r.dir||1,ok:r.ok,lens:r.w.map(function(x){return x.length;})};})});
+  }catch(eChk){
+    // adegan cek kata gagal dimulai → jangan macet di status 'checking' (event revisi tertahan di antrean & penutup menunggu): lanjut seperti biasa
+    console.warn('[genLogo] adegan cek kata gagal dimulai:',eChk);
+    st.chkDone=true;h.live=false;_ghLay(h);
+    if(st.phase==='checking')_glResume(st);
+    return;
+  }
+  // pengawas: kalau adegan tidak pernah melapor selesai (mis. tab lama disembunyikan / error di tengah jalan), alur tetap dilanjutkan
+  clearTimeout(st.chkW);
+  st.chkW=setTimeout(function(){if(!st.closed&&st.phase==='checking'&&!st.chkDone)_glChkEnd(st);},Math.ceil(Tc*2000/Math.max(1,st.ts||1))+4000);
 }
 function _glChkEnd(st){
   if(st.closed||st.phase!=='checking')return;
-  st.chkDone=true;var h=st.hud;if(h){h.live=false;_ghLay(h);}
+  st.chkDone=true;clearTimeout(st.chkW);var h=st.hud;if(h){h.live=false;_ghLay(h);}
   if(st.evq&&st.evq.length){_glReplay(st);return;}
   var flagged=h&&h.rows&&h.rows.some(function(r){return !r.ok;});
   // ada yang perlu diperbaiki: tunggu permintaan perbaikan ke AI (rev-call); kalau tidak datang, kembali menulis
   st.chkT=setTimeout(function(){if(st.phase==='checking')_glResume(st);},flagged?2500:900);
 }
 // event perbaikan yang datang saat adegan cek kata / ganti model masih tampil ditahan, lalu diputar ulang BERURUTAN (data tidak pernah tertimpa)
-function _glReplay(st){var q=st.evq||[];st.evq=[];q.forEach(function(x){if(!st.closed&&st.phase!=='done')genLogoEvent(x[0],x[1]);});}
+function _glReplay(st){var q=st.evq||[];st.evq=[];q.forEach(function(x){if(st.closed||st.phase==='done')return;try{genLogoEvent(x[0],x[1]);}catch(eRp){console.warn('[genLogo] putar ulang event gagal:',eRp);}});}
 function _glStartRev(st,info){
   if(st.closed||st.phase==='done'||!st.scene)return;
   clearTimeout(st.chkT);clearTimeout(st.waitT);
@@ -14126,7 +14137,8 @@ function _glStartRev(st,info){
   var mn=_glModelName(info.model);
   _glSetLabel(st,'Merevisi '+(info.n||'')+' teks'+(info.total>1?' (percobaan '+info.step+'/'+info.total+(mn?', '+mn:'')+')':(mn?' ('+mn+')':''))+'. Menunggu AI...');
   var items=anim.length?anim.map(function(r){return{j:r.line,k:Math.max(1,r.miss),dir:r.dir||1};}):(info.items||[]).slice(0,3).map(function(it,i){return{j:i,k:3,dir:1};});
-  st.scene.set('rev',{ts:st.ts||1,hold:got?0:1,fresh:fresh,all:[],items:items});
+  try{st.scene.set('rev',{ts:st.ts||1,hold:got?0:1,fresh:fresh,all:[],items:items});}
+  catch(eRv){console.warn('[genLogo] adegan revisi gagal dimulai:',eRv);st.phase='loading';st.revGot=false;_glResume(st);return;}
   if(got){
     qs.forEach(function(ri){_ghRevResult(st,ri,_glReduce());});
     if(st.rev===0){var left=0;try{left=st.scene.revLeft();}catch(e){}st.revT=setTimeout(function(){if(st.phase==='revising'&&st.rev===0)_glResume(st);},Math.min(6000,left*1000+400));}
@@ -14183,7 +14195,7 @@ function startGenLogoBtn(btn,label){
     w.classList.add('looping');
   }
   // pengaman terakhir: stage tidak boleh menutup layar selamanya
-  st.safe=setTimeout(function(){if(!st.closed)_glRestore(st,true,true);},15*60*1000);
+  st.safe=setTimeout(function(){if(st.closed)return;_glRestore(st,true,true);try{_vbRevealScriptBox(null,true);}catch(_eSv){document.documentElement.classList.remove('vb-gen-wait');}},15*60*1000);
   btn._glState=st;_glActive=st;
   return st;
 }
@@ -14240,8 +14252,8 @@ function genLogoEvent(kind,info){
     _glBeat(st);
     st.phase='retrying';
     _glSetLabel(st,info.to?('Model error. Pindah ke '+info.to+'...'):'Model error. Pindah ke model lain...');
-    if(st.scene)st.scene.set('retry',{ts:st.ts||1});
     st.rt=setTimeout(function(){if(st.phase==='retrying')_glResume(st);},st.scene?(_glReduce()?350:Math.max(1500,_GL_RT_MS/(st.ts||1))):1800);
+    try{if(st.scene)st.scene.set('retry',{ts:st.ts||1});}catch(eRt){console.warn('[genLogo] adegan ganti model gagal dimulai:',eRt);}
   }else if(kind==='draft'){
     _glBeat(st);
     _glFastAI(st);
@@ -14302,7 +14314,7 @@ function genLogoEvent(kind,info){
 function _glRestore(st,immediate,sync){
   if(!st||st.closed)return;
   st.closed=true;
-  clearTimeout(st.rt);clearTimeout(st.revT);clearTimeout(st.fin);clearTimeout(st.spT);clearTimeout(st.chkT);clearTimeout(st.waitT);clearTimeout(st.safe);
+  clearTimeout(st.rt);clearTimeout(st.revT);clearTimeout(st.fin);clearTimeout(st.spT);clearTimeout(st.chkT);clearTimeout(st.chkW);clearTimeout(st.waitT);clearTimeout(st.safe);
   try{if(st.scene)st.scene.stop();}catch(e){}
   var btn=st.btn;
   var apply=function(){
@@ -14332,8 +14344,11 @@ function stopGenLogoBtn(btn,state,outcome){
     // (8 Nov 2026, permintaan user) loader tampil MINIMAL 5 detik sejak mulai (hanya untuk hasil berhasil/sebagian; gagal langsung ditutup)
     var _minWait=(outcome==='err'||st.minWaited)?0:Math.max(0,5000-(Date.now()-(st.t0||Date.now())));
     if(_minWait>0){st.minWaited=true;clearTimeout(st.fin);st.fin=setTimeout(function(){stopGenLogoBtn(btn,st,outcome);},_minWait);return;}
-    if(outcome!=='err'&&st.scene&&!st.busyDone){var _bzy=false;try{_bzy=!!st.scene.busy();}catch(_eB){}if(st.revQ||(st.evq&&st.evq.length))_bzy=true;if(_bzy){if(!st.busyT0){st.busyT0=Date.now();try{st.scene.speed(3);}catch(_eS){} /* percepat sisa animasi cek/revisi saja; adegan penutup tetap normal */}if(Date.now()-st.busyT0<25000){clearTimeout(st.fin);st.fin=setTimeout(function(){stopGenLogoBtn(btn,st,outcome);},120);return;}}st.busyDone=true;}
-    clearTimeout(st.rt);clearTimeout(st.revT);clearTimeout(st.chkT);clearTimeout(st.waitT);
+    if(outcome!=='err'&&st.scene&&!st.busyDone){var _bzy=false;
+      /* pemulihan: status 'checking'/'revising' tanpa adegan yang benar-benar berjalan (mis. adegan gagal dimulai) tidak boleh membuat penutup menunggu */
+      try{var _sst=st.scene.state();if(st.phase==='checking'&&_sst!=='chk'){st.chkDone=true;st.phase='loading';}if(st.phase==='revising'&&_sst!=='rev'&&!st.revQ){st.phase='loading';}if(st.phase==='loading'&&st.evq&&st.evq.length)_glReplay(st);}catch(_eR){}
+      try{_bzy=!!st.scene.busy();}catch(_eB){}if(st.revQ||(st.evq&&st.evq.length))_bzy=true;if(_bzy){if(!st.busyT0){st.busyT0=Date.now();try{st.scene.speed(3);}catch(_eS){} /* percepat sisa animasi cek/revisi saja; adegan penutup tetap normal */}if(Date.now()-st.busyT0<25000){clearTimeout(st.fin);st.fin=setTimeout(function(){stopGenLogoBtn(btn,st,outcome);},120);return;}}st.busyDone=true;}
+    clearTimeout(st.rt);clearTimeout(st.revT);clearTimeout(st.chkT);clearTimeout(st.chkW);clearTimeout(st.waitT);
     st.phase='done';
     try{_ghHide(st);}catch(_eH){}
     btn.setAttribute('aria-busy','false');
