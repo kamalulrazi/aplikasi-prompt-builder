@@ -4172,6 +4172,7 @@ body.pb-tour-active .vb-ta-wrap.vb-ta-loading textarea{filter:none;}
   font-size:14.5px;line-height:1;cursor:pointer;
 }
 .pb-flow-lightbox-label{font-size:var(--fs-sm);font-weight:600;color:var(--text);}
+.pb-flow-lightbox-label.has-tut{display:flex;align-items:center;justify-content:center;gap:8px;}
 /* Penjelasan tambahan + sub-foto "bahan" di bawah preview lightbox —
    cuma dipakai buat kotak Video AI & Foto AI (yang punya bahan di
    bawahnya). Diisi/disembunyikan dinamis lewat data-explain /
@@ -5247,7 +5248,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.84</div>
+  <div class="splash-version" id="splash-version">v14.85</div>
 </div>
 <script>
   (function(){
@@ -7622,7 +7623,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.84 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.85 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -18847,6 +18848,7 @@ function vbSyncModePreview(show){
         vt.setAttribute('data-sub1-src',window.PB_IMG_VBREF_FOTO);
         vt.setAttribute('data-sub1-label','Foto AI');
         vt.setAttribute('data-sub1-extra','startframe');
+        vt.setAttribute('data-tut','startframe'); // ikon video tutorial di samping label "Video AI"
       }
       try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
     }
@@ -32701,7 +32703,7 @@ function pbStep4NotifTap(){
 // pada lightbox Video AI mode Start Frame. Isi URL video di PB_TUTORIAL_VIDEOS kalau videonya sudah
 // jadi (mis. fotoai:'media/tutorial-fotoai.mp4'). Selama masih kosong, ikon menampilkan "video segera hadir".
 // Video tutorial disimpan di folder media/ (GitHub), sejajar dengan index.html.
-window.PB_TUTORIAL_VIDEOS={fotoai:'media/tutorial-fotoai.mp4',karaktersheet:'media/tutorial-karaktersheet.mp4',produk:'media/tutorial-produk.mp4'};
+window.PB_TUTORIAL_VIDEOS={startframe:'media/tutorial-startframe-v1-720p.mp4',fotoai:'media/tutorial-fotoai.mp4',karaktersheet:'media/tutorial-karaktersheet.mp4',produk:'media/tutorial-produk.mp4'};
 window.PB_FLOW_EXTRA={startframe:{tut:'fotoai',mats:[
   {label:'Karakter Sheet',tut:'karaktersheet',side:'left',src:function(){return typeof PB_IMG_FLOW_KARAKTERSHEET!=='undefined'?PB_IMG_FLOW_KARAKTERSHEET:'';}},
   {label:'Foto Produk',tut:'produk',side:'right',src:function(){return typeof PB_IMG_FLOW_PRODUK!=='undefined'?PB_IMG_FLOW_PRODUK:'';}}
@@ -32715,6 +32717,7 @@ function pbTutOpen(key,ariaLabel){
   let bv=document.getElementById('pb-flow-sublightbox-video');
   let bl=document.getElementById('pb-flow-sublightbox-label');
   if(!box||!bl)return;
+  try{let mv=document.getElementById('pb-flow-lightbox-video');if(mv&&!mv.paused){mv.pause();window._pbTutResumeMain=true;}}catch(e){}
   let src=(window.PB_TUTORIAL_VIDEOS||{})[key]||'';
   let nama=(ariaLabel||'Tutorial').replace(/^Tutorial\s*/,'');
   if(bi)bi.style.display='none';
@@ -32762,7 +32765,11 @@ function pbFlowLightboxOpen(el){
   }else{
     return;
   }
-  document.getElementById('pb-flow-lightbox-label').textContent=el.getAttribute('data-label')||'';
+  let lblEl=document.getElementById('pb-flow-lightbox-label');
+  lblEl.textContent=el.getAttribute('data-label')||'';
+  let tutKey=el.getAttribute('data-tut');
+  if(tutKey){ lblEl.insertAdjacentHTML('beforeend',pbTutBtnHtml(tutKey,el.getAttribute('data-label')||'Video AI')); lblEl.classList.add('has-tut'); }
+  else lblEl.classList.remove('has-tut');
   // Bahan tambahan — cuma ada di kotak Video AI & Foto AI (data-explain
   // di-set di HTML-nya). Kotak Karakter Sheet/Produk nggak punya
   // data-explain, jadi bagian ini otomatis disembunyikan buat mereka.
@@ -32851,6 +32858,7 @@ function pbFlowSubClose(){
   if(box)box.classList.remove('show');
   let bv=document.getElementById('pb-flow-sublightbox-video');
   if(bv){try{bv.pause();}catch(e){} bv.controls=false;bv.onclick=null;bv.onerror=null;}
+  if(window._pbTutResumeMain){window._pbTutResumeMain=false;try{let mv=document.getElementById('pb-flow-lightbox-video');let lb=document.getElementById('pb-flow-lightbox');if(mv&&lb&&lb.classList.contains('show')&&mv.getAttribute('src')){let pp=mv.play();if(pp&&pp.catch)pp.catch(function(){});}}catch(e){}}
 }
 (function(){
   let sw=document.getElementById('pb-flow-lightbox-subwrap');
@@ -32861,6 +32869,14 @@ function pbFlowSubClose(){
     let col=e.target.closest?e.target.closest('.pb-flow-lightbox-subcol'):null;
     e.stopPropagation(); // jangan ikut menutup lightbox Video AI
     if(col)pbFlowSubOpen(col);
+  });
+})();
+(function(){
+  let lb=document.getElementById('pb-flow-lightbox-label');
+  if(!lb)return;
+  lb.addEventListener('click',function(e){
+    let tb=e.target.closest?e.target.closest('.pb-flow-tut'):null;
+    if(tb){ e.stopPropagation(); pbTutOpen(tb.getAttribute('data-tut'),tb.getAttribute('aria-label')); }
   });
 })();
 function pbFlowLightboxClose(){
