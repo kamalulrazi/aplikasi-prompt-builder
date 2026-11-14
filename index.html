@@ -3094,6 +3094,7 @@ html.vb-gen-wait #vb-multi-output,html.vb-gen-wait #vb-order-flow{visibility:hid
 
 /* Foto Referensi — OPSI D: 4 lencana bulat emas sebaris (Karakter, Outfit, Produk, Lokasi) + bar "Isi Outfit Karakter" */
 #f1-type-chips .f1chip:not(.f1chip-special){position:relative;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;padding:2px 0;min-height:0;border:0;border-radius:0;background:none;color:var(--text);white-space:normal;text-align:center;}
+#f1-type-chips .f1chip.pose-locked{opacity:.35;filter:grayscale(.6);}
 #f1-type-chips .f1ic{display:grid;place-items:center;flex:none;width:58px;height:58px;border-radius:50%;color:var(--accent);background:radial-gradient(circle at 50% 35%,rgba(217,184,118,.16),rgba(217,184,118,.04) 70%);box-shadow:inset 0 0 0 1px rgba(217,184,118,.28);transition:background .15s,box-shadow .15s,color .15s;}
 #f1-type-chips .f1ic svg{width:29px;height:29px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
 #f1-type-chips .f1lb{font-size:11.5px;line-height:1.3;font-weight:500;color:var(--text);}
@@ -8796,7 +8797,7 @@ const F_MAX_REFS=8; // FIX #11: batas maksimum foto referensi agar prompt tidak 
 function fAddRef(typeKey){
   // FITUR BARU (permintaan user): opsi Pose dikunci kalau belum ada foto Karakter (karakter sheet) —
   // tanpa karakter, pose tidak punya subjek yang bisa diberi pose itu.
-  if(typeKey==='pose' && FS.importActive){
+  if(typeKey==='pose' && FS.importActive && !FS.refs.some(function(r){return r.type==='pose';})){
     showToast('Foto Pose belum bisa dipakai di prompt impor — buat prompt baru dari awal ya.','error');
     return;
   }
@@ -9074,7 +9075,7 @@ function fSyncPoseState(){
     if(!hasChar && FS.refs.some(function(r){return r.type==='pose';})){
       FS.refs=FS.refs.filter(function(r){return r.type!=='pose';});
     }
-    if(!fHasPoseRef() && FS.pose==='Dari foto pose'){
+    if(!fHasPoseRef() && (FS.pose==='Dari foto pose' || String(FS.poseDesc||FS.pose||'').indexOf('the exact body pose shown in reference photo')===0)){
       FS.pose='';FS.poseLabel='';FS.poseDesc='';
       let c4=document.getElementById('f4');
       if(c4){c4.classList.remove('done','hidden');c4.classList.add('pending');}
@@ -9082,7 +9083,7 @@ function fSyncPoseState(){
       if(typeof fSyncStepNums==='function')fSyncStepNums();
     }
     let btn=document.getElementById('ftb-pose');
-    if(btn)btn.classList.toggle('pb-locked',(!hasChar && !fHasPoseRef()) || !!FS.importActive);
+    if(btn)btn.classList.toggle('pose-locked',(!hasChar && !fHasPoseRef()) || (!!FS.importActive && !fHasPoseRef()));
   }catch(e){}
 }
 function fUpdateCounters(){
@@ -9098,7 +9099,7 @@ function fUpdateCounters(){
     }
     if(btn)btn.classList.toggle('has',count>0);
     if(sub){
-      sub.textContent=count===0?((key==='pose' && btn && btn.classList.contains('pb-locked'))?'Pilih karakter dulu':FCHIP_SUBLABEL[key]):'Sudah dipilih';
+      sub.textContent=count===0?((key==='pose' && btn && btn.classList.contains('pose-locked'))?'Pilih karakter dulu':FCHIP_SUBLABEL[key]):'Sudah dipilih';
     }
   });
 }
@@ -9446,12 +9447,13 @@ function fResetFrom(fromCard){
     let f4chips=document.getElementById('f4-chips');
     if(f4chips){f4chips.innerHTML='';f4chips._posesData=[];}
     // Reset semua counter badge tipe foto — termasuk outfit_random
-    ['wajah','outfit','atasan','bawahan','aksesori','produk','objek','lokasi','outfit_random'].forEach(function(t){
+    ['wajah','outfit','atasan','bawahan','aksesori','produk','objek','lokasi','pose','outfit_random'].forEach(function(t){
       let el=document.getElementById('ftc-'+t);
       if(el){el.textContent='+';}
       let btn=document.getElementById('ftb-'+t);
       if(btn)btn.classList.remove('has');
     });
+    if(typeof fSyncPoseState==='function')fSyncPoseState();
   }
 
   if(fromCard<=2){
@@ -10117,6 +10119,7 @@ function fDetectConflictLevel(produkNama){
 // pose custom yang menyebut "hanger" dibuang & user diminta pilih ulang.
 // Return true = pose aman/sudah disesuaikan; false = pose direset (pilih ulang).
 function _fSyncPoseToHold(prevKey,newKey){
+  if(typeof fHasPoseRef==='function'&&fHasPoseRef()) return true; // pose dari foto referensi, tidak terikat cara tampil
   let cur=String(FS.poseDesc||FS.pose||'').trim();
   if(!cur) return true;
   let all=POSES_WITH_PRODUK[FS.subjek||'hijab']||POSES_WITH_PRODUK.hijab;
@@ -24263,7 +24266,7 @@ var VB_REFERENCE_OPTIONS=[
   {nama:'Opsi 25',def:VB_REF_OPSI25_DEFAULT,combo:VB_REF_OPSI25_COMBO}
 ];
 // ── CONTOH REFERENSI DURASI 16 DETIK (ditulis ulang 9 Nov 2026) ──────────────────────────────
-// 31 opsi (tiap opsi = 1 produk contoh), 2 bagian: "hook" = Hook + Story digabung dalam satu aliran, "cta".
+// 34 opsi (tiap opsi = 1 produk contoh), 2 bagian: "hook" = Hook + Story digabung dalam satu aliran, "cta".
 // Tiap bagian 24-27 kata. ALUR PEMECAHAN MASALAH yang nyambung: hook = masalah nyata penonton + produk jadi jawabannya (1 cara kerja),
 // cta = masalah yang sama sudah beres di momen yang sama (1-2 klausa), lalu SATU kalimat ajakan ke keranjang bawah di akhir. Jangan mulai CTA dengan ajakan.
 // NADA: toxic = sindiran pedas ke kebiasaan/pilihan/alasan penonton (bukan fisik/suku/agama), ada di hook DAN cta, produk tetap jadi penyelesaiannya;
@@ -24271,12 +24274,13 @@ var VB_REFERENCE_OPTIONS=[
 // LOGAT: Medan = kau, bah, kali, lah, pulak, tengok; Sunda = atuh, mah, pisan, teu, euy. Hanya kata ringan yang dimengerti semua orang, maksimal 3-4 kata logat per bagian.
 // Tiap opsi SENGAJA punya kerangka kalimat berbeda (pertanyaan, pengakuan, perumpamaan, adegan, dst) supaya produk dalam 1 panggilan tidak berpola sama.
 // Kunci = nadaKey+'|'+aksen, sama seperti OPSI 1-20; aksen Jawa tidak dipakai.
-// Pengacakan: _vbPickReferenceOption() (produk tunggal) dan _vbPlanReferences() (banyak produk) mengocok ke-31 opsi tanpa pengulangan berurutan.
+// Pengacakan: _vbPickReferenceOption() (produk tunggal) dan _vbPlanReferences() (banyak produk) mengocok ke-34 opsi tanpa pengulangan berurutan.
 // Dipakai otomatis lewat _vbRefOpts() kalau durasi 16 detik dipilih. Nada tanpa contoh sendiri (mis. ramah) memakai 'def' tiap opsi.
 // Kalau produk contoh diganti/ditambah, tambahkan juga katanya di VB_FOREIGN_SAMPLE_WORDS_16.
 // 12 Nov 2026 (permintaan user): Opsi 23-Opsi 25 = 3 contoh bergaya NATURAL/spontan (jepit rambut, klip kemasan, gantungan tas), bukan gaya iklan tertulis. Pembuka & cara menutupnya beda satu sama lain (seruan gemas, heran, ngomel sayang); tiap opsi lengkap 16 versi (def + toxic/gaul/joking x 5 logat).
 // 13 Nov 2026 (permintaan user): Opsi 26-28 ditambahkan (celana kulot, sprei karet, tas selempang mini). Gaya buka: 26 = Jujur deh (ngaku sambil ngomel sayang), 27 = Pernah gak sih (pertanyaan relatable), 28 = Coba tebak (hook ditutup pertanyaan, CTA menjawab). Tiap opsi lengkap 16 versi; logat Medan sengaja lebih tebal, sama seperti Opsi 23-25.
 // 13 Nov 2026 (permintaan user): Opsi 29-31 ditambahkan (sepatu anak slip-on, cardigan ringan, diffuser aroma). Gaya buka: 29 = Bayangin (skenario pagi yang mepet), 30 = Katanya... padahal (meluruskan anggapan keliru), 31 = Coba tarik napas (ajakan lewat indra penciuman). Aturan baru: TANPA pembahasan bahan produk (katun, nilon, dsb.); sifat produk seperti adem/ringan/nyaman boleh. Tiap opsi lengkap 16 versi.
+// 14 Nov 2026 (permintaan user): Opsi 32-34 ditambahkan (rak bumbu putar, key holder dinding, dompet kartu slim). Gaya buka: 32 = dialog singkat ("Mah, garamnya di mana?"), 33 = angka ("Tiga menit tiap pagi..."), 34 = perumpamaan (dompet tebal = laci sampah). Hook TIDAK dibuka dengan Bah/Atuh/Euy/Weh/Eh/Guys/Heh di semua logat. Tiap opsi lengkap 16 versi (def + toxic/gaul/joking x 5 logat); pengacakan otomatis karena daftar dibaca dinamis (length).
 var VB_REFERENCE_OPTIONS_16=[
   {nama:'Opsi 1',
    def:'hook: '+"Niat hidup sehat tiap pagi sering batal gara-gara ribet cuci blender gede. Blender portabel ini ringkas, isi daya, tinggal tekan satu kali, jus langsung jadi."+'\n'+'cta: '+"Jus segar tinggal tuang, wadahnya mudah dibilas, pagi kamu terasa lebih ringan dan semangat. Buka keranjang bawah, intip harganya, kali aja pas buat kamu.",
@@ -25331,6 +25335,108 @@ var VB_REFERENCE_OPTIONS_16=[
       'hook: '+"Hidung kau pasti dah lama minta pindah rumah gara-gara bau apek pas pulang kerja. Diffuser aroma ini tinggal isi air, nyalakan, ruangan langsung segar kali."+'\n'+'cta: '+"Sekarang hidung kau betah di rumah, wangi lembut, ruangan tenang, pulang kerja jadi hadiah. Kalau penasaran sama pilihan aroma dan harganya, tengok aja di keranjang bawah lah.",
     "joking|light Malaysian accent":
       'hook: '+"Hidung awak pasti dah lama minta pindah rumah gara-gara bau apek pas pulang kerja. Diffuser aroma ini tinggal isi air, nyalakan, ruangan langsung segar dan tenang lah."+'\n'+'cta: '+"Sekarang hidung awak betah di rumah lagi, wangi lembut, ruangan tenang, pulang kerja jadi hadiah. Kalau penasaran sama pilihan aroma dan harganya, tengok je kat keranjang bawah."
+   }},
+  {nama:'Opsi 32',
+   def:'hook: '+"Mah, garamnya di mana? Tuh, di belakang kecap. Dapur sempit bikin bumbu susah dicari. Rak bumbu putar ini tinggal diputar, semua botol langsung terlihat dan terjangkau."+'\n'+'cta: '+"Masak jadi lancar, bumbu langsung ketemu, meja dapur lega dan gak ada lagi tanya-tanya sambil teriak. Buka keranjang bawah, intip harganya, siapa tau cocok buat dapurmu.",
+   combo:{
+    "toxic|light Batak accent":
+      'hook: '+"Bumbu kau taruh sembarang, tiap masak teriak mana garamnya, kayak dapur kapal pecah pulak. Rak bumbu putar ini tinggal diputar, semua botol langsung kelihatan."+'\n'+'cta: '+"Alasan dapur sempit kau tumbang, bumbu langsung ketemu, meja lega, gak ada lagi teriak-teriak. Tengok harganya di keranjang bawah, jangan cuma pandai ngomel lah kau.",
+    "toxic|light Sundanese accent":
+      'hook: '+"Bumbu kamu taruh sembarang, tiap masak teriak mana garamnya, kayak dapur kapal pecah mah. Rak bumbu putar ini tinggal diputar, semua botol langsung kelihatan pisan."+'\n'+'cta: '+"Alasan dapur sempit kamu tumbang, bumbu langsung ketemu, meja lega, teu ada lagi teriak-teriak. Lihat harganya di keranjang bawah, jangan cuma pandai ngomel mah.",
+    "toxic|casual Jakarta accent":
+      'hook: '+"Bumbu lo taruh sembarang, tiap masak teriak mana garamnya, kayak dapur kapal pecah banget. Rak bumbu putar ini tinggal diputar, semua botol langsung kelihatan jelas."+'\n'+'cta: '+"Alasan dapur sempit lo tumbang, bumbu langsung ketemu, meja lega, gak ada lagi teriak-teriak. Lihat harganya di keranjang bawah, jangan cuma pandai ngomel doang.",
+    "toxic|neutral standard accent":
+      'hook: '+"Bumbu kamu taruh sembarang, tiap masak teriak mana garamnya, kayak dapur kapal pecah. Rak bumbu putar ini tinggal diputar, semua botol langsung kelihatan jelas."+'\n'+'cta: '+"Alasan dapur sempit kamu tumbang, bumbu langsung ketemu, meja lega, gak ada lagi teriak-teriak. Lihat harganya di keranjang bawah, jangan cuma pandai ngomel doang.",
+    "toxic|light Malaysian accent":
+      'hook: '+"Bumbu awak letak merata-rata, tiap kali masak terjerit mana garam, macam dapur kapal pecah je. Rak bumbu putar ini tinggal diputar, semua botol langsung nampak."+'\n'+'cta: '+"Alasan dapur sempit awak tumbang, bumbu terus jumpa, meja lega, tak ada lagi terjerit-jerit. Tengok harganya di keranjang bawah, jangan cuma pandai membebel je.",
+    "gaul|light Batak accent":
+      'hook: '+"Masak tapi bumbu kau berantakan, cari garam aja ribet kali, relate kan? Gaskeun lah pakai rak bumbu putar ini, tinggal diputar, semua botol langsung kelihatan."+'\n'+'cta: '+"Bumbu langsung ketemu, meja dapur lega, masak jadi sat set dan gak ribet lagi, dapur kau auto aesthetic kali. Cus buka keranjang bawah, tengok harganya, gaskeun lah.",
+    "gaul|light Sundanese accent":
+      'hook: '+"Masak tapi bumbu berantakan, cari garam aja auto ribet, relate pisan kan? Gaskeun pakai rak bumbu putar ini, tinggal diputar, semua botol langsung kelihatan."+'\n'+'cta: '+"Bumbu langsung ketemu, meja dapur lega, masak jadi sat set dan teu ribet lagi, dapur auto aesthetic pisan. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|casual Jakarta accent":
+      'hook: '+"Masak tapi bumbu lo berantakan, cari garam aja auto ribet, relate banget kan? Gaskeun pakai rak bumbu putar ini, tinggal diputar, semua botol langsung kelihatan."+'\n'+'cta: '+"Bumbu langsung ketemu, meja dapur lega, masak jadi sat set dan gak ribet lagi, dapur lo auto aesthetic. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|neutral standard accent":
+      'hook: '+"Masak tapi bumbu berantakan, cari garam aja auto ribet, relate banget kan? Gaskeun pakai rak bumbu putar ini, tinggal diputar, semua botol langsung kelihatan."+'\n'+'cta: '+"Bumbu langsung ketemu, meja dapur lega, masak jadi sat set dan gak ribet lagi, dapur auto aesthetic. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|light Malaysian accent":
+      'hook: '+"Masak tapi bumbu awak berterabur, cari garam pun ribet, relate betul kan? Gaskeun guna rak bumbu putar ini, tinggal diputar, semua botol terus nampak."+'\n'+'cta: '+"Bumbu terus jumpa, meja dapur lega, masak jadi sat set dan tak ribet lagi, dapur awak auto cantik betul. Cus buka keranjang bawah, tengok harganya dulu, gaskeun.",
+    "joking|light Batak accent":
+      'hook: '+"Botol bumbu di dapur kau main petak umpet, garam sembunyi di belakang kecap pulak. Rak bumbu putar ini tinggal diputar, semua botol langsung muncul, gak bisa kabur."+'\n'+'cta: '+"Petak umpet resmi bubar, garam langsung ketemu, masak lancar, meja dapur lega, dan kau gak perlu teriak-teriak lagi. Tengok harganya di keranjang bawah lah.",
+    "joking|light Sundanese accent":
+      'hook: '+"Botol bumbu di dapur kamu main petak umpet, garam sembunyi di belakang kecap. Rak bumbu putar ini tinggal diputar, semua botol langsung muncul teu bisa kabur."+'\n'+'cta: '+"Petak umpet resmi bubar, garam langsung ketemu, masak lancar, meja dapur lega, dan kamu teu perlu teriak-teriak lagi. Intip harganya di keranjang bawah atuh.",
+    "joking|casual Jakarta accent":
+      'hook: '+"Botol bumbu di dapur lo main petak umpet, garam sembunyi di belakang kecap. Rak bumbu putar ini tinggal diputar, semua botol langsung muncul dan gak bisa kabur."+'\n'+'cta: '+"Petak umpet resmi bubar, garam langsung ketemu, masak jadi lancar, meja dapur lega, dan lo gak perlu teriak-teriak lagi. Intip harganya di keranjang bawah, ya.",
+    "joking|neutral standard accent":
+      'hook: '+"Botol bumbu di dapur kamu main petak umpet, garam sembunyi di belakang kecap. Rak bumbu putar ini tinggal diputar, semua botol langsung muncul dan gak bisa kabur."+'\n'+'cta: '+"Petak umpet resmi bubar, garam langsung ketemu, masak jadi lancar, meja dapur lega, dan kamu gak perlu teriak-teriak lagi. Intip harganya di keranjang bawah, ya.",
+    "joking|light Malaysian accent":
+      'hook: '+"Botol bumbu di dapur awak main sorok-sorok, garam bersembunyi di belakang kicap. Rak bumbu putar ini tinggal diputar, semua botol terus muncul, tak boleh lari."+'\n'+'cta: '+"Main sorok-sorok resmi tamat, garam terus jumpa, masak lancar, meja dapur lega, dan awak tak perlu terjerit-jerit lagi. Tengok harganya di keranjang bawah lah."
+   }},
+  {nama:'Opsi 33',
+   def:'hook: '+"Tiga menit tiap pagi habis cuma buat cari kunci motor. Key holder dinding ini tinggal dipasang dekat pintu, setiap kunci langsung punya tempat sendiri dan gampang diambil."+'\n'+'cta: '+"Kunci langsung ketemu dalam satu detik, pagi kamu gak telat lagi, berangkat terasa lebih tenang. Buka keranjang bawah, intip harganya, siapa tau pas buat dinding rumahmu.",
+   combo:{
+    "toxic|light Batak accent":
+      'hook: '+"Tiga menit tiap pagi habis cuma nyari kunci, sok sibuk kali kau ini. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sedetik, kau gak telat lagi, alasan lama kau pun tumbang. Tengok harganya di keranjang bawah, jangan sampai besok pagi kau nyari kunci lagi lah.",
+    "toxic|light Sundanese accent":
+      'hook: '+"Tiga menit tiap pagi habis cuma nyari kunci, sok sibuk pisan kamu mah. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sedetik, kamu teu telat lagi, alasan lama kamu pun tumbang. Lihat harganya di keranjang bawah, jangan sampai besok pagi nyari kunci lagi mah.",
+    "toxic|casual Jakarta accent":
+      'hook: '+"Tiga menit tiap pagi habis cuma nyari kunci, sok sibuk banget lo. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sedetik, lo gak telat lagi, alasan lama lo pun tumbang. Lihat harganya di keranjang bawah, jangan sampai besok pagi nyari kunci lagi.",
+    "toxic|neutral standard accent":
+      'hook: '+"Tiga menit tiap pagi habis cuma nyari kunci, sok sibuk banget kamu. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sedetik, kamu gak telat lagi, alasan lama kamu pun tumbang. Lihat harganya di keranjang bawah, jangan sampai besok pagi nyari kunci lagi.",
+    "toxic|light Malaysian accent":
+      'hook: '+"Tiga minit tiap pagi habis cuma cari kunci, konon sibuk betul awak ni. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci terus ada tempat."+'\n'+'cta: '+"Kunci jumpa sesaat, awak tak lambat lagi, alasan lama awak pun tumbang. Tengok harganya di keranjang bawah, jangan sampai esok pagi cari kunci lagi je.",
+    "gaul|light Batak accent":
+      'hook: '+"Tiap pagi ngubek-ngubek cari kunci motor, auto telat kali, relate kan? Gaskeun lah pakai key holder dinding ini, tinggal dipasang dekat pintu, kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sat set, pagi kau gak telat lagi, berangkat auto santuy, hidup juga makin teratur kali. Cus buka keranjang bawah, tengok harganya dulu, gaskeun lah.",
+    "gaul|light Sundanese accent":
+      'hook: '+"Tiap pagi ngubek-ngubek cari kunci motor, auto telat, relate pisan kan? Gaskeun pakai key holder dinding ini, tinggal dipasang dekat pintu, kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sat set, pagi kamu teu telat lagi, berangkat auto santuy, hidup juga makin teratur pisan. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|casual Jakarta accent":
+      'hook: '+"Tiap pagi ngubek-ngubek cari kunci motor, auto telat, relate banget kan? Gaskeun pakai key holder dinding ini, tinggal dipasang dekat pintu, kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sat set, pagi lo gak telat lagi, berangkat auto santuy, hidup juga makin teratur parah. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|neutral standard accent":
+      'hook: '+"Tiap pagi ngubek-ngubek cari kunci motor, auto telat, relate banget kan? Gaskeun pakai key holder dinding ini, tinggal dipasang dekat pintu, kunci langsung punya tempat."+'\n'+'cta: '+"Kunci ketemu sat set, pagi kamu gak telat lagi, berangkat auto santuy, hidup juga makin teratur parah. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|light Malaysian accent":
+      'hook: '+"Tiap pagi sibuk cari kunci motor, auto lambat, relate betul kan? Gaskeun guna key holder dinding ini, tinggal dipasang dekat pintu, kunci terus ada tempat."+'\n'+'cta: '+"Kunci jumpa sat set, pagi awak tak lambat lagi, berangkat auto santai, hidup pun makin teratur betul. Cus buka keranjang bawah, tengok harganya dulu, gaskeun.",
+    "joking|light Batak accent":
+      'hook: '+"Kunci motor kau kayak artis papan atas, susah kali ditemuin tiap pagi. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci tinggal diambil di tempatnya, gak perlu dicari lagi, apalagi minta tanda tangan, pagi kau pun lancar dan berangkat tenang. Tengok harganya di keranjang bawah lah.",
+    "joking|light Sundanese accent":
+      'hook: '+"Kunci motor kamu kayak artis papan atas, susah pisan ditemuin tiap pagi. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci tinggal diambil di tempatnya, teu perlu dicari lagi, apalagi minta tanda tangan, pagi kamu pun lancar dan berangkat tenang. Intip harganya di keranjang bawah atuh.",
+    "joking|casual Jakarta accent":
+      'hook: '+"Kunci motor lo kayak artis papan atas, susah banget ditemuin tiap pagi. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci tinggal diambil di tempatnya, gak perlu dicari lagi, apalagi minta tanda tangan, pagi lo pun lancar dan berangkat tenang. Intip harganya di keranjang bawah, ya.",
+    "joking|neutral standard accent":
+      'hook: '+"Kunci motor kamu kayak artis papan atas, susah banget ditemuin tiap pagi. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci langsung punya tempat."+'\n'+'cta: '+"Kunci tinggal diambil di tempatnya, gak perlu dicari lagi, apalagi minta tanda tangan, pagi kamu pun lancar dan berangkat tenang. Intip harganya di keranjang bawah, ya.",
+    "joking|light Malaysian accent":
+      'hook: '+"Kunci motor awak macam artis papan atas, susah betul nak jumpa tiap pagi. Key holder dinding ini tinggal dipasang dekat pintu, tiap kunci terus ada tempat."+'\n'+'cta: '+"Kunci tinggal diambil di tempatnya, tak perlu dicari lagi, apalagi minta tandatangan, pagi awak pun lancar dan berangkat tenang. Tengok harganya di keranjang bawah lah."
+   }},
+  {nama:'Opsi 34',
+   def:'hook: '+"Dompet tebal tapi isinya struk lama bikin saku celana menggembung dan susah cari kartu. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap tipis dan rapi, bayar di kasir jadi cepat tanpa bongkar-bongkar. Buka keranjang bawah, intip harganya, siapa tau cocok buat kamu.",
+   combo:{
+    "toxic|light Batak accent":
+      'hook: '+"Dompet tebal tapi isinya struk lama, kayak laci sampah kau bawa-bawa pulak. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap tipis, bayar di kasir cepat, kau gak malu-maluin lagi bongkar-bongkar. Tengok harganya di keranjang bawah, jangan pelit kali sama diri sendiri lah.",
+    "toxic|light Sundanese accent":
+      'hook: '+"Dompet tebal tapi isinya struk lama, kayak laci sampah kamu bawa-bawa mah. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang langsung gampang diambil pisan."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap tipis, bayar di kasir cepat, kamu teu malu-maluin lagi bongkar-bongkar. Lihat harganya di keranjang bawah, jangan pelit pisan sama diri sendiri mah.",
+    "toxic|casual Jakarta accent":
+      'hook: '+"Dompet tebal tapi isinya struk lama, kayak laci sampah lo bawa-bawa. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap tipis, bayar di kasir cepat, lo gak malu-maluin lagi bongkar-bongkar. Lihat harganya di keranjang bawah, jangan pelit banget sama diri sendiri.",
+    "toxic|neutral standard accent":
+      'hook: '+"Dompet tebal tapi isinya struk lama, kayak laci sampah kamu bawa-bawa. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap tipis, bayar di kasir cepat, kamu gak malu-maluin lagi bongkar-bongkar. Lihat harganya di keranjang bawah, jangan pelit banget sama diri sendiri.",
+    "toxic|light Malaysian accent":
+      'hook: '+"Dompet tebal tapi isinya resit lama, macam laci sampah awak bawa-bawa je. Dompet kartu slim ini nipis, bersekat kemas, kartu dan duit terus senang diambil."+'\n'+'cta: '+"Kartu terus jumpa, poket tetap nipis, bayar di kaunter laju, awak tak segan lagi bongkar-bongkar. Tengok harganya di keranjang bawah, jangan kedekut sangat dengan diri sendiri.",
+    "gaul|light Batak accent":
+      'hook: '+"Dompet kau tebal isinya struk doang, mau bayar ribet kali, relate kan? Gaskeun lah pakai dompet kartu slim ini, tipis, bersekat rapi, kartu langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap slim, bayar di kasir sat set, tampilan kau auto clean kali. Cus buka keranjang bawah, tengok harganya dulu, gaskeun lah.",
+    "gaul|light Sundanese accent":
+      'hook: '+"Dompet tebal isinya struk doang, mau bayar auto ribet, relate pisan kan? Gaskeun pakai dompet kartu slim ini, tipis, bersekat rapi, kartu langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap slim, bayar di kasir jadi sat set, tampilan auto clean pisan. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|casual Jakarta accent":
+      'hook: '+"Dompet lo tebal isinya struk doang, mau bayar auto ribet, relate banget kan? Gaskeun pakai dompet kartu slim ini, tipis, bersekat rapi, kartu langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap slim, bayar di kasir jadi sat set, tampilan lo auto clean parah. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|neutral standard accent":
+      'hook: '+"Dompet tebal isinya struk doang, mau bayar auto ribet, relate banget kan? Gaskeun pakai dompet kartu slim ini, tipis, bersekat rapi, kartu langsung gampang diambil."+'\n'+'cta: '+"Kartu langsung ketemu, saku tetap slim, bayar di kasir jadi sat set, tampilan auto clean parah. Cus buka keranjang bawah, lihat harganya dulu, gaskeun.",
+    "gaul|light Malaysian accent":
+      'hook: '+"Dompet awak tebal isinya resit je, nak bayar pun ribet, relate betul kan? Gaskeun guna dompet kartu slim ini, nipis, bersekat kemas, kartu terus senang diambil."+'\n'+'cta: '+"Kartu terus jumpa, poket kekal nipis, bayar di kaunter sat set, gaya awak auto kemas betul. Cus buka keranjang bawah, tengok harganya dulu, gaskeun.",
+    "joking|light Batak accent":
+      'hook: '+"Dompet kau tebalnya kayak dompet orang kaya, padahal isinya struk dan kartu member kedaluwarsa pulak. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang gampang diambil."+'\n'+'cta: '+"Sekarang dompet kau tipis tapi isinya jelas, kartu langsung ketemu, bayar di kasir cepat, struk lama pun resmi pensiun. Tengok harganya di keranjang bawah lah.",
+    "joking|light Sundanese accent":
+      'hook: '+"Dompet kamu tebalnya kayak dompet orang kaya, padahal isinya struk dan kartu member kedaluwarsa mah. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang gampang diambil."+'\n'+'cta: '+"Sekarang dompet kamu tipis tapi isinya jelas, kartu langsung ketemu, bayar di kasir cepat, dan struk lama resmi pensiun. Intip harganya di keranjang bawah atuh.",
+    "joking|casual Jakarta accent":
+      'hook: '+"Dompet lo tebalnya kayak dompet orang kaya, padahal isinya struk dan kartu member kedaluwarsa. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang gampang diambil."+'\n'+'cta: '+"Sekarang dompet lo tipis tapi isinya jelas, kartu langsung ketemu, bayar di kasir cepat, dan struk lama resmi pensiun. Intip harganya di keranjang bawah, ya.",
+    "joking|neutral standard accent":
+      'hook: '+"Dompet kamu tebalnya kayak dompet orang kaya, padahal isinya struk dan kartu member kedaluwarsa. Dompet kartu slim ini tipis, bersekat rapi, kartu dan uang gampang diambil."+'\n'+'cta: '+"Sekarang dompet kamu tipis tapi isinya jelas, kartu langsung ketemu, bayar di kasir cepat, dan struk lama resmi pensiun. Intip harganya di keranjang bawah, ya.",
+    "joking|light Malaysian accent":
+      'hook: '+"Dompet awak tebal macam dompet orang kaya, padahal isinya resit dan kad ahli tamat tempoh. Dompet kartu slim ini nipis, bersekat kemas, kartu dan duit senang diambil."+'\n'+'cta: '+"Sekarang dompet awak nipis tapi isinya jelas, kartu terus jumpa, bayar di kaunter laju, resit lama pun bersara. Tengok harganya di keranjang bawah lah."
    }}
 ];
 function _vbRefOpts(){return _vb16()?VB_REFERENCE_OPTIONS_16:VB_REFERENCE_OPTIONS;}
@@ -25873,7 +25979,7 @@ function _vbClaimWords(text,nama,adv){
 // pembahasan produknya, bagian itu dibuat ulang SEKALI (hanya produk yang nyasar). Kalau opsi contoh baru ditambahkan di
 // VB_REFERENCE_OPTIONS, tambahkan juga kata produknya di daftar ini.
 var VB_FOREIGN_SAMPLE_WORDS=['sunscreen','tumbler','earbuds','earphone','kipas','ring light','parfum','kresek','tas piknik','dress satin','hijab instan','tas sekolah','sandal slide','piyama','payung','rak sepatu lipat','tas laptop','lunch box','sepatu lari','kaos kaki','bantal leher','powerbank','lip tint','meja lipat','wajan','rak dapur','hoodie','sneakers'];
-var VB_FOREIGN_SAMPLE_WORDS_16=['blender portabel','lip balm','organizer kabel','bantal leher','payung lipat','vacuum mini','lunch box','sandal rumah','kipas leher','holder hp','rice cooker','rak sepatu lipat','mouse wireless','sikat gigi elektrik','selimut travel','hanger lipat','pembersih sepatu','lampu tidur','matras yoga','air fryer','pel putar','rak gantung','jepit rambut','klip kemasan','gantungan tas','kulot','sprei karet','selempang mini','slip-on','cardigan','diffuser'];
+var VB_FOREIGN_SAMPLE_WORDS_16=['blender portabel','lip balm','organizer kabel','bantal leher','payung lipat','vacuum mini','lunch box','sandal rumah','kipas leher','holder hp','rice cooker','rak sepatu lipat','mouse wireless','sikat gigi elektrik','selimut travel','hanger lipat','pembersih sepatu','lampu tidur','matras yoga','air fryer','pel putar','rak gantung','jepit rambut','klip kemasan','gantungan tas','kulot','sprei karet','selempang mini','slip-on','cardigan','diffuser','rak bumbu','key holder','dompet kartu'];
 function _vbOffTopicWords(p,bp,extra){
   var own=(String(bp&&bp.nama||'')+' '+String(bp&&bp.keunggulan||'')+' '+String(bp&&bp.topik||'')+' '+String(extra||'')).toLowerCase();
   var txt=[p&&p.hook,p&&p.story,p&&p.cta].join(' ').toLowerCase();
@@ -31928,6 +32034,7 @@ function pbHideOverlay(endingTour){
   pbUnlockChip('#ftb-outfit');
   pbUnlockChip('#ftb-objek');
   pbUnlockChip('#ftb-lokasi');
+  pbUnlockChip('#ftb-pose');
   // Jaga-jaga: kalau tur ditutup/di-skip persis waktu step "kunci Mode
   // 2/3/4" (video) masih aktif, pastikan kuncinya, hint, & blur selalu
   // ikut lepas — jangan sampai nyangkut walau tur sudah tidak tampil.
@@ -33473,6 +33580,7 @@ function pbGoStep6(){
   // langkah ini (sama seperti Outfit). Dilepas lagi di pbTourResetF1Ui()
   // & pbHideOverlay() lewat pbUnlockChip('#ftb-lokasi').
   pbLockChip('#ftb-lokasi');
+  pbLockChip('#ftb-pose'); // tur pemula: Pose tidak relevan di langkah ini
   let outfitRandomBadge=document.getElementById('ftc-outfit_random');
   if(outfitRandomBadge) outfitRandomBadge.textContent='';
   let tourHint=document.getElementById('f1-tour-hint');
@@ -33550,6 +33658,7 @@ function pbTourResetF1Ui(keepBlur){
   pbUnlockChip('#ftb-outfit');
   pbUnlockChip('#ftb-objek');
   pbUnlockChip('#ftb-lokasi');
+  pbUnlockChip('#ftb-pose');
   let outfitRandomBadge=document.getElementById('ftc-outfit_random');
   if(outfitRandomBadge) outfitRandomBadge.textContent='+';
   let orDesc=document.getElementById('outfit-random-desc');
