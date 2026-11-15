@@ -6251,8 +6251,8 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
         <div class="chips">
           <div class="chip chip-wide" id="f3-pov-chip-tangan" data-hold="tangan" onclick="fPovPickHold(this,'tangan')">
             <div>
-              <div class="text-title-sm">Dipegang</div>
-              <div class="text-hint">Produk dipegang satu tangan saja, sudut pandang POV (orang pertama).</div>
+              <div class="text-title-sm">Dipegang tangan (POV)</div>
+              <div class="text-hint">Ada tangan yang memegang produk, seolah-olah kamu sendiri yang memegangnya (sudut pandang orang pertama).</div>
             </div>
           </div>
           <div class="chip chip-wide" id="f3-pov-chip-hanger" data-hold="hanger" onclick="fPovPickHold(this,'hanger')">
@@ -10254,6 +10254,7 @@ function fPickHold(key,el,label){
 }
 function fPickHoldConfirmed(key,label){
   let h=HOLD_MAP[key]||{val:key,label:label};
+  if(key==='tangan' && typeof fIsNoChar==='function' && fIsNoChar()) h={val:'tangan memegang produk, sudut pandang POV (orang pertama)',label:'Dipegang tangan (POV)'};
   let _prevHoldKey=FS.holdKey;
   FS.hold=h.val; FS.holdKey=key;
 
@@ -11552,6 +11553,11 @@ function _fAdaptQuality(quality, effCahaya, effMood, isProdukSaja){
   }
   return quality;
 }
+// MODE PRODUK + LOKASI · TANGAN POV (permintaan user): di mode tanpa karakter (Foto Referensi cuma Produk + Lokasi),
+// opsi Cara Tampil "Dipegang tangan (POV)" = ada satu tangan memegang produk dari sudut pandang orang pertama.
+function _fIsPovHandNoChar(){
+  try{return !!(FS && !FS.importActive && FS.holdKey==='tangan' && typeof fIsNoChar==='function' && fIsNoChar());}catch(e){return false;}
+}
 function _fComputePlacement(ov){
   ov = ov || {};
   let placement = '';
@@ -11562,6 +11568,8 @@ function _fComputePlacement(ov){
   } else if(typeof fIsNoChar==='function' && fIsNoChar() && FS.holdKey==='custom' && FS.hold){
     // Produk + Lokasi saja (tanpa karakter): teks Cara Tampil dari user dipakai apa adanya
     placement = FS.hold + (/tangan|hand|pegang|hold|dipakai|worn/i.test(FS.hold) ? '' : ', no hands or person present');
+  } else if(_fIsPovHandNoChar()){
+    placement = 'held in one hand only \u2014 a single hand visible holding the product from a first-person POV, as if the viewer is holding it themselves; no face, no second hand and no rest of the body in the frame, product sharp, fully visible and facing the camera';
   } else if(FS.holdKey === 'dipakai'){
     placement = 'dipakai langsung oleh karakter';
   } else if(FS.holdKey === 'hanger'){
@@ -11634,7 +11642,8 @@ function _fBuildImportedPromptJSON(ov){
   // camera_angle bilang ada tangan, tapi prompt/placement bilang tidak ada
   // orang sama sekali. Disamakan dengan jalur normal (_fBuildPromptJSON,
   // variabel angleHasHand) supaya konsisten.
-  let angleHasHand = isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle);
+  let _impPovHand = isProdukSaja && !ov.placementOverride && !ov.forceProdukSaja && FS.holdKey==='custom' && /first-person POV, as if the viewer is holding it themselves/.test(String(FS.hold||''));
+  let angleHasHand = (isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle)) || _impPovHand;
 
   // FIX BUG: sebelumnya placement produk di mode import selalu pakai teks
   // beku dari JSON yang diimpor (FS.importProductBlock.placement), jadi
@@ -11681,7 +11690,7 @@ function _fBuildImportedPromptJSON(ov){
   if(angleHasHand){
     // v11.58: produk-saja + angle "Dipegang Tangan" SELALU pakai teks tangan, bukan sisa FS.hold impor
     // (dulu jadi "held or displayed by the character — held by a hand…" yang kontradiktif).
-    effPlacementImp = 'held by a hand entering the frame — only the hand is visible, product sharp, fully visible and prominently framed toward camera';
+    effPlacementImp = _impPovHand ? FS.hold : 'held by a hand entering the frame — only the hand is visible, product sharp, fully visible and prominently framed toward camera';
   }
   // FIX BUG TERSEMBUNYI (audit lanjutan skenario import — belum pernah
   // dites di Test Case manapun sebelumnya): effProductBlock di bawah tadinya
@@ -12438,7 +12447,10 @@ function _fBuildPromptJSON(ov){
   // (misal multi-shot "Detail Produk tanpa karakter" yang eksplisit MELARANG
   // tangan), jangan sampai auto-detect ini malah nabrak/kontradiksi instruksi
   // shot itu sendiri hanya karena angle dasar user kebetulan "Dipegang Tangan".
-  let angleHasHand = isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle);
+  let _povHandNC = isProdukSaja && !ov.placementOverride && !ov.forceProdukSaja && _fIsPovHandNoChar();
+  let angleHasHand = (isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle)) || _povHandNC;
+  if(_povHandNC) subjekDesc = 'product only, no person visible except a single hand holding the product (first-person POV)';
+  if(_povHandNC && !ov.angleOverride) effAngle = 'POV style (first-person perspective), as if the viewer is holding the product' + (effAngle ? ' \u2014 ' + effAngle : '');
   let produkSajaIntroText = angleHasHand
     ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
     : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
@@ -31155,7 +31167,7 @@ function fRenderSummary() {
     // Cara Tampil selalu tampil di Ringkasan kalau ada produk (foto/pegang) atau
     // cara tampil sudah terisi (mis. hasil impor) — bukan cuma mode 'pegang'.
     if (FS.produkMode === 'pegang' || FS.produkMode === 'foto' || FS.holdKey) {
-      const HOLD_LABEL = {dipakai:'Dipakai langsung', hanger:'Pakai hanger', tangan:'Dipegang ke kamera'};
+      const HOLD_LABEL = {dipakai:'Dipakai langsung', hanger:'Pakai hanger', tangan:(fIsNoChar()?'Dipegang tangan (POV)':'Dipegang ke kamera')};
       let holdDisplay = HOLD_LABEL[FS.holdKey] || (FS.hold ? FS.hold.substring(0,40) + '…' : '—');
       items.push({ key: 'Cara Tampil', val: holdDisplay, editCard: 3 });
     }
@@ -36907,7 +36919,7 @@ function sum(cs,all){
   });
   /* Cara Tampil Produk selalu ikut tampil di ringkasan bila sudah terisi, walau kartunya sedang tersembunyi */
   if(typeof FS!=='undefined'&&FS.subjek!=='produk'&&(FS.hold||FS.holdKey)&&!rows.some(function(r){return r.id==='f3';})){
-    var HL={dipakai:'Dipakai langsung',hanger:'Pakai hanger',tangan:'Dipegang ke kamera'};
+    var HL={dipakai:'Dipakai langsung',hanger:'Pakai hanger',tangan:((typeof fIsNoChar==='function'&&fIsNoChar())?'Dipegang tangan (POV)':'Dipegang ke kamera')};
     var hv=HL[FS.holdKey]||FS.hold||'';
     var pos=IDS.indexOf('f3'),at=rows.length;
     for(var i=0;i<rows.length;i++){if(IDS.indexOf(rows[i].id)>pos){at=i;break;}}
@@ -37127,7 +37139,7 @@ var $=function(id){return document.getElementById(id);};
 var ORDER=['f5','f3','f9','f7'];                       /* urutan step mode POV */
 var TITLES={f5:'Lokasi',f3:'Cara Tampil',f9:'Mood & Tone',f7:'Pencahayaan'};
 var HOLD={
-  tangan:{label:'Dipegang',text:'held in one hand only',placement:'held in one hand only \u2014 a single hand visible holding the product, no second hand in the frame'},
+  tangan:{label:'Dipegang tangan (POV)',text:'held in one hand only, from a first-person POV as if the viewer is holding it',placement:'held in one hand only \u2014 a single hand visible holding the product from a first-person POV, as if the viewer is holding it themselves; no face, no second hand and no rest of the body in the frame, product sharp, fully visible and facing the camera'},
   hanger:{label:'Di hanger',text:'hanging on a hanger',placement:'hanging on a hanger, fully visible and facing the camera'}
 };
 var POV_CAMERA='POV style (first-person perspective)';
@@ -38332,10 +38344,33 @@ html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
 (function(){
   if(typeof showCard!=='function'||typeof fIsNoChar!=='function')return;
   var _prev=showCard;
+  /* Produk + Lokasi: chip "Dipegang & diarahkan ke kamera" jadi "Dipegang tangan (POV)" (tangan memegang produk, sudut pandang orang pertama).
+     Dipanggil dari showCard('f3') DAN saat kartu dibuka ulang lewat Edit di Ringkasan / "Lompat ke step" (jalur itu tidak lewat showCard). */
+  function pbHoldChipSync(){
+    var nc=false;try{nc=fIsNoChar();}catch(e){}
+    document.querySelectorAll('#f3 .chip[onclick*="fPickHold(\'tangan\'"]').forEach(function(c){
+      var tn=null,i;
+      for(i=0;i<c.childNodes.length;i++){if(c.childNodes[i].nodeType===3&&c.childNodes[i].nodeValue.trim()){tn=c.childNodes[i];break;}}
+      if(!tn){var t=c.querySelector('.text-title-sm');if(t&&t.firstChild&&t.firstChild.nodeType===3)tn=t.firstChild;}
+      if(!tn)return;
+      if(c.dataset.origTxt===undefined)c.dataset.origTxt=tn.nodeValue;
+      var want=nc?'Dipegang tangan (POV)':c.dataset.origTxt;
+      if(tn.nodeValue!==want)tn.nodeValue=want;
+    });
+  }
+  var _rs=window.fRestoreStepUI;
+  if(typeof _rs==='function'){
+    window.fRestoreStepUI=function(n){
+      var r=_rs.apply(this,arguments);
+      if(Number(n)===3){try{pbHoldChipSync();}catch(e){}}
+      return r;
+    };
+  }
   showCard=function(id){
     if(id==='f3'){
       var nc=fIsNoChar();
       document.querySelectorAll('#f3 .chip[onclick*="fPickHold(\'dipakai\'"]').forEach(function(c){c.style.display=nc?'none':'';});
+      pbHoldChipSync();
     }
     if(id==='f4'&&fIsNoChar()){
       FS.pose='';FS.poseLabel='';FS.poseDesc='';
