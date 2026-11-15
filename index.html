@@ -5308,7 +5308,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.98</div>
+  <div class="splash-version" id="splash-version">v15.4</div>
 </div>
 <script>
   (function(){
@@ -7470,6 +7470,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
           <label class="inplabel" id="vb-bulk-count-label" for="vb-bulk-count">Mau generate berapa produk? <span style="font-weight:400;color:var(--muted);">(isi 1 kalau cuma 1 produk)</span></label>
           <div id="vb-bulk-count-row" style="display:flex;gap:8px;margin-bottom:12px;">
             <input type="number" id="vb-bulk-count" min="1" max="30" value="1" inputmode="numeric" class="inp" style="width:70px;flex:none;text-align:center;" oninput="vbBulkCountInput()" onblur="vbBulkSetCount()" />
+            <button type="button" id="pb-pm-btn" class="btn" style="flex:1;margin:0;padding:0 12px;font-size:var(--fs-xs2);" onclick="pbPmOpen()">Atur Mode Produk</button>
           </div>
           <div id="vb-bulk-rows"></div>
           </div>
@@ -7502,6 +7503,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
           <!-- PERMINTAAN USER (Okt 2026): di tab Produk tombolnya "Lanjut" (pindah ke tab Penonton); "Generate Prompt" baru muncul di tab Penonton. Lihat vbInfoSyncBtns(). -->
           <button id="vb-bulk-next-btn" type="button" class="btn hidden" onclick="vbInfoNext()" style="font-size:var(--fs-md);padding:13px;">Lanjut</button>
           <div id="vb-bulk-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
+          <div id="pb-pm-results"></div>
         </div>
       </div>
 
@@ -7720,7 +7722,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.98 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v15.4 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -27324,6 +27326,7 @@ async function vbGenerateBulkAI(){
 
   let produkList=[];
   for(let i=0;i<count;i++){
+    if(window.pbPmSkip&&window.pbPmSkip(i))continue;
     let namaEl=document.getElementById('vb-bulk-nama-'+i);
     let keunggulanEl=document.getElementById('vb-bulk-keunggulan-'+i);
     let topikEl=document.getElementById('vb-bulk-topik-'+i);
@@ -38869,6 +38872,260 @@ html body #foto#foto :is(#f4,#f8,#f9) .chip.pfa-lic.sel::after{content:"";displa
     e.preventDefault();e.stopPropagation();
     window.osReturnFromPfa();
   },true);
+})();
+</script>
+<script id="pb-pmode-js">
+(function(){
+var PM={modes:{},lok:"",queue:null,base:"",home:"",busy:false,expect:0,dur:0,durSet:false,light:"",sw:false,pending:"",started:false,skip:null,res:[],fash:[],snap:null,lokWiz:"",lightWiz:""};
+window.PB_PM=PM;
+var LBL={satu:"Start Frame",kp:"Raw Asset",aset:"POV Produk (Pakai Skrip)",dua:"Percakapan 2 Suara",fashion:"Fashion Editorial"};
+var ORDER=["satu","kp","aset","dua"];
+function $(id){return document.getElementById(id);}
+function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function cnt(){var n=parseInt(($("vb-bulk-count")||{}).value,10);return n>0?n:0;}
+function baseMode(){if(PM.base)return PM.base;if(PM.home)return PM.home;var m=(typeof VB!=="undefined")?VB.refMode:"";return ORDER.indexOf(m)>-1?m:"satu";}
+function eff(i){return PM.modes[i]||baseMode();}
+function vbv(k){return (typeof VB!=="undefined")?VB[k]:undefined;}
+function durNow(){if(PM.snap)return PM.snap.fz.dur;var d=(!PM.durSet&&vbv("refMode")!=="dua")?vbv("durasi"):0;if(d===16||d===24)PM.dur=d;return PM.dur;}
+function lokNow(){if(PM.snap)return PM.snap.fz.lok;var w=vbv("mode3Lokasi")||"";if(PM.lok&&w===PM.lokWiz)return PM.lok;return w||PM.lok||"";}
+function lightNow(){if(PM.snap)return PM.snap.fz.lt;var w=vbv("mode3Lighting")||"";if(PM.light&&w===PM.lightWiz)return PM.light;return w||PM.light||"";}
+function applyKp(lok,lt){
+  VB.mode3Lokasi=VB.mode3LokasiLabel=lok;VB.mode3LokOk=!!lok;
+  VB.mode3Lighting=VB.mode3LightingLabel=lt;VB.mode3LightOk=!!lt;
+  try{vbSyncStep6Mode3();}catch(e){}
+}
+function nm(i){var e=$("vb-bulk-nama-"+i);return (e&&e.value.trim())||("Produk "+(i+1));}
+function active(){var n=cnt();for(var i=0;i<n;i++){if(PM.modes[i]&&PM.modes[i]!==baseMode())return true;}return false;}
+function toast(t,k){try{showToast(t,k||"");}catch(e){}}
+function btnLabel(){var b=$("pb-pm-btn");if(!b)return;var n=0,c=cnt();for(var i=0;i<c;i++){if(PM.modes[i])n++;}b.textContent=n?("Atur Mode Produk ("+n+" diatur)"):"Atur Mode Produk";}
+window.pbPmSkip=function(i){return PM.skip?PM.skip(i):false;};
+function sheetBody(){
+  var c=cnt(),h="",needLok=false,b=baseMode();
+  for(var i=0;i<c;i++){
+    var m=PM.modes[i]||"";if((m||b)==="kp")needLok=true;
+    h+='<div style="margin-bottom:10px;"><div style="font-size:var(--fs-xs2);margin-bottom:4px;">'+(i+1)+". "+esc(nm(i))+'</div><select class="inp" data-pm="'+i+'" style="width:100%;">'
+      +'<option value="">Mode utama ('+LBL[b]+")</option>"
+      +["satu","kp","aset","dua","fashion"].map(function(k){return '<option value="'+k+'"'+(m===k?" selected":"")+">"+LBL[k]+"</option>";}).join("")+"</select></div>";
+  }
+  if(needLok)h+='<div style="margin:6px 0 10px;"><div style="font-size:var(--fs-xs2);margin-bottom:4px;">Lokasi untuk produk Raw Asset</div><input class="inp" id="pb-pm-lok" maxlength="150" style="width:100%;margin-bottom:8px;" placeholder="Contoh: kamar tidur minimalis" value="'+esc(lokNow())+'"><div style="font-size:var(--fs-xs2);margin-bottom:4px;">Lighting untuk produk Raw Asset</div><input class="inp" id="pb-pm-lt" maxlength="150" style="width:100%;" placeholder="Contoh: cahaya jendela pagi yang lembut" value="'+esc(lightNow())+'"></div>';
+  var needD=false;for(var k=0;k<c;k++){var e=PM.modes[k]||b;if(e!=="dua"&&e!=="fashion")needD=true;}
+  if(needD){var dn=durNow();h+='<div style="margin:6px 0 10px;"><div style="font-size:var(--fs-xs2);margin-bottom:4px;">Durasi (selain Percakapan 2 Suara)</div><select class="inp" id="pb-pm-dur" style="width:100%;"><option value="">Pilih durasi</option><option value="16"'+(dn===16?" selected":"")+'>16 detik</option><option value="24"'+(dn===24?" selected":"")+'>24 detik</option></select></div>';}
+  return h;
+}
+window.pbPmOpen=function(){
+  var locked=!!PM.queue;
+  if(!locked)PM.base="";
+  var o=$("pb-pm-sheet");if(o)o.remove();
+  o=document.createElement("div");o.id="pb-pm-sheet";
+  o.style.cssText="position:fixed;inset:0;z-index:10050;background:rgba(4,4,6,.86);display:flex;align-items:flex-end;justify-content:center;";
+  o.innerHTML='<div style="width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--surface2);border:1px solid var(--border-hi);border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));">'
+    +'<div style="font-weight:600;margin-bottom:4px;">Atur Mode Produk</div>'
+    +'<div style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;">Pilih mode untuk tiap produk. Fashion Editorial tidak pakai skrip.</div>'
+    +(locked?'<div style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:10px;">Antrean grup masih berjalan, pengaturan dikunci sampai semua grup selesai.</div><button type="button" class="btn" id="pb-pm-cancel" style="margin-bottom:10px;">Batalkan Sisa Antrean</button>':'')
+    +'<div id="pb-pm-list"></div><button type="button" class="btn" id="pb-pm-done" style="margin-top:6px;">Selesai</button></div>';
+  document.body.appendChild(o);
+  function paint(){var l=$("pb-pm-list");l.innerHTML=sheetBody();
+    l.querySelectorAll("select[data-pm]").forEach(function(s){s.onchange=function(){PM.modes[s.dataset.pm]=s.value;paint();btnLabel();};});
+    var li=$("pb-pm-lok");if(li)li.oninput=function(){PM.lok=li.value.trim();PM.lokWiz=vbv("mode3Lokasi")||"";};
+    var lt=$("pb-pm-lt");if(lt)lt.oninput=function(){PM.light=lt.value.trim();PM.lightWiz=vbv("mode3Lighting")||"";};
+    var du=$("pb-pm-dur");if(du)du.onchange=function(){var v=parseInt(du.value,10);if(v===16||v===24){PM.dur=v;PM.durSet=true;}else{PM.durSet=false;}};
+    if(locked)l.querySelectorAll("select,input").forEach(function(x){x.disabled=true;});}
+  paint();
+  var cb=$("pb-pm-cancel");if(cb)cb.onclick=function(){if(PM.busy){toast("Tunggu proses yang sedang jalan selesai dulu","error");return;}o.remove();btnLabel();var msg="Batalkan sisa antrean grup? Hasil grup yang sudah selesai tetap ada.";if(typeof showConfirm==="function")showConfirm(msg,function(){if(!PM.busy)cancelQueue();},null,"Ya, Batalkan");else if(window.confirm(msg)&&!PM.busy)cancelQueue();};
+  $("pb-pm-done").onclick=function(){o.remove();btnLabel();render();};
+  o.addEventListener("click",function(e){if(e.target===o){o.remove();btnLabel();}});
+};
+function snapshot(){
+  var s={ref:vbv("refMode"),dur:vbv("durasi"),durDone:vbv("_durDone"),cm:vbv("camMove"),ch:vbv("camHook"),
+    lok:vbv("mode3Lokasi"),lokL:vbv("mode3LokasiLabel"),lokOk:vbv("mode3LokOk"),
+    lt:vbv("mode3Lighting"),ltL:vbv("mode3LightingLabel"),ltOk:vbv("mode3LightOk"),
+    off:vbv("offGender"),skrip:window.VB_UI_SKRIP};
+  try{var dc0=$("vdur"),da0=$("vadur");s.dc=dc0?{done:dc0.classList.contains("done"),txt:da0?da0.textContent:""}:null;}catch(e){s.dc=null;}
+  s.fz={lok:lokNow(),lt:lightNow(),dur:durNow()};
+  return s;
+}
+function mapCam(v,g,tbl){
+  if(!v)return "";
+  if(typeof _vbCamIsCustom==="function"&&_vbCamIsCustom(v))return v;
+  var m=/^(?:satu|kp)_(.+)$/.exec(v);if(!m)return "";
+  var id=g+"_"+m[1];
+  return ((tbl&&tbl[g])||[]).some(function(o){return o[0]===id;})?id:"";
+}
+function remapCam(g){
+  var s=PM.snap;if(!s||(g!=="satu"&&g!=="kp"))return;
+  VB.camMove=mapCam(s.cm,g,typeof VB_CAM_OPTS!=="undefined"?VB_CAM_OPTS:null);
+  VB.camHook=mapCam(s.ch,g,typeof VB_CAM_HOOK_OPTS!=="undefined"?VB_CAM_HOOK_OPTS:null);
+  try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
+  try{var cc=$("vcam");if(cc&&cc.classList.contains("done")){var ca=$("vacam");if(ca)ca.textContent=_vbCamSummary();}}catch(e){}
+}
+function applyDur(g){
+  var d=durNow();
+  if(g!=="dua"&&d&&VB.durasi!==d){VB.durasi=d;VB._durDone=d;try{vbPickDurasi(d);}catch(e){}}
+}
+function restore(){
+  var s=PM.snap;PM.snap=null;if(!s)return;
+  PM.sw=true;
+  try{
+    if(vbv("refMode")!==s.ref)vbPickRefMode(s.ref);
+    window.VB_UI_SKRIP=s.skrip;
+    VB.mode3Lokasi=s.lok;VB.mode3LokasiLabel=s.lokL;VB.mode3LokOk=s.lokOk;
+    VB.mode3Lighting=s.lt;VB.mode3LightingLabel=s.ltL;VB.mode3LightOk=s.ltOk;
+    VB.camMove=s.cm;VB.camHook=s.ch;
+    try{_vbCamSyncPend();_vbRenderCamChips();}catch(e){}
+    try{var cc=$("vcam");if(cc&&cc.classList.contains("done")){var ca=$("vacam");if(ca)ca.textContent=_vbCamSummary();}}catch(e){}
+    VB.offGender=s.off||"";if(s.ref==="dua"){try{vbSyncOffGender();}catch(e){}}
+    VB.durasi=s.dur;VB._durDone=s.durDone;
+    if(s.dur===16||s.dur===24){try{vbPickDurasi(s.dur);}catch(e){}}
+    else{document.querySelectorAll("#vb-dur-chips .chip").forEach(function(c){c.classList.remove("sel");});}
+    try{
+      var dc=$("vdur");
+      if(dc&&s.dc&&s.dc.done&&s.ref!=="dua"&&(s.dur===16||s.dur===24)){
+        dc.classList.remove("pending","hidden");dc.classList.add("done");
+        var da=$("vadur");if(da)da.textContent=s.dc.txt||(s.dur+" detik");
+        if(dc.dataset)delete dc.dataset.duaHid;
+      }
+    }catch(e){}
+    try{vbSyncStep6Mode3();}catch(e){}
+  }catch(e){console.warn("pm restore",e);}
+  PM.sw=false;PM.home="";PM.base="";
+}
+function cancelQueue(){
+  if(PM.pending){
+    try{VB_BULK_LAST_CONTEXT=null;}catch(e){}
+    try{_vbSyncBulkMainButton();}catch(e){}
+    var eb=$("vb-bulk-error");if(eb){eb.classList.add("hidden");eb.innerHTML="";}
+  }
+  PM.queue=null;PM.pending="";PM.skip=null;PM.started=false;
+  restore();render();toast("Sisa antrean dibatalkan");
+}
+function abortFresh(){
+  PM.queue=null;PM.pending="";PM.skip=null;PM.res=[];PM.fash=[];
+  restore();render();
+}
+function resetAll(){
+  if(PM.busy)return;
+  PM.modes={};PM.lok="";PM.lokWiz="";PM.light="";PM.lightWiz="";PM.dur=0;PM.durSet=false;
+  PM.res=[];PM.fash=[];PM.queue=null;PM.pending="";PM.base="";PM.home="";PM.skip=null;PM.snap=null;PM.expect=0;PM.started=false;
+  btnLabel();render();
+}
+function switchMode(g){
+  var d=durNow(),lok=lokNow(),lt=lightNow();
+  PM.sw=true;
+  try{
+    if(g==="aset")window.VB_UI_SKRIP="pakai";
+    vbPickRefMode(g);
+    if(g==="kp")applyKp(lok,lt);
+    if(g!=="dua"&&d){VB.durasi=d;VB._durDone=d;try{vbPickDurasi(d);}catch(e){}}
+    remapCam(g);
+  }catch(e){console.warn("pm switch",e);}
+  PM.sw=false;
+}
+var KL=["Hook","Story","CTA"];
+function waitStable(){
+  return new Promise(function(res){
+    var last=-1,same=0,t0=Date.now();
+    (function tick(){
+      var len=0;document.querySelectorAll('[id^="vb-bulk-script-"]').forEach(function(e){len+=(e.value||e.textContent||"").length;});
+      if(len>0&&len===last)same++;else same=0;
+      last=len;
+      var el=Date.now()-t0;
+      if(same>=3||(len===0&&el>6000)||el>30000)return res();
+      setTimeout(tick,300);
+    })();
+  });
+}
+function harvest(g){
+  var P=(typeof VB_BULK_PRODUCTS!=="undefined"&&VB_BULK_PRODUCTS)||[];
+  for(var p=0;p<P.length;p++){
+    var cards=[];
+    for(var k=0;k<3;k++){
+      var s=$("vb-bulk-script-"+(p*3+k)),j=$("vb-bulk-json-"+(p*3+k));
+      if(!s)continue;
+      var st=(s.value||s.textContent||"").trim(),js2=j?(j.value||j.textContent||"").trim():"";
+      if(!st&&!js2)continue;
+      cards.push({label:KL[k],script:st,json:js2});
+    }
+    PM.res.push({mode:g,nama:P[p].nama,cards:cards});
+  }
+}
+function copy(t){
+  try{navigator.clipboard.writeText(t).then(function(){toast("Tersalin");},function(){fb(t);});}catch(e){fb(t);}
+  function fb(x){var a=document.createElement("textarea");a.value=x;document.body.appendChild(a);a.select();try{document.execCommand("copy");toast("Tersalin");}catch(e){}a.remove();}
+}
+function render(){
+  var box=$("pb-pm-results");if(!box)return;
+  if(!PM.res.length&&!PM.fash.length&&!PM.queue){box.innerHTML="";return;}
+  var h='<div style="margin-top:14px;font-weight:600;">Hasil per Mode Produk</div>';
+  PM.res.forEach(function(r,i){
+    h+='<div class="out-card" style="margin-top:8px;padding:10px 12px;"><div style="font-size:var(--fs-xs2);margin-bottom:6px;">'+esc(r.nama)+' · <span style="color:var(--muted);">'+LBL[r.mode]+'</span></div>'
+      +'<button type="button" class="chip" data-pmc="a'+i+'">Salin Skrip</button> '
+      +r.cards.map(function(c,k){return c.json?'<button type="button" class="chip" data-pmc="j'+i+'_'+k+'">JSON '+c.label+'</button> ':"";}).join("")+"</div>";
+  });
+  if(PM.fash.length)h+='<div class="out-card" style="margin-top:8px;padding:10px 12px;"><div style="font-size:var(--fs-xs2);margin-bottom:6px;">Fashion Editorial (tanpa skrip): '+PM.fash.map(esc).join(", ")+'</div><button type="button" class="chip" data-pmc="f">Buka Fashion Editorial</button></div>';
+  if(PM.queue&&PM.queue.length){var g=PM.queue[0],c=0,n=cnt();for(var i=0;i<n;i++){if(eff(i)===g)c++;}
+    h+='<div style="margin-top:10px;font-size:var(--fs-xs2);color:var(--muted);">Berikutnya: '+LBL[g]+" ("+c+" produk). Tekan Generate Prompt lagi.</div>";}
+  box.innerHTML=h;
+  box.querySelectorAll("[data-pmc]").forEach(function(b){b.onclick=function(){
+    var k=b.dataset.pmc;if(k==="f"){try{vbPickRefMode("fashion");}catch(e){}return;}
+    var m=/^([aj])(\d+)(?:_(\d+))?$/.exec(k);if(!m)return;
+    var r=PM.res[+m[2]];if(!r)return;
+    if(m[1]==="a")copy(r.cards.filter(function(c){return c.script;}).map(function(c){return c.label+": "+c.script;}).join("\n\n"));
+    else if(r.cards[+m[3]])copy(r.cards[+m[3]].json);};});
+}
+function incomplete(){var c=(typeof VB_BULK_LAST_CONTEXT!=="undefined")?VB_BULK_LAST_CONTEXT:null;return !!(c&&c.allResults&&c.produkList&&c.allResults.length<c.produkList.length);}
+async function finish(g){
+  await waitStable();
+  harvest(g);PM.queue.shift();PM.pending="";
+  if(!PM.queue.length){PM.queue=null;restore();toast("Semua grup mode selesai");}
+  else toast("Grup "+LBL[g]+" selesai. Lanjut: "+LBL[PM.queue[0]]);
+  render();
+}
+function wrap(){
+  var og=window.vbGenerateBulkAI,or=window._vbRunBulkGenerate,rs=window.vbBulkResumeAI,pk=window.vbPickRefMode;
+  if(typeof og!=="function"||typeof or!=="function")return;
+  if(typeof pk==="function")window.vbPickRefMode=function(){if(!PM.sw){PM.home="";if(!PM.queue)PM.base="";}return pk.apply(this,arguments);};
+  window._vbRunBulkGenerate=function(){PM.started=true;return or.apply(this,arguments);};
+  if(typeof rs==="function")window.vbBulkResumeAI=async function(){
+    var r=await rs.apply(this,arguments);
+    if(PM.pending&&PM.queue&&PM.queue.length&&!incomplete()){PM.busy=true;try{await finish(PM.pending);}finally{PM.busy=false;}}
+    return r;
+  };
+  var rn=window.vbResetNow;if(typeof rn==="function")window.vbResetNow=function(){var r=rn.apply(this,arguments);try{resetAll();}catch(e){}return r;};
+  var po=window.pbOpenSavedPage;if(typeof po==="function")window.pbOpenSavedPage=function(){try{resetAll();}catch(e){}return po.apply(this,arguments);};
+  window.vbGenerateBulkAI=async function(){
+    var self=this,args=arguments,fresh=false;
+    if(PM.busy){toast("Tunggu hasil grup sebelumnya selesai ditulis","error");return;}
+    if(!PM.queue&&!active())return og.apply(self,args);
+    if(!PM.queue){
+      PM.base=baseMode();
+      var n=cnt(),seen={},fash=[];
+      for(var i=0;i<n;i++){var m=eff(i);if(m==="fashion")fash.push(nm(i));else seen[m]=1;}
+      var qq=ORDER.filter(function(k){return seen[k];});
+      if(!qq.length){PM.base="";PM.res=[];PM.fash=fash;render();toast("Semua produk memakai Fashion Editorial, tidak ada skrip yang digenerate");return;}
+      if(seen.kp&&(!lokNow()||!lightNow())){PM.base="";toast("Isi Lokasi dan Lighting untuk produk Raw Asset di Atur Mode Produk","error");return;}
+      if(qq.some(function(k){return k!=="dua";})&&!durNow()){PM.base="";toast("Pilih durasi 16 atau 24 detik di Atur Mode Produk","error");return;}
+      var tot=0,bad=-1;
+      for(var j=0;j<n;j++){if(eff(j)!=="fashion"){tot++;var ne=$("vb-bulk-nama-"+j);if(bad<0&&!(ne&&ne.value.trim()))bad=j;}}
+      if(bad>-1){PM.base="";toast("Nama Produk "+(bad+1)+" belum diisi","error");try{vbInfoTab("produk");}catch(e){}var nb=$("vb-bulk-nama-"+bad);if(nb)nb.focus();return;}
+      if(typeof dlCheckBeforeCall==="function"){var qc=dlCheckBeforeCall(tot);if(!qc.ok){PM.base="";toast(qc.message,"error");return;}}
+      PM.snap=snapshot();fresh=true;
+      PM.home=PM.base;PM.res=[];PM.fash=fash;PM.pending="";PM.queue=qq;
+    }
+    var g=PM.queue[0];
+    if(typeof VB!=="undefined"&&VB.refMode!==g)switchMode(g);
+    else{if(g==="kp")applyKp(lokNow(),lightNow());applyDur(g);remapCam(g);}
+    PM.skip=function(i){return eff(i)!==g;};PM.started=false;
+    PM.expect=0;for(var q=0;q<cnt();q++){if(eff(q)===g)PM.expect++;}
+    PM.busy=true;
+    try{
+      try{await og.apply(self,args);}finally{PM.skip=null;}
+      if(!PM.started){if(fresh)abortFresh();return;}
+      if(incomplete()){PM.pending=g;toast("Grup "+LBL[g]+" belum tuntas. Tekan Lanjutkan dulu.","error");return;}
+      await finish(g);
+    }finally{PM.busy=false;}
+  };
+}
+wrap();btnLabel();
 })();
 </script>
 </body>
