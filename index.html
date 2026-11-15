@@ -60,6 +60,29 @@
     window.PB_IS_TRUE_RELOAD = null;
   }
 })();
+// R1 (audit "Tampilan Terakhir", 15 Nov 2026): "mulai bersih" HANYA terjadi kalau user memintanya
+// EKSPLISIT (konfirmasi pull-to-refresh, logout, restart tur). Tombol-tombol itu memanggil
+// window.pbMarkFreshStart() tepat sebelum location.reload() -> timestamp di localStorage
+// 'pb_fresh_start_v1'. Di skrip PALING AWAL ini (sebelum restore draft & pemulihan tampilan) penanda
+// dibaca SEKALI lalu dibuang; hasilnya window.PB_FRESH_START. Tanpa penanda (atau umur >= 60 dtk)
+// app SELALU memulihkan draft/tampilan terakhir, apa pun nilai PB_IS_TRUE_RELOAD (sinyal itu tidak
+// bisa membedakan tarik-refresh dari browser yang memuat ulang tab yang dibuang). PB_IS_TRUE_RELOAD
+// kini hanya untuk hal kosmetik (splash, jeda tur). Key ini TIDAK masuk PB_SYNC_KEYS (tidak sinkron cloud).
+window.pbMarkFreshStart = function(){
+  try{ localStorage.setItem('pb_fresh_start_v1', String(Date.now())); }catch(e){}
+};
+(function(){
+  window.PB_FRESH_START = false;
+  try{
+    var t = Number(localStorage.getItem('pb_fresh_start_v1') || 0);
+    localStorage.removeItem('pb_fresh_start_v1');
+    if(t && (Date.now() - t) < 60000){
+      window.PB_FRESH_START = true;
+      // snapshot tampilan lama dibuang di sini; draft wizard dibuang di handler load (clearDraft)
+      localStorage.removeItem('pb_resume_ui_v1');
+    }
+  }catch(e){}
+})();
 </script>
 <!-- ── TEMA OBSIDIAN GLASS: aktif otomatis untuk paket berbayar ──────────
      Daftar paket yang dapat tema ini ada di GLASS_TIERS di bawah (ubah di
@@ -357,7 +380,7 @@
   // TARIK-nya (_pullAll) sekarang di-merge, bukan ditimpa mentah — lihat
   // PB_LOG_MERGE_KEYS & _mergeLogArrays di bawah, dan catatan panjang di
   // dekat PB_COUNTER_SYNC_KEYS kenapa ini perlu.
-  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1','pb_fixchat_log_v1'];
+  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1','pb_fixchat_log_v1','pb_auto_foto_v1','pb_auto_video_v1'];
   // FIX BUG SINKRON (audit lanjutan, Sept 2026): pb_usage_stats_v1 dan
   // pb_wordfix_stats_v1 DICABUT dari PB_SYNC_KEYS di atas (yang sinkronnya
   // "timpa seluruh nilai") karena keduanya cuma kumpulan ANGKA AKUMULASI
@@ -5285,7 +5308,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v14.96</div>
+  <div class="splash-version" id="splash-version">v14.98</div>
 </div>
 <script>
   (function(){
@@ -5583,6 +5606,16 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
   };
   function _pbDoLogout(){
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    window._pbLoggingOut=true;   // R4: hentikan semua simpan draft sejak konfirmasi logout
+    try{ if(window.pbMarkFreshStart) window.pbMarkFreshStart(); }catch(e){}
+    // R1/T11: logout WAJIB membersihkan draft & snapshot tampilan akun ini secara eksplisit (dulu ikut
+    // terhapus hanya karena reload-nya terbaca "refresh sengaja"). Tanpa ini akun berikutnya di perangkat
+    // yang sama bisa melihat isian/hasil akun lama. Dibersihkan lagi saat boot lewat PB_FRESH_START,
+    // karena pagehide bisa menulis ulang snapshot tepat sebelum reload.
+    try{
+      localStorage.removeItem('pb_wizard_draft_v1');
+      localStorage.removeItem('pb_resume_ui_v1');
+    }catch(e){}
     // FIX BUG (Ringan #8): dialog "Leave site?" bawaan browser sebelumnya
     // sempat muncul di sini walau user sudah konfirmasi keluar lewat
     // confirm() di atas — beforeunload tidak tahu itu, cek pbHasUnsavedProgress
@@ -5626,7 +5659,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     // berikutnya (terutama tanpa idToken) bisa gagal sinkron & tier tidak
     // pernah ketarik.
     var _pbGone = false;
-    function _pbGo(){ if(_pbGone) return; _pbGone = true; location.reload(); }
+    function _pbGo(){ if(_pbGone) return; _pbGone = true; try{ if(window.pbMarkFreshStart) window.pbMarkFreshStart(); }catch(e){} location.reload(); }
     if(_pbSo && typeof _pbSo.then === 'function'){ _pbSo.then(_pbGo, _pbGo); setTimeout(_pbGo, 6000); }
     else _pbGo();
   }
@@ -7687,7 +7720,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.96 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v14.98 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -7698,11 +7731,39 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
 <!-- ============================================================ -->
 <div id="riwayat" class="page">
 <div class="wrap">
+  <style>
+  .rw-seg{display:flex;gap:6px;margin-bottom:14px;}
+  .rw-seg button{flex:1;min-height:42px;padding:8px 6px;border-radius:var(--radius-xs);border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:var(--fs-xs2);font-weight:500;cursor:pointer;font-family:'Hanken Grotesk',sans-serif;line-height:1.25;}
+  .rw-seg button.on{background:var(--accent-dim-bg);border-color:var(--accent-dim);color:var(--accent-2);}
+  .rw-auto-chip{font-size:var(--fs-xs);padding:2px 8px;border-radius:var(--radius-2xs);background:var(--surface3);color:var(--muted);font-family:'Hanken Grotesk',system-ui,sans-serif;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rw-auto-pre{font-size:var(--fs-xs2);color:var(--muted);line-height:1.55;white-space:pre-wrap;word-break:break-word;margin:0 0 10px 0;max-height:62px;overflow:hidden;cursor:pointer;font-family:'Hanken Grotesk',system-ui,sans-serif;}
+  .rw-auto-pre.open{max-height:none;}
+  .rw-name-input{width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);border-radius:var(--radius-xs);font-family:'Hanken Grotesk',system-ui,sans-serif;margin-bottom:var(--space-7);text-align:left;}
+  </style>
+  <div class="rw-seg" id="rw-seg">
+    <button type="button" class="on" id="rw-btn-saved" onclick="pbRiwayatTab('saved')">Disimpan</button>
+    <button type="button" id="rw-btn-foto" onclick="pbRiwayatTab('foto')">Foto Otomatis<span id="rw-cnt-foto"></span></button>
+    <button type="button" id="rw-btn-video" onclick="pbRiwayatTab('video')">Video Otomatis<span id="rw-cnt-video"></span></button>
+  </div>
+  <div id="rw-pane-saved">
   <div class="sec-title">Halaman Tersimpan</div>
-  <p class="sec-desc" style="margin-bottom:12px;">Halaman foto/video yang kamu simpan manual (lengkap dengan skrip yang sudah jadi) — tap ikon <svg class="icon" style="vertical-align:-0.15em;"><use href="#ic-save"></use></svg> di bawah garis step untuk menyimpan. Tersimpan di browser — tidak hilang saat aplikasi ditutup (kecuali mode incognito).</p>
+  <p class="sec-desc" style="margin-bottom:12px;">Halaman foto/video yang kamu simpan manual (lengkap dengan skrip yang sudah jadi) — tap ikon <svg class="icon" style="vertical-align:-0.15em;"><use href="#ic-save"></use></svg> di bawah garis step untuk menyimpan, lalu beri nama. Tersimpan di browser — tidak hilang saat aplikasi ditutup (kecuali mode incognito).</p>
   <div id="pb-sync-status" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;"></div>
   <div id="history-list"><p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada halaman tersimpan. Generate prompt foto/video, lalu simpan halamannya lewat ikon di bawah garis step.</p></div>
   <button onclick="showConfirm('Hapus semua halaman tersimpan?',pbSavedClearAll,null,'Ya, Hapus Semua')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Hanken Grotesk',sans-serif;margin-top:4px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Halaman Tersimpan</button>
+  </div>
+  <div id="rw-pane-foto" style="display:none;">
+    <div class="sec-title">Foto Otomatis</div>
+    <p class="sec-desc" style="margin-bottom:12px;">Tiap prompt foto yang kamu generate tercatat otomatis di sini, lengkap dengan ringkasan pilihan step-nya. Terpisah dari halaman yang kamu simpan manual.</p>
+    <div id="auto-foto-list"></div>
+    <button id="auto-foto-clear" onclick="pbAutoClearAll('foto')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Hanken Grotesk',sans-serif;margin-top:4px;transition:all 0.2s;display:none;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Foto Otomatis</button>
+  </div>
+  <div id="rw-pane-video" style="display:none;">
+    <div class="sec-title">Video Otomatis</div>
+    <p class="sec-desc" style="margin-bottom:12px;">Tiap skrip video hasil AI tercatat otomatis di sini per produk. Terpisah dari halaman yang kamu simpan manual.</p>
+    <div id="auto-video-list"></div>
+    <button id="auto-video-clear" onclick="pbAutoClearAll('video')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Hanken Grotesk',sans-serif;margin-top:4px;transition:all 0.2s;display:none;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Video Otomatis</button>
+  </div>
 </div>
 </div>
 
@@ -11441,6 +11502,8 @@ function _fDoGenerate(){
   // historyAdd(...) auto-save prompt DIMATIKAN — Riwayat sekarang isinya
   // "halaman tersimpan" manual lewat ikon simpan (lihat pbSaveCurrentPage),
   // bukan lagi teks prompt otomatis tiap generate.
+  // Riwayat OTOMATIS Foto (terpisah dari halaman tersimpan manual) — lihat pbAutoFotoRecord.
+  try{ if(typeof pbAutoFotoRecord==='function')pbAutoFotoRecord(fullText); }catch(_e){}
 } // end _fDoGenerate
 
 // ── Membangun 1 objek JSON prompt. `ov` (opsional) berisi override
@@ -15556,9 +15619,17 @@ function pbSaveCurrentPage(type,btnEl){
     videoText:resultVideo.text,
     videoState:stateVideo
   };
+  // Nama halaman diisi sendiri oleh user (bukan lagi dibuat otomatis).
+  function _askNameThenCommit(){
+    pbAskName({title:'Beri nama halaman ini',desc:'Nama ini yang tampil di daftar Riwayat.',placeholder:'Contoh: Gamis batch 1',okLabel:'Simpan'},function(nm){
+      entry.label=nm;
+      _commitSave();
+    });
+  }
   // Simpan sungguhan. Dipisah jadi fungsi sendiri supaya bisa ditunda sampai
   // user setuju kalau simpan ini akan membuang entri terlama (lihat bawah).
   function _commitSave(){
+    arr=pbSavedGet();
     if(isUpdate){
       arr[activeIdx]=entry;
     } else {
@@ -15586,10 +15657,10 @@ function pbSaveCurrentPage(type,btnEl){
   // entri terlama tanpa kabar. Sekarang minta persetujuan dulu.
   if(!isUpdate && arr.length>=PB_SAVED_MAX){
     let oldest=arr[arr.length-1]||{};
-    showConfirm('Riwayat sudah penuh ('+PB_SAVED_MAX+' halaman). Menyimpan halaman baru akan MENGHAPUS yang paling lama: "'+(oldest.label||'tanpa judul')+'". Lanjut?',_commitSave,null,'Ya, Simpan');
+    showConfirm('Riwayat sudah penuh ('+PB_SAVED_MAX+' halaman). Menyimpan halaman baru akan MENGHAPUS yang paling lama: "'+(oldest.label||'tanpa judul')+'". Lanjut?',_askNameThenCommit,null,'Ya, Simpan');
     return;
   }
-  _commitSave();
+  _askNameThenCommit();
 }
 
 function pbSavedDelete(id){
@@ -15646,7 +15717,9 @@ function _pbSavedRenderInto(wrap){
     openBtn.onclick=(function(id){return function(){pbOpenSavedPage(id);};})(item.id);
     let delBtn=document.createElement('button');delBtn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Hanken Grotesk",sans-serif;';delBtn.innerHTML='<svg class="icon"><use href="#ic-close"></use></svg> Hapus';
     delBtn.onclick=(function(id,label){return function(){showConfirm('Hapus halaman "'+(label||'tanpa judul')+'" dari Riwayat?',function(){pbSavedDelete(id);},null,'Ya, Hapus');};})(item.id,item.label);
-    btns.appendChild(openBtn);btns.appendChild(delBtn);
+    let renBtn=document.createElement('button');renBtn.style.cssText=delBtn.style.cssText;renBtn.textContent='Ganti nama';
+    renBtn.onclick=(function(id){return function(){pbSavedRename(id);};})(item.id);
+    btns.appendChild(openBtn);btns.appendChild(renBtn);btns.appendChild(delBtn);
     row.appendChild(head);row.appendChild(btns);
     wrap.appendChild(row);
   });
@@ -15656,6 +15729,285 @@ function pbSavedRender(){
   _pbSavedRenderInto(document.getElementById('f-history-mini'));
   pbSyncContinueChips();
   pbSyncRenderStatus();
+  try{pbAutoRender();}catch(_e){}
+}
+
+// ============================================================
+// RIWAYAT OTOMATIS (Foto & Video) — terpisah dari "Halaman Tersimpan"
+// ------------------------------------------------------------
+// Dua key baru (teks saja, tanpa HTML/state/foto): pb_auto_foto_v1 dan
+// pb_auto_video_v1. Keduanya masuk PB_SYNC_KEYS (sinkron cloud + otomatis
+// dibersihkan saat ganti akun). pb_history_v1 (dibaca admin.html) TIDAK
+// disentuh sama sekali. Semua fungsi di sini dibungkus try/catch supaya
+// kalau ada masalah, generate & Riwayat lama tetap jalan normal.
+// ============================================================
+var PB_AUTO_FOTO_KEY='pb_auto_foto_v1', PB_AUTO_VIDEO_KEY='pb_auto_video_v1';
+var PB_AUTO_FOTO_MAX=40, PB_AUTO_VIDEO_MAX=45;
+var _pbRwTab='saved';
+
+function _pbAutoHash(s){
+  s=String(s||'');var h=5381;
+  for(var i=0;i<s.length;i++){h=((h<<5)+h+s.charCodeAt(i))|0;}
+  return (h>>>0).toString(36)+'.'+s.length.toString(36);
+}
+function _pbAutoNewId(){return 'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function _pbAutoGet(key){
+  try{
+    var a=JSON.parse(localStorage.getItem(key)||'[]');
+    return Array.isArray(a)?a.filter(function(x){return x&&typeof x==='object';}):[];
+  }catch(e){return [];}
+}
+// Tulis dengan aman. Kalau penyimpanan browser penuh, buang entri OTOMATIS
+// terlama (bukan halaman tersimpan manual) lalu coba lagi; kalau tetap gagal
+// dilewati diam-diam — generate tidak boleh ikut gagal.
+function _pbAutoWrite(key,arr,max){
+  arr=arr.slice(0,max);
+  for(var t=0;t<8;t++){
+    try{
+      localStorage.setItem(key,JSON.stringify(arr));
+      try{if(typeof pbCloudQueue==='function')pbCloudQueue(key);}catch(e2){}
+      return true;
+    }catch(e){
+      if(arr.length<=1)return false;
+      arr=arr.slice(0,arr.length-Math.max(1,Math.ceil(arr.length*0.25)));
+    }
+  }
+  return false;
+}
+// recs diproses berurutan, tiap rec naik ke paling atas. Isi yang sama
+// (hash sama) tidak menambah entri baru — cuma naik ke atas.
+function _pbAutoUpsertMany(key,max,recs){
+  var arr=_pbAutoGet(key);
+  recs.forEach(function(rec){
+    for(var i=0;i<arr.length;i++){
+      if(arr[i].h===rec.h){rec.id=arr[i].id||rec.id;arr.splice(i,1);break;}
+    }
+    arr.unshift(rec);
+  });
+  return _pbAutoWrite(key,arr,max);
+}
+
+// ---------- FOTO ----------
+function _pbAutoFotoName(){
+  var n='';
+  try{
+    var pr=(FS.refs||[]).filter(function(r){return r&&r.type==='produk'&&r.focus&&String(r.focus).trim();})
+      .map(function(r){return String(r.focus).trim();});
+    if(pr.length)n=pr.join(', ');
+  }catch(e){}
+  // Mode impor (Prompt Lama): nama produk datang dari blok "product" JSON lama, bukan dari kartu foto.
+  try{if(!n&&FS.importActive&&FS.importProductBlock&&FS.importProductBlock.name)n=String(FS.importProductBlock.name).trim();}catch(e){}
+  try{if(!n&&(FS.produkMode==='foto'||FS.produkMode==='pegang'))n=String(FS.produkNama||'').trim();}catch(e){}
+  if(!n)n='Tanpa nama produk';
+  return n.slice(0,80);
+}
+function _pbAutoFotoSummary(){
+  var out=[];
+  try{if(typeof fRenderSummary==='function')fRenderSummary();}catch(e){}
+  try{
+    var rows=document.querySelectorAll('#summary-rows .summary-row');
+    for(var i=0;i<rows.length&&out.length<10;i++){
+      var k=rows[i].querySelector('.summary-row-key'),v=rows[i].querySelector('.summary-row-val');
+      if(!k||!v||v.classList.contains('empty'))continue;
+      var kt=String(k.textContent||'').trim(),vt=String(v.textContent||'').replace(/\s+/g,' ').trim();
+      if(kt&&vt&&vt!=='—')out.push({k:kt.slice(0,20),v:vt.slice(0,40)});
+    }
+  }catch(e){}
+  if(!out.length){
+    try{
+      [['Pose','poseLabel'],['Lokasi','lokasiLabel'],['Cahaya','cahayaLabel'],['Angle','angleLabel'],['Mood','moodLabel']].forEach(function(p){
+        var v=FS[p[1]];if(v)out.push({k:p[0],v:String(v).slice(0,40)});
+      });
+    }catch(e){}
+  }
+  return out;
+}
+function pbAutoFotoRecord(text){
+  try{
+    text=String(text||'').trim();if(!text)return;
+    var rec={id:_pbAutoNewId(),h:_pbAutoHash(text),name:_pbAutoFotoName(),ts:Date.now(),sum:_pbAutoFotoSummary(),text:text};
+    _pbAutoUpsertMany(PB_AUTO_FOTO_KEY,PB_AUTO_FOTO_MAX,[rec]);
+    try{pbAutoRender();}catch(e){}
+  }catch(e){}
+}
+
+// ---------- VIDEO ----------
+function _pbAutoVideoModeLabel(){
+  try{
+    var m=VB.refMode;
+    if(m==='kp')return 'Raw Asset';
+    if(m==='aset')return 'POV Produk · Pakai Skrip';
+    if(m==='percobaan')return 'Percobaan';
+    if(m==='dua')return 'Percakapan 2 Suara';
+  }catch(e){}
+  return 'Start Frame';
+}
+function pbAutoVideoRecord(sessionLabel){
+  try{
+    if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
+    // Jalur 'isi manual' (user mengetik skrip sendiri, bukan hasil AI) tidak dicatat —
+    // dipanggil tiap jumlah produk diubah & isinya berubah-ubah, nanti banjir entri.
+    if(/^isi manual/i.test(String(sessionLabel||'')))return;
+    var byP={},order=[];
+    VB_BULK_ITEMS.forEach(function(it,i){
+      if(_vb16()&&i%3===1)return;
+      var p=Math.floor(i/3),el=document.getElementById('vb-bulk-script-'+i);
+      var t=String((el&&typeof el.value==='string'?el.value:it.script)||'').trim();
+      var k=String(it.role||'').toUpperCase();
+      if(k!=='HOOK'&&k!=='STORY'&&k!=='CTA')k=['HOOK','STORY','CTA'][i%3];
+      if(!byP[p]){byP[p]={nama:'',parts:[]};order.push(p);}
+      if(it.produk)byP[p].nama=it.produk;
+      if(t)byP[p].parts.push(k+': '+t);
+    });
+    var meta=[_pbAutoVideoModeLabel()];
+    if(order.length>1)meta.push(order.length+' produk');
+    meta.push(_vbPer()+' skrip/produk');
+    try{if(_vbHasDur()&&VB.durasi)meta.push(VB.durasi+' dtk');}catch(e){}
+    try{if(order.length>1&&VB.bulkTargetAudience)meta.push(String(VB.bulkTargetAudience).slice(0,30));}catch(e){}
+    var now=Date.now(),recs=[];
+    order.forEach(function(p){
+      var o=byP[p];if(!o.parts.length)return;
+      var name=String(o.nama||sessionLabel||'Skrip').slice(0,80);
+      var text=o.parts.join('\n\n');
+      recs.push({id:_pbAutoNewId(),h:_pbAutoHash(name+'\u0001'+text),name:name,ts:now,meta:meta.join(' · '),text:text});
+    });
+    if(!recs.length)return;
+    recs.reverse(); // diproses terbalik supaya produk pertama paling atas
+    _pbAutoUpsertMany(PB_AUTO_VIDEO_KEY,PB_AUTO_VIDEO_MAX,recs);
+    try{pbAutoRender();}catch(e){}
+  }catch(e){}
+}
+
+// ---------- TAMPILAN ----------
+function pbRiwayatTab(name){
+  if(name!=='saved'&&name!=='foto'&&name!=='video')name='saved';
+  _pbRwTab=name;
+  ['saved','foto','video'].forEach(function(n){
+    var p=document.getElementById('rw-pane-'+n),b=document.getElementById('rw-btn-'+n);
+    if(p)p.style.display=(n===name)?'':'none';
+    if(b)b.classList.toggle('on',n===name);
+  });
+}
+function _pbAutoRenderList(kind){
+  var isFoto=kind==='foto';
+  var wrap=document.getElementById(isFoto?'auto-foto-list':'auto-video-list');
+  if(!wrap)return;
+  var arr=_pbAutoGet(isFoto?PB_AUTO_FOTO_KEY:PB_AUTO_VIDEO_KEY);
+  var clr=document.getElementById(isFoto?'auto-foto-clear':'auto-video-clear');
+  if(clr)clr.style.display=arr.length?'':'none';
+  var cnt=document.getElementById(isFoto?'rw-cnt-foto':'rw-cnt-video');
+  if(cnt)cnt.textContent=arr.length?(' ('+arr.length+')'):'';
+  wrap.textContent='';
+  if(!arr.length){
+    var em=document.createElement('p');
+    em.style.cssText='font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;';
+    em.textContent=isFoto?'Belum ada prompt foto. Setiap prompt foto yang kamu generate akan tercatat di sini otomatis.':'Belum ada skrip video. Setiap skrip hasil AI akan tercatat di sini otomatis.';
+    wrap.appendChild(em);return;
+  }
+  arr.forEach(function(item){
+    var row=document.createElement('div');
+    row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;';
+    var head=document.createElement('div');head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+    var lbl=document.createElement('span');lbl.style.cssText='font-size:var(--fs-sm);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    lbl.textContent=item.name||(isFoto?'Prompt foto':'Skrip video');
+    var d=new Date(item.ts||0);
+    var ts=document.createElement('span');ts.style.cssText='font-size:var(--fs-xs);color:var(--muted);font-family:"Hanken Grotesk",system-ui,sans-serif;flex-shrink:0;';
+    ts.textContent=d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    head.appendChild(lbl);head.appendChild(ts);row.appendChild(head);
+    if(isFoto){
+      if(Array.isArray(item.sum)&&item.sum.length){
+        var chips=document.createElement('div');chips.style.cssText='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;';
+        item.sum.forEach(function(s){
+          if(!s||!s.k||!s.v)return;
+          var c=document.createElement('span');c.className='rw-auto-chip';c.textContent=s.k+': '+s.v;chips.appendChild(c);
+        });
+        row.appendChild(chips);
+      }
+    } else if(item.meta){
+      var mt=document.createElement('div');mt.style.cssText='font-size:var(--fs-xs2);color:var(--accent-2);margin-bottom:8px;font-family:"Hanken Grotesk",system-ui,sans-serif;';
+      mt.textContent=item.meta;row.appendChild(mt);
+    }
+    var pre=document.createElement('p');pre.className='rw-auto-pre';pre.textContent=String(item.text||'');
+    pre.onclick=function(){pre.classList.toggle('open');};
+    row.appendChild(pre);
+    var btns=document.createElement('div');btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+    var cp=document.createElement('button');
+    cp.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:500;padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Hanken Grotesk",sans-serif;';
+    cp.textContent='Salin';
+    cp.onclick=function(){
+      _copyTextRobust(String(item.text||''),function(){showToast('Tersalin!','success');},function(){showToast('Gagal menyalin — salin manual dari teks di kartu.','error');});
+    };
+    var dl=document.createElement('button');
+    dl.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Hanken Grotesk",sans-serif;';
+    dl.textContent='Hapus';
+    dl.onclick=function(){showConfirm('Hapus "'+(item.name||'entri ini')+'" dari riwayat otomatis?',function(){pbAutoDelete(kind,item.id);},null,'Ya, Hapus');};
+    btns.appendChild(cp);btns.appendChild(dl);row.appendChild(btns);
+    wrap.appendChild(row);
+  });
+}
+function pbAutoRender(){
+  try{_pbAutoRenderList('foto');}catch(e){}
+  try{_pbAutoRenderList('video');}catch(e){}
+}
+function pbAutoDelete(kind,id){
+  try{
+    var key=kind==='foto'?PB_AUTO_FOTO_KEY:PB_AUTO_VIDEO_KEY;
+    var arr=_pbAutoGet(key).filter(function(x){return x.id!==id;});
+    _pbAutoWrite(key,arr,kind==='foto'?PB_AUTO_FOTO_MAX:PB_AUTO_VIDEO_MAX);
+    pbAutoRender();
+  }catch(e){}
+}
+function pbAutoClearAll(kind){
+  showConfirm('Hapus semua riwayat '+(kind==='foto'?'foto':'video')+' otomatis?',function(){
+    try{
+      var key=kind==='foto'?PB_AUTO_FOTO_KEY:PB_AUTO_VIDEO_KEY;
+      localStorage.setItem(key,'[]');
+      try{if(typeof pbCloudQueue==='function')pbCloudQueue(key);}catch(e2){}
+      pbAutoRender();
+    }catch(e){}
+  },null,'Ya, Hapus Semua');
+}
+
+// ---------- DIALOG BERI NAMA (simpan manual & ganti nama) ----------
+function pbAskName(opt,onOk,onCancel){
+  opt=opt||{};
+  var overlay=document.createElement('div');overlay.className='confirm-overlay';
+  var box=document.createElement('div');box.className='confirm-box';
+  var h4=document.createElement('h4');h4.textContent=opt.title||'Beri nama';
+  var p=document.createElement('p');p.textContent=opt.desc||'';
+  p.style.marginBottom='var(--space-4)';
+  var inp=document.createElement('input');inp.type='text';inp.className='rw-name-input';
+  inp.maxLength=60;inp.placeholder=opt.placeholder||'Contoh: Gamis batch 1';inp.value=opt.initial||'';
+  inp.setAttribute('autocomplete','off');inp.setAttribute('aria-label','Nama');
+  var btns=document.createElement('div');btns.className='confirm-btns';
+  var cancelBtn=document.createElement('button');cancelBtn.className='confirm-cancel';cancelBtn.textContent='Batal';
+  var okBtn=document.createElement('button');okBtn.className='confirm-ok';okBtn.textContent=opt.okLabel||'Simpan';
+  okBtn.style.cssText='background:var(--accent-dim-bg);color:var(--accent-2);border:1px solid var(--accent-dim)!important;';
+  btns.appendChild(cancelBtn);btns.appendChild(okBtn);
+  box.appendChild(h4);if(opt.desc)box.appendChild(p);box.appendChild(inp);box.appendChild(btns);
+  overlay.appendChild(box);document.body.appendChild(overlay);
+  function sync(){var ok=inp.value.trim().length>0;okBtn.disabled=!ok;okBtn.style.opacity=ok?'1':'0.45';}
+  function close(){overlay.remove();document.removeEventListener('keydown',onKey);}
+  function submit(){var v=inp.value.trim().slice(0,60);if(!v)return;close();if(onOk)onOk(v);}
+  function cancel(){close();if(onCancel)onCancel();}
+  function onKey(e){if(e.key==='Escape')cancel();}
+  inp.addEventListener('input',sync);
+  inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();submit();}});
+  okBtn.onclick=submit;cancelBtn.onclick=cancel;
+  document.addEventListener('keydown',onKey);
+  sync();
+  setTimeout(function(){try{inp.focus();inp.select();}catch(e){}},60);
+}
+function pbSavedRename(id){
+  var arr=pbSavedGet();var item=null;
+  for(var i=0;i<arr.length;i++){if(arr[i].id===id){item=arr[i];break;}}
+  if(!item)return;
+  pbAskName({title:'Ganti nama',initial:item.label||'',okLabel:'Simpan'},function(nm){
+    var cur=pbSavedGet();
+    for(var j=0;j<cur.length;j++){if(cur[j].id===id){cur[j].label=nm;break;}}
+    try{pbSavedSetAll(cur);}catch(e){showToast('Gagal mengganti nama — penyimpanan browser penuh.','error');return;}
+    pbSavedRender();
+  });
 }
 
 // Indikator status sinkron cloud di tab Riwayat (data: window.pbSyncStatus,
@@ -29204,7 +29556,8 @@ function pbTourExitToPanduan(){
     }catch(e){}
     // Restart yang disengaja: lewati dialog "yakin keluar?" bawaan browser.
     window._pbSkipUnloadWarn=true;
-    try{ location.reload(); }catch(e){ window._pbSkipUnloadWarn=false; return; }
+    try{ if(window.pbMarkFreshStart) window.pbMarkFreshStart(); }catch(e){}   // R1: restart tur = mulai bersih yang disengaja
+    try{ location.reload(); }catch(e){ window._pbSkipUnloadWarn=false; try{ localStorage.removeItem('pb_fresh_start_v1'); }catch(x){} return; }
     // Jaring pengaman: kalau reload batal/gagal, kembalikan pengaman refresh.
     setTimeout(function(){ window._pbSkipUnloadWarn=false; },3000);
   },PB_TOUR_EXIT_RELOAD_MS);
@@ -29894,6 +30247,8 @@ function vbPickLokasiCard(idx,key,label){
 // sessionLabel yang sudah dikirim oleh semua pemanggil.
 function _vbBuildCombinedHistoryEntry(sessionLabel){
   if(!VB_BULK_ITEMS||VB_BULK_ITEMS.length===0)return;
+  // Riwayat OTOMATIS Video (terpisah dari pb_history_v1 milik admin) — lihat pbAutoVideoRecord.
+  try{ if(typeof pbAutoVideoRecord==='function')pbAutoVideoRecord(sessionLabel); }catch(_e){}
   // Riwayat skrip (dibaca halaman admin): 1 entri = 1 produk berisi HOOK + STORY + CTA.
   // Hanya HISTORY_MAX (45) produk terakhir yang disimpan. Entri ditandai skrip:1 supaya
   // tidak muncul di daftar Riwayat lama di aplikasi (lihat _historyRenderInto).
@@ -34607,10 +34962,86 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   }
   function fire(el,type){ try{ el.dispatchEvent(new Event(type,{bubbles:true})); }catch(e){} }
 
+  // R2/R4 (audit "Tampilan Terakhir"): layar dipulihkan dari DATA tampilan (kartu wizard + progres +
+  // hasil), bukan dengan memutar ulang nama fungsi step. Hasil (kartu skrip, prompt foto) disimpan HTML-nya.
+  // Kartu skrip/multi dibangun JS dengan handler .onclick/.oninput (tidak ikut HTML) -> digambar ulang lewat fungsi render-nya, bukan innerHTML.
+  var PB_RES_HTML=['f-prompt-full'], PB_RES_STATE=['vb-multi-output','f-output-wrap','f-json-output','f-preview-placeholder'];
+  function _cls(el){ return (el.className||'').toString().replace(/\banim-in\b/g,'').replace(/\s+/g,' ').trim(); }
+  function captureCards(){
+    var o={c:[],p:{}};
+    try{
+      document.querySelectorAll('#foto .wcard[id], #video .wcard[id]').forEach(function(c){
+        var r={id:c.id,cl:_cls(c),st:c.getAttribute('style')||'',d:[]};
+        var w=c.querySelector('.wanswer'); if(w) r.a=w.innerHTML;
+        c.querySelectorAll('[id]').forEach(function(e){ var t=e.tagName; if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT'){ var k=_cls(e); if(k) r.d.push([e.id,k]); } });
+        o.c.push(r);
+      });
+      ['f-progress','vb-progress'].forEach(function(p){
+        var l=document.getElementById(p+'-label'),t=document.getElementById(p+'-title'),f=document.getElementById(p+'-fill');
+        o.p[p]={l:l?l.innerHTML:null,t:t?t.innerHTML:null,w:f?f.style.width:null};
+      });
+    }catch(e){}
+    return o;
+  }
+  function restoreCards(o){
+    try{
+      if(!o||!o.c) return;
+      o.c.forEach(function(r){
+        var c=document.getElementById(r.id); if(!c) return;
+        c.className=r.cl; if(r.st) c.setAttribute('style',r.st); else c.removeAttribute('style');
+        var w=c.querySelector('.wanswer'); if(w&&r.a!=null) w.innerHTML=r.a;
+        (r.d||[]).forEach(function(x){ var e=document.getElementById(x[0]); if(e&&_cls(e)!==x[1]) e.className=x[1]; });
+      });
+      var P=o.p||{};
+      Object.keys(P).forEach(function(p){
+        var l=document.getElementById(p+'-label'),t=document.getElementById(p+'-title'),f=document.getElementById(p+'-fill');
+        if(l&&P[p].l!=null) l.innerHTML=P[p].l; if(t&&P[p].t!=null) t.innerHTML=P[p].t; if(f&&P[p].w!=null) f.style.width=P[p].w;
+      });
+    }catch(e){}
+  }
+  function captureResults(){
+    var o={};
+    try{
+      PB_RES_HTML.concat(PB_RES_STATE).forEach(function(id){
+        var e=document.getElementById(id); if(!e) return;
+        var r={st:e.getAttribute('style')||'',cl:_cls(e)};
+        if(PB_RES_HTML.indexOf(id)>=0){ var h=e.innerHTML; if(h.length>300000) return; r.h=h; }
+        o[id]=r;
+      });
+      var tas=[],i=0,ta;
+      while((ta=document.getElementById('vb-bulk-script-'+i))){ tas.push(ta.value); i++; }
+      var mw=document.getElementById('vb-multi-output');
+      if(tas.length && mw && mw.style.display!=='none') o.__multi={scripts:tas,nama:(VB_BULK_ITEMS[0]&&VB_BULK_ITEMS[0].produk)||'',manual:tas.some(function(t){return !t;})};
+    }catch(e){}
+    return o;
+  }
+  function restoreResults(o){
+    try{
+      if(!o) return;
+      if(o.__multi && typeof _vbRenderMultiOutput==='function'){ try{ _vbRenderMultiOutput(o.__multi.scripts,o.__multi.nama,false,o.__multi.manual); }catch(x){} }
+      Object.keys(o).forEach(function(id){
+        if(id==='__multi') return;
+        var e=document.getElementById(id), r=o[id]; if(!e||!r) return;
+        if(r.h!=null && e.innerHTML!==r.h) e.innerHTML=r.h;
+        if(r.st) e.setAttribute('style',r.st); else e.removeAttribute('style');
+        e.className=r.cl;
+      });
+    }catch(e){}
+  }
+  var _bootDone=false; // simpan tanpa syarat baru boleh setelah restore awal selesai (jangan menimpa draft lama dengan layar kosong)
+  // R4: simpan SEKARANG tanpa syarat timer (dipanggil saat app ke background/pagehide/freeze/appStateChange).
+  window.pbSaveNow=function(){
+    try{
+      if(restoring||!_bootDone||window._pbLoggingOut) return;
+      if(document.body.classList.contains('pb-tour-active')) return;
+      if(timer){ clearTimeout(timer); timer=null; }
+      saveDraft({stepCalls:[],draftCall:lastNavCall,vars:captureVars(),dom:captureDom(),cards:captureCards(),results:captureResults(),t:Date.now()});
+    }catch(e){}
+  };
   function snapshotNow(){
     var calls = pendingStepCalls.slice();
     pendingStepCalls = [];
-    return { stepCalls:calls, draftCall:lastNavCall, vars:captureVars(), dom:captureDom(), t:Date.now() };
+    return { stepCalls:calls, draftCall:lastNavCall, vars:captureVars(), dom:captureDom(), cards:captureCards(), results:captureResults(), t:Date.now() };
   }
 
   function pushSnapshot(){
@@ -34775,10 +35206,12 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       // ini tidak bawa panggilan navigasi apa pun (mis. hanya dipicu ketikan
       // field), pakai draftCall (nav terakhir yang tercatat, lihat lastNavCall)
       // supaya layar kembali ke step yang benar, bukan Step 1.
-      if(replayNav && !hasNavCall && snap.draftCall && snap.draftCall.fn && typeof window[snap.draftCall.fn]==='function'){
+      if(replayNav && !hasNavCall && !snap.cards && snap.draftCall && snap.draftCall.fn && typeof window[snap.draftCall.fn]==='function'){
         try{ window[snap.draftCall.fn].apply(null, snap.draftCall.args||[]); }catch(e){}
       }
+      if(replayNav) restoreResults(snap.results);   // R2: hasil digambar ulang SEBELUM isian (textarea hasil baru ada setelah ini)
       restoreDom(snap.dom);
+      if(replayNav) restoreCards(snap.cards);        // R2: posisi step/kartu/progres dari data, SETELAH isian (event input tidak menimpa)
       if(typeof _vbCharResyncAll==='function') _vbCharResyncAll(); // segarkan prompt & tombol pensil sesuai state pulihan
     } finally {
       setTimeout(function(){ restoring = false; }, 60);
@@ -35011,7 +35444,8 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       // sekali, itu data permanen bukan draft sesi. Kalau bukan reload
       // (app baru dibuka lagi setelah ditutup total, bukan refresh),
       // draft tetap dicoba dipulihkan seperti biasa.
-      var _isReload = isReloadNavigation();
+      // R1: bersih HANYA bila user memintanya eksplisit (penanda diproses di <head>); tidak lagi menebak dari sinyal reload.
+      var _isReload = (window.PB_FRESH_START === true);
       // v6.44: kalau tur akun ini belum selesai, draft juga dibuang — kalau
       // tidak, restore draft bisa memutar ulang fungsi step TUR (pbGoStepN)
       // dan menampilkan step tengah-tengah, padahal tur harus mulai dari
@@ -35020,6 +35454,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       try{ _tourBelumSelesai = (typeof pbTourIsPending==='function') && pbTourIsPending(); }catch(e){}
       if(_isReload || _tourBelumSelesai) clearDraft();
       var restoredDraft = tryRestoreDraft();
+      setTimeout(function(){ _bootDone=true; },1500);
       if(!restoredDraft){
         pendingStepCalls = [{fn:'pbGoStep1', args:[]}];
         pushSnapshot(); // baseline state paling awal
@@ -35217,6 +35652,8 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     // (beforeunload, lihat IIFE undo/redo di atas) tidak nongol LAGI dobel
     // pas location.reload() beneran dipanggil.
     window._pbSkipUnloadWarn = true;
+    // R1: niat "mulai bersih" yang eksplisit (user sudah konfirmasi / tidak ada progres); dibaca & dibuang saat boot berikutnya.
+    try{ if(window.pbMarkFreshStart) window.pbMarkFreshStart(); }catch(e){}
     setTimeout(function(){ location.reload(); }, 550);
     // Jaring pengaman: kalau reload benar-benar macet/gagal, pulihkan app supaya
     // PTR tidak mati total. FIX: sebelumnya 3 detik — di jaringan lambat, reload
@@ -35227,6 +35664,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
     setTimeout(function(){
       refreshing = false;
       window._pbSkipUnloadWarn = false;
+      try{ localStorage.removeItem('pb_fresh_start_v1'); }catch(e){}   // R1: reload tidak jadi -> buang penanda
       resetPull(true);
     }, 15000);
   }
@@ -38275,14 +38713,17 @@ html body #foto#foto :is(#f4,#f8,#f9) .chip.pfa-lic.sel::after{content:"";displa
   function later(){ if(tmr) return; tmr=setTimeout(function(){tmr=0;snap();},350); }
   document.addEventListener('scroll',later,true);   // capture: scroll tidak bubble
   document.addEventListener('click',later,true);
-  document.addEventListener('visibilitychange',function(){ if(document.hidden) snap(); });
-  window.addEventListener('pagehide',snap);
-  document.addEventListener('freeze',snap);
+  function saveAll(){ snap(); try{ if(window.pbSaveNow) window.pbSaveNow(); }catch(e){} }
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) saveAll(); });
+  window.addEventListener('pagehide',saveAll);
+  document.addEventListener('freeze',saveAll);
+  // R4: Capacitor (jika @capacitor/app terpasang): app ke background -> simpan
+  try{ var _CA=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App; if(_CA&&_CA.addListener) _CA.addListener('appStateChange',function(st){ if(st&&!st.isActive) saveAll(); }); }catch(e){}
   setInterval(function(){ if(!document.hidden) snap(); },3000); // jaring pengaman, murah
 
   function restore(){
     try{
-      if(window.PB_IS_TRUE_RELOAD===true) return;          // refresh sengaja = mulai bersih
+      if(window.PB_FRESH_START===true) return;   // R1: mulai bersih hanya atas permintaan eksplisit (refresh "Ya"/logout/restart tur); selain itu SELALU pulihkan
       if(document.body.classList.contains('pb-tour-active')) return;
       try{ if(typeof pbTourIsPending==='function' && pbTourIsPending()) return; }catch(e){}   // tur akun belum selesai = tur yang mengatur layar
       var raw=localStorage.getItem(KEY); if(!raw) return;
