@@ -5347,7 +5347,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v15.14</div>
+  <div class="splash-version" id="splash-version">v15.15</div>
 </div>
 <script>
   (function(){
@@ -7773,7 +7773,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v15.14 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v15.15 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -39087,7 +39087,11 @@ window.pbPmOpen=function(){
     if(fk){try{var nf=l.querySelector(fk);if(nf)nf.focus();}catch(e){}}}
   paint();
   try{var d0=$("pb-pm-done");if(d0)d0.focus();}catch(e){}
-  var cb=$("pb-pm-cancel");if(cb)cb.onclick=function(){if(PM.busy){toast("Tunggu proses yang sedang jalan selesai dulu","error");return;}var msg="Batalkan sisa antrean grup? Hasil grup yang sudah selesai tetap ada.";if(typeof showConfirm==="function")showConfirm(msg,function(){if(!PM.busy){o.remove();cancelQueue();}},null,"Ya, Batalkan");else if(window.confirm(msg)&&!PM.busy){o.remove();cancelQueue();}};
+  var cb=$("pb-pm-cancel");if(cb)cb.onclick=function(){if(PM.busy){toast("Tunggu proses yang sedang jalan selesai dulu","error");return;}var msg="Batalkan sisa antrean grup? Hasil grup yang sudah selesai tetap ada.";
+    // PERBAIKAN (16 Nov 2026): A7, dialog konfirmasi (z-index 9998) tertutup sheet (10050) kalau sheet dibiarkan terbuka. Tutup sheet dulu, buka lagi bila user batal.
+    o.remove();btnLabel();
+    if(typeof showConfirm==="function")showConfirm(msg,function(){if(!PM.busy)cancelQueue();},function(){try{window.pbPmOpen();}catch(e){}},"Ya, Batalkan");
+    else if(window.confirm(msg)&&!PM.busy)cancelQueue();else{try{window.pbPmOpen();}catch(e){}}};
   $("pb-pm-done").onclick=function(){o.remove();btnLabel();render();};
   o.addEventListener("click",function(e){if(e.target===o){o.remove();btnLabel();render();}});
   var escH=function(e){if(!o.isConnected){document.removeEventListener("keydown",escH);return;}if(e.key==="Escape"){document.removeEventListener("keydown",escH);o.remove();btnLabel();render();}};document.addEventListener("keydown",escH);
