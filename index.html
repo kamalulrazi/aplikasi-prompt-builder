@@ -5347,7 +5347,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v15.6</div>
+  <div class="splash-version" id="splash-version">v15.10</div>
 </div>
 <script>
   (function(){
@@ -7554,7 +7554,6 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
           <!-- PERMINTAAN USER (Okt 2026): di tab Produk tombolnya "Lanjut" (pindah ke tab Penonton); "Generate Prompt" baru muncul di tab Penonton. Lihat vbInfoSyncBtns(). -->
           <button id="vb-bulk-next-btn" type="button" class="btn hidden" onclick="vbInfoNext()" style="font-size:var(--fs-md);padding:13px;">Lanjut</button>
           <div id="vb-bulk-error" class="hidden" style="margin-top:8px;background:rgba(224,92,92,0.1);border:1px solid rgba(224,92,92,0.3);border-radius:var(--radius-md);padding:10px;font-size:var(--fs-xs2);color:var(--red);"></div>
-          <div id="pb-pm-results"></div>
         </div>
       </div>
 
@@ -7631,6 +7630,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
   <!-- OUTPUT MULTI (3 script — AI, manual, atau bulk) -->
   <div id="vb-order-flow" style="display:none;margin-top:12px;"></div>
   <div id="vb-multi-output" style="display:none;flex-direction:column;gap:8px;margin-top:12px;"></div>
+  <div id="pb-pm-results"></div>
 
   <!-- (Nov 2026) Tombol "Lanjut →" setelah Salin Hook dihapus: sekarang tombol Salin Story muncul setelah Hook disalin, Salin CTA setelah Story disalin, lalu tombol "Akhiri tur". -->
 
@@ -7773,7 +7773,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v15.6 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v15.10 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -11288,6 +11288,7 @@ function fOpenStepJump(pageId){
     if(pageId==='foto' && (c.id==='f3' || c.id==='f4') && typeof FS!=='undefined' && FS &&
        FS.subjek==='produk') return false;
     if(pageId==='foto' && c.id==='f4' && typeof fIsNoChar==='function' && fIsNoChar()) return false;
+    if(pageId==='foto' && c.id==='f8' && typeof _fIsPovHandNoChar==='function' && _fIsPovHandNoChar()) return false;
     if(pageId==='foto' && c.id==='f4' && typeof fHasPoseRef==='function' && fHasPoseRef()) return false;
     return true;
   });
@@ -12503,7 +12504,7 @@ function _fBuildPromptJSON(ov){
   let _povHandNC = isProdukSaja && !ov.placementOverride && !ov.forceProdukSaja && _fIsPovHandNoChar();
   let angleHasHand = (isProdukSaja && !ov.placementOverride && /\bhand\b/i.test(effAngle)) || _povHandNC;
   if(_povHandNC) subjekDesc = 'product only, no person visible except a single hand holding the product (first-person POV)';
-  if(_povHandNC && !ov.angleOverride) effAngle = 'POV style (first-person perspective), as if the viewer is holding the product' + (effAngle ? ' \u2014 ' + effAngle : '');
+  if(_povHandNC && !ov.angleOverride) effAngle = 'POV style (first-person perspective), as if the viewer is holding the product' + (effAngle && !/^POV style/.test(effAngle) ? ' \u2014 ' + effAngle : '');
   let produkSajaIntroText = angleHasHand
     ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
     : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
@@ -31280,7 +31281,7 @@ function fRenderSummary() {
   // Sudut kamera — BUG FIX #6: pakai label friendly jika ada
   let angleDisplay = FS.angleLabel || (FS.angle ? (FS.angle.length > 55 ? FS.angle.substring(0, 55) + '…' : FS.angle) : '—');
   if (!FS.angle) warnings.push('Sudut kamera belum dipilih.');
-  items.push({ key: 'Angle', val: angleDisplay, editCard: 8 });
+  items.push({ key: 'Angle', val: angleDisplay, editCard: (typeof _fIsPovHandNoChar==='function' && _fIsPovHandNoChar()) ? 0 : 8 });
 
   // Mood & Tone
   let moodDisplay = FS.moodLabel || (FS.mood ? (FS.mood.length > 55 ? FS.mood.substring(0, 55) + '…' : FS.mood) : '—');
@@ -36715,6 +36716,7 @@ function vbInfoNext(){
   // dan TETAP di tab Produk (tidak pindah ke Penonton). Pesannya sama dengan validasi Generate.
   var cnt=parseInt((document.getElementById('vb-bulk-count')||{}).value,10)||1;
   for(var i=0;i<cnt;i++){
+    if(window.pbPmIsFashion&&window.pbPmIsFashion(i))continue; // Fashion Editorial: nama tidak wajib
     var ne=document.getElementById('vb-bulk-nama-'+i);
     if(!ne||!ne.value.trim()){
       try{showToast('Nama Produk '+(i+1)+' belum diisi','error');}catch(_e){}
@@ -36741,13 +36743,13 @@ function vbInfoSum(){
     var n=parseInt((document.getElementById('vb-bulk-count')||{}).value,10)||1;
     var e0=document.getElementById('vb-bulk-nama-0'),nm=e0?e0.value.trim():'';
     var gap=-1;// indeks produk pertama yang masih kosong (sama seperti validasi Generate)
-    for(var i=0;i<n;i++){var ei=document.getElementById('vb-bulk-nama-'+i);if(!ei||!ei.value.trim()){gap=i;break;}}
+    for(var i=0;i<n;i++){if(window.pbPmIsFashion&&window.pbPmIsFashion(i))continue;var ei=document.getElementById('vb-bulk-nama-'+i);if(!ei||!ei.value.trim()){gap=i;break;}}
     var tg=((document.getElementById('vb-bulk-target')||{}).value||'').trim();
     var pk=VB_TA_PRESET&&VB_TA_PRESET['vb-bulk-target'];
     if(!tg&&pk)tg=VB_TARGET_AUDIENCE_LABELS[pk]||VB_TARGET_AUDIENCE_PRESETS[pk]||'';
     var sp=(typeof VB_SAPAAN==='string')?VB_SAPAAN:'';
     var t=function(x,e){return '<span class="vt-tg'+(e?' e':'')+'">'+esc(x)+'</span>';};
-    var html=(gap<0?t(nm+(n>1?' +'+(n-1)+' lainnya':'')):'')+(tg?t(tg):'')+(sp?t('Sapaan: '+sp):'');
+    var html=(gap<0?t((nm||'Produk 1')+(n>1?' +'+(n-1)+' lainnya':'')):'')+(tg?t(tg):'')+(sp?t('Sapaan: '+sp):'');
     // Chip "belum diisi" dihapus; kalau semua kosong, seluruh kotak ringkasan disembunyikan.
     out.classList.toggle('hidden',!html);
     if(out._h!==html){out._h=html;out.innerHTML=html;try{fFitWbody(out);}catch(_e){}}
@@ -39015,7 +39017,7 @@ var LBL={satu:"Start Frame",kp:"Raw Asset",aset:"POV Produk (Pakai Skrip)",dua:"
 var ORDER=["satu","kp","aset","dua"];
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
-function cnt(){var n=parseInt(($("vb-bulk-count")||{}).value,10);return n>0?n:0;}
+function cnt(){var n=parseInt(($("vb-bulk-count")||{}).value,10);if(n>0)return n;var r=$("vb-bulk-rows");return r?r.children.length:0;}
 function baseMode(){if(PM.base)return PM.base;if(PM.home)return PM.home;var m=(typeof VB!=="undefined")?VB.refMode:"";return ORDER.indexOf(m)>-1?m:"satu";}
 function eff(i){return PM.modes[i]||baseMode();}
 function vbv(k){return (typeof VB!=="undefined")?VB[k]:undefined;}
@@ -39028,10 +39030,18 @@ function applyKp(lok,lt){
   try{vbSyncStep6Mode3();}catch(e){}
 }
 function nm(i){var e=$("vb-bulk-nama-"+i);return (e&&e.value.trim())||("Produk "+(i+1));}
-function active(){var n=cnt();for(var i=0;i<n;i++){if(PM.modes[i]&&PM.modes[i]!==baseMode())return true;}return false;}
+// PERBAIKAN (16 Nov 2026): mode utama di luar 4 grup (mis. Percobaan) dulu dianggap Start Frame oleh baseMode(), jadi produk tanpa pilihan ikut dibuat sebagai Start Frame. Sekarang fitur ini hanya aktif kalau mode utama termasuk ORDER.
+function groupable(){var m=(typeof VB!=="undefined")?VB.refMode:"";return ORDER.indexOf(m)>-1;}
+function active(){var n=cnt();if(n<2&&!PM.queue)return false;if(!PM.queue&&!groupable())return false;for(var i=0;i<n;i++){if(PM.modes[i]&&PM.modes[i]!==baseMode())return true;}return false;}
 function toast(t,k){try{showToast(t,k||"");}catch(e){}}
-function btnLabel(){var b=$("pb-pm-btn");if(!b)return;var n=0,c=cnt();for(var i=0;i<c;i++){if(PM.modes[i])n++;}b.textContent=n?("Atur Mode Produk ("+n+" diatur)"):"Atur Mode Produk";}
+function btnLabel(){var b=$("pb-pm-btn");if(!b)return;var n=0,c=cnt();
+  // Tombol cuma relevan kalau produk > 1. Tetap tampil selama antrean grup berjalan (tombol "Batalkan Sisa Antrean" ada di dalam sheet-nya).
+  b.classList.toggle("hidden",!((c>1&&groupable())||!!PM.queue));
+  var ci=$("vb-bulk-count");
+  if(ci){var lk=!!PM.queue;ci.disabled=lk;ci.style.opacity=lk?".5":"";ci.title=lk?"Dikunci sampai semua grup mode selesai":"";}for(var i=0;i<c;i++){if(PM.modes[i])n++;}b.textContent=n?("Atur Mode Produk ("+n+" diatur)"):"Atur Mode Produk";}
 window.pbPmSkip=function(i){return PM.skip?PM.skip(i):false;};
+// Produk bermode Fashion Editorial tidak pakai skrip → nama tidak wajib (dipakai vbInfoNext & vbInfoSum).
+window.pbPmIsFashion=function(i){return (cnt()>1||!!PM.queue)&&(!!PM.queue||groupable())&&eff(i)==="fashion";};
 function sheetBody(){
   var c=cnt(),h="",needLok=false,b=baseMode();
   for(var i=0;i<c;i++){
@@ -39054,14 +39064,14 @@ window.pbPmOpen=function(){
   o.innerHTML='<div style="width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--surface2);border:1px solid var(--border-hi);border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));">'
     +'<div style="font-weight:600;margin-bottom:4px;">Atur Mode Produk</div>'
     +'<div style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;">Pilih mode untuk tiap produk. Fashion Editorial tidak pakai skrip.</div>'
-    +(locked?'<div style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:10px;">Antrean grup masih berjalan, pengaturan dikunci sampai semua grup selesai.</div><button type="button" class="btn" id="pb-pm-cancel" style="margin-bottom:10px;">Batalkan Sisa Antrean</button>':'')
+    +(locked?'<div style="font-size:var(--fs-xs2);color:var(--muted);margin-bottom:10px;">Antrean grup masih berjalan, pengaturan mode dan jumlah produk dikunci sampai semua grup selesai.</div><button type="button" class="btn" id="pb-pm-cancel" style="margin-bottom:10px;">Batalkan Sisa Antrean</button>':'')
     +'<div id="pb-pm-list"></div><button type="button" class="btn" id="pb-pm-done" style="margin-top:6px;">Selesai</button></div>';
   document.body.appendChild(o);
   function paint(){var l=$("pb-pm-list");l.innerHTML=sheetBody();
     l.querySelectorAll("select[data-pm]").forEach(function(s){s.onchange=function(){PM.modes[s.dataset.pm]=s.value;paint();btnLabel();};});
     var li=$("pb-pm-lok");if(li)li.oninput=function(){PM.lok=li.value.trim();PM.lokWiz=vbv("mode3Lokasi")||"";};
     var lt=$("pb-pm-lt");if(lt)lt.oninput=function(){PM.light=lt.value.trim();PM.lightWiz=vbv("mode3Lighting")||"";};
-    var du=$("pb-pm-dur");if(du)du.onchange=function(){var v=parseInt(du.value,10);if(v===16||v===24){PM.dur=v;PM.durSet=true;}else{PM.durSet=false;}};
+    var du=$("pb-pm-dur");if(du)du.onchange=function(){var v=parseInt(du.value,10);if(v===16||v===24){PM.dur=v;PM.durSet=true;}else{PM.dur=0;PM.durSet=true;}};
     if(locked)l.querySelectorAll("select,input").forEach(function(x){x.disabled=true;});}
   paint();
   var cb=$("pb-pm-cancel");if(cb)cb.onclick=function(){if(PM.busy){toast("Tunggu proses yang sedang jalan selesai dulu","error");return;}o.remove();btnLabel();var msg="Batalkan sisa antrean grup? Hasil grup yang sudah selesai tetap ada.";if(typeof showConfirm==="function")showConfirm(msg,function(){if(!PM.busy)cancelQueue();},null,"Ya, Batalkan");else if(window.confirm(msg)&&!PM.busy)cancelQueue();};
@@ -39186,6 +39196,8 @@ function copy(t){
   function fb(x){var a=document.createElement("textarea");a.value=x;document.body.appendChild(a);a.select();try{document.execCommand("copy");toast("Tersalin");}catch(e){}a.remove();}
 }
 function render(){
+  btnLabel();
+  try{if(typeof vbInfoSum==="function")vbInfoSum();}catch(e){}
   var box=$("pb-pm-results");if(!box)return;
   if(!PM.res.length&&!PM.fash.length&&!PM.queue){box.innerHTML="";return;}
   var h='<div style="margin-top:14px;font-weight:600;">Hasil per Mode Produk</div>';
@@ -39196,7 +39208,7 @@ function render(){
   });
   if(PM.fash.length)h+='<div class="out-card" style="margin-top:8px;padding:10px 12px;"><div style="font-size:var(--fs-xs2);margin-bottom:6px;">Fashion Editorial (tanpa skrip): '+PM.fash.map(esc).join(", ")+'</div><button type="button" class="chip" data-pmc="f">Buka Fashion Editorial</button></div>';
   if(PM.queue&&PM.queue.length){var g=PM.queue[0],c=0,n=cnt();for(var i=0;i<n;i++){if(eff(i)===g)c++;}
-    h+='<div style="margin-top:10px;font-size:var(--fs-xs2);color:var(--muted);">Berikutnya: '+LBL[g]+" ("+c+" produk). Tekan Generate Prompt lagi.</div>";}
+    h+='<div style="margin-top:10px;font-size:var(--fs-xs2);color:var(--muted);">Berikutnya: '+LBL[g]+" ("+c+" produk). Jalan otomatis. Kalau berhenti, tekan Generate Prompt lagi.</div>";}
   box.innerHTML=h;
   box.querySelectorAll("[data-pmc]").forEach(function(b){b.onclick=function(){
     var k=b.dataset.pmc;if(k==="f"){try{vbPickRefMode("fashion");}catch(e){}return;}
@@ -39213,14 +39225,36 @@ async function finish(g){
   else toast("Grup "+LBL[g]+" selesai. Lanjut: "+LBL[PM.queue[0]]);
   render();
 }
+// PERBAIKAN (16 Nov 2026): setelah satu grup mode selesai, doneCard('v5') menyembunyikan SELURUH kartu form (tombol Generate Prompt + catatan "Berikutnya" ikut hilang),
+// jadi grup berikutnya tidak pernah bisa ditekan dan hanya grup pertama yang keluar. Sekarang grup berikutnya dijalankan otomatis.
+function waitIdle(){
+  return new Promise(function(res){
+    var t0=Date.now();
+    (function tick(){
+      var b=$("vb-bulk-btn");
+      if(!b||!b.classList.contains("btn-loading")||Date.now()-t0>15000)return res();
+      setTimeout(tick,250);
+    })();
+  });
+}
+async function goNext(){
+  if(!(PM.queue&&PM.queue.length)||PM.pending||PM.busy)return;
+  await waitIdle();
+  if(!(PM.queue&&PM.queue.length)||PM.pending||PM.busy)return;
+  try{var c5=$("v5");if(c5){c5.classList.remove("done","hidden");c5.classList.add("pending");}}catch(e){}
+  await window.vbGenerateBulkAI();
+}
 function wrap(){
   var og=window.vbGenerateBulkAI,or=window._vbRunBulkGenerate,rs=window.vbBulkResumeAI,pk=window.vbPickRefMode;
   if(typeof og!=="function"||typeof or!=="function")return;
-  if(typeof pk==="function")window.vbPickRefMode=function(){if(!PM.sw){PM.home="";if(!PM.queue)PM.base="";}return pk.apply(this,arguments);};
-  window._vbRunBulkGenerate=function(){PM.started=true;return or.apply(this,arguments);};
+  if(typeof pk==="function")window.vbPickRefMode=function(){if(!PM.sw){PM.home="";if(!PM.queue)PM.base="";}var r=pk.apply(this,arguments);try{btnLabel();}catch(e){}return r;};
+  window._vbRunBulkGenerate=function(){PM.started=true;
+    // Generate normal (bukan antrean multi-mode) menimpa hasil lama → kartu "Hasil per Mode Produk" sisa run sebelumnya ikut dibersihkan.
+    if(!PM.queue&&(PM.res.length||PM.fash.length)){PM.res=[];PM.fash=[];render();}
+    return or.apply(this,arguments);};
   if(typeof rs==="function")window.vbBulkResumeAI=async function(){
     var r=await rs.apply(this,arguments);
-    if(PM.pending&&PM.queue&&PM.queue.length&&!incomplete()){PM.busy=true;try{await finish(PM.pending);}finally{PM.busy=false;}}
+    if(PM.pending&&PM.queue&&PM.queue.length&&!incomplete()){PM.busy=true;try{await finish(PM.pending);}finally{PM.busy=false;}await goNext();}
     return r;
   };
   var rn=window.vbResetNow;if(typeof rn==="function")window.vbResetNow=function(){var r=rn.apply(this,arguments);try{resetAll();}catch(e){}return r;};
@@ -39242,7 +39276,7 @@ function wrap(){
       if(bad>-1){PM.base="";toast("Nama Produk "+(bad+1)+" belum diisi","error");try{vbInfoTab("produk");}catch(e){}var nb=$("vb-bulk-nama-"+bad);if(nb)nb.focus();return;}
       if(typeof dlCheckBeforeCall==="function"){var qc=dlCheckBeforeCall(tot);if(!qc.ok){PM.base="";toast(qc.message,"error");return;}}
       PM.snap=snapshot();fresh=true;
-      PM.home=PM.base;PM.res=[];PM.fash=fash;PM.pending="";PM.queue=qq;
+      PM.home=PM.base;PM.res=[];PM.fash=fash;PM.pending="";PM.queue=qq;btnLabel();
     }
     var g=PM.queue[0];
     if(typeof VB!=="undefined"&&VB.refMode!==g)switchMode(g);
@@ -39256,9 +39290,83 @@ function wrap(){
       if(incomplete()){PM.pending=g;toast("Grup "+LBL[g]+" belum tuntas. Tekan Lanjutkan dulu.","error");return;}
       await finish(g);
     }finally{PM.busy=false;}
+    await goNext();
   };
 }
 wrap();btnLabel();
+(function(){
+  var ci=$("vb-bulk-count");
+  if(ci)["input","change","blur"].forEach(function(ev){ci.addEventListener(ev,function(){setTimeout(btnLabel,0);});});
+  var rw=$("vb-bulk-rows");
+  if(rw&&window.MutationObserver)new MutationObserver(function(){btnLabel();}).observe(rw,{childList:true});
+})();
+})();
+</script>
+<script id="povhand-skip-js">
+/* v15.7 — PERBAIKAN BENTROK: Cara Tampil "Dipegang tangan (POV)" (mode Produk + Lokasi) vs Sudut Kamera.
+   Dulu user masih bisa pilih Low/High/Eye Level (teksnya untuk orang) dan tergabung dengan "POV style (first-person perspective)" di prompt.
+   Sekarang sama seperti mode "Produk saja · POV": sudut kamera otomatis POV dan step Sudut Kamera dilewati.
+   Cara Tampil lain (hanger / isi sendiri) -> step Sudut Kamera muncul lagi seperti biasa. Dipasang paling akhir = pembungkus terluar. */
+(function(){
+'use strict';
+var LBL='POV (otomatis)';
+var DESC='POV style (first-person perspective), as if the viewer is holding the product';
+function on(){try{return !!(typeof _fIsPovHandNoChar==='function'&&_fIsPovHandNoChar());}catch(e){return false;}}
+function isAuto(){try{return FS.angleLabel===LBL;}catch(e){return false;}}
+function sync(){try{fSyncStepNums();}catch(e){}}
+function lock(){
+  FS.angle=LBL;FS.angleLabel=LBL;FS.angleDesc=DESC;
+  try{_fAngle={val:DESC,label:LBL};}catch(e){}
+  document.querySelectorAll('#f8 .chip').forEach(function(x){x.classList.remove('sel');});
+  var cu=document.getElementById('f8-custom');if(cu)cu.value='';
+  try{doneCard('f8','fa8',LBL);}catch(e){}
+  var c=document.getElementById('f8');
+  if(c){c.classList.add('done','hidden');c.classList.remove('pending');}
+  sync();
+}
+function unlock(){
+  FS.angle='';FS.angleLabel='';FS.angleDesc='';
+  try{_fAngle=null;}catch(e){}
+  var c=document.getElementById('f8');
+  if(c){c.classList.remove('done','hidden');c.classList.add('pending');}
+  var a=document.getElementById('fa8');if(a)a.textContent='';
+  sync();
+}
+/* nomor step & menu langkah: Sudut Kamera tidak dihitung saat dikunci */
+var _fas=window.fActiveSteps;
+if(typeof _fas==='function')window.fActiveSteps=function(){
+  var b=_fas.apply(this,arguments);
+  return on()?b.filter(function(id){return id!=='f8';}):b;
+};
+/* alur maju: kunci / buka kunci Sudut Kamera */
+var _sc=window.showCard;
+if(typeof _sc==='function')window.showCard=function(id){
+  if(id==='f5'||id==='f7'||id==='f8'){
+    if(on()){lock();if(id==='f8')return window.showCard('f5');}
+    else if(isAuto())unlock();
+  }
+  return _sc.apply(this,arguments);
+};
+/* jaring pengaman: Sudut Kamera tidak boleh dibuka lewat Ringkasan / Lompat ke step saat dikunci POV */
+var _se=window.fSummaryEdit;
+if(typeof _se==='function')window.fSummaryEdit=function(n){
+  if(Number(n)===8&&on()){try{showToast('Sudut kamera otomatis POV. Ganti Cara Tampil kalau mau pilih sudut lain.','info');}catch(e){}return;}
+  return _se.apply(this,arguments);
+};
+/* tombol Kembali di Mood & Tone: langsung ke Cara Tampil */
+var _b9=window.fBack9;
+if(typeof _b9==='function')window.fBack9=function(){
+  if(!on())return _b9.apply(this,arguments);
+  fBack5();
+  try{_fAngle=null;}catch(e){}
+  FS.angle='';FS.angleLabel='';FS.angleDesc='';
+  FS.mood='';FS.moodLabel='';
+  document.querySelectorAll('#f9 .chip').forEach(function(c){c.classList.remove('sel');});
+  var m=document.getElementById('f9-custom');if(m)m.value='';
+  var n=document.getElementById('f9-counter');if(n){n.textContent='0 / 300';n.className='inp-counter';}
+  var a=document.getElementById('fa9');if(a)a.textContent='';
+  var g=document.getElementById('f-gen-area');if(g)g.classList.add('hidden');
+};
 })();
 </script>
 </body>
