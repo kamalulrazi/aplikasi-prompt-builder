@@ -5375,7 +5375,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v18.5</div>
+  <div class="splash-version" id="splash-version">v18.7</div>
 </div>
 <script>
   (function(){
@@ -6221,7 +6221,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
         </div>
 
         <!-- MODE PRODUK SAJA · POV: tampil kalau user cuma memilih "Produk" (diatur povSync() di blok script pov-js) -->
-        <div id="f1-pov-hint">Cuma pilih <b>Produk</b>? Boleh langsung lanjut setelah nama produk diisi. Hasilnya foto produk gaya POV (dipegang atau di hanger).</div>
+        <div id="f1-pov-hint">Cuma pilih <b>Produk</b>? Boleh langsung lanjut setelah nama produk diisi. Hasilnya foto produk gaya POV (dipegang tangan).</div>
         <div class="f1-divider" id="f1-divider" style="display:none;" role="button" tabindex="0" aria-expanded="false" aria-label="Tampilkan / sembunyikan detail tiap foto" onclick="fToggleF1Details()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();fToggleF1Details();}"><span>Detail tiap foto</span><em id="f1-divider-count">0</em><svg class="f1-divider-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></div>
 
         <!-- FOTO DETAIL LIST — compact rows -->
@@ -6322,12 +6322,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
               <div class="text-hint">Ada tangan yang memegang produk, seolah-olah kamu sendiri yang memegangnya (sudut pandang orang pertama).</div>
             </div>
           </div>
-          <div class="chip chip-wide" id="f3-pov-chip-hanger" data-hold="hanger" onclick="fPovPickHold(this,'hanger')">
-            <div>
-              <div class="text-title-sm">Di hanger</div>
-              <div class="text-hint">Produk digantung di hanger dan terlihat penuh menghadap kamera, sudut pandang POV.</div>
-            </div>
-          </div>
+          <!-- Nov 2026 (permintaan user): opsi "Di hanger" dihapus dari mode Produk saja · POV (tersisa Dipegang tangan). -->
         </div>
       </div>
       <p style="font-size:var(--fs-sm);color:var(--muted);margin-bottom:12px;line-height:1.65;">Produk yang akan ditampilkan nanti bagaimana?</p>
@@ -7801,7 +7796,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.5 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.7 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -39540,6 +39535,10 @@ html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
      Dipanggil dari showCard('f3') DAN saat kartu dibuka ulang lewat Edit di Ringkasan / "Lompat ke step" (jalur itu tidak lewat showCard). */
   function pbHoldChipSync(){
     var nc=false;try{nc=fIsNoChar();}catch(e){}
+    /* Nov 2026 (permintaan user): opsi "Produk di hanger" disembunyikan di mode Produk + Lokasi (tanpa karakter), sama seperti "Dipakai ke karakter". */
+    document.querySelectorAll('#f3 .chip[onclick*="fPickHold(\'hanger\'"]').forEach(function(c){c.style.display=nc?'none':'';});
+    /* Nov 2026: "Dipakai ke karakter" juga disembunyikan di jalur buka-ulang (Ringkasan / Lompat ke step) — dulu hanya disembunyikan lewat showCard('f3'). */
+    document.querySelectorAll('#f3 .chip[onclick*="fPickHold(\'dipakai\'"]').forEach(function(c){c.style.display=nc?'none':'';});
     document.querySelectorAll('#f3 .chip[onclick*="fPickHold(\'tangan\'"]').forEach(function(c){
       var tn=null,i;
       for(i=0;i<c.childNodes.length;i++){if(c.childNodes[i].nodeType===3&&c.childNodes[i].nodeValue.trim()){tn=c.childNodes[i];break;}}
@@ -39562,6 +39561,11 @@ html body #video .wcard:has(.pbw-dock>.pb-cd-px){margin-bottom:0;}
     if(id==='f3'){
       var nc=fIsNoChar();
       document.querySelectorAll('#f3 .chip[onclick*="fPickHold(\'dipakai\'"]').forEach(function(c){c.style.display=nc?'none':'';});
+      /* sisa pilihan hanger (mis. dari sesi/draft lama) tidak boleh terbawa ke mode tanpa karakter */
+      if((nc||FS.povProduk)&&FS.holdKey==='hanger'&&!FS.importActive){
+        FS.holdKey='';FS.hold='';FS.holdLabel='';FS.povPlacement='';FS.povCamera='';
+        document.querySelectorAll('#f3 .chip').forEach(function(c){c.classList.remove('sel');});
+      }
       pbHoldChipSync();
     }
     if(id==='f4'&&fIsNoChar()){
