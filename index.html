@@ -5415,7 +5415,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v18.7</div>
+  <div class="splash-version" id="splash-version">v18.10</div>
 </div>
 <script>
   (function(){
@@ -7836,7 +7836,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.7 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.10 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -40327,6 +40327,7 @@ function waitStable(){
 function harvest(g){
   var is16=(typeof _vb16==="function")&&_vb16(); // PERBAIKAN (16 Nov 2026): A3, 16 dtk/dua suara: slot Story kosong dilewati
   var P=(typeof VB_BULK_PRODUCTS!=="undefined"&&VB_BULK_PRODUCTS)||[];
+  var gi=[],used={};for(var q=0;q<cnt();q++){if(eff(q)===g)gi.push(q);}
   for(var p=0;p<P.length;p++){
     var cards=[];
     for(var k=0;k<3;k++){
@@ -40337,20 +40338,47 @@ function harvest(g){
       if(!st)continue;
       cards.push({label:(is16&&k===0)?"Hook + Story":KL[k],script:st,json:js2});
     }
-    PM.res.push({mode:g,nama:P[p].nama,cards:cards});
+    var ix=null;
+    for(var z=0;z<gi.length;z++){if(!used[gi[z]]&&nm(gi[z])===P[p].nama){ix=gi[z];break;}}
+    if(ix==null&&gi[p]!=null&&!used[gi[p]])ix=gi[p];
+    if(ix!=null)used[ix]=1;
+    PM.res.push({mode:g,idx:ix,nama:P[p].nama,cards:cards});
   }
 }
 function copy(t){
   try{navigator.clipboard.writeText(t).then(function(){toast("Tersalin");},function(){fb(t);});}catch(e){fb(t);}
   function fb(x){var a=document.createElement("textarea");a.value=x;document.body.appendChild(a);a.select();try{document.execCommand("copy");toast("Tersalin");}catch(e){}a.remove();}
 }
+// Skrip diedit -> ganti teks skrip lama di dalam JSON/prompt (null kalau teks lama tidak ketemu)
+function syncJson(j,o,n){
+  if(!j||!o)return j;if(o===n)return j;
+  var q=function(x){return String(x).replace(/"/g,"'");},e=function(x){return JSON.stringify(String(x)).slice(1,-1);};
+  var a=[[q(o),q(n)],[e(o),e(n)]];
+  for(var z=0;z<a.length;z++){var k=j.indexOf(a[z][0]);if(k>-1)return j.slice(0,k)+a[z][1]+j.slice(k+a[z][0].length);}
+  return null;
+}
 function render(){
   btnLabel();
   try{if(typeof vbInfoSum==="function")vbInfoSum();}catch(e){}
   var box=$("pb-pm-results");if(!box)return;
+  // Multi-mode (>1 grup mode) = hasil tiap produk ditampilkan terpisah & bisa diedit di sini; kartu hidup (cuma grup terakhir) disembunyikan setelah antrean selesai
+  var multi=(function(){var m={},k=0;PM.res.forEach(function(r){if(!m[r.mode]){m[r.mode]=1;k++;}});return k>1;})();
+  var live=$("vb-multi-output");
+  if(live){
+    if(multi&&!PM.queue){live.dataset.pmHid="1";live.style.display="none";}
+    else if(live.dataset.pmHid&&!PM.queue){delete live.dataset.pmHid;live.style.display=live.children.length?"flex":"none";}
+  }
   if(!PM.res.length&&!PM.fash.length&&!PM.queue){box.innerHTML="";return;}
   var h='<div style="margin-top:14px;font-weight:600;">Hasil per Mode Produk</div>';
-  PM.res.forEach(function(r,i){
+  if(multi){
+    var DL={Story:"Cerita Produk",CTA:"CTA Keranjang"};
+    PM.res.map(function(r,i){return i;}).sort(function(a,b){var x=PM.res[a].idx,y=PM.res[b].idx;return (x==null?1e3+a:x)-(y==null?1e3+b:y);}).forEach(function(i){
+      var r=PM.res[i];
+      h+='<div class="out-card" style="margin-top:8px;padding:10px 12px;"><div style="font-size:var(--fs-xs2);margin-bottom:8px;font-weight:600;">'+(r.idx==null?"":(r.idx+1)+". ")+esc(r.nama)+' · <span style="color:var(--muted);font-weight:400;">'+LBL[r.mode]+'</span></div>'
+        +r.cards.map(function(c,k){return '<div style="margin-bottom:8px;"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><span style="flex:1;font-size:var(--fs-xs2);color:var(--muted);">'+esc(DL[c.label]||c.label)+' <span data-pmw="'+i+'_'+k+'"></span></span><button type="button" class="chip" data-pmc="s'+i+'_'+k+'">Salin</button>'+(c.json?'<button type="button" class="chip" data-pmc="j'+i+'_'+k+'">JSON</button>':"")+'</div><textarea class="inp" data-pmt="'+i+'_'+k+'" rows="3" style="width:100%;box-sizing:border-box;min-height:84px;resize:vertical;line-height:1.5;">'+esc(c.script)+'</textarea></div>';}).join("")
+        +(r.cards.length?'<button type="button" class="chip" data-pmc="a'+i+'">Salin Semua Skrip</button>':'<span style="font-size:var(--fs-xs2);color:var(--muted);">Tidak ada skrip untuk produk ini.</span>')+'</div>';
+    });
+  }else PM.res.forEach(function(r,i){
     h+='<div class="out-card" style="margin-top:8px;padding:10px 12px;"><div style="font-size:var(--fs-xs2);margin-bottom:6px;">'+esc(r.nama)+' · <span style="color:var(--muted);">'+LBL[r.mode]+'</span></div>'
       +'<button type="button" class="chip" data-pmc="a'+i+'">Salin Skrip</button> '
       +r.cards.map(function(c,k){return c.json?'<button type="button" class="chip" data-pmc="j'+i+'_'+k+'">JSON '+c.label+'</button> ':"";}).join("")+"</div>";
@@ -40358,14 +40386,28 @@ function render(){
   if(PM.fash.length)h+='<div class="out-card" style="margin-top:8px;padding:10px 12px;"><div style="font-size:var(--fs-xs2);margin-bottom:6px;">Fashion Editorial (tanpa skrip): '+PM.fash.map(esc).join(", ")+'</div><button type="button" class="chip" data-pmc="f">Buka Fashion Editorial</button></div>';
   if(PM.queue&&PM.queue.length){var g=PM.queue[0],c=0,n=cnt();for(var i=0;i<n;i++){if(eff(i)===g)c++;}
     h+='<div style="margin-top:10px;font-size:var(--fs-xs2);color:var(--muted);">Berikutnya: '+LBL[g]+" ("+c+" produk). Jalan otomatis. Kalau berhenti, tekan Generate Prompt lagi.</div>";}
-  if(PM.locked)h+='<div style="margin-top:10px;font-size:var(--fs-xs2);color:var(--muted);">Hasil multi-mode: salin dari "Hasil per Mode Produk" (tiap grup sudah memakai mode yang benar). Kartu di atas dikunci.</div>';
+  if(PM.locked&&!multi)h+='<div style="margin-top:10px;font-size:var(--fs-xs2);color:var(--muted);">Hasil multi-mode: salin dari "Hasil per Mode Produk" (tiap grup sudah memakai mode yang benar). Kartu di atas dikunci.</div>';
   box.innerHTML=h;
+  box.querySelectorAll("textarea[data-pmt]").forEach(function(t){
+    var m=/^(\d+)_(\d+)$/.exec(t.dataset.pmt),r=m&&PM.res[+m[1]],c=r&&r.cards[+m[2]],w=box.querySelector('[data-pmw="'+t.dataset.pmt+'"]');
+    if(!c)return;
+    function fit(){if(t.clientHeight>0&&t.scrollHeight>t.clientHeight+1)t.style.height=(t.scrollHeight+2)+"px";}
+    function cw(){if(w)w.textContent="("+t.value.split(/\s+/).filter(Boolean).length+" kata)";}
+    cw();fit();
+    try{requestAnimationFrame(fit);if(window.IntersectionObserver)new IntersectionObserver(function(es){if(es[0].isIntersecting)fit();}).observe(t);}catch(e){}
+    t.addEventListener("input",function(){
+      if(c.j0==null){c.j0=c.json;c.s0=c.script;}
+      c.script=t.value;
+      var nj=syncJson(c.j0,c.s0,t.value);c.stale=(nj===null);c.json=c.stale?c.j0:nj;
+      cw();fit();
+    });
+  });
   box.querySelectorAll("[data-pmc]").forEach(function(b){b.onclick=function(){
     var k=b.dataset.pmc;if(k==="f"){try{vbPickRefMode("fashion");}catch(e){}return;}
-    var m=/^([aj])(\d+)(?:_(\d+))?$/.exec(k);if(!m)return;
+    var m=/^([ajs])(\d+)(?:_(\d+))?$/.exec(k);if(!m)return;
     var r=PM.res[+m[2]];if(!r)return;
     if(m[1]==="a")copy(r.cards.filter(function(c){return c.script;}).map(function(c){return c.label+": "+c.script;}).join("\n\n"));
-    else if(r.cards[+m[3]])copy(r.cards[+m[3]].json);};});
+    else if(r.cards[+m[3]]){var cd=r.cards[+m[3]];copy(m[1]==="s"?cd.script:cd.json);if(m[1]==="j"&&cd.stale)setTimeout(function(){toast("Skrip sudah diedit, tapi JSON tidak bisa ikut berubah otomatis. Cek dulu sebelum dipakai.","error");},500);}};});
 }
 function incomplete(){var c=(typeof VB_BULK_LAST_CONTEXT!=="undefined")?VB_BULK_LAST_CONTEXT:null;return !!(c&&c.allResults&&c.produkList&&c.allResults.length<c.produkList.length);}
 async function finish(g){
@@ -40463,7 +40505,7 @@ function wrap(){
       // PERBAIKAN (16 Nov 2026): A4, preflight setelah cek khusus PM (semua-Fashion tidak butuh gender/target), sebelum snapshot
       if(!preflight()){PM.base="";return;}
       PM.snap=snapshot();fresh=true;PM.locked=false;
-      PM.home=PM.base;PM.res=[];PM.fash=fash;PM.pending="";PM.queue=qq;PM.total=qq.length;btnLabel();
+      PM.home=PM.base;PM.res=[];PM.fash=fash;PM.pending="";PM.queue=qq;PM.total=qq.length;btnLabel();render();
     }
     var g=PM.queue[0];
     if(typeof VB!=="undefined"&&VB.refMode!==g)switchMode(g);
