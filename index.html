@@ -405,7 +405,7 @@ window.pbMarkFreshStart = function(){
   // TARIK-nya (_pullAll) sekarang di-merge, bukan ditimpa mentah — lihat
   // PB_LOG_MERGE_KEYS & _mergeLogArrays di bawah, dan catatan panjang di
   // dekat PB_COUNTER_SYNC_KEYS kenapa ini perlu.
-  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1','pb_fixchat_log_v1','pb_auto_foto_v1','pb_auto_video_v1'];
+  var PB_SYNC_KEYS = ['pb_custom_saves','pb_history_v1','pb_saved_pages_v1','pb_tour_done','pb_usage_log_v1','pb_fixchat_log_v1','pb_auto_foto_v1','pb_auto_video_v1','pb_user_scripts_v1','pb_ref_source_v1'];
   // FIX BUG SINKRON (audit lanjutan, Sept 2026): pb_usage_stats_v1 dan
   // pb_wordfix_stats_v1 DICABUT dari PB_SYNC_KEYS di atas (yang sinkronnya
   // "timpa seluruh nilai") karena keduanya cuma kumpulan ANGKA AKUMULASI
@@ -5415,7 +5415,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v18.10</div>
+  <div class="splash-version" id="splash-version">v18.11</div>
 </div>
 <script>
   (function(){
@@ -7725,6 +7725,12 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
       <a href="kontak.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Kontak</a>
     </div>
   </div>
+  <!-- CONTOH SKRIP REFERENSI (permintaan user, Nov 2026): skrip simpanan user + pilihan sumber contoh (bawaan / skrip sendiri). Logika: blok #pb-refscript-js di akhir file. -->
+  <div id="pb-refscript-card" style="background:var(--surface2);border:1px solid var(--border-hi);border-radius:var(--radius-sm);padding:16px;margin-bottom:18px;">
+    <div class="sec-title" style="margin:0 0 4px;">Contoh Skrip Referensi</div>
+    <div style="font-size:var(--fs-sm);color:var(--muted);">Pilih contoh yang dipakai AI saat kamu memilih "Kami Bantu Isi".</div>
+    <div id="pb-refscript-body"></div>
+  </div>
   <!-- LIMIT HARIAN (permintaan user, Okt 2026): dulu widget melayang di atas nav bawah, sekarang kartu tetap di tab Panduan.
        ID dlb-* tetap sama karena dipakai dlRenderBar(). -->
   <div id="daily-limit-bar" style="display:none;">
@@ -7837,7 +7843,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.10 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.11 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -27237,14 +27243,14 @@ var VB_REFERENCE_OPTIONS_16=[
       'hook: '+"Bulu yang melekat kat baju tu macam penumpang haram, tak diundang tapi ikut berjalan-jalan. Lint roller ni golek je, serat yang melekat terus terangkat, baju kembali bersih."+'\n'+'cta: '+"Sekarang penumpang haramnya diturunkan, baju bersih dari bulu, outfit nampak kemas dan yakin. Kalau nak tahu pasal lint roller-nya, tengok je dulu kat keranjang bawah."
    }}
 ];
-function _vbRefOpts(){return _vbIsDua()?VB_REFERENCE_OPTIONS_DUA:(_vb16()?VB_REFERENCE_OPTIONS_16:VB_REFERENCE_OPTIONS);}
+function _vbRefOpts(){var _u=(typeof pbUserRefOpts==='function')?pbUserRefOpts():null;if(_u)return _u;return _vbIsDua()?VB_REFERENCE_OPTIONS_DUA:(_vb16()?VB_REFERENCE_OPTIONS_16:VB_REFERENCE_OPTIONS);}
 // 25 Okt 2026: contoh referensi diacak TANPA ulangan: semua opsi dikocok dulu, dipakai satu per satu (tiap panggilan AI = 1 opsi baru),
 // baru dikocok lagi kalau habis; opsi pertama putaran baru dijamin beda dari opsi terakhir putaran sebelumnya.
 var _vbRefBag=[],_vbRefLast=-1;
 var _vbRefBagList=null;
 // 13 Nov 2026 (audit): opsi contoh yang dipakai per produk disimpan (kunci = durasi|nama); saat REVISI (ada CURRENT SCRIPT) opsi yang sama dipakai lagi.
 var _vbRefMemo={};
-function _vbRefMemoKey(nama){return (_vbIsDua()?'dua|':(_vb16()?'16|':'24|'))+String(nama||'').replace(/\s+/g,' ').trim().toLowerCase();}
+function _vbRefMemoKey(nama){return (typeof pbUserRefActive==='function'&&pbUserRefActive()?'own|':'')+(_vbIsDua()?'dua|':(_vb16()?'16|':'24|'))+String(nama||'').replace(/\s+/g,' ').trim().toLowerCase();}
 function _vbPickReferenceIdx(){_vbPickReferenceOption();return _vbRefLast;}
 function _vbPickReferenceOption(){
   var L=_vbRefOpts();
@@ -31118,7 +31124,16 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
     lokasiBtn.onclick=(function(ii){return function(){vbToggleLokasiPanel(ii);};})(idx);
     copyWrap.appendChild(lokasiBtn);
   }
-  copyWrap.appendChild(copyBtn);
+  if(typeof idx==='number'&&idx%3===2&&typeof pbSaveScriptFromCard==='function'){
+     let svBtn=document.createElement('button');
+     svBtn.type='button';svBtn.id='vb-save-script-'+idx;svBtn.className='copy-btn';
+     svBtn.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+     svBtn.textContent='Simpan skrip';
+     svBtn.title='Simpan skrip produk ini ke tab Akun sebagai contoh referensi';
+     svBtn.onclick=(function(ii){return function(){pbSaveScriptFromCard(ii);};})(idx);
+     copyWrap.appendChild(svBtn);
+   }
+   copyWrap.appendChild(copyBtn);
   copyWrap.appendChild(doneLabel);
   head.appendChild(copyWrap);
 
@@ -40671,6 +40686,99 @@ if(typeof _b9==='function')window.fBack9=function(){
   var a=document.getElementById('fa9');if(a)a.textContent='';
   var g=document.getElementById('f-gen-area');if(g)g.classList.add('hidden');
 };
+})();
+</script>
+<style id="pb-refscript-css">
+#pb-refscript-card .pb-rs-seg{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 8px;}
+#pb-refscript-card .pb-rs-seg .chip{font-family:inherit;cursor:pointer;}
+#pb-refscript-card .pb-rs-hint{font-size:var(--fs-2xs);color:var(--muted);line-height:1.6;}
+#pb-refscript-card .pb-rs-item{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-xs);padding:9px 11px;margin-top:8px;}
+#pb-refscript-card .pb-rs-top{display:flex;align-items:center;gap:8px;}
+#pb-refscript-card .pb-rs-name{flex:1;min-width:0;font-size:var(--fs-sm);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#pb-refscript-card .pb-rs-tag{flex:0 0 auto;font-size:var(--fs-2xs);color:var(--accent);border:1px solid var(--accent-dim);border-radius:var(--radius-pill);padding:1px 8px;}
+#pb-refscript-card .pb-rs-del{font-family:inherit;flex:0 0 auto;font-size:var(--fs-2xs);padding:3px 9px;}
+#pb-refscript-card .pb-rs-prev{margin-top:6px;font-size:var(--fs-2xs);color:var(--muted);line-height:1.6;cursor:pointer;}
+#pb-refscript-card .pb-rs-full{margin-top:6px;font-size:var(--fs-2xs);color:var(--text);line-height:1.7;white-space:pre-wrap;word-break:break-word;}
+</style>
+<script id="pb-refscript-js">
+// CONTOH SKRIP REFERENSI MILIK USER (permintaan user, Nov 2026).
+// - Skrip disimpan lewat tombol "Simpan skrip" di kartu CTA (jalur Kami Bantu Isi maupun Tulis Manual) -> localStorage pb_user_scripts_v1 (sinkron cloud).
+// - Tab Akun: pilih sumber contoh (pb_ref_source_v1 = 'builtin' | 'own'). Bawaan & milik user TERPISAH.
+// - Sumber 'own': _vbRefOpts() (lihat definisinya) mengembalikan skrip user untuk durasi aktif; pengacakan memakai mesin lama (_vbPickReferenceOption / _vbDeal).
+// - Aksen/nada: skrip user dipakai apa adanya (combo kosong), belum dibedakan per aksen.
+(function(){
+  var K='pb_user_scripts_v1',S='pb_ref_source_v1',MAX=30,_c=null,_ck='';
+  var LBL={'24':'24 detik','16':'16 detik','dua':'2 suara'};
+  function load(){try{var a=JSON.parse(localStorage.getItem(K)||'[]');return Array.isArray(a)?a.filter(function(x){return x&&typeof x.text==='string'&&x.text&&x.id;}):[];}catch(e){return [];}}
+  function put(a){localStorage.setItem(K,JSON.stringify(a));if(typeof pbCloudQueue==='function')pbCloudQueue(K);}
+  function src(){try{return localStorage.getItem(S)==='own'?'own':'builtin';}catch(e){return 'builtin';}}
+  function mode(){try{return _vbIsDua()?'dua':(_vb16()?'16':'24');}catch(e){return '24';}}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function flat(t,dua){t=String(t||'').replace(/\r/g,'').trim();return dua?t.split('\n').map(function(l){return l.trim();}).filter(Boolean).join(' || '):t.replace(/\s+/g,' ');}
+
+  // Dipakai _vbRefOpts(): contoh milik user untuk durasi aktif (null = pakai bawaan). Array di-cache supaya identitasnya stabil (bag pengacak tidak ke-reset).
+  window.pbUserRefOpts=function(){
+    if(src()!=='own')return null;
+    var m=mode(),a=load().filter(function(x){return x.mode===m;});
+    if(!a.length)return null;
+    var k=m+'|'+a.map(function(x){return x.id;}).join(',');
+    if(!_c||_ck!==k){_ck=k;_c=a.map(function(x,i){return {nama:'Skrip Saya '+(i+1),def:x.text,combo:{}};});}
+    return _c;
+  };
+  window.pbUserRefActive=function(){return !!window.pbUserRefOpts();};
+
+  window.pbSaveScriptFromCard=function(idx){
+    try{
+      var base=Math.floor(idx/3)*3,m=mode(),dua=m==='dua',N=['hook','story','cta'],P=[];
+      for(var j=0;j<3;j++){
+        if(N[j]==='story'&&m!=='24')continue; // 16 detik & 2 suara: slot Story kosong
+        var w=document.getElementById('vb-ta-wrap-'+(base+j)),ta=document.getElementById('vb-bulk-script-'+(base+j));
+        if(w&&w.classList.contains('vb-ta-loading')){showToast('Tunggu skrip selesai ditulis dulu ya','info');return;}
+        var v=ta?flat(ta.value,dua):'';
+        if(!v){showToast(m==='24'?'Isi dulu Hook, Story, dan CTA sebelum menyimpan':'Isi dulu Hook dan CTA sebelum menyimpan','error');return;}
+        P.push(N[j]+': '+v);
+      }
+      var text=P.join('\n'),a=load(),btn=document.getElementById('vb-save-script-'+idx);
+      if(a.some(function(x){return x.mode===m&&x.text===text;})){showToast('Skrip ini sudah tersimpan','info');return;}
+      if(a.length>=MAX){showToast('Maksimal '+MAX+' skrip tersimpan. Hapus yang lama di tab Akun dulu','error');return;}
+      var it=(typeof VB_BULK_ITEMS!=='undefined'&&VB_BULK_ITEMS[base])||{},nm=String(it.produk||'').trim();
+      if(!nm){var mi=document.getElementById('vb-manual-nama-'+Math.floor(base/3));nm=mi?String(mi.value||'').trim():'';}
+      a.push({id:'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),mode:m,produk:nm.slice(0,80),text:text,ts:Date.now()});
+      put(a);
+      if(btn){btn.textContent='Tersimpan';setTimeout(function(){btn.textContent='Simpan skrip';},1500);}
+      showToast(src()==='own'?'Skrip disimpan sebagai contoh referensi':'Skrip disimpan. Pilih "Skrip Saya" di tab Akun untuk memakainya','success');
+      pbRefRender();
+    }catch(e){try{showToast('Skrip belum bisa disimpan, coba lagi','error');}catch(x){}}
+  };
+
+  window.pbRefSetSource=function(v){try{localStorage.setItem(S,v==='own'?'own':'builtin');if(typeof pbCloudQueue==='function')pbCloudQueue(S);}catch(e){}pbRefRender();};
+  window.pbRefDel=function(id,b){
+    if(b&&b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='Yakin hapus?';setTimeout(function(){b.dataset.arm='';b.textContent='Hapus';},3000);return;}
+    try{put(load().filter(function(x){return x.id!==id;}));}catch(e){}
+    pbRefRender();
+  };
+  window.pbRefRender=function(){
+    var box=document.getElementById('pb-refscript-body');if(!box)return;
+    var a=load().sort(function(x,y){return (y.ts||0)-(x.ts||0);}),own=src()==='own';
+    var h='<div class="pb-rs-seg" role="radiogroup" aria-label="Sumber contoh skrip">'
+      +'<button type="button" role="radio" aria-checked="'+(!own)+'" class="chip'+(own?'':' sel')+'" onclick="pbRefSetSource(\'builtin\')">Bawaan Aplikasi</button>'
+      +'<button type="button" role="radio" aria-checked="'+own+'" class="chip'+(own?' sel':'')+'" onclick="pbRefSetSource(\'own\')">Skrip Saya ('+a.length+')</button></div>';
+    h+='<div class="pb-rs-hint">'+(!own?'AI memakai contoh bawaan aplikasi, diacak tiap skrip dibuat.':(a.length?'Tiap skrip dari "Kami Bantu Isi" memakai contoh yang diacak dari skrip simpananmu, sesuai durasi yang dipilih. Durasi tanpa simpanan memakai contoh bawaan.':'Belum ada skrip tersimpan, jadi sementara dipakai contoh bawaan.'))+'</div>';
+    if(!a.length)h+='<div class="pb-rs-hint" style="margin-top:8px;">Tekan "Simpan skrip" di kartu CTA pada hasil skrip untuk menyimpannya di sini.</div>';
+    a.forEach(function(x){
+      var plain=x.text.replace(/^(hook|story|cta):\s*/gim,'').replace(/\s*\n\s*/g,' ');
+      h+='<div class="pb-rs-item"><div class="pb-rs-top"><div class="pb-rs-name">'+esc(x.produk||'Tanpa nama produk')+'</div><span class="pb-rs-tag">'+esc(LBL[x.mode]||x.mode)+'</span>'
+        +'<button type="button" class="copy-btn pb-rs-del" onclick="pbRefDel(\''+esc(x.id)+'\',this)">Hapus</button></div>'
+        +'<details><summary class="pb-rs-prev">'+esc(plain.length>90?plain.slice(0,90)+'…':plain)+'</summary><div class="pb-rs-full">'+esc(x.text)+'</div></details></div>';
+    });
+    box.innerHTML=h;
+  };
+  function init(){
+    try{pbRefRender();}catch(e){}
+    var sp=window.switchPage;
+    if(typeof sp==='function'&&!sp.__pbRef){var w=function(id){var r=sp.apply(this,arguments);if(id==='panduan'){try{pbRefRender();}catch(e){}}return r;};w.__pbRef=1;window.switchPage=w;}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
 </body>
