@@ -20725,6 +20725,7 @@ function _vbBuildDuaJson(scriptText,produkOverride,idx){
   var off=_vbOffOpposite(main);
   var mw=main==='male'?'laki-laki':'perempuan',ow=off==='male'?'laki-laki':'perempuan';
   var P=String(produkOverride||'').replace(/["`\r\n]+/g,' ').replace(/\s+/g,' ').trim();
+  if(P)P+=VB_PRODUK_REF_SUFFIX; // permintaan user (18 Nov 2026)
   var Ptxt=P?('produk ('+P+')'):'produk';
   var ageRaw=String(_vbCharVal(idx,'age')||''),ageTxt='';
   var m=ageRaw.match(/(\d+)\s*[-–]\s*(\d+)/);
@@ -31681,6 +31682,9 @@ function _vbEn(v){
   var k=v.trim().toLowerCase();
   return Object.prototype.hasOwnProperty.call(VB_EN_MAP,k)?VB_EN_MAP[k]:v;
 }
+// PERMINTAAN USER (18 Nov 2026): di semua mode video yang memakai nama produk, frasa ini ditempel tepat setelah nama produk
+// (contoh: "tas yang terlihat didalam foto referensi"). Hanya dipasang kalau nama produk terisi.
+const VB_PRODUK_REF_SUFFIX=' yang terlihat didalam foto referensi';
 function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride,fotoCountOverride,idx){
   if(_vbIsDua())return _vbBuildDuaJson(scriptText,produkOverride,idx);
   let _acVal=_vbCharVal(idx,'accent');
@@ -31695,7 +31699,9 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // FIX BUG#21) jadi jaring pengaman kalau produkOverride kebetulan kosong
     // (mis. field "produk" hasil AI gagal terisi); 'produk tersebut' generik
     // baru dipakai kalau keduanya sama-sama tidak ada.
-    let produkForRef=String(produkOverride||VB.mode3Produk||'').replace(/["`\r\n]+/g,' ').replace(/\s+/g,' ').trim()||'the item shown in those photos'; // audit Okt 2026 (v11.85): bersihkan kutip & baris baru, sama seperti mode lain
+    let _pfrRaw=String(produkOverride||VB.mode3Produk||'').replace(/["`\r\n]+/g,' ').replace(/\s+/g,' ').trim();
+    let produkForRefPlain=_pfrRaw||'the item shown in those photos';
+    let produkForRef=_pfrRaw?(_pfrRaw+VB_PRODUK_REF_SUFFIX):produkForRefPlain; // audit Okt 2026 (v11.85): bersihkan kutip & baris baru, sama seperti mode lain
     // FITUR BARU: "Atur Detail" → Lokasi per kartu (tombol "Lokasi" di kartu
     // Hook/Story/CTA, khusus Mode 3 — lihat _vbBuildEditableCard, vbPickLokasiCard
     // & VB_LOKASI_OPTS). Kalau user sudah pilih lokasi khusus untuk kartu ini,
@@ -31719,7 +31725,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     let produkRefLabel=produkRefNums.join(',');
     let jumlahFotoTotal=1+produkFotoTotal;
     let _plRef=produkRefNums.length>1;
-    instructionText='Reference photo 1 is the character (keep the face and outfit exactly the same), '+(_plRef?'reference photos ':'reference photo ')+produkRefLabel+(_plRef?' are the product, namely ':' is the product, namely ')+produkForRef+' (take only the product itself and ignore any other elements in '+(_plRef?'those photos':'that photo')+'; focus on the product so it matches 100% without exception). Use all '+jumlahFotoTotal+' photos to create a video. Location: '+lokasiForCard+'. Lighting: '+_vbEn(VB.mode3Lighting)+'. Never create or show anything that is not shown in the attached reference photos (for example, opening '+produkForRef+' to reveal its contents if the contents are never visible in the photos). ';
+    instructionText='Reference photo 1 is the character (keep the face and outfit exactly the same), '+(_plRef?'reference photos ':'reference photo ')+produkRefLabel+(_plRef?' are the product, namely ':' is the product, namely ')+produkForRef+' (take only the product itself and ignore any other elements in '+(_plRef?'those photos':'that photo')+'; focus on the product so it matches 100% without exception). Use all '+jumlahFotoTotal+' photos to create a video. Location: '+lokasiForCard+'. Lighting: '+_vbEn(VB.mode3Lighting)+'. Never create or show anything that is not shown in the attached reference photos (for example, opening '+produkForRefPlain+' to reveal its contents if the contents are never visible in the photos). ';
     // FITUR BARU: "Cara Tampil Produk" per kartu (tombol kecil di kartu
     // Hook/Story/CTA, khusus Mode 3 — lihat _vbBuildEditableCard &
     // VB_TAMPIL_PRODUK_OPTS) — kalau user sudah pilih salah satu opsi untuk
@@ -31732,7 +31738,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // untuk Start Frame / Frame Asset / Percobaan. Hanya namanya, tanpa detail produk lain. Di Tulis Manual wajib diisi.
     {
       let _pn=String(produkOverride||'').replace(/["\r\n]+/g,' ').replace(/\s+/g,' ').trim();
-      if(_pn)instructionText=instructionText.replace(/\s+$/,'')+' The product being promoted is '+_pn+'.';
+      if(_pn)instructionText=instructionText.replace(/\s+$/,'')+' The product being promoted is '+_pn+VB_PRODUK_REF_SUFFIX+'.';
     }
   }
   // FIX (menyusul fitur "isi sendiri" Jenis Kelamin): dulu kalau VB.gender
@@ -31755,7 +31761,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // isinya otomatis mengikuti skrip.
     // Permintaan user (15 Nov 2026): Character demeanor HANYA muncul kalau dipilih sendiri lewat ikon pensil. Tidak ada teks otomatis.
     // Mode Percobaan: kalimat gerakan selalu ada walau Pembawaan tidak diisi.
-    if(VB.refMode==='percobaan')instructionText+='Movements stay natural and smooth, in sync with the narration. ';
+    if(VB.refMode==='percobaan')instructionText=instructionText.replace(/\s+$/,'')+' Movements stay natural and smooth, in sync with the narration. '; // 18 Nov 2026: tambah spasi (dulu menempel: "...tas.Movements")
   }
   let _cg=_vbCharVal(idx,'gender');
   let genderPrefix=_cg==='male'?'Male, ':_cg==='female'?'Female, ':(_cg?_cg+', ':'');
@@ -31848,6 +31854,10 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
   // khusus Start Frame (satu), Raw Asset (kp), dan uiui jalur "Pakai Dialog / Skrip" (refMode 'aset'). Semua kartu Hook/Story/CTA.
   if(VB.refMode==='satu'||VB.refMode==='kp'||VB.refMode==='aset'){
     flowText=flowText.replace(/\s+$/,'')+' ambient: human voices sound like they are indoors if the reference photo is indoors; if the reference photo is outdoors, human voices sound like they are outdoors.';
+  }
+  // PERMINTAAN USER (18 Nov 2026): khusus POV Produk · Pakai Skrip (refMode 'aset'), kalimat ini ditempel PALING AKHIR prompt (setelah ambient), semua kartu Hook/Story/CTA.
+  if(VB.refMode==='aset'){
+    flowText=flowText.replace(/\s+$/,'')+' jangan lakukan pergantian scene, cukup goyangkan produk saja sesuai skrip, tapi jangan pernah memperlihatkan bagian belakang produk kalo produk nya terlihat bagian depan, begitu juga sebaliknya.';
   }
   return flowText;
 }
