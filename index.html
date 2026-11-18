@@ -82,6 +82,31 @@ window.pbMarkFreshStart = function(){
       localStorage.removeItem('pb_resume_ui_v1');
     }
   }catch(e){}
+  // R5 (perbaikan bug 17 Nov 2026): reload SENGAJA lewat browser (F5, Ctrl+R, Ctrl+Shift+R, tombol reload)
+  // dulu tidak lewat pbMarkFreshStart() sehingga app malah memulihkan prompt/step terakhir.
+  // Pembeda yang andal: beforeunload HANYA terpicu kalau halaman sedang dipakai user (reload/tutup/navigasi),
+  // sedangkan tab yang dibuang/di-kill OS saat di background TIDAK memicunya. Jadi:
+  //   navigasi bertipe 'reload' + ada cap beforeunload <30 dtk  => user menekan reload => mulai bersih.
+  //   tab dibuang lalu dibuka lagi (tanpa cap)                  => tetap pulihkan tampilan terakhir.
+  // Set PB_RELOAD_IS_FRESH = false kalau mau reload juga memulihkan tampilan terakhir.
+  window.PB_RELOAD_IS_FRESH = true;
+  try{
+    var _navT = null;
+    try{ var _en = performance.getEntriesByType('navigation'); if(_en && _en.length) _navT = _en[0].type; }catch(e1){}
+    var _bu = Number(sessionStorage.getItem('pb_bu_v1') || 0);
+    sessionStorage.removeItem('pb_bu_v1');
+    if(window.PB_RELOAD_IS_FRESH && !window.PB_FRESH_START && _navT === 'reload' && _bu && (Date.now() - _bu) < 30000){
+      window.PB_FRESH_START = true;
+      localStorage.removeItem('pb_resume_ui_v1');
+    }
+  }catch(e){}
+  window.addEventListener('beforeunload', function(){
+    try{ sessionStorage.setItem('pb_bu_v1', String(Date.now())); }catch(e){}
+  });
+  // kalau dialog "tinggalkan halaman?" dibatalkan user, cap dihapus saat halaman terlihat lagi
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden){ try{ sessionStorage.removeItem('pb_bu_v1'); }catch(e){} }
+  });
 })();
 </script>
 <!-- ── TEMA OBSIDIAN GLASS: aktif otomatis untuk paket berbayar ──────────
@@ -5328,6 +5353,9 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     <symbol id="ic-nav-foto" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2"/><circle cx="8.8" cy="8.9" r="1.7" fill="currentColor" stroke="none"/><path d="M20.8 15.2l-3.4-3.4a2 2 0 0 0-2.8 0L8.4 20.8"/></g></symbol>
     <symbol id="ic-nav-video" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="5.6" width="13" height="12.8" rx="3.6"/><path d="M15.6 10.3l4.4-2.6a1 1 0 0 1 1.5.9v6.8a1 1 0 0 1-1.5.9l-4.4-2.6"/></g></symbol>
     <symbol id="ic-nav-riwayat" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></g></symbol>
+    <symbol id="ic-rw-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 10l5-3v10l-5-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-rw-foto" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="10" r="1.8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 18l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-rw-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="ic-nav-profil" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.2" r="3.7"/><path d="M4.4 20.6v-.4c0-3.4 2.6-5.6 6-5.6h3.2c3.4 0 6 2.2 6 5.6v.4z"/></g></symbol>
   </defs>
 </svg>
@@ -5347,7 +5375,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v17.9</div>
+  <div class="splash-version" id="splash-version">v18.1</div>
 </div>
 <script>
   (function(){
@@ -7773,7 +7801,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v17.9 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.1 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -7785,37 +7813,66 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
 <div id="riwayat" class="page">
 <div class="wrap">
   <style>
-  .rw-seg{display:flex;gap:6px;margin-bottom:14px;}
-  .rw-seg button{flex:1;min-height:42px;padding:8px 6px;border-radius:var(--radius-xs);border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:var(--fs-xs2);font-weight:500;cursor:pointer;font-family:'Hanken Grotesk',sans-serif;line-height:1.25;}
-  .rw-seg button.on{background:var(--accent-dim-bg);border-color:var(--accent-dim);color:var(--accent-2);}
+  .rw-seg{display:flex;gap:4px;padding:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);}
+  .rw-seg button{flex:1;min-height:42px;padding:8px 2px;border:0;border-radius:var(--radius-xs);background:none;color:var(--muted);font-size:var(--fs-xs2);font-weight:500;cursor:pointer;font-family:'Hanken Grotesk',sans-serif;line-height:1.25;}
+  .rw-seg button.on{background:var(--surface3);color:var(--accent-2);box-shadow:inset 0 0 0 1px var(--border-hi);}
+  .rw-seg button span{display:block;min-height:1.25em;font-size:var(--fs-xs);opacity:.7;}
+  .rw-intro{margin:0 0 12px;color:var(--muted);font-size:var(--fs-xs2);line-height:1.5;}
+  .rw-card{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:12px;}
+  .rw-top{display:flex;gap:12px;align-items:flex-start;}
+  .rw-tile{width:40px;height:40px;border-radius:var(--radius-xs);display:grid;place-items:center;background:var(--surface3);color:var(--muted);flex-shrink:0;}
+  .rw-tile.video{background:var(--accent-dim-bg);color:var(--accent);}
+  .rw-tile svg{width:18px;height:18px;}
+  .rw-tt{flex:1;min-width:0;}
+  .rw-title{font-size:var(--fs-sm);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rw-meta{margin-top:2px;color:var(--muted);font-size:var(--fs-xs2);}
+  .rw-time{color:var(--muted);font-size:var(--fs-xs);white-space:nowrap;}
+  .rw-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+  .rw-act{display:flex;gap:8px;margin-top:14px;}
+  .rw-open{flex:1;min-height:40px;border-radius:var(--radius-xs);border:1px solid var(--accent-dim);background:var(--accent-dim-bg);color:var(--accent-2);font-weight:600;font-size:var(--fs-xs2);cursor:pointer;font-family:'Hanken Grotesk',sans-serif;}
+  .rw-ib{width:40px;min-height:40px;border-radius:var(--radius-xs);border:1px solid var(--border);background:none;color:var(--muted);display:grid;place-items:center;cursor:pointer;}
+  .rw-ib:hover{color:var(--text);border-color:var(--border-hi);}
+  .rw-clear{background:none;border:0;padding:8px 4px;color:var(--muted);font-size:var(--fs-xs2);font-family:'Hanken Grotesk',sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+  .rw-clear:hover{color:var(--red);}
+  .rw-prod{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:12px;overflow:hidden;}
+  .rw-ph{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 14px;}
+  .rw-ph strong{flex:1;min-width:0;font-size:var(--fs-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rw-ph .rw-ib{width:34px;min-height:34px;flex-shrink:0;}
+  .rw-tag{max-width:55%;font-size:var(--fs-xs2);color:var(--accent-2);background:var(--accent-dim-bg);padding:3px 9px;border-radius:var(--radius-2xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rw-chev{transition:transform .2s;}
+  .rw-prod:not(.shut) .rw-chev{transform:rotate(180deg);}
+  .rw-prod.shut .rw-cards{display:none;}
+  .rw-sc{padding:12px 14px;border-top:1px solid var(--border);}
+  .rw-sh{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .rw-sh b{font-size:var(--fs-xs2);font-weight:600;color:var(--accent-2);}
+  .rw-wc{flex:1;color:var(--muted);font-size:var(--fs-xs);}
+  .rw-sc textarea{width:100%;box-sizing:border-box;background:var(--surface3);border:1px solid var(--border);border-radius:var(--radius-xs);color:var(--text);font:16px/1.5 'Hanken Grotesk',system-ui,sans-serif;padding:10px;resize:vertical;}
+  .rw-pre{margin:0;font:var(--fs-xs2)/1.6 'JetBrains Mono',ui-monospace,monospace;color:var(--muted);background:rgba(0,0,0,.28);border-radius:var(--radius-xs);padding:10px;white-space:pre-wrap;word-break:break-word;}
   .rw-auto-chip{font-size:var(--fs-xs);padding:2px 8px;border-radius:var(--radius-2xs);background:var(--surface3);color:var(--muted);font-family:'Hanken Grotesk',system-ui,sans-serif;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .rw-auto-pre{font-size:var(--fs-xs2);color:var(--muted);line-height:1.55;white-space:pre-wrap;word-break:break-word;margin:0 0 10px 0;max-height:62px;overflow:hidden;cursor:pointer;font-family:'Hanken Grotesk',system-ui,sans-serif;}
   .rw-auto-pre.open{max-height:none;}
   .rw-name-input{width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border-hi);color:var(--text);border-radius:var(--radius-xs);font-family:'Hanken Grotesk',system-ui,sans-serif;margin-bottom:var(--space-7);text-align:left;}
   </style>
   <div class="rw-seg" id="rw-seg">
-    <button type="button" class="on" id="rw-btn-saved" onclick="pbRiwayatTab('saved')">Disimpan</button>
-    <button type="button" id="rw-btn-foto" onclick="pbRiwayatTab('foto')">Foto Otomatis<span id="rw-cnt-foto"></span></button>
-    <button type="button" id="rw-btn-video" onclick="pbRiwayatTab('video')">Video Otomatis<span id="rw-cnt-video"></span></button>
+    <button type="button" class="on" id="rw-btn-saved" onclick="pbRiwayatTab('saved')">Disimpan<span id="rw-cnt-saved"></span></button>
+    <button type="button" id="rw-btn-foto" onclick="pbRiwayatTab('foto')">Foto otomatis<span id="rw-cnt-foto"></span></button>
+    <button type="button" id="rw-btn-video" onclick="pbRiwayatTab('video')">Video otomatis<span id="rw-cnt-video"></span></button>
   </div>
   <div id="rw-pane-saved">
-  <div class="sec-title">Halaman Tersimpan</div>
-  <p class="sec-desc" style="margin-bottom:12px;">Halaman foto/video yang kamu simpan manual (lengkap dengan skrip yang sudah jadi) — tap ikon <svg class="icon" style="vertical-align:-0.15em;"><use href="#ic-save"></use></svg> di bawah garis step untuk menyimpan, lalu beri nama. Tersimpan di browser — tidak hilang saat aplikasi ditutup (kecuali mode incognito).</p>
+  <p class="rw-intro">Halaman yang kamu simpan dan beri nama, lengkap dengan skrip yang sudah jadi. Simpan lewat ikon <svg class="icon" style="vertical-align:-0.15em;"><use href="#ic-save"></use></svg> di bawah garis step. Tersimpan di browser, tidak hilang saat aplikasi ditutup (kecuali mode incognito).</p>
   <div id="pb-sync-status" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:var(--fs-xs2);color:var(--muted);margin-bottom:12px;"></div>
   <div id="history-list"><p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada halaman tersimpan. Generate prompt foto/video, lalu simpan halamannya lewat ikon di bawah garis step.</p></div>
-  <button onclick="showConfirm('Hapus semua halaman tersimpan?',pbSavedClearAll,null,'Ya, Hapus Semua')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Hanken Grotesk',sans-serif;margin-top:4px;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Halaman Tersimpan</button>
+  <button type="button" class="rw-clear" onclick="showConfirm('Hapus semua halaman tersimpan?',pbSavedClearAll,null,'Ya, Hapus Semua')">Hapus semua halaman tersimpan</button>
   </div>
   <div id="rw-pane-foto" style="display:none;">
-    <div class="sec-title">Foto Otomatis</div>
-    <p class="sec-desc" style="margin-bottom:12px;">Tiap prompt foto yang kamu generate tercatat otomatis di sini, lengkap dengan ringkasan pilihan step-nya. Terpisah dari halaman yang kamu simpan manual.</p>
+    <p class="rw-intro">Tercatat otomatis tiap kali kamu generate prompt foto.</p>
     <div id="auto-foto-list"></div>
-    <button id="auto-foto-clear" onclick="pbAutoClearAll('foto')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Hanken Grotesk',sans-serif;margin-top:4px;transition:all 0.2s;display:none;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Foto Otomatis</button>
+    <button type="button" id="auto-foto-clear" class="rw-clear" onclick="pbAutoClearAll('foto')" style="display:none;">Hapus semua foto otomatis</button>
   </div>
   <div id="rw-pane-video" style="display:none;">
-    <div class="sec-title">Video Otomatis</div>
-    <p class="sec-desc" style="margin-bottom:12px;">Tiap skrip video hasil AI tercatat otomatis di sini per produk. Terpisah dari halaman yang kamu simpan manual.</p>
+    <p class="rw-intro">Tercatat otomatis tiap skrip video hasil AI, per produk. Terpisah dari halaman yang kamu simpan manual.</p>
     <div id="auto-video-list"></div>
-    <button id="auto-video-clear" onclick="pbAutoClearAll('video')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:8px 16px;border-radius:var(--radius-xs);cursor:pointer;font-family:'Hanken Grotesk',sans-serif;margin-top:4px;transition:all 0.2s;display:none;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">Hapus Semua Video Otomatis</button>
+    <button type="button" id="auto-video-clear" class="rw-clear" onclick="pbAutoClearAll('video')" style="display:none;">Hapus semua video otomatis</button>
   </div>
 </div>
 </div>
@@ -15762,45 +15819,64 @@ function pbSavedClearAll(){
   pbSavedRender();
 }
 
+// ============================================================
+// v18.0 — REDESAIN TAB RIWAYAT, FASE 2 (panduan-pengerjaan-riwayat.md, bagian 3.1 dan 3.6)
+// pbRwCard = SATU pabrik kartu untuk Disimpan, Foto otomatis, Video otomatis dan
+// #f-history-mini. Warna/ukuran hanya lewat token CSS aplikasi. Data, key
+// localStorage, historyAdd/historyRender/pb_history_v1 TIDAK diubah.
+// Belum dikerjakan (fase berikutnya): overlay Buka untuk entri otomatis, tombol
+// Salin bersama, pensil di overlay, 1 record per sesi video.
+// ============================================================
+function _pbRwIcon(id){return '<svg class="icon" aria-hidden="true"><use href="#'+id+'"></use></svg>';}
+function pbRwTime(ts){
+  var d=new Date(ts||0);
+  return d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+}
+// o = {type:'foto'|'video', title, meta, time, chips:[nama produk], extra:Element, actions:[{label,icon?,onClick}]}
+// Aksi tanpa icon = tombol utama selebar penuh; aksi dengan icon = tombol ikon.
+function pbRwCard(o){
+  var card=document.createElement('div');card.className='rw-card';
+  var top=document.createElement('div');top.className='rw-top';
+  var tile=document.createElement('span');tile.className='rw-tile '+(o.type==='video'?'video':'foto');
+  tile.innerHTML=_pbRwIcon(o.type==='video'?'ic-rw-video':'ic-rw-foto');
+  var tt=document.createElement('div');tt.className='rw-tt';
+  var t=document.createElement('div');t.className='rw-title';t.textContent=o.title||'';tt.appendChild(t);
+  if(o.meta){var m=document.createElement('div');m.className='rw-meta';m.textContent=o.meta;tt.appendChild(m);}
+  var tm=document.createElement('span');tm.className='rw-time';tm.textContent=o.time||'';
+  top.appendChild(tile);top.appendChild(tt);top.appendChild(tm);card.appendChild(top);
+  if(o.chips&&o.chips.length>1){
+    var cw=document.createElement('div');cw.className='rw-chips';
+    o.chips.slice(0,3).forEach(function(n){var c=document.createElement('span');c.className='rw-auto-chip';c.textContent=n;cw.appendChild(c);});
+    if(o.chips.length>3){var mo=document.createElement('span');mo.className='rw-auto-chip';mo.textContent='+'+(o.chips.length-3);cw.appendChild(mo);}
+    card.appendChild(cw);
+  }
+  if(o.extra)card.appendChild(o.extra);
+  var act=document.createElement('div');act.className='rw-act';
+  (o.actions||[]).forEach(function(a){
+    var b=document.createElement('button');b.type='button';
+    if(a.icon){b.className='rw-ib';b.innerHTML=_pbRwIcon(a.icon);b.setAttribute('aria-label',a.label);b.title=a.label;}
+    else{b.className='rw-open';b.textContent=a.label;}
+    b.onclick=a.onClick;act.appendChild(b);
+  });
+  card.appendChild(act);
+  return card;
+}
 function _pbSavedRenderInto(wrap){
   if(!wrap)return;
   let arr=pbSavedGet();
+  if(wrap.id==='history-list'){let c=document.getElementById('rw-cnt-saved');if(c)c.textContent=arr.length?String(arr.length):'';}
   if(!arr.length){wrap.innerHTML='<p style="font-size:var(--fs-sm);color:var(--muted);padding:16px 0;text-align:center;">Belum ada halaman tersimpan. Generate prompt foto/video, lalu simpan halamannya lewat ikon di bawah garis step.</p>';return;}
   wrap.innerHTML='';
   arr.forEach(function(item){
-    let d=new Date(item.ts);
-    let tstr=d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    let row=document.createElement('div');
-    row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;';
-    let head=document.createElement('div');head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px;';
-    let badge=document.createElement('span');badge.style.cssText='font-size:var(--fs-xs);font-weight:600;font-family:"Hanken Grotesk",system-ui,sans-serif;padding:2px 8px;border-radius:var(--radius-2xs);background:'+(item.type==='foto'?'var(--surface3)':'rgba(76,175,125,0.15)')+';color:'+(item.type==='foto'?'var(--accent)':'var(--green)')+';';badge.textContent=item.type==='foto'?'FOTO':'VIDEO';
-    let lbl=document.createElement('span');lbl.style.cssText='font-size:var(--fs-sm);font-weight:500;flex:1;';lbl.textContent=item.label;
-    head.appendChild(badge);head.appendChild(lbl);
-    // Entri yang belum punya hasil generate (baru sekadar stelan/foto yang
-    // diupload lalu disimpan) dikasih label "Draft" biar user gak kira ini
-    // skrip yang sudah jadi.
-    if(!item.text){
-      let draft=document.createElement('span');draft.style.cssText='font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--radius-2xs);background:var(--surface3);color:var(--muted);';draft.textContent='DRAFT';
-      head.appendChild(draft);
-    }
-    // Entri yang lagi "dikunci" (sedang dilanjutkan dari Riwayat — Simpan
-    // berikutnya akan menimpa entri ini) ditandai juga.
-    if(item.id===PB_ACTIVE_SAVED_ID){
-      let active=document.createElement('span');active.style.cssText='font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--radius-2xs);background:var(--accent-dim-bg);color:var(--accent-2);';active.textContent='SEDANG DIBUKA';
-      head.appendChild(active);
-    }
-    let ts=document.createElement('span');ts.style.cssText='font-size:var(--fs-xs);color:var(--muted);font-family:"Hanken Grotesk",system-ui,sans-serif;';ts.textContent=tstr;
-    head.appendChild(ts);
-    let btns=document.createElement('div');btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
-    let openBtn=document.createElement('button');openBtn.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:500;padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Hanken Grotesk",sans-serif;';openBtn.innerHTML='<svg class="icon"><use href="#ic-eye"></use></svg> Buka';
-    openBtn.onclick=(function(id){return function(){pbOpenSavedPage(id);};})(item.id);
-    let delBtn=document.createElement('button');delBtn.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Hanken Grotesk",sans-serif;';delBtn.innerHTML='<svg class="icon"><use href="#ic-close"></use></svg> Hapus';
-    delBtn.onclick=(function(id,label){return function(){showConfirm('Hapus halaman "'+(label||'tanpa judul')+'" dari Riwayat?',function(){pbSavedDelete(id);},null,'Ya, Hapus');};})(item.id,item.label);
-    let renBtn=document.createElement('button');renBtn.style.cssText=delBtn.style.cssText;renBtn.textContent='Ganti nama';
-    renBtn.onclick=(function(id){return function(){pbSavedRename(id);};})(item.id);
-    btns.appendChild(openBtn);btns.appendChild(renBtn);btns.appendChild(delBtn);
-    row.appendChild(head);row.appendChild(btns);
-    wrap.appendChild(row);
+    // Draft = belum ada hasil generate; "Sedang dibuka" = entri yang akan ditimpa Simpan berikutnya.
+    let meta=item.type==='foto'?'Prompt foto':'Prompt video';
+    if(!item.text)meta+=' · Draft';
+    if(item.id===PB_ACTIVE_SAVED_ID)meta+=' · Sedang dibuka';
+    wrap.appendChild(pbRwCard({type:item.type==='foto'?'foto':'video',title:item.label||'Tanpa judul',meta:meta,time:pbRwTime(item.ts),actions:[
+      {label:'Buka',onClick:function(){pbOpenSavedPage(item.id);}},
+      {label:'Ganti nama',icon:'ic-edit',onClick:function(){pbSavedRename(item.id);}},
+      {label:'Hapus',icon:'ic-rw-trash',onClick:function(){showConfirm('Hapus halaman "'+(item.label||'tanpa judul')+'" dari Riwayat?',function(){pbSavedDelete(item.id);},null,'Ya, Hapus');}}
+    ]}));
   });
 }
 function pbSavedRender(){
@@ -15901,10 +15977,20 @@ function _pbAutoFotoSummary(){
   }
   return out;
 }
+// Teks "Cara tampil" (maks 40 karakter) untuk record Foto otomatis.
+function _pbAutoFotoCara(sum){
+  try{
+    if(FS.importActive)return 'Dari prompt lama';
+    for(var i=0;i<(sum||[]).length;i++){if(sum[i]&&/cara tampil/i.test(sum[i].k||'')&&sum[i].v)return String(sum[i].v).slice(0,40);}
+    var L={foto:'Dari foto produk',dipakai:'Dipakai di badan',pegang:'Dipegang / ditunjukkan',tidak:'Foto outfit / karakter saja'};
+    if(FS.produkMode&&L[FS.produkMode])return L[FS.produkMode];
+  }catch(e){}
+  return '';
+}
 function pbAutoFotoRecord(text){
   try{
     text=String(text||'').trim();if(!text)return;
-    var rec={id:_pbAutoNewId(),h:_pbAutoHash(text),name:_pbAutoFotoName(),ts:Date.now(),sum:_pbAutoFotoSummary(),text:text};
+    var sum=_pbAutoFotoSummary();var rec={id:_pbAutoNewId(),h:_pbAutoHash(text),name:_pbAutoFotoName(),ts:Date.now(),sum:sum,cara:_pbAutoFotoCara(sum),text:text};
     _pbAutoUpsertMany(PB_AUTO_FOTO_KEY,PB_AUTO_FOTO_MAX,[rec]);
     try{pbAutoRender();}catch(e){}
   }catch(e){}
@@ -15967,6 +16053,127 @@ function pbRiwayatTab(name){
     if(b)b.classList.toggle('on',n===name);
   });
 }
+// ============================================================
+// v18.1 — REDESAIN TAB RIWAYAT, FASE 3-4 (panduan 3.3 dan 3.7)
+// pbRwMakeCopyBtn: SATU tombol Salin untuk Riwayat, tampilan dan animasi sama dengan
+// kartu skrip di halaman utama (class copy-btn, label "Salin", centang + "sudah").
+// Tanpa validasi "Nama Produk wajib" milik jalur Tulis Manual.
+// pbOpenAutoPage: overlay Buka untuk Foto/Video otomatis, memakai kerangka
+// #pb-saved-overlay yang sama (BUKAN overlay kedua). Tidak menyentuh PB_ACTIVE_SAVED_ID
+// dan tidak menimpa state builder (record belum punya "vs", jadi mode teks saja).
+// Video: edit teks per kartu, auto-tersimpan ke record yang sama (debounce 600 ms,
+// di-flush saat ditutup lewat _pbSavedOverlayPendingFlushes). Foto: hanya baca.
+// ============================================================
+function pbRwMakeCopyBtn(getText,opts){
+  opts=opts||{};
+  var label=opts.label||'Salin';
+  var wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:5px;min-width:0;max-width:100%;margin-left:auto;';
+  var b=document.createElement('button');b.type='button';b.className='copy-btn';
+  b.style.cssText='font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
+  b.textContent=label;
+  var dl=document.createElement('span');dl.className='hidden vb-done-lbl';
+  dl.style.cssText='font-size:var(--fs-2xs);color:var(--green);font-weight:500;margin-left:5px;';
+  dl.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg> sudah';
+  wrap._btn=b;
+  wrap._flash=function(){
+    b.innerHTML='<svg class="icon"><use href="#ic-check"></use></svg>';
+    clearTimeout(b._pbT);b._pbT=setTimeout(function(){b.textContent=label;},1200);
+    dl.classList.remove('hidden');
+  };
+  if(typeof getText==='function'){
+    b.onclick=function(){
+      _copyTextRobust(String(getText()||''),function(){wrap._flash();if(opts.onCopied)opts.onCopied();},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+    };
+  }
+  wrap.appendChild(b);wrap.appendChild(dl);
+  return wrap;
+}
+function _pbRwSetOverlaySub(txt){
+  var sub=document.getElementById('pb-saved-overlay-sub');
+  if(!sub||!sub.firstChild||sub.firstChild.nodeType!==3)return;
+  if(sub._pbOrig===undefined)sub._pbOrig=sub.firstChild.nodeValue;
+  sub.firstChild.nodeValue=(txt===null)?sub._pbOrig:txt+' ';
+}
+function _pbRwWc(s){return String(s||'').trim().split(/\s+/).filter(Boolean).length;}
+// Pecah "HOOK: ...\n\nSTORY: ...\n\nCTA: ..." jadi kartu. Tanpa penanda: satu kartu "SKRIP" (disimpan apa adanya).
+function _pbRwSplitCards(text){
+  var s=String(text||''),re=/(?:^|\n)[ \t]*(HOOK|STORY|CTA):[ \t]*/g,m,mk=[],out=[];
+  while((m=re.exec(s))!==null)mk.push({k:m[1],i:m.index,e:re.lastIndex});
+  if(!mk.length)return [{k:'SKRIP',t:s.trim()}];
+  mk.forEach(function(x,n){out.push({k:x.k,t:s.slice(x.e,n+1<mk.length?mk[n+1].i:s.length).trim()});});
+  return out;
+}
+function _pbRwScCard(label,bodyEl,getText,wcEl){
+  var sc=document.createElement('div');sc.className='rw-sc';
+  var sh=document.createElement('div');sh.className='rw-sh';
+  var b=document.createElement('b');b.textContent=label;sh.appendChild(b);
+  if(!wcEl){wcEl=document.createElement('span');wcEl.className='rw-wc';}
+  sh.appendChild(wcEl);sh.appendChild(pbRwMakeCopyBtn(getText));
+  sc.appendChild(sh);sc.appendChild(bodyEl);
+  return sc;
+}
+function pbOpenAutoPage(kind,id){
+  try{
+    var isFoto=kind==='foto',key=isFoto?PB_AUTO_FOTO_KEY:PB_AUTO_VIDEO_KEY;
+    var rec=_pbAutoGet(key).filter(function(x){return x.id===id;})[0];
+    var overlay=document.getElementById('pb-saved-overlay'),body=document.getElementById('pb-saved-overlay-body'),titleEl=document.getElementById('pb-saved-overlay-title');
+    if(!rec||!overlay||!body||!titleEl){showToast('Entri riwayat tidak ditemukan','error');return;}
+    var nama=rec.name||(isFoto?'Prompt foto':'Skrip video');
+    titleEl.textContent=nama;
+    _pbRwSetOverlaySub(isFoto?'Dicatat otomatis · hanya baca':'Dicatat otomatis · edit auto-tersimpan');
+    body.innerHTML='';
+    _pbSavedOverlayPendingFlushes=[]; // sama seperti pbShowSavedOverlay: buang sisa entri sebelumnya
+    var prod=document.createElement('section');prod.className='rw-prod';
+    var ph=document.createElement('div');ph.className='rw-ph';
+    var nm=document.createElement('strong');nm.textContent=nama;ph.appendChild(nm);
+    var cards=document.createElement('div');cards.className='rw-cards';
+    if(isFoto){
+      var cara=_pbAutoCara(rec);
+      if(cara){var tg=document.createElement('span');tg.className='rw-tag';tg.textContent=cara;ph.appendChild(tg);}
+      var pre=document.createElement('pre');pre.className='rw-pre';pre.textContent=String(rec.text||'');
+      cards.appendChild(_pbRwScCard('Prompt foto',pre,function(){return String(rec.text||'');}));
+    }else{
+      var LB={HOOK:'Hook',STORY:'Story',CTA:'CTA',SKRIP:'Skrip'},items=[],dirty=false,t=null;
+      var doSave=function(){
+        dirty=false;
+        try{
+          var arr=_pbAutoGet(key),i;
+          for(i=0;i<arr.length;i++){if(arr[i].id===id)break;}
+          if(i>=arr.length)return;
+          arr[i].text=items.map(function(c){return c.k==='SKRIP'?c.ta.value:c.k+': '+c.ta.value.trim();}).join('\n\n');
+          if(!_pbAutoWrite(key,arr,PB_AUTO_VIDEO_MAX)){showToast('Penyimpanan penuh — edit terakhir belum tersimpan','error');return;}
+          var f=document.getElementById('pb-saved-overlay-autosaved');
+          if(f){f.classList.add('show');clearTimeout(f._pbT);f._pbT=setTimeout(function(){f.classList.remove('show');},1200);}
+        }catch(e){}
+      };
+      _pbRwSplitCards(rec.text).forEach(function(c){
+        var ta=document.createElement('textarea');ta.rows=4;ta.value=c.t;
+        var wc=document.createElement('span');wc.className='rw-wc';wc.textContent=_pbRwWc(c.t)+' kata';
+        ta.addEventListener('input',function(){wc.textContent=_pbRwWc(ta.value)+' kata';dirty=true;clearTimeout(t);t=setTimeout(doSave,600);});
+        items.push({k:c.k,ta:ta});
+        cards.appendChild(_pbRwScCard(LB[c.k]||c.k,ta,function(){return ta.value;},wc));
+      });
+      _pbSavedOverlayPendingFlushes.push(function(){if(!dirty)return;clearTimeout(t);doSave();});
+    }
+    var tgl=document.createElement('button');tgl.type='button';tgl.className='rw-ib';
+    tgl.setAttribute('aria-label','Buka atau tutup');tgl.setAttribute('aria-expanded','true');
+    tgl.innerHTML='<svg class="icon rw-chev" aria-hidden="true"><use href="#ic-chevron-down"></use></svg>';
+    tgl.onclick=function(){var s=prod.classList.toggle('shut');tgl.setAttribute('aria-expanded',s?'false':'true');};
+    ph.appendChild(tgl);
+    prod.appendChild(ph);prod.appendChild(cards);body.appendChild(prod);
+    body.scrollTop=0;
+    overlay.classList.add('show');overlay.setAttribute('aria-hidden','false');
+  }catch(e){showToast('Gagal membuka entri riwayat','error');}
+}
+// Cara tampil produk untuk kartu Foto otomatis: field baru "cara", cadangan dari "sum".
+function _pbAutoCara(item){
+  if(item.cara)return String(item.cara);
+  if(Array.isArray(item.sum)){
+    for(var i=0;i<item.sum.length;i++){var s=item.sum[i];if(s&&/cara tampil/i.test(s.k||'')&&s.v)return String(s.v);}
+  }
+  return '';
+}
 function _pbAutoRenderList(kind){
   var isFoto=kind==='foto';
   var wrap=document.getElementById(isFoto?'auto-foto-list':'auto-video-list');
@@ -15975,7 +16182,7 @@ function _pbAutoRenderList(kind){
   var clr=document.getElementById(isFoto?'auto-foto-clear':'auto-video-clear');
   if(clr)clr.style.display=arr.length?'':'none';
   var cnt=document.getElementById(isFoto?'rw-cnt-foto':'rw-cnt-video');
-  if(cnt)cnt.textContent=arr.length?(' ('+arr.length+')'):'';
+  if(cnt)cnt.textContent=arr.length?String(arr.length):'';
   wrap.textContent='';
   if(!arr.length){
     var em=document.createElement('p');
@@ -15984,44 +16191,17 @@ function _pbAutoRenderList(kind){
     wrap.appendChild(em);return;
   }
   arr.forEach(function(item){
-    var row=document.createElement('div');
-    row.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;';
-    var head=document.createElement('div');head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px;';
-    var lbl=document.createElement('span');lbl.style.cssText='font-size:var(--fs-sm);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    lbl.textContent=item.name||(isFoto?'Prompt foto':'Skrip video');
-    var d=new Date(item.ts||0);
-    var ts=document.createElement('span');ts.style.cssText='font-size:var(--fs-xs);color:var(--muted);font-family:"Hanken Grotesk",system-ui,sans-serif;flex-shrink:0;';
-    ts.textContent=d.toLocaleDateString('id-ID',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-    head.appendChild(lbl);head.appendChild(ts);row.appendChild(head);
-    if(isFoto){
-      if(Array.isArray(item.sum)&&item.sum.length){
-        var chips=document.createElement('div');chips.style.cssText='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;';
-        item.sum.forEach(function(s){
-          if(!s||!s.k||!s.v)return;
-          var c=document.createElement('span');c.className='rw-auto-chip';c.textContent=s.k+': '+s.v;chips.appendChild(c);
-        });
-        row.appendChild(chips);
-      }
-    } else if(item.meta){
-      var mt=document.createElement('div');mt.style.cssText='font-size:var(--fs-xs2);color:var(--accent-2);margin-bottom:8px;font-family:"Hanken Grotesk",system-ui,sans-serif;';
-      mt.textContent=item.meta;row.appendChild(mt);
-    }
-    var pre=document.createElement('p');pre.className='rw-auto-pre';pre.textContent=String(item.text||'');
-    pre.onclick=function(){pre.classList.toggle('open');};
-    row.appendChild(pre);
-    var btns=document.createElement('div');btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
-    var cp=document.createElement('button');
-    cp.style.cssText='background:var(--accent-dim-bg);border:1px solid var(--accent-dim);color:var(--accent-2);font-size:var(--fs-xs2);font-weight:500;padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Hanken Grotesk",sans-serif;';
-    cp.textContent='Salin';
-    cp.onclick=function(){
-      _copyTextRobust(String(item.text||''),function(){showToast('Tersalin!','success');},function(){showToast('Gagal menyalin — salin manual dari teks di kartu.','error');});
-    };
-    var dl=document.createElement('button');
-    dl.style.cssText='background:none;border:1px solid var(--border);color:var(--muted);font-size:var(--fs-xs2);padding:9px 16px;min-height:38px;border-radius:var(--radius-2xs);cursor:pointer;font-family:"Hanken Grotesk",sans-serif;';
-    dl.textContent='Hapus';
-    dl.onclick=function(){showConfirm('Hapus "'+(item.name||'entri ini')+'" dari riwayat otomatis?',function(){pbAutoDelete(kind,item.id);},null,'Ya, Hapus');};
-    btns.appendChild(cp);btns.appendChild(dl);row.appendChild(btns);
-    wrap.appendChild(row);
+    var cara=isFoto?_pbAutoCara(item):'';
+    wrap.appendChild(pbRwCard({
+      type:isFoto?'foto':'video',
+      title:item.name||(isFoto?'Prompt foto':'Skrip video'),
+      meta:isFoto?(cara?'Cara tampil: '+cara:''):(item.meta||''),
+      time:pbRwTime(item.ts),
+      actions:[
+        {label:'Buka',onClick:function(){pbOpenAutoPage(kind,item.id);}},
+        {label:'Hapus',icon:'ic-rw-trash',onClick:function(){showConfirm('Hapus "'+(item.name||'entri ini')+'" dari riwayat otomatis?',function(){pbAutoDelete(kind,item.id);},null,'Ya, Hapus');}}
+      ]
+    }));
   });
 }
 function pbAutoRender(){
@@ -16215,6 +16395,7 @@ function pbShowSavedOverlay(item){
   let titleEl=document.getElementById('pb-saved-overlay-title');
   if(!overlay||!body)return;
   titleEl.textContent=item.label||'Halaman tersimpan';
+  try{_pbRwSetOverlaySub(null);}catch(e){} // v18.1: pulihkan sub-judul asli (overlay entri otomatis mengubahnya)
   body.innerHTML='';
   // BUG FIX (laporan user): tombol × / backdrop / Esc dulu langsung
   // menyembunyikan overlay TANPA peduli ada autosave yang masih "mengantre"
@@ -16262,15 +16443,8 @@ function pbShowSavedOverlay(item){
       head.appendChild(cur);
     }
     if(s.text){
-      let copyBtn=document.createElement('button');copyBtn.className='copy-btn';copyBtn.style.cssText='margin-left:auto;';copyBtn.textContent='Salin Semua Teks';
-      copyBtn.onclick=function(){
-        // Ambil teks TERBARU tiap kali diklik (bukan snapshot s.text saat
-        // overlay dibuka) — user mungkin sudah mengedit field-nya di sini
-        // sebelum menyalin.
-        let txt=_pbExtractLiveText(content);
-        _copyTextRobust(txt,function(){showToast('Semua teks tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
-      };
-      head.appendChild(copyBtn);
+      // Teks TERBARU tiap klik (bukan snapshot): user mungkin sudah mengedit field di overlay.
+      head.appendChild(pbRwMakeCopyBtn(function(){return _pbExtractLiveText(content);},{label:'Salin Semua Teks',onCopied:function(){showToast('Semua teks tersalin!','success');}}));
     }
     sec.appendChild(head);
     let content=document.createElement('div');content.className='pb-saved-overlay-content';
@@ -16363,12 +16537,9 @@ function _pbInjectPerCardCopyButtons(root){
     if(!txt.trim())return;
     // FIX: header kartu tersimpan (snapshot lama) tidak punya flex-wrap -> tombol bisa terpotong. Paksa wrap.
     head.style.flexWrap='wrap';
-    let btn=document.createElement('button');
-    btn.type='button';
-    btn.className='copy-btn pb-percard-copy';
-    btn.style.cssText='margin-left:auto;font-size:var(--fs-2xs);padding:3px 8px;flex-shrink:0;';
-    let defaultLabel='Salin';
-    btn.textContent=defaultLabel;
+    let _pcw=pbRwMakeCopyBtn(null); // v18.1: tampilan & animasi sama dengan halaman utama
+    let btn=_pcw._btn;
+    btn.classList.add('pb-percard-copy');
     btn.onclick=function(){
       // BUG FIX (laporan user): dulu tombol ini SELALU menyalin isi <pre>
       // apa adanya — padahal <pre> itu statis (dibangun sekali saat overlay
@@ -16408,8 +16579,7 @@ function _pbInjectPerCardCopyButtons(root){
         liveTxt=txt.replace(_scriptRe,function(m,pre){return pre+_safeTa+'"';});
       }
       _copyTextRobust(liveTxt,function(){
-        btn.textContent='Tersalin!';
-        setTimeout(function(){btn.textContent=defaultLabel;},1200);
+        _pcw._flash();
         // FIX (audit susulan #3): di halaman Foto asli, Salin per-kartu juga
         // memunculkan notice "Urutan Foto Tidak Boleh Terbalik" berisi daftar
         // foto yang perlu diupload (fShowUploadNotice) — sebelumnya di
@@ -16426,7 +16596,7 @@ function _pbInjectPerCardCopyButtons(root){
         }
       },function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
     };
-    head.appendChild(btn);
+    head.appendChild(_pcw);
   });
 }
 
@@ -35864,12 +36034,33 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   // Kartu skrip/multi dibangun JS dengan handler .onclick/.oninput (tidak ikut HTML) -> digambar ulang lewat fungsi render-nya, bukan innerHTML.
   var PB_RES_HTML=['f-prompt-full'], PB_RES_STATE=['vb-multi-output','f-output-wrap','f-json-output','f-preview-placeholder'];
   function _cls(el){ return (el.className||'').toString().replace(/\banim-in\b/g,'').replace(/\s+/g,' ').trim(); }
+  // FIX AKAR "tidak ada step yang kelihatan": step yang lagi ditutup sementara karena user mengedit step lain
+  // dicatat di STEP_PAUSE_STACK (bukan di DOM). Draft cuma menyimpan DOM-nya (kartu 'hidden'), jadi setelah dipulihkan
+  // kartu itu tetap tersembunyi dan fResumePausedStep() tidak tahu apa-apa -> layar kosong. Sekarang stack-nya ikut disimpan.
+  function clonePause(){
+    try{ if(typeof STEP_PAUSE_STACK==='undefined') return null; return {foto:(STEP_PAUSE_STACK.foto||[]).slice(), video:(STEP_PAUSE_STACK.video||[]).slice()}; }catch(e){ return null; }
+  }
+  function restorePause(p){
+    try{
+      if(!p||typeof STEP_PAUSE_STACK==='undefined') return;
+      ['foto','video'].forEach(function(k){
+        STEP_PAUSE_STACK[k]=(p[k]||[]).filter(function(id){ var el=document.getElementById(id); return el&&el.classList.contains('hidden')&&!el.classList.contains('done'); });
+      });
+    }catch(e){}
+  }
   function captureCards(){
     var o={c:[],p:{}};
     try{
       document.querySelectorAll('#foto .wcard[id], #video .wcard[id]').forEach(function(c){
         var r={id:c.id,cl:_cls(c),st:c.getAttribute('style')||'',d:[]};
         var w=c.querySelector('.wanswer'); if(w) r.a=w.innerHTML;
+        // FIX "step hilang / tombol Lanjut mati setelah dipulihkan": penanda di data-* kartu (mis. data-dua-hid, data-reopened)
+        // dan status disabled/terpilih tombol & chip ikut disimpan. Sebelumnya hilang, jadi kartu yang disembunyikan mode
+        // tertentu tidak pernah dibuka lagi & tombol Lanjut tetap disabled walau pilihannya sudah terpulihkan.
+        var ds={}; for(var dk in c.dataset){ ds[dk]=c.dataset[dk]; } r.ds=ds;
+        var kk=[]; var _gen=false; try{ _gen=!!((typeof VAI!=='undefined'&&VAI&&VAI._isGenerating)||(window.PB_PM&&window.PB_PM.busy)); }catch(x){}
+        // selagi proses generate berjalan, tombol sengaja tidak dicatat: prosesnya mati bersama app, jangan sampai tombol terpulihkan dalam keadaan mati
+        c.querySelectorAll('button,.chip').forEach(function(e){ var kc=_cls(e); kk.push((_gen||/btn-loading/.test(kc))?null:[kc,(e.tagName==='BUTTON'&&e.disabled)?1:0]); }); r.k=kk;
         c.querySelectorAll('[id]').forEach(function(e){ var t=e.tagName; if(t!=='INPUT'&&t!=='TEXTAREA'&&t!=='SELECT'){ var k=_cls(e); if(k) r.d.push([e.id,k]); } });
         o.c.push(r);
       });
@@ -35887,6 +36078,8 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
         var c=document.getElementById(r.id); if(!c) return;
         c.className=r.cl; if(r.st) c.setAttribute('style',r.st); else c.removeAttribute('style');
         var w=c.querySelector('.wanswer'); if(w&&r.a!=null) w.innerHTML=r.a;
+        if(r.ds){ try{ Object.keys(c.dataset).forEach(function(k){ if(!(k in r.ds)) delete c.dataset[k]; }); Object.keys(r.ds).forEach(function(k){ c.dataset[k]=r.ds[k]; }); }catch(x){} }
+        if(r.k){ try{ var ctl=c.querySelectorAll('button,.chip'); if(ctl.length===r.k.length){ ctl.forEach(function(e,i){ var q=r.k[i]; if(!q) return; if(e.classList.contains('chip') && _cls(e)!==q[0]) e.className=q[0]; if(e.tagName==='BUTTON') e.disabled=!!q[1]; }); } }catch(x){} }
         (r.d||[]).forEach(function(x){ var e=document.getElementById(x[0]); if(e&&_cls(e)!==x[1]) e.className=x[1]; });
       });
       var P=o.p||{};
@@ -35896,13 +36089,14 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       });
     }catch(e){}
   }
+  var _resHCache={};
   function captureResults(){
     var o={};
     try{
       PB_RES_HTML.concat(PB_RES_STATE).forEach(function(id){
         var e=document.getElementById(id); if(!e) return;
         var r={st:e.getAttribute('style')||'',cl:_cls(e)};
-        if(PB_RES_HTML.indexOf(id)>=0){ var h=e.innerHTML; if(h.length>300000) return; r.h=h; }
+        if(PB_RES_HTML.indexOf(id)>=0){ var h=e.innerHTML; if(h.length>300000) return; if(_resHCache[id]===h) h=_resHCache[id]; else _resHCache[id]=h; r.h=h; } // string yang sama dipakai bersama di 60 snapshot (hemat memori)
         o[id]=r;
       });
       var tas=[],i=0,ta;
@@ -35932,13 +36126,14 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       if(restoring||!_bootDone||window._pbLoggingOut) return;
       if(document.body.classList.contains('pb-tour-active')) return;
       if(timer){ clearTimeout(timer); timer=null; }
-      saveDraft({stepCalls:[],draftCall:lastNavCall,vars:captureVars(),dom:captureDom(),cards:captureCards(),results:captureResults(),t:Date.now()});
+      if(Date.now()-_lastSaveAt<700) return; // baru saja disimpan (mis. oleh handler visibilitychange lain) — jangan serialisasi dua kali
+      saveDraft({stepCalls:[],draftCall:lastNavCall,vars:captureVars(),dom:captureDom(),cards:captureCards(),results:captureResults(),pause:clonePause(),t:Date.now()});
     }catch(e){}
   };
   function snapshotNow(){
     var calls = pendingStepCalls.slice();
     pendingStepCalls = [];
-    return { stepCalls:calls, draftCall:lastNavCall, vars:captureVars(), dom:captureDom(), cards:captureCards(), results:captureResults(), t:Date.now() };
+    return { stepCalls:calls, draftCall:lastNavCall, vars:captureVars(), dom:captureDom(), cards:captureCards(), results:captureResults(), pause:clonePause(), t:Date.now() };
   }
 
   function pushSnapshot(){
@@ -35954,10 +36149,20 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
   }
 
   // Simpan/hapus draft di localStorage (lihat catatan DRAFT_KEY di atas).
+  // FIX LAG: isi draft yang sama persis (selain cap waktu) tidak ditulis ulang ke localStorage (tulis sinkron = main thread macet).
+  var _lastDraftBody = '', _lastSaveAt = 0;
   function saveDraft(snap){
-    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(snap)); }catch(e){}
+    _lastSaveAt = Date.now();
+    try{
+      var str = JSON.stringify(snap);
+      var body = str.replace(/,"t":\d+\}$/, '}');
+      if(body === _lastDraftBody) return;
+      _lastDraftBody = body;
+      localStorage.setItem(DRAFT_KEY, str);
+    }catch(e){}
   }
   function clearDraft(){
+    _lastDraftBody = '';
     try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
   }
   // Dipanggil sekali saat app pertama dibuka (lihat window.load di bawah).
@@ -35982,6 +36187,16 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
         restoredDraft = (_freshSig !== _draftSig);
       }catch(e){ restoredDraft = true; }
       if(snap.draftCall) lastNavCall = snap.draftCall;
+      // FIX "nge-lag/loncat": fungsi step yang diputar ulang memanggil scrollIntoView({behavior:'smooth'}) tertunda, yang
+      // bertabrakan dengan pemulihan posisi scroll. Selama pemulihan awal, scrollIntoView dimatikan sebentar.
+      try{
+        if(!Element.prototype.__pbScrollPatched){
+          var _siv = Element.prototype.scrollIntoView;
+          Element.prototype.scrollIntoView = function(){ if(window.__pbNoScroll) return; return _siv.apply(this, arguments); };
+          Element.prototype.__pbScrollPatched = true;
+        }
+        window.__pbNoScroll = true; setTimeout(function(){ window.__pbNoScroll = false; }, 1800);
+      }catch(e){}
       applySnapshot(snap, true);
       // FIX AKAR MASALAH "Tunggu proses AI sebelumnya selesai dulu" NYANGKUT
       // PERMANEN + toast "Selamat datang kembali" muncul padahal tidak ada
@@ -36109,6 +36324,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       if(replayNav) restoreResults(snap.results);   // R2: hasil digambar ulang SEBELUM isian (textarea hasil baru ada setelah ini)
       restoreDom(snap.dom);
       if(replayNav) restoreCards(snap.cards);        // R2: posisi step/kartu/progres dari data, SETELAH isian (event input tidak menimpa)
+      if(replayNav) restorePause(snap.pause);        // step yang ditutup sementara karena edit step lain harus bisa muncul lagi
       if(typeof _vbCharResyncAll==='function') _vbCharResyncAll(); // segarkan prompt & tombol pensil sesuai state pulihan
     } finally {
       setTimeout(function(){ restoring = false; }, 60);
@@ -36363,7 +36579,7 @@ pbTourWhenLoggedIn(function(){ if(pbTourIsPending()) pbTourHoldCurtain(); });
       try{ if(typeof pbF0KsThumbSync==='function') pbF0KsThumbSync(); }catch(e){}
       // re-scan berkala (murah) buat nangkep fungsi step yang mungkin
       // baru "muncul" ke window belakangan (jarang terjadi, tapi aman)
-      setInterval(wrapStepFns, 4000);
+      setInterval(function(){ if(!document.hidden) wrapStepFns(); }, 8000); // dulu 4 dtk & tetap jalan di background: scan ribuan properti window
     }, 500);
   });
   // FITUR BARU (permintaan user, Sept 2026): begitu user refresh saat
