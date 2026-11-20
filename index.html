@@ -5577,7 +5577,7 @@ body:is(:not(.pb-tour-active),.pb-tour-pfa) #foto.pfa-open:not(.pfa-v-prompt) #p
     </svg>
   </div>
   <div class="splash-title" id="splash-title">Prompt Builder</div>
-  <div class="splash-version" id="splash-version">v18.26</div>
+  <div class="splash-version" id="splash-version">v18.27</div>
 </div>
 <script>
   (function(){
@@ -8005,7 +8005,7 @@ MANDATORY TASK: COPY 100% OF THE HUMAN'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER
          selisihnya. Aturan yang SAMA PERSIS ini diulang di baris paling
          atas & paling bawah file — lihat itu kalau entah kenapa baris ini
          terlewat saat file dibuka sebagian. -->
-    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.26 &middot; by Kamalul Razi</div>
+    <div style="font-size:var(--fs-2xs);color:var(--muted);opacity:0.65;letter-spacing:0.5px;">v18.27 &middot; by Kamalul Razi</div>
   </div>
 </div>
 </div>
@@ -17492,7 +17492,7 @@ function _pbEnhanceBulkGroups(content,cards,notify){
       submit.textContent='Memproses...';
       try{
         _vbStartUsageSession('Revisi Produk (Bulk) — '+nama,1); // SESI BARU (permintaan user): tiap revisi 1 produk jadi baris tersendiri di panel statistik.
-        let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keu,topik:cur.topik||'',hookType:cur.hookType||'',hookCustom:cur.hookCustom||'',fotoBase64:cur.fotoBase64||'',fotoMime:cur.fotoMime||''}],((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||VB.bulkTargetAudience),noteTa.value.trim(),function(waitMs,attempt,status){
+        let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keu,topik:cur.topik||'',hookType:cur.hookType||'',hookCustom:cur.hookCustom||'',pitch:cur.pitch||'',accent:cur.accent||'',fotoBase64:cur.fotoBase64||'',fotoMime:cur.fotoMime||''}],((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||VB.bulkTargetAudience),noteTa.value.trim(),function(waitMs,attempt,status){
           submit.textContent=status==='thinking'?'🤔 '+_vbWaitReasonLabel(status)+'...':'⏳ '+_vbWaitReasonLabel(status)+' (~'+Math.ceil(waitMs/1000)+'dtk)...';
         },undefined,_vbOtherHooks(prodIdx),false,undefined,true); // param terakhir = fixShort: AI memperpendek bagian yang kelebihan kata (bukan dipotong kode); potong lokal hanya cadangan terakhir (permintaan user, 12 Okt 2026)
         dlIncrement();
@@ -22105,7 +22105,7 @@ function _vbCharHasOvr(prodIdx){
   return Object.keys(o).some(function(k){return String(o[k])!==String(VB[k]||'');});
 }
 function _vbCharBtnState(b,prodIdx){
-  var on=_vbCharHasOvr(prodIdx)||!!String((typeof VB_HOOK_OVERLAY!=='undefined'&&VB_HOOK_OVERLAY[prodIdx])||'').trim();
+  var on=_vbCharHasOvr(prodIdx);
   b.style.color=on?'var(--accent)':'';
   b.style.borderColor=on?'var(--accent)':'';
 }
@@ -22167,7 +22167,7 @@ function vbCharTab(prodIdx,i){
   var bd=panel.querySelector('[data-cbody]');if(bd)bd.scrollTop=0;
 }
 function _vbCharBuildPanel(prodIdx,panel){
-  var fs=_vbCharFields().concat([{key:'ov',title:'Isi (tulisan kecil di Hook)'}]);
+  var fs=_vbCharFields(); // 20 Nov 2026 (permintaan user): opsi "Teks Hook" (ov) dihapus dari panel pensil
   var nn=fs.filter(function(f){return f.key!=='camHook'&&f.key!=='ov'&&f.key!=='aesthetic';}).length; // kartu biasa; kalau ganjil, yang terakhir dilebarkan supaya tidak ada lubang
   var tiles='',panes='';
   fs.forEach(function(f,i){
@@ -22197,7 +22197,6 @@ function _vbCharBuildPanel(prodIdx,panel){
     +'<div data-cview="pick" class="hidden"><button type="button" class="vbc-back" onclick="vbCharTab('+prodIdx+',-1)">'+_vbcIc('back')+'Semua pengaturan</button>'+panes+'</div>'
     +'</div>'
     +'<div class="vbc-ft"><button type="button" class="reset-btn" onclick="vbCharReset('+prodIdx+')">Kembalikan Default</button><button type="button" class="btn sm" onclick="_vbCharClose(this.closest(\'.vbc-sheet\'))">Selesai</button></div>';
-  panel.querySelector('[data-ovhost]').appendChild(_vbBuildHookOverlayInPanel(prodIdx));
 }
 // Chip Motion di panel pensil mengikuti gender EFEKTIF produk itu (override pensil, kalau tidak ya default wizard).
 function _vbCharMotionChipsHtml(prodIdx){
@@ -22276,12 +22275,6 @@ function _vbCharSync(prodIdx){
       if(chg)nch++;
       (gl[g]=gl[g]||[]);if(v)gl[g].push(f.key==='aesthetic'?'Tulisan Estetik':lab);
     });
-    var ov=String(VB_HOOK_OVERLAY[prodIdx]||'').trim();
-    var osp=panel.querySelector('[data-cvs="ov"]');
-    if(osp){osp.textContent=ov||'Kosong';osp.style.color=ov?'var(--accent-text-on-dark)':'';}
-    var od=panel.querySelector('[data-cvd="ov"]');
-    if(od){od.style.display=ov?'block':'none';od.parentNode.classList.toggle('d',!!ov);}
-    if(ov)nch++;
     var bg=panel.querySelector('[data-cvbadge]');
     if(bg){bg.textContent=nch+' diubah';bg.classList.toggle('hidden',!nch);}
     var sl=panel.querySelector('[data-cvline]');
@@ -24883,10 +24876,23 @@ var VB_FIX_WORDS_BY_LOGAT={
   'neutral standard accent':'plain casual Indonesian (udah, jadi, tapi) and NO regional words'
 };
 // Prompt perbaikan kata (dipakai oleh perbaikan terarah & perbaikan kependekan) dikunci ke logat terpilih.
+// 20 Nov 2026: true = batch ini berisi produk dengan aksen BERBEDA dari wizard (Atur Mode Produk) -> kata khas jangan dikunci ke aksen wizard, ikut baris "Words:" tiap item.
+var _vbFixMixed=false;
+function _vbFixIsMixed(items){
+  var g=(typeof VB!=='undefined'&&VB)?String(VB.accent||VB.accentLabel||'').trim():'';
+  return (items||[]).some(function(it){return it&&it.acc&&it.acc!==g;});
+}
+function _vbFixWordsLine(it,mixed){
+  if(!(mixed===undefined?_vbFixMixed:mixed))return '';
+  var g=(typeof VB!=='undefined'&&VB)?String(VB.accent||VB.accentLabel||'').trim():'';
+  var w=VB_FIX_WORDS_BY_LOGAT[(it&&it.acc)||g];
+  return w?('\nWords: '+w):'';
+}
 function _vbFixSystemFor(base){
   var acc=(typeof VB!=='undefined'&&VB)?String(VB.accent||VB.accentLabel||'').trim():'';
   var W=VB_FIX_WORDS_BY_LOGAT[acc],out=String(base);
-  if(W)out=out.replace(/regional words \([^)]*\)/,W);
+  if(_vbFixMixed)out=out.replace(/regional words \([^)]*\)/,"regional words exactly as in each item's Words line, never words from another region");
+  else if(W)out=out.replace(/regional words \([^)]*\)/,W);
   // v11.25: kalimat lama "Inserted words must match the text's character: <slang>..." DIGANTI: tambahan = frasa konkret di tengah kalimat.
   var _padRule='To add words, INSERT ONE concrete phrase inside a sentence (a place, person, action or small scene detail that fits the context, in the same voice), never at the very end of the text. Never add fake stock urgency (stok terbatas). Do not invent or add product features, materials, textures, sizes, colors or claims that the text does not already state. Do not repeat a word already in the text. Stay in the text\'s accent'+(W&&/NEVER[\s\S]*$/.test(W)?'; '+W.match(/NEVER[\s\S]*$/)[0]:'')+'.';
   out=out.replace(/Inserted words must match the text's character:[\s\S]*?Keep it smooth and spoken\./,_padRule+' Keep it smooth and spoken.');
@@ -27950,7 +27956,7 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
       const n=wc(t);
       if(n<range.min||(VB_TARGETED_FIX_INCLUDE_LONG&&n>range.max)){
         const nama=(aligned&&batch[pi]&&batch[pi].nama)||prod.produk||('Produk '+(pi+1));
-        items.push({id:pi+'-'+k,pi:pi,k:k,nama:nama,attempts:0});
+        items.push({id:pi+'-'+k,pi:pi,k:k,nama:nama,attempts:0,acc:(aligned&&batch[pi]&&batch[pi].accent)||''});
       }
     }
   }
@@ -27979,11 +27985,12 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
     const step=plan[si];
     used++;
     pending.forEach(function(it){it.attempts=used;});
+    const _mx=_vbFixIsMixed(pending);
     const _itemLine=function(it,withFb){
       const cur=arr[it.pi][it.k];
       const n=wc(cur);
       const diff=target-n;
-      return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+cur+'\nCurrently '+n+' words'+(withFb?' (allowed range '+range.min+'-'+range.max+', aim for '+target+')':'')+', '+(diff>0?'add '+diff+' (only insert words, keep all existing words unchanged)':'remove '+(-diff)+' (only delete words, keep all other words unchanged)')+(withFb&&_fb[it.id]?'\nFeedback on your last reply: '+_fb[it.id]:'');
+      return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+cur+'\nCurrently '+n+' words'+(withFb?' (allowed range '+range.min+'-'+range.max+', aim for '+target+')':'')+', '+(diff>0?'add '+diff+' (only insert words, keep all existing words unchanged)':'remove '+(-diff)+' (only delete words, keep all other words unchanged)')+(withFb&&_fb[it.id]?'\nFeedback on your last reply: '+_fb[it.id]:'')+_vbFixWordsLine(it,_mx);
     };
     const useChat=!!_chatMode;
     let msg=pending.map(function(it){return _itemLine(it,false);}).join('\n\n');
@@ -28004,8 +28011,9 @@ async function _vbRepairOutOfRange(arr,batch,range,onWait,genCtx){
     try{genLogoEvent('rev-call',{n:pending.length,step:si+1,total:plan.length,model:step.key||'',items:pending.map(function(it){var cur=arr[it.pi][it.k];return{id:it.id,text:cur,n:wc(cur)};})});}catch(eGl){} // loader: permintaan perbaikan ke AI dikirim (real-time)
     _vbUsageKindOverride='fix';
     _vbUsageChatModeOverride=useChat?_chatMode:'';
+    _vbFixMixed=_mx;
     try{fixOut=await _vbFixRunStep(step,msg,maxTok,onWait,chatArg);}
-    finally{_vbUsageKindOverride='';_vbUsageChatModeOverride='';}
+    finally{_vbUsageKindOverride='';_vbUsageChatModeOverride='';_vbFixMixed=false;}
     if(fixOut.apiFail){
       if(_st){_st.api='gagal';_st.http=fixOut.status||0;}
       if(step.legacy)break; // perilaku lama: panggilan sudah retry sendiri, jangan buang percobaan lagi
@@ -28230,21 +28238,23 @@ async function _vbExtendShortScriptsPass(arr,batch,range,onWait){
       if(t&&wc(t)<range.min){
         const ctx=KEYS.filter(function(o){return o!==k&&prod[o];}).map(function(o){return o+': '+prod[o];}).join(' | ');
         const nama=(aligned&&batch[pi]&&batch[pi].nama)||prod.produk||('Produk '+(pi+1));
-        items.push({id:pi+'-'+k,pi:pi,k:k,nama:nama,t:t,n:wc(t),ctx:ctx});
+        items.push({id:pi+'-'+k,pi:pi,k:k,nama:nama,t:t,n:wc(t),ctx:ctx,acc:(aligned&&batch[pi]&&batch[pi].accent)||''});
       }
     }
   }
   if(!items.length)return;
+  const _mx=_vbFixIsMixed(items);
   let msg=items.map(function(it){
-    return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+it.t+'\nCurrently '+it.n+' words. Add '+(range.min-it.n)+'-'+(range.max-it.n)+' words (inserted sentence must continue the same idea, not a new topic)';
+    return '[id: '+it.id+']\nProduct: '+it.nama+'\nText: '+it.t+'\nCurrently '+it.n+' words. Add '+(range.min-it.n)+'-'+(range.max-it.n)+' words (inserted sentence must continue the same idea, not a new topic)'+_vbFixWordsLine(it,_mx);
   }).join('\n\n');
   // ~130 token/teks (30 kata + struktur JSON) + 600 dasar, dibatasi 8192.
   const maxTok=Math.min(8192,600+items.length*130);
   // batas tunggu retry cuma 30 dtk (bukan 3 menit): ini panggilan tambahan, bukan inti.
   let out;
   _vbUsageKindOverride='fix';
+  _vbFixMixed=_mx;
   try{out=await _vbStreamClaudeJSONWithRetry([{text:msg}],undefined,onWait,_vbFixSystemFor(VB_SHORTFIX_SYSTEM),false,maxTok,30000);}
-  finally{_vbUsageKindOverride='';}
+  finally{_vbUsageKindOverride='';_vbFixMixed=false;}
   if(!out||!out.resp||!out.resp.ok)return;
   let data;try{data=JSON.parse(out.rawText);}catch(e){return;}
   let text=((data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text)||'').trim();
@@ -28391,6 +28401,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     // prompt video (lihat _vbOverlaySentence).
     let _hookDir=_vbHookDirectiveInline(p.hookType,p.hookCustom);
     if(_hookDir)line+=' — HOOK style: '+_hookDir;
+    if(p.pitch)line+=' — Tone: '+(p.pitch==='bercanda'?'joking':p.pitch);
+    if(p.accent)line+=' — Accent: '+_vbAccentScriptText(p.accent);
     if(_vbRefPlan&&batch.length>1)line+=' — SAMPLE: '+_vbRefOpts()[_vbRefPlan[i]].nama+' (structure and style only, never its topic or claims)';
     if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
@@ -28426,7 +28438,8 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
 
   // Bagian gambar dikirim terpisah dari teks (format multimodal Gemini),
   // urutannya SAMA seperti "Gambar N" yang disebut di produkListText di atas.
-  let _promptParts=[{text:'DATA\n'+prompt+'\nREMINDER: each script is ONLY about its own product in the list above, and the product name must be said in HOOK or STORY. The sample is about a different product: follow its structure and style only.\nWrite '+batch.length+' script'+(batch.length>1?'s':'')+' now. Output the JSON array only.'}]; // audit Okt 2026: DATA user pindah dari system prompt ke pesan user
+  let _hasPV=batch.some(function(p){return p.pitch||p.accent;});
+  let _promptParts=[{text:'DATA\n'+prompt+(_hasPV?'\nNOTE: a product line with its own Tone or Accent uses that for its script instead of the global Tone/Accent above.':'')+'\nREMINDER: each script is ONLY about its own product in the list above, and the product name must be said in HOOK or STORY. The sample is about a different product: follow its structure and style only.\nWrite '+batch.length+' script'+(batch.length>1?'s':'')+' now. Output the JSON array only.'}]; // audit Okt 2026: DATA user pindah dari system prompt ke pesan user
   let _imgAttached=0;
   batch.forEach(function(p){
     if(p.fotoBase64&&_imgAttached<_maxImgThisCall){
@@ -28814,6 +28827,7 @@ async function vbGenerateBulkAI(){
     produkList.push({ta:(taRowEl?taRowEl.value:'').replace(/[\r\n"]+/g,' ').trim(),nama:nama,keunggulan:keunggulanEl?keunggulanEl.value.trim():'',topik:topikEl?topikEl.value.trim():'',
       hookType:cachedFoto.hookType||'',hookCustom:hookCustomEl?hookCustomEl.value.trim():(cachedFoto.hookCustom||''),
       overlay:overlayEl?overlayEl.value.trim():(cachedFoto.overlay||''),
+      pitch:((window.pbPmVoice&&window.pbPmVoice(i))||{}).pitch||'',accent:((window.pbPmVoice&&window.pbPmVoice(i))||{}).accent||'',
       fotoBase64:cachedFoto.fotoBase64||'',fotoMime:cachedFoto.fotoMime||''});
   }
   let targetAudience=document.getElementById('vb-bulk-target').value.trim();
@@ -28842,7 +28856,7 @@ async function vbGenerateBulkAI(){
       showToast('Umur karakter di bawah 20 tapi target audiens ibu-ibu. Skrip bisa terasa janggal; pertimbangkan umur 25+ atau ganti target.','error');
     }
   }catch(eWarn){}
-  VB_BULK_PRODUCTS=produkList.map(function(p){return{ta:p.ta||'',nama:p.nama,keunggulan:p.keunggulan,topik:p.topik,hookType:p.hookType||'',hookCustom:p.hookCustom||'',overlay:p.overlay||'',fotoBase64:p.fotoBase64,fotoMime:p.fotoMime};});
+  VB_BULK_PRODUCTS=produkList.map(function(p){return{ta:p.ta||'',nama:p.nama,keunggulan:p.keunggulan,topik:p.topik,hookType:p.hookType||'',hookCustom:p.hookCustom||'',overlay:p.overlay||'',pitch:p.pitch||'',accent:p.accent||'',fotoBase64:p.fotoBase64,fotoMime:p.fotoMime};});
 
   // FIX (audit — sisa jalur API-key lama): dua blok "if(!VAI.apiKey)" yang
   // sebelumnya ada di sini (coba baca API key Gemini lama dari localStorage,
@@ -28911,7 +28925,10 @@ async function vbBulkResumeAI(){
 async function _vbRunBulkGenerate(produkList,targetAudience,toProcess,priorResults){
   let errBox=document.getElementById('vb-bulk-error');
   let isResume=priorResults.length>0;
-  if(!isResume)VB_CHAR_OVR={}; // generate bulk baru = pengaturan pensil lama tidak relevan lagi
+  if(!isResume){VB_CHAR_OVR={}; // generate bulk baru = pengaturan pensil lama tidak relevan lagi
+    // 20 Nov 2026: gaya bicara & aksen per produk dari sheet Atur Mode Produk -> masuk ke override per produk (sama seperti ikon pensil)
+    produkList.forEach(function(pp,k){if(pp&&(pp.pitch||pp.accent)){var o={};if(pp.pitch)o.pitch=pp.pitch;if(pp.accent)o.accent=pp.accent;VB_CHAR_OVR[k]=o;}});
+  }
   // FIX HEMAT BIAYA (permintaan user, Sept 2026): selama tur panduan pemula
   // (pbTourVideoScriptActive true), generate script cuma terjadi TEPAT 1x
   // dalam alur tur itu sendiri (bukan seperti pemakaian normal yang bisa
@@ -29448,7 +29465,7 @@ function _vbBuildProductMetaLookup(produkListMeta){
     // generate PERTAMA, lalu hilang permanen dari VB_BULK_PRODUCTS begitu
     // _vbRenderBulkOutput() jalan — Revisi 1 Produk & Generate Ulang Semua
     // jadi tidak pernah tahu topik itu lagi. Disamakan dengan foto: ikut dibawa.
-    if(key)map[key]={ta:x.ta||'',nama:x.nama||'',keunggulan:x.keunggulan||'',topik:x.topik||'',hookType:x.hookType||'',hookCustom:x.hookCustom||'',overlay:x.overlay||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};
+    if(key)map[key]={ta:x.ta||'',nama:x.nama||'',keunggulan:x.keunggulan||'',topik:x.topik||'',hookType:x.hookType||'',hookCustom:x.hookCustom||'',overlay:x.overlay||'',pitch:x.pitch||'',accent:x.accent||'',fotoBase64:x.fotoBase64||'',fotoMime:x.fotoMime||''};
   });
   return map;
 }
@@ -29683,7 +29700,7 @@ function _vbRenderBulkOutput(products,produkListMeta,skipHistory,animate){
     // ikut dibawa di sini juga, sama seperti foto — supaya VB_BULK_PRODUCTS
     // yang dipakai vbRevisiProdukAI & vbRegenerateAllBulk tetap punya arahan
     // topik yang sama seperti yang diisi user di form Bulk.
-    return meta?{ta:meta.ta||'',nama:meta.nama,keunggulan:meta.keunggulan,topik:meta.topik||'',hookType:meta.hookType||'',hookCustom:meta.hookCustom||'',overlay:meta.overlay||'',fotoBase64:meta.fotoBase64||'',fotoMime:meta.fotoMime||''}:{nama:p.produk||'',keunggulan:'',topik:'',hookType:'',hookCustom:'',overlay:'',fotoBase64:'',fotoMime:''};
+    return meta?{ta:meta.ta||'',nama:meta.nama,keunggulan:meta.keunggulan,topik:meta.topik||'',hookType:meta.hookType||'',hookCustom:meta.hookCustom||'',overlay:meta.overlay||'',pitch:meta.pitch||'',accent:meta.accent||'',fotoBase64:meta.fotoBase64||'',fotoMime:meta.fotoMime||''}:{nama:p.produk||'',keunggulan:'',topik:'',hookType:'',hookCustom:'',overlay:'',fotoBase64:'',fotoMime:''};
   });
   // FITUR BARU: isi kolom "Isi" (teks overlay) dari form Bulk dibawa ke state
   // overlay per-produk (VB_HOOK_OVERLAY) — dipakai _vbBuildFlowText untuk
@@ -30205,6 +30222,7 @@ async function vbRevisiProdukAI(prodIdx){
     let _backupSnapshot={
       nama:existingFoto.nama||'',keunggulan:existingFoto.keunggulan||'',topik:existingTopik,
       hookType:existingHookType,hookCustom:existingHookCustom,overlay:existingOverlay,
+      pitch:existingFoto.pitch||'',accent:existingFoto.accent||'',
       fotoBase64:existingFoto.fotoBase64||'',fotoMime:existingFoto.fotoMime||'',
       scripts:_backupScripts
     };
@@ -30214,7 +30232,7 @@ async function vbRevisiProdukAI(prodIdx){
     // (+25%) tanpa pernah sempat kena cache_read (diskon 90%). Percuma &
     // malah nambah biaya, jadi dicabut khusus di jalur revisi ini.
     _vbStartUsageSession('Revisi Produk (Bulk) — '+nama,1); // SESI BARU (permintaan user): tiap revisi 1 produk jadi baris tersendiri di panel statistik.
-    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,topik:existingTopik,hookType:existingHookType,hookCustom:existingHookCustom,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||VB.bulkTargetAudience),_vbNoteWithOldScript(note,_backupScripts),function(waitMs,attempt,status){
+    let arr=await _vbCallBulkBatch([{nama:nama,keunggulan:keunggulan,topik:existingTopik,hookType:existingHookType,hookCustom:existingHookCustom,pitch:existingFoto.pitch||'',accent:existingFoto.accent||'',fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''}],((VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||VB.bulkTargetAudience),_vbNoteWithOldScript(note,_backupScripts),function(waitMs,attempt,status){
       if(!submitBtn)return;
       let alasan=_vbWaitReasonLabel(status);
       if(status==='thinking'){submitBtn.innerHTML='<svg class="icon"><use href="#ic-clock"></use></svg> 🤔 '+alasan+'...';return;}
@@ -30234,7 +30252,7 @@ async function vbRevisiProdukAI(prodIdx){
     // Foto yang barusan dipakai (lama ATAU hasil ganti di panel ini)
     // dipermanenkan di sini, supaya revisi/generate-ulang BERIKUTNYA ikut
     // memakai foto terbaru ini juga.
-    VB_BULK_PRODUCTS[prodIdx]={ta:(VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||'',nama:nama,keunggulan:keunggulan,topik:existingTopik,hookType:existingHookType,hookCustom:existingHookCustom,overlay:existingOverlay,fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
+    VB_BULK_PRODUCTS[prodIdx]={ta:(VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||'',nama:nama,keunggulan:keunggulan,topik:existingTopik,hookType:existingHookType,hookCustom:existingHookCustom,overlay:existingOverlay,pitch:existingFoto.pitch||'',accent:existingFoto.accent||'',fotoBase64:effectiveFoto.fotoBase64||'',fotoMime:effectiveFoto.fotoMime||''};
     try{
       // thumbnail foto di header grup ikut disinkronkan ke foto TERBARU
       _vbUpdateGroupFotoThumb(prodIdx);
@@ -30278,7 +30296,7 @@ async function vbRevisiProdukAI(prodIdx){
 function vbUndoRevisiProduk(prodIdx){
   let backup=VB_BULK_REVISI_BACKUP[prodIdx];
   if(!backup){showToast('Tidak ada revisi untuk dibatalkan di produk ini.','error');return;}
-  VB_BULK_PRODUCTS[prodIdx]={ta:(VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||'',nama:backup.nama,keunggulan:backup.keunggulan,topik:backup.topik,hookType:backup.hookType||'',hookCustom:backup.hookCustom||'',overlay:(VB_HOOK_OVERLAY[prodIdx]||''),fotoBase64:backup.fotoBase64,fotoMime:backup.fotoMime};
+  VB_BULK_PRODUCTS[prodIdx]={ta:(VB_BULK_PRODUCTS[prodIdx]&&VB_BULK_PRODUCTS[prodIdx].ta)||'',nama:backup.nama,keunggulan:backup.keunggulan,topik:backup.topik,hookType:backup.hookType||'',hookCustom:backup.hookCustom||'',overlay:(VB_HOOK_OVERLAY[prodIdx]||''),pitch:backup.pitch||'',accent:backup.accent||'',fotoBase64:backup.fotoBase64,fotoMime:backup.fotoMime};
   // CATATAN: overlay SENGAJA diambil dari nilai TERKINI di kartu (VB_HOOK_OVERLAY), bukan
   // dari backup — revisi AI tidak mengubah kolom Isi, jadi edit user sesudah revisi
   // tidak boleh kembali ke versi lama waktu Undo / Generate Ulang Semua.
@@ -40777,6 +40795,18 @@ function applyKp(lok,lt){
   try{vbSyncStep6Mode3();}catch(e){}
 }
 function nm(i){var e=$("vb-bulk-nama-"+i);return (e&&e.value.trim())||("Produk "+(i+1));}
+// PERBAIKAN (20 Nov 2026): ambil foto produk ke-i (kalau sudah diupload) supaya sheet Atur Mode Produk bisa menampilkan thumbnail, jadi tidak bingung kalau nama produk sama.
+function fotoSrc(i){
+  try{
+    var c=(typeof VB_BULK_ROW_CACHE!=="undefined")?VB_BULK_ROW_CACHE[i]:null;
+    if(c&&c.fotoBase64)return "data:"+(c.fotoMime||"image/jpeg")+";base64,"+c.fotoBase64;
+  }catch(e){}
+  try{
+    var im=$("vb-bulk-foto-img-"+i),pv=$("vb-bulk-foto-preview-"+i);
+    if(im&&im.getAttribute("src")&&pv&&pv.style.display!=="none")return im.getAttribute("src");
+  }catch(e){}
+  return "";
+}
 // PERBAIKAN (16 Nov 2026): mode utama di luar 4 grup (mis. Percobaan) dulu dianggap Start Frame oleh baseMode(), jadi produk tanpa pilihan ikut dibuat sebagai Start Frame. Sekarang fitur ini hanya aktif kalau mode utama termasuk ORDER.
 function groupable(){var m=(typeof VB!=="undefined")?VB.refMode:"";return ORDER.indexOf(m)>-1;}
 function active(){var n=cnt();if(n<2&&!PM.queue)return false;if(!PM.queue&&!groupable())return false;for(var i=0;i<n;i++){if(PM.modes[i]&&PM.modes[i]!==baseMode())return true;}return false;}
@@ -40787,19 +40817,37 @@ function btnLabel(){var b=$("pb-pm-btn");if(!b)return;var n=0,c=cnt();
   // PERBAIKAN (16 Nov 2026): A11, jelaskan kenapa tombol tidak muncul
   try{var ht=$("pb-pm-hint");if(!ht){ht=document.createElement("div");ht.id="pb-pm-hint";ht.style.cssText="font-size:var(--fs-xs2);color:var(--muted);margin-top:6px;";ht.textContent="Atur Mode Produk (beda mode per produk) hanya tersedia di mode Start Frame, Raw Asset, atau Percakapan 2 Suara.";if(b.parentNode)b.parentNode.insertAdjacentElement("afterend",ht);}ht.classList.toggle("hidden",!(c>1&&!groupable()&&!PM.queue));}catch(e){}
   var ci=$("vb-bulk-count");
-  if(ci){var lk=!!PM.queue;ci.disabled=lk;ci.style.opacity=lk?".5":"";ci.title=lk?"Dikunci sampai semua grup mode selesai":"";}for(var i=0;i<c;i++){if(PM.modes[i])n++;}b.textContent=PM.queue&&PM.queue.length?("Grup "+Math.max(1,(PM.total||PM.queue.length)-PM.queue.length+1)+"/"+(PM.total||PM.queue.length)+" · "+LBL[PM.queue[0]]):(n?("Atur Mode Produk ("+n+" diatur)"):"Atur Mode Produk");}
+  if(ci){var lk=!!PM.queue;ci.disabled=lk;ci.style.opacity=lk?".5":"";ci.title=lk?"Dikunci sampai semua grup mode selesai":"";}for(var i=0;i<c;i++){if(PM.modes[i]||(PM.voice&&PM.voice[i]))n++;}b.textContent=PM.queue&&PM.queue.length?("Grup "+Math.max(1,(PM.total||PM.queue.length)-PM.queue.length+1)+"/"+(PM.total||PM.queue.length)+" · "+LBL[PM.queue[0]]):(n?("Atur Mode Produk ("+n+" diatur)"):"Atur Mode Produk");}
 window.pbPmSkip=function(i){return PM.skip?PM.skip(i):false;};
 // Produk bermode Fashion Editorial tidak pakai skrip → nama tidak wajib (dipakai vbInfoNext & vbInfoSum).
 window.pbPmIsFashion=function(i){return (cnt()>1||!!PM.queue)&&(!!PM.queue||groupable())&&eff(i)==="fashion";};
+// 20 Nov 2026: pilihan Gaya Bicara & Aksen per produk di sheet Atur Mode Produk. Kosong = ikut pilihan wizard.
+var VOICE_PITCH=[["bercanda","Suka bercanda"],["gaul","Gaul"],["toxic","Toxic"]];
+var VOICE_ACC=[["neutral standard accent","Netral"],["casual Jakarta accent","Jakarta"],["light Sundanese accent","Sunda"],["light Medan accent","Medan"],["light Malaysian accent","Malaysia"]];
+function voiceHtml(i){
+  if(eff(i)==="fashion")return "";
+  var v=(PM.voice&&PM.voice[i])||{};
+  var gp=vbv("pitchLabel")||vbv("pitch")||"-",ga=vbv("accentLabel")||vbv("accent")||"-";
+  function sel(kind,lbl,list,cur,def){
+    return '<select class="inp" data-pm-'+kind+'="'+i+'" aria-label="'+lbl+' produk '+(i+1)+'" style="flex:1;min-width:0;font-size:var(--fs-xs2);padding:6px 8px;"><option value="">'+esc(lbl+": "+def+" (default)")+"</option>"
+      +list.map(function(o){return '<option value="'+esc(o[0])+'"'+(cur===o[0]?" selected":"")+">"+esc(o[1])+"</option>";}).join("")+"</select>";
+  }
+  return '<div style="display:flex;gap:6px;margin-top:6px;">'+sel("pitch","Gaya bicara",VOICE_PITCH,v.pitch||"",gp)+sel("accent","Aksen",VOICE_ACC,v.accent||"",ga)+"</div>";
+}
+window.pbPmVoice=function(i){if(cnt()<2&&!PM.queue)return null;return (PM.voice&&PM.voice[i])||null;};
 function sheetBody(){
   var c=cnt(),h="",needLok=false,b=baseMode();
   // PERBAIKAN (16 Nov 2026): A9, aksi cepat "terapkan ke semua produk"
   if(c>1&&!PM.queue)h+='<div style="display:flex;gap:6px;margin-bottom:12px;"><select class="inp" id="pb-pm-all" style="flex:1;"><option value="">Mode utama ('+LBL[b]+')</option>'+["satu","kp","aset","dua","fashion"].map(function(k){return '<option value="'+k+'">'+LBL[k]+"</option>";}).join("")+'</select><button type="button" class="btn" id="pb-pm-all-go" style="margin:0;white-space:nowrap;">Terapkan ke semua</button></div>';
   for(var i=0;i<c;i++){
     var m=PM.modes[i]||"";if((m||b)==="kp")needLok=true;
-    h+='<div style="margin-bottom:10px;"><div style="font-size:var(--fs-xs2);margin-bottom:4px;">'+(i+1)+". "+esc(nm(i))+'</div><select class="inp" data-pm="'+i+'" style="width:100%;">'
+    var fs=fotoSrc(i);
+    h+='<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">'
+      +(fs?'<img alt="Foto produk '+(i+1)+'" data-pm-foto="'+i+'" style="flex:none;width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid var(--border-hi);cursor:zoom-in;" />'
+          :'<div aria-hidden="true" style="flex:none;width:56px;height:56px;border-radius:10px;border:1.5px dashed var(--border-hi);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:var(--fs-2xs);text-align:center;line-height:1.2;">Tanpa foto</div>')
+      +'<div style="flex:1;min-width:0;"><div style="font-size:var(--fs-xs2);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(i+1)+". "+esc(nm(i))+'</div><select class="inp" data-pm="'+i+'" style="width:100%;">'
       +'<option value="">Mode utama ('+LBL[b]+")</option>"
-      +["satu","kp","aset","dua","fashion"].map(function(k){return '<option value="'+k+'"'+(m===k?" selected":"")+">"+LBL[k]+"</option>";}).join("")+"</select></div>";
+      +["satu","kp","aset","dua","fashion"].map(function(k){return '<option value="'+k+'"'+(m===k?" selected":"")+">"+LBL[k]+"</option>";}).join("")+"</select>"+voiceHtml(i)+"</div></div>";
   }
   if(needLok&&active())h+='<div style="margin:6px 0 10px;"><div style="font-size:var(--fs-xs2);margin-bottom:4px;">Lokasi untuk produk Raw Asset</div><input class="inp" id="pb-pm-lok" maxlength="150" style="width:100%;margin-bottom:8px;" placeholder="Contoh: kamar tidur minimalis" value="'+esc(lokNow())+'"><div style="font-size:var(--fs-xs2);margin-bottom:4px;">Lighting untuk produk Raw Asset</div><input class="inp" id="pb-pm-lt" maxlength="150" style="width:100%;" placeholder="Contoh: cahaya jendela pagi yang lembut" value="'+esc(lightNow())+'"></div>';
   var needD=false;for(var k=0;k<c;k++){var e=PM.modes[k]||b;if(e!=="dua"&&e!=="fashion")needD=true;}
@@ -40829,6 +40877,17 @@ window.pbPmOpen=function(){
     var li=$("pb-pm-lok");if(li)li.oninput=function(){PM.lok=li.value.trim();PM.lokWiz=vbv("mode3Lokasi")||"";};
     var lt=$("pb-pm-lt");if(lt)lt.oninput=function(){PM.light=lt.value.trim();PM.lightWiz=vbv("mode3Lighting")||"";};
     var du=$("pb-pm-dur");if(du)du.onchange=function(){PM.durWiz=(vbv("refMode")!=="dua")?(vbv("durasi")||0):0;var v=parseInt(du.value,10);if(v===16||v===24){PM.dur=v;PM.durSet=true;}else{PM.dur=0;PM.durSet=true;}};
+    l.querySelectorAll("select[data-pm-pitch],select[data-pm-accent]").forEach(function(sv){
+      var kind=sv.hasAttribute("data-pm-pitch")?"pitch":"accent",ix=sv.getAttribute("data-pm-"+kind);
+      sv.onchange=function(){
+        if(!PM.voice)PM.voice={};var o=PM.voice[ix]||(PM.voice[ix]={});
+        var lab="";VOICE_PITCH.concat(VOICE_ACC).forEach(function(x){if(x[0]===sv.value)lab=x[1];});
+        o[kind]=sv.value;o[kind+"Label"]=lab;
+        if(!o.pitch&&!o.accent)delete PM.voice[ix];
+        btnLabel();
+      };
+    });
+    l.querySelectorAll("img[data-pm-foto]").forEach(function(im){im.src=fotoSrc(parseInt(im.getAttribute("data-pm-foto"),10));im.onclick=function(){var z=document.createElement("div");z.style.cssText="position:fixed;inset:0;z-index:10060;background:rgba(4,4,6,.92);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out;";z.innerHTML='<img src="'+im.src+'" alt="" style="max-width:100%;max-height:100%;border-radius:12px;object-fit:contain;" />';var kh=function(ev){if(!z.isConnected){window.removeEventListener("keydown",kh,true);return;}if(ev.key==="Escape"){ev.stopImmediatePropagation();ev.preventDefault();z.remove();window.removeEventListener("keydown",kh,true);}};window.addEventListener("keydown",kh,true);z.onclick=function(ev){ev.stopPropagation();z.remove();window.removeEventListener("keydown",kh,true);};z.setAttribute("role","dialog");z.setAttribute("aria-label","Foto produk diperbesar");document.body.appendChild(z);};});
     var ag=$("pb-pm-all-go");if(ag)ag.onclick=function(){var v=$("pb-pm-all").value,n=cnt();for(var i=0;i<n;i++)PM.modes[i]=v;paint();btnLabel();};
     if(locked)l.querySelectorAll("select,input").forEach(function(x){x.disabled=true;});
     if(fk){try{var nf=l.querySelector(fk);if(nf)nf.focus();}catch(e){}}}
@@ -40913,7 +40972,7 @@ function abortFresh(){
 }
 function resetAll(){
   if(PM.busy)return;
-  PM.modes={};PM.lok="";PM.lokWiz="";PM.light="";PM.lightWiz="";PM.dur=0;PM.durSet=false;PM.durWiz=0;
+  PM.modes={};PM.voice={};PM.lok="";PM.lokWiz="";PM.light="";PM.lightWiz="";PM.dur=0;PM.durSet=false;PM.durWiz=0;
   PM.res=[];PM.fash=[];PM.queue=null;PM.pending="";PM.base="";PM.home="";PM.skip=null;PM.snap=null;PM.started=false;PM.locked=false;
   RICH_OPEN=null;
   btnLabel();render();
