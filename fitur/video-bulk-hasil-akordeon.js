@@ -14,7 +14,7 @@ function _vbAccWordState(idx){
   if(!ta)return '';
   let wrap=document.getElementById('vb-ta-wrap-'+idx);
   if(wrap&&wrap.classList.contains('vb-ta-loading'))return ''; // masih diketik/menunggu AI
-  let n=ta.value.split(/\s+/).filter(Boolean).length;
+  let n=_vbWcNoParen(ta.value); // kata dalam kurung tidak dihitung
   if(!n)return '';
   let r=vbGetWordRange();
   return(n>=r.min&&n<=r.max)?'ok':'bad';

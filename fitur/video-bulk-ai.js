@@ -409,7 +409,7 @@ function _vbHardEnforceCta(text,max,min){
   if(!text)return text;
   const W=function(t){return t.split(/\s+/).filter(Boolean);};
   const cap=function(t){return t?t.charAt(0).toUpperCase()+t.slice(1):t;};
-  if(W(text).length<=max)return text;
+  if(_vbWcNoParen(text)<=max)return text;
   const m=text.match(/([^.!?]*keranjang[^.!?]*[.!?]?)\s*$/i);
   if(!m)return _vbHardEnforceMaxWords(text,max,min);
   let head=text.slice(0,text.length-m[0].length).trim(),tail=m[1].trim();

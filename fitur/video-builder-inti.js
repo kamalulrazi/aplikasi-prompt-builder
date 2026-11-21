@@ -3068,8 +3068,8 @@ var VB_LOGAT_SCRIPT_GUIDE={
   'neutral standard accent':'standard everyday Indonesian, no regional slang',
   'casual Jakarta accent':'gue/lo, banget, nih, sih, dong (skip gue/lo if it clashes with the Greeting)',
   'light Javanese accent':'light Javanese words (wis, ora, tenan), understandable to everyone',
-  'light Sundanese accent':'light Sundanese words (teh, atuh, mah, pisan), understandable to everyone',
-  'light Medan accent':'light Medan words (bah, kali as an intensifier, e.g. bagus kali, lah, pulak, tengok instead of lihat, cemana, kek, dah, kau instead of kamu or lo), understandable to everyone; everyday Medan Indonesian, no regional-language words (no lae, amang, inang, ito, horas)',
+  'light Sundanese accent':'Sundanese-flavored everyday Indonesian that most Indonesians still understand, written so EVERY sentence feels Sundanese on the page even in Indonesian spelling: use particles teh, atuh, mah, pisan, wae, da, meni, and swap everyday words for the Sundanese ones (teu instead of gak or tidak, aya instead of ada, naon instead of apa, kumaha instead of gimana, nu instead of yang, hayu instead of ayo, ieu instead of ini); keep it light, never deep Sundanese, never rude words (no maneh), at most 2 Sundanese words in a row, and the tone stays direct and lively, never soft or sweet',
+  'light Medan accent':'real everyday Medan speech like a native from Medan, written so EVERY sentence feels Medan on the page: kali as the intensifier instead of banget (enak kali, murah kali), lah and pulak at phrase ends, tengok instead of lihat, cemana instead of gimana, kek instead of kayak, dah instead of udah, kau instead of kamu or lo, kalen instead of kalian; NEVER write the word bah, not at the start and not anywhere in the text; everyday Medan Indonesian only, no regional-language words (no lae, amang, inang, ito, horas)',
   'light Malaysian accent':'light Malay words (tak, dah, je, lah, nak, jom, kat, sikit, weh, awak instead of kamu or lo, saya instead of aku or gue, korang for plural), understandable to Indonesians; avoid Malay false friends (no butuh, percuma, bisa, kereta, budak) and keep the phrase keranjang bawah as is'
 };
 function _vbAccentScriptText(val){
@@ -3088,16 +3088,16 @@ var VB_GAYA_BY_LOGAT={
     gaya:'Fast, direct, current, like chatting at a hangout, short quick sentences. Casual connectors (tapi, jadi, biar, udah, banget), '+VB_GAYA_FORMAL_BAN+'. Use whichever fit (sih, nih, dong, deh) per part.'
   },
   'light Javanese accent':{
-    gaya:'Soft, friendly, never preachy, slow like chatting with a neighbor, flowing comma-linked sentences that end softly. Casual connectors (tapi, jadi, biar, wis), '+VB_GAYA_FORMAL_BAN+'.'
+    gaya:'Easygoing and direct, never preachy, like chatting with a neighbor, flowing comma-linked sentences. Never soft or sweet. Casual connectors (tapi, jadi, biar, wis), '+VB_GAYA_FORMAL_BAN+'.'
   },
   'light Sundanese accent':{
-    gaya:'Soft, warm, playful and gently melodic, flowing comma-linked sentences that end on a light note. Casual connectors (tapi, jadi, biar, udah), '+VB_GAYA_FORMAL_BAN+'.'
+    gaya:'Lively, playful and melodic, flowing comma-linked sentences that end with a light particle (mah, atuh, pisan). Never soft, sweet or overly polite. Casual connectors (tapi, jadi, biar, udah), '+VB_GAYA_FORMAL_BAN+'.'
   },
   'light Medan accent':{
-    gaya:'Firm, direct, blunt, short punchy sentences that end firmly. Casual connectors (tapi, jadi, biar, udah), '+VB_GAYA_FORMAL_BAN+'.'
+    gaya:'Firm, direct, blunt, short punchy sentences that end firmly, with Medan wording in every sentence. Casual connectors (tapi, jadi, biar, dah), '+VB_GAYA_FORMAL_BAN+'.'
   },
   'light Malaysian accent':{
-    gaya:'Warm, friendly, relaxed Malaysian chat that stays easy for Indonesians, smooth flowing sentences, not clipped. Casual connectors (tapi, jadi, biar, dah), '+VB_GAYA_FORMAL_BAN+'. Use whichever fit (lah, je, weh) per part.'
+    gaya:'Relaxed, direct Malaysian chat that stays easy for Indonesians, smooth flowing sentences, not clipped. Never sweet or overly polite. Casual connectors (tapi, jadi, biar, dah), '+VB_GAYA_FORMAL_BAN+'. Use whichever fit (lah, je, weh) per part.'
   }
 };
 // NADA BICARA (permintaan user, 3 Okt 2026): pilihan Nada Bicara mempengaruhi ISI skrip, bukan hanya label di DATA.
@@ -3947,15 +3947,15 @@ function vbManualRenderGroups(count){
 }
 function vbCountWords(el,counterId){
   let range=vbGetWordRange();
-  let words=el.value.split(/\s+/).filter(Boolean);
-  if(words.length>range.max){
+  // 22 Nov 2026 (permintaan user): kata di dalam tanda kurung tidak dihitung dalam rentang
+  let wc=_vbWcNoParen(el.value);
+  if(wc>range.max){
     let pos=el.selectionStart;
-    el.value=words.slice(0,range.max).join(' ');
+    el.value=_vbTruncSpoken(el.value,range.max);
     let newPos=Math.min(pos,el.value.length);
     try{el.setSelectionRange(newPos,newPos);}catch(e){}
-    words=el.value.split(/\s+/).filter(Boolean);
+    wc=_vbWcNoParen(el.value);
   }
-  let wc=words.length;
   let c=document.getElementById(counterId);
   if(c){c.textContent=wc+'/'+range.min+'-'+range.max+' kata';c.style.color=(wc>=range.min&&wc<=range.max)?'var(--green)':'var(--muted2)';}
 }

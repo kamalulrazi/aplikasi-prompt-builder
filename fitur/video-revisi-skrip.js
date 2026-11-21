@@ -237,7 +237,7 @@ function vbBulkUpdateJson(i){
   let wcLabel=document.getElementById('vb-bulk-wc-'+i);
   if(!ta||!jsonBox)return;
   try{_vbDuaSync(i);}catch(_eDs){} // Percakapan 2 Suara: samakan 4 baris berlabel dengan isi textarea
-  let words=ta.value.split(/\s+/).filter(Boolean);
+  let words=new Array(_vbWcNoParen(ta.value)); // kata dalam kurung tidak dihitung
   if(VB_BULK_ITEMS[i])VB_BULK_ITEMS[i].script=ta.value;
   let produkForItem=VB_BULK_ITEMS[i]?VB_BULK_ITEMS[i].produk:'';
   jsonBox.textContent=_vbBuildFlowText(ta.value,produkForItem,_vbTampilText(i),_vbLokasiText(i),_vbFotoCountVal(i),i);
@@ -1022,7 +1022,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
   // Sekarang kedua arah (kelebihan MAUPUN kekurangan kata) sama-sama ditandai
   // oranye dengan pesan yang sesuai arahnya.
   let _cardRange=vbGetWordRange();
-  let _origWc=(initialScript||'').trim().split(/\s+/).filter(Boolean).length;
+  let _origWc=_vbWcNoParen(initialScript||'');
   let _wasAutoTruncated=_origWc>_cardRange.max;
   let _wasStillShort=_origWc>0&&_origWc<_cardRange.min;
   initialScript=_vbTruncate25Words(initialScript);
@@ -1264,7 +1264,7 @@ function _vbBuildEditableCard(idx,label,initialScript,produkNamaForHistory,skipI
 
   let wcLabel=document.createElement('div');
   wcLabel.id='vb-bulk-wc-'+idx;
-  let wc0=displayScript.trim().split(/\s+/).filter(Boolean).length;
+  let wc0=_vbWcNoParen(displayScript);
   // 21 Okt 2026 (permintaan user): pemberitahuan teks di kartu skrip dihapus (hasil awal di luar rentang, cek klaim).
   // Sekarang hanya warna angka: oranye = hasil awal AI di luar rentang, hijau = dalam rentang, abu-abu = di luar rentang (setelah diedit).
   let _wcFlag=(!skipInitialFill&&(_wasAutoTruncated||_wasStillShort));
@@ -1691,12 +1691,12 @@ function _vbEsc(s){
 // tetap Indonesia, data lama tetap terbaca) — diterjemahkan di sini saat prompt
 // dibangun. Teks yang diketik user sendiri (tidak ada di kamus) dipakai apa adanya.
 const VB_ACCENT_VIDEO_MAP={
-  'neutral standard accent':'Indonesian intonation, clear even standard cadence at a moderate pace, neutral stress, no regional lilt, neutral standard accent',
-  'casual Jakarta accent':'Indonesian intonation typical of Jakarta kids: fast bright clipped tempo, quick light lift on particles like sih, dong and deh, stress on intensifiers like banget, short phrases, no drawn-out vowels, casual Jakarta accent',
-  'light Javanese accent':'Indonesian intonation typical of the Javanese people: soft unhurried tempo, gliding phrases ending in a gentle falling tone, final vowels slightly lengthened, even polite stress, light Javanese accent',
-  'light Sundanese accent':'Indonesian intonation typical of the Sundanese people: soft sing-song lilt, melody rising then falling gently, relaxed tempo, particles like teh, atuh, mah and pisan lightly drawn out, warm and playful, no hard stress, light Sundanese accent',
-  'light Medan accent':'Indonesian intonation typical of people from Medan: brisk, direct and punchy rhythm, short clipped phrases, firm falling endings, strong stress on emphasis words like kali, bah and lah, assertive and straight to the point, light Medan accent',
-  'light Malaysian accent':'Indonesian intonation with a light Malaysian accent: relaxed sing-song Malay cadence, smooth even rhythm, less clipped than Jakarta slang, lah and je at phrase ends carry a soft lift, Malay-flavored and easy to understand'
+  'neutral standard accent':'neutral standard Indonesian accent, clear even standard cadence at a moderate pace, neutral stress, no regional lilt',
+  'casual Jakarta accent':'casual Jakarta accent, fast bright clipped tempo, quick light lift on particles like sih, dong and deh, stress on intensifiers like banget, short phrases, no drawn-out vowels',
+  'light Javanese accent':'Javanese accent, unhurried tempo, gliding phrases ending in a falling tone, final vowels slightly lengthened, even stress',
+  'light Sundanese accent':'Sundanese accent, lively sing-song lilt, melody rising then falling, particles like teh, atuh, mah and pisan lightly drawn out, playful, even stress',
+  'light Medan accent':'Medan accent of a native Medan speaker, brisk, direct and punchy rhythm, short clipped phrases, firm falling endings, strong stress on emphasis words like kali and lah, assertive and straight to the point',
+  'light Malaysian accent':'Malaysian accent, relaxed sing-song Malay cadence, smooth even rhythm, less clipped than Jakarta slang, lah and je at phrase ends carry a light lift, easy to understand'
 };
 // BARIS DELIVERY (v17.7): gaya khas aksen yang dipilih user + aturan prioritas alunan. Ikut ke prompt video (dulu hanya ke AI penulis skrip).
 function _vbAccentDelivery(a){
@@ -1715,18 +1715,18 @@ var VB_TONE_MATRIX={
  "bercanda": {
   "neutral standard accent": "playful and cheerful, light teasing energy, smiling voice, medium volume",
   "casual Jakarta accent": "upbeat playful energy, quick teasing banter, laughing smile in the voice, medium-loud",
-  "light Javanese accent": "gentle playful humor, relaxed guyonan, soft smiling voice, low-medium volume, punchline dropped lightly",
-  "light Sundanese accent": "light cheerful humor, giggly warm playfulness, soft smiling voice, punchline kept soft",
+  "light Javanese accent": "relaxed playful guyonan, easy teasing, smiling voice, medium volume, punchline dropped lightly",
+  "light Sundanese accent": "cheerful giggly humor, playful teasing, smiling voice, medium volume, punchline dropped with a grin",
   "light Medan accent": "blunt deadpan humor, loud-mouthed friendly teasing, punchline said straight, medium-loud",
   "light Malaysian accent": "dry selamba humor, relaxed teasing, punchline dropped casually, medium volume"
  },
  "gaul": {
   "neutral standard accent": "casual trendy energy, relaxed and confident, medium volume",
   "casual Jakarta accent": "high-energy trendy hangout vibe, confident and quick, medium-loud",
-  "light Javanese accent": "relaxed easygoing street-smart vibe, calm confidence, medium-low volume",
-  "light Sundanese accent": "laid-back friendly vibe, light and breezy, soft-medium volume",
+  "light Javanese accent": "relaxed easygoing street-smart vibe, confident, medium volume",
+  "light Sundanese accent": "laid-back confident vibe, light and breezy, medium volume",
   "light Medan accent": "bold easygoing street vibe, confident and direct, loud and open",
-  "light Malaysian accent": "chill relaxed vibe, friendly and casual, medium volume"
+  "light Malaysian accent": "chill relaxed vibe, casual and confident, medium volume"
  },
  "toxic": {
   "neutral standard accent": "blunt sarcastic attitude, sharp put-downs, loud and snappy",
@@ -1737,12 +1737,12 @@ var VB_TONE_MATRIX={
   "light Malaysian accent": "sharp sarcastic scolds, blunt but not screaming, medium-loud"
  },
  "ramah": {
-  "neutral standard accent": "warm and friendly, calm and reassuring, medium-soft volume",
-  "casual Jakarta accent": "warm friendly and chatty, upbeat, medium volume",
-  "light Javanese accent": "warm, polite and humble, gentle and kind, soft volume",
-  "light Sundanese accent": "warm, gentle and sweet, soft and caring, soft volume",
-  "light Medan accent": "warm brotherly and familiar, firm but friendly, medium-loud",
-  "light Malaysian accent": "warm, polite and gentle, friendly and easygoing, soft-medium volume"
+  "neutral standard accent": "upbeat and clear, chatty and energetic, medium volume",
+  "casual Jakarta accent": "upbeat and chatty, quick and lively, medium volume",
+  "light Javanese accent": "easygoing and lively, straightforward, medium volume",
+  "light Sundanese accent": "lively and cheerful, playful lilt, medium volume",
+  "light Medan accent": "firm and familiar, direct, medium-loud",
+  "light Malaysian accent": "easygoing and lively, casual and direct, medium volume"
  }
 };
 function _vbToneFor(pitch,accent){
@@ -1756,7 +1756,7 @@ function _vbToneFor(pitch,accent){
 function _vbDuaAccentSwap(str,idx){
   var a=String(_vbCharVal(idx,'accent')||'').trim();
   if(!a||a==='casual Jakarta accent')return str;
-  var en=VB_ACCENT_VIDEO_MAP[a]||('Natural Indonesian intonation, '+a);
+  var en=VB_ACCENT_VIDEO_MAP[a]||(a);
   var dl=_vbAccentDelivery(a);
   var _rp='accent: '+en+(dl?'; '+dl:'');return str.replace(/aksen anak Jakarta( \(gaya gaul:[^)]*\))?/,function(){return _rp;});
 }
@@ -1791,7 +1791,7 @@ const VB_PRODUK_REF_SUFFIX_ID=' yang terlihat didalam foto referensi'; // mode P
 function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverride,fotoCountOverride,idx){
   if(_vbIsDua())return _vbBuildDuaJson(scriptText,produkOverride,idx);
   let _acVal=_vbCharVal(idx,'accent');
-  let accentFull=VB_ACCENT_VIDEO_MAP[_acVal]||('Natural Indonesian intonation, '+_acVal);
+  let accentFull=VB_ACCENT_VIDEO_MAP[_acVal]||(_acVal);
   let _dl=_vbAccentDelivery(_acVal);
   let instructionText;
   if(VB.refMode==='kp'){

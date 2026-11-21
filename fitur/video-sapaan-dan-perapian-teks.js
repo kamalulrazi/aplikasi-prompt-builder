@@ -203,8 +203,8 @@ function _vbSanitizeAI(text){
 var VB_FIX_WORDS_BY_LOGAT={
   'casual Jakarta accent':'Jakarta slang words (banget, sih, nih, dong, deh) and NEVER Javanese, Sundanese or Medan words (no atuh, pisan, euy, wis, tenan, bah)',
   'light Javanese accent':'light Javanese words (wis, ora, tenan) and NEVER Sundanese, Medan or Jakarta particles (no atuh, pisan, euy, bah, sih, nih, dong)',
-  'light Sundanese accent':'light Sundanese words (atuh, mah, pisan) and NEVER Javanese, Medan or Jakarta particles (no wis, tenan, bah, sih, nih, dong)',
-  'light Medan accent':'light Medan words (bah, kali, lah, pulak, tengok, cemana, kek, dah) and NEVER Javanese, Sundanese, Malay (awak) or Jakarta particles (no wis, tenan, atuh, pisan, sih, nih, dong, deh, banget); no regional-language words (no lae, amang, inang, ito)',
+  'light Sundanese accent':'light Sundanese words (teh, atuh, mah, pisan, teu, aya, naon, kumaha, nu) and NEVER Javanese, Medan or Jakarta particles (no wis, tenan, bah, sih, nih, dong)',
+  'light Medan accent':'light Medan words (kali, lah, pulak, tengok, cemana, kek, dah, kau, kalen) and NEVER the word bah and NEVER Javanese, Sundanese, Malay (awak) or Jakarta particles (no wis, tenan, atuh, pisan, sih, nih, dong, deh, banget); no regional-language words (no lae, amang, inang, ito)',
   'light Malaysian accent':'light Malay words (tak, dah, je, lah, nak, jom, awak) and NEVER Javanese, Sundanese, Medan or Jakarta particles (no wis, tenan, atuh, pisan, bah, sih, nih, dong); avoid Malay false friends (butuh, percuma, bisa, kereta, budak)',
   'neutral standard accent':'plain casual Indonesian (udah, jadi, tapi) and NO regional words'
 };
@@ -259,7 +259,36 @@ function _vbFixSystemFor(base){
 //      radius), hindari berhenti tepat sesudah kata sambung/depan (mis.
 //      "...yang.", "...untuk.") yang bikin kalimat kerasa menggantung —
 //      mundur beberapa kata sampai ketemu kata yang bukan kata sambung.
+// 22 Nov 2026 (permintaan user): isian dalam tanda kurung, mis. (kamera mendekat memperlihatkan bantal), TIDAK dihitung dalam rentang kata,
+// tapi tetap ikut tertulis apa adanya di prompt. Pembantu di bawah dipakai semua penghitung kata skrip.
+function _vbWcNoParen(t){return String(t||'').replace(/\([^()]*\)/g,' ').trim().split(/\s+/).filter(Boolean).length;}
+function _vbMaskCues(t){
+  var cues=[],txt=String(t||'').replace(/\([^()]*\)/g,function(m){cues.push(m);return '\u0001'+(cues.length-1)+'\u0001';});
+  var only=txt.split(/\s+/).filter(function(w){return w&&w.replace(/\u0001\d+\u0001/g,'')==='';}).length;
+  return {text:txt,cues:cues,cueOnly:only};
+}
+function _vbUnmaskCues(t,cues){return String(t||'').replace(/\u0001(\d+)\u0001/g,function(m,i){return cues[+i]!=null?cues[+i]:'';});}
+// potong sampai maksimal `max` kata ucapan (isian kurung ikut tetap, tidak dihitung)
+function _vbTruncSpoken(t,max){
+  var m=_vbMaskCues(t),w=m.text.split(/\s+/).filter(Boolean),out=[],n=0;
+  for(var i=0;i<w.length;i++){
+    var spoken=w[i].replace(/\u0001\d+\u0001/g,'')!=='';
+    if(spoken&&n>=max)break;
+    if(spoken)n++;
+    out.push(w[i]);
+  }
+  return _vbUnmaskCues(out.join(' '),m.cues);
+}
 function _vbHardEnforceMaxWords(text,max,min){
+  text=(text||'').trim();
+  if(!text)return text;
+  if(/\([^()]*\)/.test(text)){
+    var _m=_vbMaskCues(text);
+    return _vbUnmaskCues(_vbHardEnforceMaxWordsCore(_m.text,max+_m.cueOnly,min?min+_m.cueOnly:min),_m.cues);
+  }
+  return _vbHardEnforceMaxWordsCore(text,max,min);
+}
+function _vbHardEnforceMaxWordsCore(text,max,min){
   text=(text||'').trim();
   if(!text)return text;
   let words=text.split(/\s+/).filter(Boolean);
