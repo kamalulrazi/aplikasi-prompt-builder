@@ -68,16 +68,29 @@ self.addEventListener('fetch', function (event) {
   }
 
   // FIX (audit refresh, "app masih versi lama setelah refresh"): untuk
-  // dokumen HTML utama (index.html — SATU-SATUNYA file app ini, semua
-  // CSS/JS inline di dalamnya), fetch dipaksa cache:'no-store' supaya
-  // SELALU ambil byte terbaru dari server.
+  // dokumen HTML utama (index.html), fetch dipaksa cache:'no-store' supaya
+  // SELALU ambil byte terbaru dari server. (CSS/JS-nya sekarang file
+  // terpisah — lihat aturan khusus di bawah.)
   var isDocument = req.mode === 'navigate' ||
                    req.destination === 'document';
   if (isDocument) {
     event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }
-  // Selain dokumen utama (font CDN, GSI, Firebase SDK, dst.): pass-through
+  // BARU (app dipecah jadi banyak file): app.css, js/*.js, dan outfit-studio.html
+  // (satu origin) ikut dijaga SELALU TERBARU seperti index.html, supaya tidak
+  // pernah ada kombinasi index.html baru + JS/CSS lama dari cache HTTP
+  // (GitHub Pages mengirim max-age=600). 'no-cache' = tetap tanya server tiap
+  // kali, tapi kalau file tidak berubah server cukup menjawab 304 (tanpa
+  // unduh ulang). Tidak berlaku untuk file dari domain lain (Firebase, GSI).
+  if (req.method === 'GET' &&
+      url.origin === self.location.origin &&
+      (/\.(js|css)$/.test(url.pathname) ||
+       /\/outfit-studio\.html$/.test(url.pathname))) {
+    event.respondWith(fetch(req, { cache: 'no-cache' }));
+    return;
+  }
+  // Selain itu (font CDN, GSI, Firebase SDK, dst.): pass-through
   // apa adanya, supaya tidak mengganggu koneksi long-lived/stream Firestore dkk.
   event.respondWith(fetch(req));
 });
