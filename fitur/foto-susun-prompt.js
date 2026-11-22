@@ -47,6 +47,48 @@ function _fAdaptQuality(quality, effCahaya, effMood, isProdukSaja){
 function _fIsPovHandNoChar(){
   try{return !!(FS && !FS.importActive && FS.holdKey==='tangan' && typeof fIsNoChar==='function' && fIsNoChar());}catch(e){return false;}
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   v15.8 (Nov 2026) — ATURAN WAJAH & SUDUT KAMERA (permintaan user)
+   1) WAJAH: wajah/identitas karakter HANYA boleh dari foto Karakter Sheet (tipe "wajah").
+      Wajah orang di foto Outfit / Lokasi / Produk / Pose / dll WAJIB diabaikan. Aturan ini
+      disuntik OTOMATIS saat prompt dibuat (key face_rule per foto + identity_rule di level atas
+      + kalimat di prompt), jadi tetap berlaku walau user mengedit / menghapus teks Ambil-Abaikan.
+   2) SUDUT KAMERA: foto Lokasi hanya dipakai untuk tempat & cahayanya — sudut kamera foto lokasi
+      diabaikan. Kalau ada foto Pose, sudut kamera WAJIB mengikuti foto pose itu (step Sudut
+      Kamera disembunyikan lewat foto-pov-tangan-lewati-sudut-kamera.js).
+   ════════════════════════════════════════════════════════════════════════ */
+var _F_POSE_ANGLE_LBL = 'Ikut foto pose (otomatis)';
+var _F_POSE_DETAIL = 'Use this photo ONLY as a guide for the body pose AND the camera angle of the character from the character reference photo. Copy the pose (head tilt, gaze direction, hand and finger positions, arm and leg positions, posture, body lean, facing direction) AND the camera angle of this photo (camera height, shooting direction, tilt, distance, lens perspective, and framing). Do NOT carry over the face, hair, skin tone, body shape, clothing, accessories, background, lighting, or any objects from this photo \u2014 the face must come ONLY from the character reference photo.';
+var _F_LOK_DETAIL_ANGLE = 'Use this photo ONLY for the place itself and its lighting. IGNORE its camera angle, camera height, viewpoint, lens perspective, and framing completely \u2014 the camera angle is defined separately in the scene settings.';
+var _F_LOK_DESC_SUFFIX = ' (the place only \u2014 ignore the camera angle, viewpoint, and framing of that photo, and ignore any person in it)';
+function _fRefNoOf(list, type){
+  try{ for(var i=0;i<list.length;i++){ if(list[i] && list[i].type===type) return i+1; } }catch(e){}
+  return 0;
+}
+function _fPoseAngleDesc(n){
+  return 'follow the exact camera angle of pose reference photo ' + n + ' \u2014 same camera height, shooting direction (front, side, or three-quarter), tilt (high, low, or eye level), distance, lens perspective, and framing of the character as in that photo; do not choose a different camera angle';
+}
+function _fIdentityRuleText(charNo){
+  return 'FACE & IDENTITY LOCK: The face, facial features, skin tone, and hair of the person in the final image come ONLY from reference photo ' + charNo + ' (character sheet). Any human face visible in any other reference photo (outfit, location, product, pose, accessories) must be completely ignored \u2014 never copy, blend, average, or let it influence the character\u2019s face in any way. If there is any conflict, photo ' + charNo + ' always wins for the face.';
+}
+function _fIdentityIntro(charNo){
+  return 'The character\u2019s face comes ONLY from reference photo ' + charNo + '; ignore every face in all other reference photos. ';
+}
+// Tambah face_rule (foto non-wajah) / identity_priority (foto wajah) ke satu entri reference_photos.
+function _fApplyFaceRule(obj, r, list){
+  try{
+    var charNo = _fRefNoOf(list, 'wajah');
+    if(r.type === 'wajah'){
+      if(list.length > 1) obj.identity_priority = 'This photo is the ONLY source of the character\u2019s face and identity (facial features, skin tone, hair). No other reference photo may influence the face. Any face that appears in other reference photos must NOT appear in the result.';
+      return;
+    }
+    obj.face_rule = charNo
+      ? 'This photo may contain a real person. Completely ignore that person\u2019s face, hair, skin tone, and identity \u2014 never copy or blend them into the result. The face in the final image comes ONLY from reference photo ' + charNo + ' (character sheet).'
+      : 'This photo may contain a real person. Completely ignore that person\u2019s face, hair, skin tone, and identity \u2014 never copy them into the result.';
+  }catch(e){}
+}
+
 function _fComputePlacement(ov){
   ov = ov || {};
   let placement = '';
@@ -121,6 +163,14 @@ function _fBuildImportedPromptJSON(ov){
   // "ov.forceProdukSaja || FS.subjek==='produk'") supaya konsisten.
   let _impNoCharOnly = !ov.forceProdukSaja && !FS.importIsProdukSaja && (typeof fIsNoChar==='function') && fIsNoChar();
   let isProdukSaja = !!ov.forceProdukSaja || !!FS.importIsProdukSaja || _impNoCharOnly;
+  // v15.8: sudut kamera ikut foto pose; wajah hanya dari karakter sheet
+  let _impReal = FS.refs ? fSortRefsForOrder(FS.refs.filter(function(r){return r.type!=='outfit_random';})) : [];
+  let _poseNoA = !isProdukSaja ? _fRefNoOf(_impReal,'pose') : 0;
+  if(_poseNoA) effAngle = _fPoseAngleDesc(_poseNoA);
+  else if(FS.angleLabel===_F_POSE_ANGLE_LBL && !ov.angleOverride) effAngle = 'natural eye-level camera angle';
+  let _charNoA = _fRefNoOf(_impReal,'wajah');
+  let _idIntro = (_charNoA && !isProdukSaja && _impReal.length>1) ? _fIdentityIntro(_charNoA) : '';
+  let _impIdRule = (_charNoA && !isProdukSaja && _impReal.length>1) ? _fIdentityRuleText(_charNoA) : '';
 
   // FIX BUG KONTRADIKSI TANGAN: sebelumnya mode produk-saja di jalur import
   // SELALU menganggap "tidak ada tangan/orang" (intro hardcode "no person or
@@ -224,6 +274,7 @@ function _fBuildImportedPromptJSON(ov){
       : (effProductBlock ? 'A photorealistic product image' : 'A photorealistic lifestyle fashion image') + _fIntroStyle(effMood) + '. Subject: ' + (FS.importSubject || 'a person') + '. ')
     + outfitRandomIntroImp
     + (effProductBlock ? 'Hero product: ' + effProductBlock.name + (effProductBlock.placement ? ', ' + effProductBlock.placement + '. ' : '. ') + (effProductBlock.instruction || '') + ' ' : '')
+    + _idIntro
     + 'Scene: ' + effLokasi + '. '
     + 'Lighting: ' + effCahaya + '. '
     + (isProdukSaja ? '' : (effPose ? 'Character pose: ' + effPose + '. ' : ''))
@@ -275,6 +326,7 @@ function _fBuildImportedPromptJSON(ov){
       }
       return (FS.importConflictRule && FS.refs && FS.refs.some(function(r){return r.type==='produk';})) ? {conflict_priority: FS.importConflictRule} : {};
     })(),
+    ...(_impIdRule ? {identity_rule: _impIdRule} : {}),
     // FIX BUG KRITIS — REFERENCE_PHOTOS TIDAK PERNAH KE-UPDATE: sebelumnya
     // baris ini ({reference_photos: FS.importRefPhotos}) selalu pakai array
     // MENTAH hasil parse JSON saat pertama kali ditempel — TIDAK PERNAH
@@ -307,7 +359,9 @@ function _fBuildImportedPromptJSON(ov){
         let obj = { photo_number: photoCounterImp, type: def.label };
         if(extractText) obj.extract_only = extractText + (r.ukuran && r.type==='produk' ? '. Product physical size: '+r.ukuran+' — render the product accurately to this size ratio relative to the scene.' : '');
         if(ignoreText) obj.ignore_completely = ignoreText;
-        if(r.type==='pose') obj.detail = 'Use this photo ONLY as a body-pose guide for the character from the character reference photo. Copy only the pose (head tilt, gaze direction, hand and finger positions, arm and leg positions, posture, body lean, facing direction). Do NOT carry over the face, hair, skin tone, body shape, clothing, accessories, background, lighting, or any objects from this photo.' + (r.focus ? ' Pose notes: ' + r.focus : '');
+        _fApplyFaceRule(obj, r, realRefsImp);
+        if(r.type==='pose') obj.detail = _F_POSE_DETAIL + (r.focus ? ' Pose notes: ' + r.focus : '');
+        else if(r.type==='lokasi') obj.detail = _F_LOK_DETAIL_ANGLE + (r.focus ? ' Location notes: ' + r.focus : '');
         else if(r.focus) obj.detail = r.focus;
         return obj;
       }).filter(Boolean);
@@ -894,12 +948,13 @@ function _fBuildPromptJSON(ov){
     };
     if(extractText) obj.extract_only = extractText + (r.ukuran && r.type==='produk' ? '. Product physical size: '+r.ukuran+' — render the product accurately to this size ratio relative to the scene.' : '');
     if(ignoreText) obj.ignore_completely = ignoreText;
+    _fApplyFaceRule(obj, r, realRefs);
     if(r.type==='lokasi'){
-      obj.detail = (_noCharPS
+      obj.detail = _F_LOK_DETAIL_ANGLE + ' ' + (_noCharPS
         ? 'Light the product exactly the same way the location is lit, so the shadows, highlights, and color cast on the product match the environment. Add realistic contact shadows on the surface it rests on.'
         : 'Light the character and outfit exactly the same way the location is lit, so the shadows, highlights, and color cast on skin and clothes match the environment. Add realistic contact shadows on the ground.') + (r.focus ? ' Location notes: ' + r.focus : '');
     } else if(r.type==='pose'){
-      obj.detail = 'Use this photo ONLY as a body-pose guide for the character from the character reference photo. Copy only the pose (head tilt, gaze direction, hand and finger positions, arm and leg positions, posture, body lean, facing direction). Do NOT carry over the face, hair, skin tone, body shape, clothing, accessories, background, lighting, or any objects from this photo.' + (r.focus ? ' Pose notes: ' + r.focus : '');
+      obj.detail = _F_POSE_DETAIL + (r.focus ? ' Pose notes: ' + r.focus : '');
     } else if(r.focus) obj.detail = r.focus;
     return obj;
   });
@@ -927,6 +982,12 @@ function _fBuildPromptJSON(ov){
   // dibutuhkan di sini supaya fallback placement produk-saja (di bawah) bisa
   // konsisten dengan info "ada tangan di frame atau tidak", tidak kontradiksi.
   let effAngle = ov.angleOverride || FS.angleDesc || FS.angle;
+  // v15.8: sudut kamera WAJIB ikut foto pose kalau ada; wajah hanya dari karakter sheet
+  let _poseNoA = !isProdukSaja ? _fRefNoOf(realRefs,'pose') : 0;
+  if(_poseNoA) effAngle = _fPoseAngleDesc(_poseNoA);
+  else if(FS.angleLabel===_F_POSE_ANGLE_LBL && !ov.angleOverride) effAngle = 'natural eye-level camera angle';
+  let _charNoA = _fRefNoOf(realRefs,'wajah');
+  let _idIntro = (_charNoA && !isProdukSaja && realRefs.length>1) ? _fIdentityIntro(_charNoA) : '';
   // FIX: kalau mode produk-saja TAPI angle yang dipilih adalah "dipegang tangan"
   // (ada tangan di frame), jangan bilang "no person or human visible" — itu
   // kontradiksi langsung sama instruksi tangannya sendiri, bikin AI bingung
@@ -991,7 +1052,7 @@ function _fBuildPromptJSON(ov){
   let _lokRef = realRefs.find(r => r.type === 'lokasi');
   let _lokNo = _lokRef ? realRefs.indexOf(_lokRef) + 1 : 0;
   if(_lokRef){
-    effLokasi = 'the exact location shown in reference photo ' + _lokNo + ' — same architecture, props, background elements, colors, and atmosphere' + (isProdukSaja ? '' : '; the character looks naturally present in the space with correct scale and perspective');
+    effLokasi = 'the exact location shown in reference photo ' + _lokNo + ' — same architecture, props, background elements, colors, and atmosphere' + _F_LOK_DESC_SUFFIX + (isProdukSaja ? '' : '; the character looks naturally present in the space with correct scale and perspective');
     effCahaya = 'taken entirely from reference photo ' + _lokNo + ', with the same light direction, color temperature, softness, contrast, and shadow behavior, copied onto ' + (isProdukSaja ? 'the product' : 'the character and outfit');
   }
   // FIX: output_quality dulu SELALU menulis "foto HP, bukan studio", "hindari cahaya rata" dan menyebut "wajah" —
@@ -1017,6 +1078,7 @@ function _fBuildPromptJSON(ov){
         : 'A photorealistic lifestyle fashion image'+_fIntroStyle(effMood)+'. Subject: '+subjekDesc+'. '))
     + outfitRandomIntro
     + (produkBlock ? 'Hero product: ' + produkBlock.name + (produkBlock.placement ? ', ' + produkBlock.placement + '. ' : '. ') + produkBlock.instruction + ' ' : '')
+    + _idIntro
     + 'Scene: ' + effLokasi + '. '
     + 'Lighting: ' + effCahaya + '. '
     // FIX BUG KONSISTENSI JALUR NORMAL vs IMPORT: sebelumnya baris ini tidak
@@ -1039,6 +1101,7 @@ function _fBuildPromptJSON(ov){
       critical_rule: 'Read each reference photo SELECTIVELY. Extract ONLY the specified elements from each photo and ignore everything else. Every extract_only and ignore_completely directive is ABSOLUTE — do NOT blend elements across photos unless explicitly stated.'
     } : {}),
     ...(conflictRule ? {conflict_priority: conflictRule} : {}),
+    ...((_charNoA && !isProdukSaja && realRefs.length>1) ? {identity_rule: _fIdentityRuleText(_charNoA)} : {}),
     ...(refPhotos.length > 0 ? {reference_photos: refPhotos} : {}),
     ...(generatedOutfits.length > 0 && !ov.forceProdukSaja ? {generated_outfit: generatedOutfits} : {}),
     ...(produkBlock ? {product: produkBlock} : {}),

@@ -140,7 +140,7 @@ function fRenderSummary() {
   // Sudut kamera — BUG FIX #6: pakai label friendly jika ada
   let angleDisplay = FS.angleLabel || (FS.angle ? (FS.angle.length > 55 ? FS.angle.substring(0, 55) + '…' : FS.angle) : '—');
   if (!FS.angle) warnings.push('Sudut kamera belum dipilih.');
-  items.push({ key: 'Angle', val: angleDisplay, editCard: (typeof _fIsPovHandNoChar==='function' && _fIsPovHandNoChar()) ? 0 : 8 });
+  items.push({ key: 'Angle', val: angleDisplay, editCard: ((typeof _fIsPovHandNoChar==='function' && _fIsPovHandNoChar()) || (typeof fHasPoseRef==='function' && fHasPoseRef() && !(typeof fIsNoChar==='function' && fIsNoChar()))) ? 0 : 8 });
 
   // Mood & Tone
   let moodDisplay = FS.moodLabel || (FS.mood ? (FS.mood.length > 55 ? FS.mood.substring(0, 55) + '…' : FS.mood) : '—');

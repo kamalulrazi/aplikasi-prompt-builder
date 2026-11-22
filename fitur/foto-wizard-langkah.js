@@ -22,7 +22,7 @@ function _scLokasiNo(){
 
 function _scApplySkip(){
   var n=_scLokasiNo(),lbl='Dari foto lokasi';
-  var lokDesc='the exact location shown in reference photo '+n+' — same architecture, props, background elements, colors, and atmosphere';
+  var lokDesc='the exact location shown in reference photo '+n+' — same architecture, props, background elements, colors, and atmosphere (the place only \u2014 ignore the camera angle, viewpoint, and framing of that photo, and ignore any person in it)';
   var cahDesc='taken entirely from reference photo '+n+', with the same light direction, color temperature, softness, contrast, and shadow behavior';
   FS.lokasi=lbl;FS.lokasiLabel=lbl;FS.lokasiDesc=lokDesc;
   FS.cahaya=lbl;FS.cahayaLabel=lbl;FS.cahayaDesc=cahDesc;
@@ -554,7 +554,7 @@ const FTYPE={
   outfit:{
     icon:'',label:'Outfit Lengkap',
     extract:'ambil seluruh outfit yang dipakai',
-    ignore:'abaikan wajah karakter'
+    ignore:'abaikan WAJAH orang di foto ini (wajah, rambut, warna kulit, bentuk tubuh) — wajah karakter HANYA dari foto Karakter Sheet. Ambil HANYA outfitnya'
   },
   atasan:{
     icon:'',label:'Baju Atasan',
@@ -574,7 +574,7 @@ const FTYPE={
   produk:{
     icon:'',label:'Produk',
     extract:'produk utama secara detail lengkap — bentuk, warna, ukuran, tekstur, kemasan, semua fitur visual. Logo dan tulisan HANYA jika memang tercetak/tertempel langsung di produknya. Ini adalah produk HERO.',
-    ignore:'background, benda-benda di sekitar — fokus HANYA pada produk utama saja. Abaikan logo, tulisan, watermark, atau teks apapun yang TIDAK berada langsung di/pada produk (misal: logo brand di latar, tulisan di kemasan lain, watermark foto)'
+    ignore:'background, benda-benda di sekitar, dan WAJAH atau orang apa pun di foto ini (jangan tiru wajahnya) — fokus HANYA pada produk utama saja. Abaikan logo, tulisan, watermark, atau teks apapun yang TIDAK berada langsung di/pada produk (misal: logo brand di latar, tulisan di kemasan lain, watermark foto)'
   },
   objek:{
     icon:'',label:'Hewan / Objek',
@@ -584,12 +584,12 @@ const FTYPE={
   lokasi:{
     icon:'',label:'Lokasi',
     extract:'lokasi saja — arsitektur, properti, benda latar, warna, suasana, dan SELURUH pencahayaan (arah cahaya, suhu warna, kelembutan, kontras, perilaku bayangan)',
-    ignore:'orang atau karakter apa pun di foto ini beserta pakaiannya'
+    ignore:'orang atau karakter apa pun di foto ini (termasuk WAJAH, rambut, kulit, dan pakaiannya) serta SUDUT KAMERA, ketinggian kamera, sudut pandang, dan framing foto ini — ambil HANYA tempat dan cahayanya'
   },
   pose:{
     icon:'',label:'Pose Referensi',
-    extract:'pose tubuh saja — posisi kepala, arah pandang, posisi tangan dan jari, posisi kaki, postur badan, kemiringan badan, dan arah hadap',
-    ignore:'wajah, rambut, warna kulit, bentuk tubuh, pakaian, aksesori, latar belakang, pencahayaan, dan semua benda di foto — ambil HANYA posenya saja'
+    extract:'pose tubuh DAN sudut kamera — posisi kepala, arah pandang, posisi tangan dan jari, posisi kaki, postur badan, kemiringan badan, arah hadap, serta sudut kamera, ketinggian kamera, dan sudut pandang foto ini',
+    ignore:'WAJAH (wajah hanya dari foto Karakter Sheet), rambut, warna kulit, bentuk tubuh, pakaian, aksesori, latar belakang, pencahayaan, dan semua benda di foto — ambil HANYA pose dan sudut kameranya saja'
   },
   outfit_random:{
     icon:'',label:'Outfit Random',
@@ -606,7 +606,7 @@ const FTYPE_FRIENDLY={
   },
   outfit:{
     ambil:'Semua yang dipakai — baju, hijab, topi, kacamata, aksesori, sepatu',
-    abaikan:'Wajah model — AI hanya ikuti outfitnya',
+    abaikan:'Wajah & identitas model di foto ini — wajah hanya dari Karakter Sheet, AI hanya ikuti outfitnya',
     fokus_ph:'cth: tambahkan aksesoris pada karakter, atau ubah hijab jadi lebih panjang'
   },
   atasan:{
@@ -626,7 +626,7 @@ const FTYPE_FRIENDLY={
   },
   produk:{
     ambil:'Produk utama — bentuk, warna, tekstur, kemasan. Logo/tulisan hanya jika ada di produknya langsung',
-    abaikan:'Background, benda lain, logo/watermark yang bukan di produk',
+    abaikan:'Background, benda lain, wajah/orang di foto ini, logo/watermark yang bukan di produk',
     fokus_ph:'Contoh: Hijab Pashmina Dusty Rose Allia Collection, Mini Bag MRDIA-WHIP pink'
   },
   objek:{
@@ -636,12 +636,12 @@ const FTYPE_FRIENDLY={
   },
   lokasi:{
     ambil:'Lokasi dan pencahayaannya — arsitektur, properti, warna, suasana, arah & warna cahaya',
-    abaikan:'Orang atau karakter di foto ini beserta pakaiannya',
+    abaikan:'Orang/wajah di foto ini beserta pakaiannya, dan sudut kamera foto ini (sudut kamera dipilih terpisah)',
     fokus_ph:'cth: kamar mewah, cahaya jendela dari samping (boleh dikosongkan)'
   },
   pose:{
-    ambil:'Pose tubuh saja — posisi kepala, tangan, kaki, postur, arah hadap',
-    abaikan:'Wajah, baju, latar, cahaya, dan semua yang lain di foto',
+    ambil:'Pose tubuh + sudut kamera — posisi kepala, tangan, kaki, postur, arah hadap, tinggi & arah kamera',
+    abaikan:'Wajah (hanya dari Karakter Sheet), baju, latar, cahaya, dan semua yang lain di foto',
     fokus_ph:'cth: pose berdiri menyamping, satu tangan di pinggang (boleh dikosongkan)'
   },
   outfit_random:{
@@ -3121,7 +3121,7 @@ function fOpenStepJump(pageId){
     if(pageId==='foto' && (c.id==='f3' || c.id==='f4') && typeof FS!=='undefined' && FS &&
        FS.subjek==='produk') return false;
     if(pageId==='foto' && c.id==='f4' && typeof fIsNoChar==='function' && fIsNoChar()) return false;
-    if(pageId==='foto' && c.id==='f8' && typeof _fIsPovHandNoChar==='function' && _fIsPovHandNoChar()) return false;
+    if(pageId==='foto' && c.id==='f8' && ((typeof _fIsPovHandNoChar==='function' && _fIsPovHandNoChar()) || (typeof fHasPoseRef==='function' && fHasPoseRef() && !(typeof fIsNoChar==='function' && fIsNoChar())))) return false;
     if(pageId==='foto' && c.id==='f4' && typeof fHasPoseRef==='function' && fHasPoseRef()) return false;
     return true;
   });
@@ -3238,7 +3238,7 @@ function fGenerate(){
     if(typeof fHasLokasiRef==='function' && fHasLokasiRef() && (!FS.lokasi||!FS.cahaya)){
       let _lr=fSortRefsForOrder(FS.refs.filter(function(r){return r.type!=='outfit_random';})),_ln=1;
       for(let _i=0;_i<_lr.length;_i++){if(_lr[_i].type==='lokasi'){_ln=_i+1;break;}}
-      if(!FS.lokasi){FS.lokasi=FS.lokasiLabel='Dari foto lokasi';FS.lokasiDesc='the exact location shown in reference photo '+_ln+' — same architecture, props, background elements, colors, and atmosphere';}
+      if(!FS.lokasi){FS.lokasi=FS.lokasiLabel='Dari foto lokasi';FS.lokasiDesc='the exact location shown in reference photo '+_ln+' — same architecture, props, background elements, colors, and atmosphere (the place only \u2014 ignore the camera angle, viewpoint, and framing of that photo, and ignore any person in it)';}
       if(!FS.cahaya){FS.cahaya=FS.cahayaLabel='Dari foto lokasi';FS.cahayaDesc='taken entirely from reference photo '+_ln+', with the same light direction, color temperature, softness, contrast, and shadow behavior';}
     }
     let _gm=[];
