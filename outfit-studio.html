@@ -1387,7 +1387,7 @@ const pcur=()=>pa.a[pa.s]||null;
 function setH(h){H=h;if(!cv)return;cv.height=H;if(pon){cv.style.aspectRatio=W+'/'+H;cv.style.width='min(100cqw,'+(W/H*100).toFixed(2)+'cqh)'}else{cv.style.aspectRatio='';cv.style.width=''}}
 const prg=(l,p,a,b,t)=>KR(l,'data-pa',p,a,b,t||1);
 const pui=()=>'<label class="kauto" data-kp="2" style="margin-top:8px"><input type="file" accept="image/*" hidden data-pf="1"><b>Panah &amp; harga outfit</b><small>Pilih 1 foto. Tambah panah estetik ke jilbab, baju, rok, lengkap nomor &amp; harga</small></label>'+
-'<div class="kg kpa"><h3>Panah outfit</h3><p class="hint" style="text-align:left">Geser ujung panah (lingkaran putus-putus) atau kotak teks langsung di gambar. Ketuk panah untuk memilihnya.</p><label class="kf">Link koleksi (panah, nomor &amp; harga terisi otomatis)</label><div class="add"><input class="inp" id="kpln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="kplb" data-pc="lgo">Isi otomatis</button></div><p class="hint" id="kpns" style="text-align:left;color:var(--accent-2)"></p><div class="chips" id="kch-pa"></div>'+
+'<div class="kg kpa"><h3>Panah outfit</h3><p class="hint" style="text-align:left">Geser ujung panah (lingkaran putus-putus) atau kotak teks langsung di gambar. Ketuk panah untuk memilihnya.</p><label class="kf">Link koleksi (panah, nomor &amp; harga terisi otomatis)</label><div class="add"><input class="inp" id="kpln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="kplb" data-pc="lgo">Isi otomatis</button></div><p class="hint" id="kpns" style="text-align:left;color:var(--accent-2)"></p><div id="kpnl"></div><div class="chips" id="kch-pa"></div>'+
 '<div class="kzb"><button type="button" class="btn sm" data-pc="add">+ Tambah panah</button><button type="button" class="btn ghost sm" data-pc="del">Hapus panah ini</button></div>'+
 '<label class="kf">Teks (contoh: No 114)<input class="inp" maxlength="40" data-pa="t" placeholder="No 114"></label>'+
 '<label class="kf">Harga (contoh: Rp 89.000)<input class="inp" maxlength="30" data-pa="pr" placeholder="Rp 89.000"></label>'+
@@ -1400,7 +1400,7 @@ prg('Ukuran huruf','ts',16,90)+prg('Teks kiri–kanan','lx',0,100,.5)+prg('Teks 
 function pchips(){const e=$('kch-pa');if(!e)return;e.innerHTML=pa.a.length?pa.a.map((a,i)=>'<span class="chip" data-pc="sel" data-i="'+i+'" style="'+(i===pa.s?'border-color:var(--accent);color:var(--accent-2);background:var(--accent-dim-bg)':'')+'">'+(i+1)+(a.t.trim()?' · '+esc(a.t.trim().slice(0,14)):'')+'</span>').join(''):'<span class="hint" style="margin:0">Belum ada panah. Tekan Tambah panah.</span>'}
 function fillP(){const pn=kl.querySelector('.kpa');if(!pn)return;const a=pcur();pn.querySelectorAll('[data-pa]').forEach(el=>{const k=el.dataset.pa;if(el.type==='checkbox')el.checked=a?!!a[k]:false;else el.value=a?a[k]:(el.type==='range'?el.min:'');el.disabled=!a});KP();pchips();pstyl()}
 function psync(k,v){const i=kl.querySelector('.kpa [data-pa="'+k+'"]');if(i){i.value=v;if(i.type==='range')KP(i)}}
-function padd(){const b=pcur()||PD(),n=pa.a.length,left=n%2===0,lx=left?20:80,tk=new Set(pa.a.map(o=>String(o.t||'').trim()));let y=18+((n*17)%60),k=0;while(k++<14&&pa.a.some(o=>Math.abs(o.lx-lx)<24&&Math.abs(o.ly-y)<11))y=y+11>92?8:y+11;let nn=n+1;while(tk.has('No '+nn))nn++;pa.a.push({...b,t:'No '+nn,pr:'',lx,ly:y,tx:left?42:58,ty:Math.min(92,y+6)});pa.s=n;fillP();sched()}
+function padd(){const b=pcur()||PD(),n=pa.a.length,left=n%2===0,lx=left?20:80,tk=new Set(pa.a.map(o=>String(o.t||'').trim()));let y=18+((n*17)%60),k=0;while(k++<14&&pa.a.some(o=>Math.abs(o.lx-lx)<24&&Math.abs(o.ly-y)<11))y=y+11>92?8:y+11;let nn=n+1;while(tk.has('No '+nn))nn++;pa.a.push({...b,au:0,t:'No '+nn,pr:'',lx,ly:y,tx:left?42:58,ty:Math.min(92,y+6)});pa.s=n;fillP();sched()}
 function parw(x,a,sx,sy,qx,qy,tx,ty){
  const s=a.st,lw=a.lw,an=Math.atan2(ty-qy,tx-qx),ca=Math.cos(an),sa=Math.sin(an),hl=Math.max(16,lw*4.5),R=s==='o'?lw*2.2+9:0,ex=tx-ca*R,ey=ty-sa*R;
  x.beginPath();
@@ -1484,58 +1484,81 @@ function lnMoney(t){t=String(t==null?'':t);const nonp=i=>/(?:\bmin(?:imal|imum)?
 const lnRp=n=>n>0?'Rp '+String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,'.'):'';
 /* daftar kandidat: foto + teks di sekitarnya + link produk + harga dari teks halaman */
 function pnCands(txt,base){const out=[],ab=h=>{try{return new URL(h,base||'https://x.invalid/').href}catch(e){return ''}},bad=h=>!h||/^(#|javascript:|mailto:|tel:)/i.test(h)||/\.(jpe?g|png|webp|gif|svg)(\?|$)/i.test(h),lk=m=>m&&!bad(m[1])?ab(m[1]):'';
- lnImgs(txt).forEach(o=>{let ur=o.u,i=txt.indexOf(ur);if(i<0){ur=o.u.replace(/&/g,'&amp;');i=txt.indexOf(ur)}let c=o.c,pr=0,link='';
+ lnImgs(txt).forEach(o=>{let ur=o.u,i=txt.indexOf(ur);if(i<0){ur=o.u.replace(/&/g,'&amp;');i=txt.indexOf(ur)}let c=o.c,pr=0,link='',cap='';
   if(i>=0){const clean=z=>z.replace(/!\[([^\]]*)\]\([^)]*\)/g,' $1 ').replace(/\[([^\]]*)\]\([^)]*\)/g,' $1 ').replace(/<[^>]+>/g,' ').replace(/https?:\/\/\S+/g,' ').replace(/\s+/g,' ').trim(),
    bf=txt.slice(Math.max(0,i-300),i),af0=txt.slice(i+ur.length,i+ur.length+500),af=af0.split(/\[?!\[/)[0];
    link=lk(af0.match(/^\s*\)?\s*\]\(([^)\s]+)/))||lk(bf.match(/href=["']([^"']+)["'][^<]*(?:<(?!\/a)[^>]*>\s*)*(?:<img[^>]*)?$/))||lk(af.match(/\]\(([^)\s]+)\)/))||lk(af.match(/href=["']([^"']+)["']/))||lk(bf.match(/\]\(([^)\s]+)\)[^\]]*$/))||'';
    if(link&&!/^https?:/i.test(link))link='';
-   const ca=clean(af).replace(/[\[\]]/g,' ').replace(/\s+/g,' ').trim().slice(0,260),cb=clean(bf).replace(/[\[\]]/g,' ').replace(/\s+/g,' ').trim().slice(-160);c=(ca||cb).slice(0,300);pr=lnMoney(ca)||(ca?0:lnMoney(cb))}
-  out.push({u:o.u,c,pr,link})});return out}
+   const ca=clean(af).replace(/[\[\]]/g,' ').replace(/\s+/g,' ').trim().slice(0,260),cb=clean(bf).replace(/[\[\]]/g,' ').replace(/\s+/g,' ').trim().slice(-160);c=(ca||cb).slice(0,300);cap=ca;pr=lnMoney(ca)||(ca?0:lnMoney(cb))}
+  out.push({u:o.u,c,pr,link,cap})});return out}
 function pnRef(){const k=Math.min(1,900/Math.max(pimg.width,pimg.height)),c=document.createElement('canvas');c.width=Math.round(pimg.width*k);c.height=Math.round(pimg.height*k);c.getContext('2d').drawImage(pimg,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.82).split(',')[1]}
 /* v18.24: posisi dari AI -> persen foto. Dulu angka di atas 100 (mis. skala 0-1000 atau piksel) dipotong jadi 100 sehingga semua panah menumpuk di pojok kanan bawah. Sekarang: box [ymin,xmin,ymax,xmax] skala 0-1000 (dipakai titik tengahnya), atau x,y persen/pecahan/0-1000. Di luar jangkauan = dilewati, bukan dipotong. */
 function pnXY(o){const bad=[NaN,NaN];if(!o)return bad;
  if(Array.isArray(o.box)&&o.box.length===4){const b=o.box.map(Number);if(b.every(isFinite)){const m=Math.max(...b),k=m<=1.0001?100:m<=1000?.1:0;if(!k)return bad;return[(b[1]+b[3])/2*k,(b[0]+b[2])/2*k]}}
  let x=parseFloat(o.x),y=parseFloat(o.y);if(!isFinite(x)||!isFinite(y))return bad;const m=Math.max(x,y);
  if(m<=1.0001){x*=100;y*=100}else if(m>100&&m<=1000){x/=10;y/=10}else if(m>1000)return bad;return[x,y]}
+/* v18.25: PANAH OUTFIT v3 — AI cukup ambil NOMOR TERATAS (terbaru) di halaman koleksi. Contoh: 021 muncul di 3 foto teratas, foto bernomor lain (020, dst) diabaikan. Tiap foto bernomor itu = 1 panah "No 021", dipasang di foto outfit pada bagian yang SEJENIS (foto tas -> tas, foto celana -> celana, foto baju -> baju); warna/model boleh beda. Lalu tiap foto produk "diklik" (tautannya dibuka lewat pembaca halaman) untuk membaca harga di Shopee. Harga yang gagal dibaca: tautan Shopee-nya ditampilkan di bawah status supaya bisa dibuka & diisi manual. */
+const PNSYS='Kamu membaca halaman koleksi toko dan mencocokkan jenis pakaian. Balas HANYA dengan satu objek JSON, tanpa teks lain.';
+const PNASK2='Gambar pertama: foto outfit lengkap. Setelah itu ada KANDIDAT foto produk dari halaman koleksi toko, urut dari paling atas (Kandidat 1, 2, dst), tiap kandidat kadang disertai teks keterangannya (biasanya berisi nomor produk, mis. 021). Untuk SETIAP kandidat, urut, isi: "number" = nomor produk (angka apa adanya termasuk nol di depan; ambil dari teks keterangan; kalau tidak ada baca dari tulisan di foto; kalau tidak ada isi null, jangan menebak), "category" = jenis produk yang dijual (hijab, atasan, gamis, rok, celana, tas, sepatu, dll; kalau foto model memakai beberapa item, pilih item yang disebut teks atau banner di foto, atau yang paling menonjol; kalau bukan foto produk, mis. foto profil atau banner, isi null), "name" = nama singkat produk, dan "box":[ymin,xmin,ymax,xmax] = posisi bagian dengan JENIS YANG SAMA di foto outfit pertama, 4 angka bulat 0 sampai 1000 (bukan piksel; 0,0 = pojok kiri atas foto, 1000,1000 = pojok kanan bawah). Warna dan model boleh berbeda dari kandidat: kalau produknya tas, beri kotak pada tas yang dipegang atau dipakai di foto outfit; kalau celana, beri kotak pada celana; dst. Kalau jenis itu tidak terlihat di foto outfit, isi box null. Kalau dua kandidat sejenis, usahakan beri bagian yang berbeda di foto outfit. Balas JSON saja: {"items":[{"c":<nomor kandidat>,"number":"<angka atau null>","category":"<jenis atau null>","name":"<nama>","box":[<ymin>,<xmin>,<ymax>,<xmax>] atau null,"confidence":<0 sampai 1>}]}';
+const pnl=a=>{const e=$('kpnl');if(!e)return;e.innerHTML='';(a||[]).forEach(o=>{const l=document.createElement('a');l.href=o.h;l.target='_blank';l.rel='noopener';l.textContent=o.t;l.style.cssText='display:block;margin:4px 0;font-size:13px;color:var(--accent-2);text-decoration:underline;text-align:left';e.appendChild(l)})};
+/* nomor dari teks keterangan di bawah foto (hanya kalau isinya memang angka/No angka) */
+const pnCap=t=>{const m=String(t||'').replace(/^[^\w#]+/,'').match(/^\s*(?:no\.?\s*|nomor\s*|#)?(\d{2,5})(?![\d]|[.,]\d)/i);return m?m[1]:''};
+function pnIds(t){const m=String(t||'').match(/\/product\/(\d{4,})\/(\d{4,})|-i\.(\d{4,})\.(\d{4,})/);return m?[m[1]||m[3],m[2]||m[4]]:null}
+/* harga dari data terstruktur (JSON-LD, meta, API Shopee) dulu; teks bebas hanya kalau loose=true */
+function pnPriceFrom(t,loose){t=String(t||'');
+ const nm=n=>{n=parseFloat(n);if(!isFinite(n)||n<=0)return 0;if(n>=1e8)n/=1e5;n=Math.round(n);return n>=1000&&n<=1e8?n:0};let m,p;
+ if((m=t.match(/product:(?:sale_)?price:amount["'][^>]*?content=["']([\d.,]+)/i)||t.match(/content=["']([\d.,]+)["'][^>]*?product:(?:sale_)?price:amount/i)))if(p=nm(m[1].replace(/,/g,'')))return p;
+ const re=/"(?:lowPrice|price|price_min)"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?/g;while((m=re.exec(t)))if(p=nm(m[1]))return p;
+ return loose?lnMoney(t):0}
+async function pnHdr(u,ms,h){const r=await lnTo(fetch(u,{headers:h}),ms);if(!r.ok)throw new Error('HTTP '+r.status);return r}
+/* "klik" foto produk -> buka halaman produk Shopee -> baca harga. Beberapa jalur, berhenti di yang pertama berhasil. */
+async function pnPrice(link){let ids=pnIds(link);
+ const J='https://r.jina.ai/',T=[
+  async()=>pnPriceFrom(await (await pnHdr(J+link,24000,{'X-Return-Format':'html'})).text(),false),
+  async()=>pnPriceFrom(await (await lnGet(J+link,22000)).text(),true),
+  async()=>pnPriceFrom(await (await lnGet('https://api.allorigins.win/raw?url='+encodeURIComponent(link),16000)).text(),false)];
+ for(const f of T){try{const p=await f();if(p)return p}catch(e){}}
+ if(ids){try{const t=await (await pnHdr(J+'https://shopee.co.id/api/v4/item/get?itemid='+ids[1]+'&shopid='+ids[0],18000,{'X-Return-Format':'text'})).text();const p=pnPriceFrom(t,false);if(p)return p}catch(e){}}
+ return 0}
 async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'').trim();if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
  if(!/^https?:\/\/[^\s.\/]+\.[^\s]+/i.test(u)){toast('Tempel link koleksinya dulu');return}
  if(!pimg){toast('Pilih foto outfit dulu');return}
  if(!(window.parent&&parent.osAiVision)){toast('Fitur AI belum siap. Muat ulang aplikasi');return}
- lnBusy=1;el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}
+ lnBusy=1;el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}pnl([]);
  try{pns('Membuka halaman link');const raw=pnCands(await lnPage(u),u),wl=raw.filter(o=>o.link),all=(wl.length>=2?wl:raw).slice(0,8);
   if(!all.length){pns('Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.');return}
-  pns('Mengunduh 5 foto teratas');const pics=await lnPool(all,4),C=[];all.forEach((o,i)=>{if(pics[i]&&C.length<5)C.push({...o,b:pics[i]})});
+  pns('Mengunduh foto teratas');const pics=await lnPool(all,4),C=[];all.forEach((o,i)=>{if(pics[i])C.push({...o,b:pics[i]})});
   if(!C.length){pns('Foto produk tidak bisa diunduh. Coba lagi.');return}
-  pns('Membuka tiap foto produk untuk melihat harga');
-  await Promise.all(C.map(async c=>{if(!c.link)return;try{const t=await (await lnGet('https://r.jina.ai/'+c.link,25000)).text();c.pp=lnMoney(t);c.pt=1;c.c=((c.c||'')+' | isi halaman produk: '+t.replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]*)\]\([^)]*\)/g,'$1').replace(/https?:\/\/\S+/g,' ').replace(/\s+/g,' ').trim().slice(0,250)).slice(0,560)}catch(e){}}));
-  const nOpen=C.filter(c=>c.pp).length;
-  const parts=[{text:PNASK},{text:'Foto outfit lengkap:'},{inline_data:{mime_type:'image/jpeg',data:pnRef()}}];
-  C.forEach((c,i)=>{parts.push({text:'Kandidat '+(i+1)+(c.c?' (teks di sekitarnya: "'+c.c+'")':'')+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:c.b}})});
-  pns('AI mencari item di foto dan mencocokkan ('+C.length+' foto teratas)');
-  const r=lnJson(await parent.osAiVision(parts,LNSYS,1400)),hs=Array.isArray(r.items)?r.items:[];
-  const sc=Math.min(W/pimg.width,H/pimg.height),dw=pimg.width*sc,dh=pimg.height*sc,ox=(W-dw)/2,oy=(H-dh)/2,found=[];
-  hs.slice(0,10).forEach(o=>{if(!o)return;const mi=parseInt(o.match,10),[x,y]=pnXY(o),cf=(o.confidence!=null&&isFinite(+o.confidence))?Math.max(0,Math.min(1,+o.confidence)):.6,num=String(o.number!=null?o.number:'').replace(/\D/g,'').slice(0,12);
-   if(!(mi>=1&&mi<=C.length)||!num||!isFinite(x)||!isFinite(y)||x<-2||x>102||y<-2||y>102||cf<.35)return;
-   const tx=cl((ox+cl(x,0,100)/100*dw)/W*100,2,98),ty=cl((oy+cl(y,0,100)/100*dh)/H*100,2,98);
-   if(found.some(f=>f.mi===mi&&f.num===num&&Math.hypot(f.tx-tx,f.ty-ty)<6))return;
-   const ps=String(o.price==null?'':o.price);let pv=C[mi-1].pp||0;if(!pv)pv=/^\s*\d[\d.,]*\s*$/.test(ps)?lnMoney('Rp '+ps):lnMoney(ps);if(!pv)pv=C[mi-1].pr||0;
-   found.push({name:String(o.name||'').slice(0,20),mi,num,pv,cf,tx,ty})});
-  if(!found.length){pns('Tidak ada item yang cocok di 5 foto teratas link ini. Cek link atau fotonya.');return}
-  /* harga yang belum ketemu: coba baca halaman produknya */
-  pns('Mencari harga');const pc={};
-  for(const f of found){if(f.pv)continue;const c=C[f.mi-1];if(!c.link||c.pt)continue;if(!(c.link in pc)){pc[c.link]=0;try{pc[c.link]=lnMoney(await (await lnGet('https://r.jina.ai/'+c.link,25000)).text())}catch(e){}}f.pv=pc[c.link]||0}
-  /* pasang ke panah: panah lama yang dekat diperbarui, sisanya ditambah baru; panah bawaan kosong (No 1, No 2) dibuang */
-  const base=pcur()||PD(),pre=(((pcur()||pa.a[0]||{t:'No'}).t||'').match(/^\D*/)||['No'])[0].trim()||'No',auto=a=>/^No \d+$/.test((a.t||'').trim())&&!(a.pr||'').trim(),used=new Set(),news=[];let upd=0;
+  pns('AI membaca nomor dan jenis tiap foto ('+C.length+' foto teratas)');
+  const parts=[{text:PNASK2},{text:'Foto outfit lengkap:'},{inline_data:{mime_type:'image/jpeg',data:pnRef()}}];
+  C.forEach((c,i)=>{parts.push({text:'Kandidat '+(i+1)+(c.cap?' (teks keterangan: "'+c.cap+'")':(c.c?' (teks di sekitarnya: "'+c.c+'")':''))+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:c.b}})});
+  const r=lnJson(await parent.osAiVision(parts,PNSYS,1800)),hs=Array.isArray(r.items)?r.items:[],by={};
+  hs.forEach(o=>{const k=parseInt(o&&(o.c!=null?o.c:o.match),10);if(k>=1&&k<=C.length&&!by[k])by[k]=o});
+  /* nomor tiap foto: teks keterangan (paling andal), kalau tidak ada pakai bacaan AI */
+  const rows=C.map((c,i)=>{const o=by[i+1]||{};return{c,cat:String(o.category||'').slice(0,20),name:String(o.name||o.category||'').slice(0,24),o,cf:(o.confidence!=null&&isFinite(+o.confidence))?Math.max(0,Math.min(1,+o.confidence)):.6,num:pnCap(c.cap)||String(o.number!=null?o.number:'').replace(/\D/g,'').slice(0,12)}}),
+   top=rows.find(x=>x.num);
+  if(!top){pns('Nomor di foto-foto teratas tidak terbaca. Cek link atau isi manual ya.');return}
+  const key=n=>String(parseInt(n,10)),G=[];for(const x of rows){if(!x.num)continue;if(key(x.num)!==key(top.num))break;G.push(x)}
+  const sc=Math.min(W/pimg.width,H/pimg.height),dw=pimg.width*sc,dh=pimg.height*sc,ox=(W-dw)/2,oy=(H-dh)/2,found=[],nov=[];
+  G.forEach((g,k)=>{let[x,y]=pnXY(g.o),vis=isFinite(x)&&isFinite(y)&&x>=-2&&x<=102&&y>=-2&&y<=102;
+   if(!vis){x=50;y=35+k*14;nov.push(g.cat||g.name||('foto '+(k+1)))}
+   let tx=cl((ox+cl(x,0,100)/100*dw)/W*100,2,98),ty=cl((oy+cl(y,0,100)/100*dh)/H*100,2,98);
+   if(found.some(f=>Math.hypot(f.tx-tx,f.ty-ty)<6))ty=cl(ty+9,2,98);
+   found.push({name:g.name,num:top.num,pv:0,cf:vis?g.cf:0,tx,ty,g,vis})});
+  pns('Nomor teratas '+top.num+' ada di '+G.length+' foto. Membuka tiap foto di Shopee untuk melihat harga');
+  await Promise.all(found.map(async f=>{let p=0;if(f.g.c.link)p=await pnPrice(f.g.c.link);f.pv=p||f.g.c.pr||0}));
+  const base=pcur()||PD(),pre=(((pcur()||pa.a[0]||{t:'No'}).t||'').match(/^\D*/)||['No'])[0].trim()||'No',auto=a=>/^No \d+$/.test((a.t||'').trim())&&!(a.pr||'').trim(),used=new Set(),news=[];
   found.forEach(f=>{let bi=-1,bd=1e9;pa.a.forEach((a,i)=>{if(used.has(i))return;const d=Math.hypot(a.tx-f.tx,a.ty-f.ty);if(d<bd){bd=d;bi=i}});
-   if(bi>=0&&bd<=14){const a=pa.a[bi];used.add(bi);const nt=pre+' '+f.num;if(f.pv)a.pr=lnRp(f.pv);else if((a.t||'').trim()!==nt)a.pr='';a.t=nt;upd++;return}
+   if(bi>=0&&bd<=14&&!auto(pa.a[bi])&&!pa.a[bi].au){const a=pa.a[bi];used.add(bi);a.t=pre+' '+f.num;a.pr=f.pv?lnRp(f.pv):'';return}
    let lx=f.tx<50?17:83,ly=cl(f.ty-5,8,92);if(Math.abs(lx-f.tx)<14)lx=f.tx<50?Math.min(f.tx+30,88):Math.max(f.tx-30,12);
    for(let k=0;k<12&&pa.a.concat(news).some(o=>Math.abs(o.lx-lx)<24&&Math.abs(o.ly-ly)<9);k++)ly=ly+10>92?8:ly+10;
-   news.push({...base,t:pre+' '+f.num,pr:lnRp(f.pv),tx:f.tx,ty:f.ty,lx,ly})});
-  pa.a=pa.a.filter((a,i)=>used.has(i)||!auto(a)).concat(news);pa.s=pa.a.length?0:-1;
+   news.push({...base,au:1,t:pre+' '+f.num,pr:lnRp(f.pv),tx:f.tx,ty:f.ty,lx,ly})});
+  pa.a=pa.a.filter((a,i)=>used.has(i)||!(auto(a)||a.au)).concat(news);pa.s=pa.a.length?0:-1;
   pchips();fillP();sched();
-  const nPr=found.filter(f=>f.pv).length,low=found.filter(f=>f.cf<.5).map(f=>f.num);
-  pns('Ketemu '+found.length+' item: '+found.map(f=>(f.name?f.name+' ':'')+pre+' '+f.num+(f.pv?' ('+lnRp(f.pv)+')':'')).join(', ')+'. Harga terisi '+nPr+' dari '+found.length+' (halaman produk terbaca '+nOpen+' dari '+C.length+' foto).'+(nPr<found.length?' Sisanya isi manual.':'')+(low.length?' Kurang yakin: '+low.join(', ')+', cek lagi.':'')+' Geser ujung panah kalau kurang pas.');
-  toast(found.length+' panah terisi')
+  pnl(found.filter(f=>f.g.c.link).map(f=>({h:f.g.c.link,t:pre+' '+f.num+' · '+(f.name||'produk')+(f.pv?' ('+lnRp(f.pv)+')':' (harga belum terbaca)')+' · buka di Shopee'})));
+  const nPr=found.filter(f=>f.pv).length;
+  pns('Nomor teratas: '+pre+' '+top.num+' ('+G.length+' foto: '+found.map(f=>f.name||'produk').join(', ')+'). Harga terisi '+nPr+' dari '+found.length+'.'+(nPr<found.length?' Yang belum terbaca: buka tautan Shopee di bawah, lalu isi harganya di kolom Harga.':'')+(nov.length?' Tidak terlihat di foto outfit (panah sementara, geser ya): '+nov.join(', ')+'.':'')+' Geser ujung panah kalau kurang pas.');
+  toast(G.length+' panah terisi')
  }catch(e){pns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{lnBusy=0;el.disabled=false}}
 kl.addEventListener('click',e=>{const el=e.target.closest('[data-pc]');if(!el)return;const c=el.dataset.pc;
