@@ -302,6 +302,10 @@ function pbTourCurrentEmail(){
 // true kalau akun yang SEDANG login sudah menyelesaikan/melewati tur.
 // Kalau storage error → dianggap sudah (jangan paksa tur di kondisi aneh).
 function pbTourDoneForCurrentUser(){
+  // TUR PANDUAN DIMATIKAN (22 Nov 2026, permintaan user): semua akun dianggap sudah selesai tur,
+  // jadi pilihan Pemula/Profesional & tur tidak pernah muncul lagi. Kode tur di bawah dibiarkan
+  // (file ini juga memuat lightbox/tutorial video yang masih dipakai).
+  return true;
   try{
     var v=localStorage.getItem(PB_TOUR_KEY);
     if(!v) return false;
