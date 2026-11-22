@@ -493,6 +493,7 @@
       var hasNavCall = false;
       for(var i=0;i<calls.length;i++){
         var call = calls[i];
+        if(call && call.fn && /^pbGoStep/.test(call.fn)) continue; // tur panduan dimatikan (22 Nov 2026): jangan pernah memutar ulang langkah tur dari draft lama
         if(call && call.fn && typeof window[call.fn]==='function'){
           if(PB_NAV_FN_REGEX.test(call.fn)) hasNavCall = true;
           try{ window[call.fn].apply(null, call.args||[]); }catch(e){}
@@ -502,7 +503,7 @@
       // ini tidak bawa panggilan navigasi apa pun (mis. hanya dipicu ketikan
       // field), pakai draftCall (nav terakhir yang tercatat, lihat lastNavCall)
       // supaya layar kembali ke step yang benar, bukan Step 1.
-      if(replayNav && !hasNavCall && !snap.cards && snap.draftCall && snap.draftCall.fn && typeof window[snap.draftCall.fn]==='function'){
+      if(replayNav && !hasNavCall && !snap.cards && snap.draftCall && snap.draftCall.fn && !/^pbGoStep/.test(snap.draftCall.fn) && typeof window[snap.draftCall.fn]==='function'){
         try{ window[snap.draftCall.fn].apply(null, snap.draftCall.args||[]); }catch(e){}
       }
       if(replayNav) restoreResults(snap.results);   // R2: hasil digambar ulang SEBELUM isian (textarea hasil baru ada setelah ini)
@@ -753,7 +754,7 @@
       var restoredDraft = tryRestoreDraft();
       setTimeout(function(){ _bootDone=true; },1500);
       if(!restoredDraft){
-        pendingStepCalls = [{fn:'pbGoStep1', args:[]}];
+        pendingStepCalls = []; // dulu [{fn:'pbGoStep1'}] = modal tur "Salam kenal"; tur dimatikan (22 Nov 2026)
         pushSnapshot(); // baseline state paling awal
       }
       // FITUR BARU (permintaan user): habis draft/state (termasuk
