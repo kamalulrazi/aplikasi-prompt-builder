@@ -6,6 +6,7 @@ const ref=id=>{const c=fb().firestore().collection('users').doc(us().uid).collec
 const toB64=b=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=()=>no(r.error);r.readAsDataURL(b)});
 const fromB64=(s,t)=>{const a=atob(s),v=new Uint8Array(a.length);for(let i=0;i<a.length;i++)v[i]=a.charCodeAt(i);return new Blob([v],{type:t||'image/jpeg'})};
 window.osCloud={
+ uid(){const u=us();return u?u.uid:''},
  async ready(){return !!(fb()&&fb().firestore&&us())},
  async list(){const s=await ref().get();return s.docs.map(d=>({id:d.id,at:d.data().at||0,name:d.data().name||''}))},
  async put(id,m,b){const s=await toB64(b),n=Math.ceil(s.length/CH),r=ref(id),bt=fb().firestore().batch();
