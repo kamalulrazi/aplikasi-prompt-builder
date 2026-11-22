@@ -67,7 +67,7 @@ async function _vbCallBulkBatch(batch,targetAudience,extraNote,onWait,onPartial,
     if(_hookDir)line+=' — HOOK style: '+_hookDir;
     if(p.pitch)line+=' — Tone: '+(p.pitch==='bercanda'?'joking':p.pitch);
     if(p.accent)line+=' — Accent: '+_vbAccentScriptText(p.accent);
-    if(_vbRefPlan&&batch.length>1)line+=' — SAMPLE: '+_vbRefOpts()[_vbRefPlan[i]].nama+' (structure and style only, never its topic or claims)';
+    if(_vbRefPlan&&batch.length>1&&_vbRefOpts()[_vbRefPlan[i]])line+=' — SAMPLE: '+_vbRefOpts()[_vbRefPlan[i]].nama+' (structure and style only, never its topic or claims)';
     if(p.fotoBase64&&_imgCounter<_maxImgThisCall){
       _imgCounter++;
       line+=' [Image '+_imgCounter+']';

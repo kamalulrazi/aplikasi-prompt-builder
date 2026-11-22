@@ -1,7 +1,7 @@
 // fitur/video-prompt-sistem-dan-perbaikan-skrip.js — Video — prompt sistem mode 1 produk, perbaikan dan cek otomatis skrip (kata kurang/lebih).
 // Bagian dari js/10-main-app.js lama (baris 19795–20473). Isi tidak diubah.
 // 21 Nov 2026 (permintaan user): kata di dalam tanda kurung (isian arahan kamera) TIDAK dihitung dalam rentang kata.
-function _vbWcNoParen(t){return String(t||'').replace(/\([^)]*\)/g,' ').trim().split(/\s+/).filter(Boolean).length;}
+function _vbWcNoParen(t){return String(t||'').replace(/\([^()]*\)/g,' ').trim().split(/\s+/).filter(Boolean).length;}
 function _vbBuildSingleModeSystemPrompt(range,count,accent,pitch,gender,age,refPlan){
   // v11.47 (6 Okt 2026, permintaan user: prompt dirapikan) — 6 kalimat kini bernomor 1-6, produk disebut sekali di kalimat 2 (REALIZE),
   //   STYLE -> SPEAKING STYLE (nada tetap TONE; label DATA 'Style:' -> 'Tone:'), RULES dipecah (FORMAT/LENGTH/PRODUCT NAME/IMAGES/PRODUCT FACTS), "and so on" dihapus.
@@ -503,7 +503,7 @@ function _vbMalayTwin(s){var r=String(s||'').toLowerCase();VB_MALAY_TWIN.forEach
 function _vbOffTopicWords(p,bp,extra){
   var own=(String(bp&&bp.nama||'')+' '+String(bp&&bp.keunggulan||'')+' '+String(bp&&bp.topik||'')+' '+String(extra||'')).toLowerCase();
   own+=' '+_vbMalayTwin(own);
-  var txt=[p&&p.hook,p&&p.story,p&&p.cta].join(' ').toLowerCase().replace(/\([^)]*\)/g,' ');
+  var txt=[p&&p.hook,p&&p.story,p&&p.cta].join(' ').toLowerCase().replace(/\([^()]*\)/g,' ');
   var _fw=_vbIsDua()?VB_DUA_FOREIGN_WORDS:(_vb16()?VB_FOREIGN_SAMPLE_WORDS.concat(VB_FOREIGN_SAMPLE_WORDS_16):VB_FOREIGN_SAMPLE_WORDS);
   var hit=_fw.filter(function(w){return txt.indexOf(w)>-1&&own.indexOf(w)===-1;});
   if(_vbIsDua())return /\b(tas|bag|dompet|ransel|sling|totebag)/.test(own)?[]:hit; // dialog bisa saja tidak menyebut nama produk lengkap; produk tas boleh bicara dompet
