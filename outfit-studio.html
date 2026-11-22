@@ -527,11 +527,13 @@ const isIOS=()=>/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform=
 function showSaveView(b){if(S.zu)URL.revokeObjectURL(S.zu);S.zu=URL.createObjectURL(b);S.zid=null;$('vw').innerHTML=`<img src="${S.zu}" alt="" style="max-width:100%;max-height:calc(100dvh - 170px);object-fit:contain;border-radius:var(--radius-sm);-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto"><p class="hint" style="margin:0;text-align:center">Tekan lama gambar, lalu pilih “Simpan ke Foto” atau “Unduh gambar”.</p><div class="row" style="width:min(100%,360px)"><button type="button" class="btn ghost" data-a="vx">Tutup</button></div>`;$('vw').classList.add('show')}
 const capP=()=>{try{const C=window.Capacitor||parent.Capacitor;return C&&typeof C.isNativePlatform==='function'&&C.isNativePlatform()?C:null}catch(e){return null}};
 const b64=b=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=()=>no(r.error);r.readAsDataURL(b)});
+/* 23 Nov 2026: panggilan plugin native tanpa batas waktu bisa menggantung selamanya (tombol Unduh semua macet di 1/2). Beri batas waktu; gagal -> coba sekali lagi / jalur cadangan. */
+const svT=(p,ms)=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new Error('timeout')),ms)})]).finally(()=>clearTimeout(t))};
 async function dlBlob(b,n){
  const C=capP();
  if(C){const P=C.Plugins||{};
   if(P.SaveImage&&typeof P.SaveImage.save==='function'){
-   try{await P.SaveImage.save({data:await b64(b),fileName:n.replace(/\.(png|jpe?g|webp)$/i,'')+'-'+Date.now()+'.png'});toast('Tersimpan di galeri (album Pictures/PromptBuilder)');return 'saved'}
+   try{await svT(P.SaveImage.save({data:await b64(b),fileName:n.replace(/\.(png|jpe?g|webp)$/i,'')+'-'+Date.now()+'.png'}),25000);toast('Tersimpan di galeri (album Pictures/PromptBuilder)');return 'saved'}
    catch(e){toast('Gagal menyimpan ke galeri, mencoba cara lain')}}
   if(P.Filesystem&&P.Share&&typeof P.Share.share==='function'){
    try{const w=await P.Filesystem.writeFile({path:'outfit-studio/'+n,data:await b64(b),directory:'CACHE',recursive:true});await P.Share.share({title:n,url:w.uri,dialogTitle:'Simpan atau bagikan gambar'});return 'share'}
@@ -672,7 +674,7 @@ const ui=()=>`<div class="kb"><button type="button" data-kc="close">${ic('back',
 <div class="kg kpn" data-kp="0"><h3>Judul</h3>${row('title','Contoh: Outfit.Ideas','t',40)}<div class="chips" id="kch-t"></div>${tx('t')}</div>
 <div class="kg kpn" data-kp="1"><h3>Nomor</h3><label class="kf">Link koleksi (nomor terisi otomatis)</label><div class="add"><input class="inp" id="kln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="klb" data-kc="lgo">Cari</button></div><p class="hint" id="klns" style="text-align:left;color:var(--accent-2)"></p><div class="add"><input class="inp" data-p="num" maxlength="12" placeholder="Contoh: 1225"><button type="button" class="btn sm ghost fit" data-kc="inc" data-d="-1">−</button><button type="button" class="btn sm ghost fit" data-kc="inc" data-d="1">+</button></div>
 <label class="kf">Tulisan di depan nomor (boleh dihapus atau diganti)</label>${row('pre','Contoh: No.','p',20)}<div class="chips" id="kch-p"></div>${tx('n')}</div>
-<div class="kg kpn" data-kp="2"><label class="kauto"><input type="file" accept="image/*" hidden data-kf="A"><b>Pisahkan otomatis</b><small>Kirim 1 foto gabungan (outfit &amp; model, kiri/kanan dikenali otomatis)</small></label><label class="kck" style="margin-top:8px"><input type="checkbox" data-p="ai">Rapikan item outfit pakai AI</label><p class="hint" id="kas" style="text-align:left;color:var(--accent-2)"></p><div class="kup">${upl('L','Foto outfit','Sisi kiri')}${upl('R','Foto model','Sisi kanan')}</div>${rg('Lebar panel kiri','lw',20,60)}${rg('Zoom foto outfit','zl',50,300)}${rg('Zoom foto model','zr',100,300)}</div>${zui()}${pui()}</div>
+<div class="kg kpn" data-kp="2"><label class="kauto"><input type="file" accept="image/*" hidden data-kf="A"><b>Pisahkan otomatis</b><small>Kirim 1 foto gabungan (outfit &amp; model). AI yang memisahkan, kiri/kanan dikenali otomatis</small></label><label class="kck" style="margin-top:8px"><input type="checkbox" data-p="ai">Rapikan item outfit pakai AI</label><p class="hint" id="kas" style="text-align:left;color:var(--accent-2)"></p><div class="kup">${upl('L','Foto outfit','Sisi kiri')}${upl('R','Foto model','Sisi kanan')}</div>${rg('Lebar panel kiri','lw',20,60)}${rg('Zoom foto outfit','zl',50,300)}${rg('Zoom foto model','zr',100,300)}</div>${zui()}${pui()}</div>
 <div class="kfoot"><button type="button" class="btn ghost" data-kc="rst" aria-label="Reset tata letak">Reset</button><button type="button" class="btn ghost" data-kc="dl">${ic('dl',16)}Unduh</button><button type="button" class="btn" data-kc="sav">${ic('album',16)}Simpan</button></div><div class="kal" id="kal"></div>`;
 const chips=g=>{const e=$('kch-'+g);if(e)e.innerHTML=st[g].length?st[g].map((t,i)=>`<span class="chip" data-kc="use" data-g="${g}" data-i="${i}">${esc(t)}<button type="button" data-kc="del" data-g="${g}" data-i="${i}" aria-label="Hapus dari simpanan">${ic('x',14)}</button></span>`).join(''):'<span class="hint" style="margin:0">Belum ada teks tersimpan. Tulis lalu tekan Simpan.</span>'};
 function fill(){kl.querySelectorAll('[data-p]').forEach(el=>{const a=el.dataset.p.split('.'),v=a.length>1?s[a[0]][a[1]]:s[a[0]];if(el.type==='checkbox')el.checked=!!v;else el.value=v});KP()}
@@ -878,10 +880,27 @@ function kHoles(F,w,s){const bw=s.x1-s.x0+1,bh=s.y1-s.y0+1,o=new Uint8Array(bw*b
  let e=0;for(let y=0;y<bh;y++)for(let x=0;x<bw;x++)if(!o[y*bw+x]&&!F[(s.y0+y)*w+s.x0+x])e++;
  return e/(bw*bh)}
 /* ===== SISI OUTFIT: hanya benda outfit di latar polos ===== */
+/* v18.27: cari kotak gelap lebar yang menempel di tepi panel + berisi tulisan/ikon terang = tampilan aplikasi; tutup dengan warna latar. Syarat: gelap & tak berwarna, lebar >=30% panel, tinggi >=3%, menempel tepi ATAU di 35% atas/bawah, hampir persegi penuh setelah tulisan ditutup, ada lubang terang (tulisan) >=1,2%. Benda outfit hitam (bentuk tak persegi / tanpa tulisan) tidak kena. */
+function kUiDark(d,w,h,r0,g0,b0){const N=w*h,D=new Uint8Array(N);let dc=0;
+ for(let p=0,i=0;p<N;p++,i+=4){const r=d[i],g=d[i+1],b=d[i+2];if(((r*77+g*150+b*29)>>8)<80&&Math.max(r,g,b)-Math.min(r,g,b)<60){D[p]=1;dc++}}
+ if(dc<N*.01)return 0;
+ const rc=Math.max(3,Math.round(Math.max(w,h)*.012)),Cm=kMor(kMor(D,w,h,rc,0),w,h,rc,1),K=kCcl(Cm,w,h),mg=Math.max(3,Math.round(Math.min(w,h)*.04));let n=0;
+ for(let i=1;i<=K.n;i++){const b=K.bb[i],bw=b.x1-b.x0+1,bh=b.y1-b.y0+1;
+  const et=b.y0<=mg||b.y1>=h-1-mg;if(bw<.3*w||bh<(et?.012:.03)*h||bw*bh<(et?.004:.01)*N||b.a<.88*bw*bh)continue;
+  if(!(b.x0<=mg||b.y0<=mg||b.x1>=w-1-mg||b.y1>=h-1-mg||b.y1<.35*h||b.y0>.65*h))continue;
+  let dk=0;for(let y=b.y0;y<=b.y1;y++)for(let x=b.x0;x<=b.x1;x++)if(D[y*w+x])dk++;
+  if((bw*bh-dk)/(bw*bh)<.012)continue;
+  const e=rc;
+  for(let y=Math.max(0,b.y0-e);y<=Math.min(h-1,b.y1+e);y++)for(let x=Math.max(0,b.x0-e);x<=Math.min(w-1,b.x1+e);x++){const p=y*w+x;{const j=p*4;d[j]=r0;d[j+1]=g0;d[j+2]=b0}}
+  n++}
+ return n}
 function kCleanL(c0){
  const c=kScale(c0,1400),w=c.width,h=c.height,N=w*h,g=c.getContext('2d',{willReadFrequently:true}),im=g.getImageData(0,0,w,h),d=im.data;
  /* warna latar = warna dominan di tepi gambar */
- const rg=Math.max(3,Math.round(Math.min(w,h)*.01)),bt=[kDom(d,w,0,0,w,rg,1),kDom(d,w,0,h-rg,w,h,1),kDom(d,w,0,0,rg,h,1),kDom(d,w,w-rg,0,w,h,1)].sort((p,q)=>q[3]-p[3])[0],br=bt[0],bg=bt[1],bb=bt[2];
+ const rg=Math.max(3,Math.round(Math.min(w,h)*.01)),ed=[kDom(d,w,0,0,w,rg,1),kDom(d,w,0,h-rg,w,h,1),kDom(d,w,0,0,rg,h,1),kDom(d,w,w-rg,0,w,h,1)].sort((p,q)=>q[3]-p[3]);let bt=ed[0];
+ /* v18.27: kotak gelap tampilan aplikasi (header/footer sosmed: ikon, tulisan putih) yang menempel di tepi dibuang LEBIH DULU, tanpa bergantung pada gumpalan (dulu ikut tersambung ke garis tepi lalu dianggap bagian outfit) */
+ {const lt=ed.find(e=>((e[0]*77+e[1]*150+e[2]*29)>>8)>=110&&e[3]>=.5);try{if(lt&&kUiDark(d,w,h,lt[0],lt[1],lt[2]))bt=lt}catch(e){}}
+ const br=bt[0],bg=bt[1],bb=bt[2];
  const Y=new Uint8Array(N),F=new Uint8Array(N);let fc=0;
  for(let p=0,i=0;p<N;p++,i+=4){Y[p]=(d[i]*77+d[i+1]*150+d[i+2]*29)>>8;if(Math.max(kA(d[i],br),kA(d[i+1],bg),kA(d[i+2],bb))>16){F[p]=1;fc++}}
  if(fc<N*.01||fc>N*.62)return c0;
@@ -901,7 +920,7 @@ function kCleanL(c0){
  for(let i=1;i<=n;i++){const s=S[i];if(!s.ui&&s.a>=.2*mxA){if(s.x0<mx0)mx0=s.x0;if(s.y0<my0)my0=s.y0;if(s.x1>mx1)mx1=s.x1;if(s.y1>my1)my1=s.y1}}
  const gx=Math.round(w*.008),gy=Math.round(h*.008);
  for(let i=1;i<=n;i++){const s=S[i];if(s.ui||s.a<1)continue;const bw=s.x1-s.x0+1,bh=s.y1-s.y0+1,out=s.x1<mx0-gx||s.x0>mx1+gx||s.y1<my0-gy||s.y0>my1+gy,tiny=s.a<.025*mxA;
-  if((out&&tiny)||(tiny&&bw>=2*bh)||(out&&bw>=4*bh&&bh<.06*h&&s.a<.12*mxA))s.tx=1}
+  if((out&&tiny)||(tiny&&bw>=2*bh)||(out&&bw>=4*bh&&bh<.06*h&&s.a<.12*mxA)||(bw<=Math.max(4,.04*w)&&bh>=.08*h)||(bh<=Math.max(4,.025*h)&&bw>=.3*w))s.tx=1}
  const rv=L=>L>0&&(S[L].ui||S[L].tx),E=new Uint8Array(N);
  for(let p=0;p<N;p++)if(rv(lab[p]))E[p]=1;
  for(let i=1;i<=n;i++)if(S[i].ui){const s=S[i];for(let y=Math.max(0,s.y0-rm);y<=Math.min(h-1,s.y1+rm);y++)for(let x=Math.max(0,s.x0-rm);x<=Math.min(w-1,s.x1+rm);x++){const L=lab[y*w+x];if(!L||rv(L))E[y*w+x]=1}}
@@ -1019,16 +1038,37 @@ async function kTidy(src){
   put('L',cv2);s.zl=100;sync('zl',100);sched();save();kas('');toast('Item outfit dirapikan AI: '+items.length+' item')
  }catch(e){clearTimeout(wt);console.warn('Rapikan AI gagal',e);kas('');if(live())toast('AI belum bisa merapikan (cek internet). Hasil biasa dipakai')}
 }
-function auto(f){const u=URL.createObjectURL(f),o=new Image();o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.onload=()=>{URL.revokeObjectURL(u);try{
+/* v18.28: PISAHKAN OTOMATIS pakai AI (sama seperti Panah & harga): AI melihat foto gabungan lalu menunjuk kotak panel OUTFIT (hanya benda outfit, tanpa tampilan aplikasi & tulisan) dan kotak foto MODEL. Pemotongan, pembersihan & tata letak sesudahnya sama seperti sebelumnya. AI gagal/offline -> otomatis pakai cara hitung piksel lama (klPlan). */
+const KASK='Foto ini adalah satu foto gabungan atau tangkapan layar: ada panel OUTFIT (foto produk pakaian, tas, sepatu, hijab, dll, bisa banyak benda di latar polos) dan foto MODEL (orang yang memakai outfit itu), berdampingan kiri-kanan. Tampilan aplikasi BUKAN bagian foto: jam/sinyal/baterai, header, footer, ikon suka/komentar/bagikan, keterangan, tulisan nomor atau judul, avatar, kotak atau bilah gelap, garis pemisah. Tentukan dua kotak: "outfit" = kotak yang rapat mengelilingi SEMUA benda outfit saja (tanpa tampilan aplikasi dan tanpa tulisan), dan "model" = kotak foto model (orang) saja, tanpa bilah atau ikon aplikasi. Format kotak [ymin,xmin,ymax,xmax], 4 angka bulat 0 sampai 1000 (bukan piksel; 0,0 = pojok kiri atas, 1000,1000 = pojok kanan bawah). Balas JSON saja: {"outfit":[ymin,xmin,ymax,xmax],"model":[ymin,xmin,ymax,xmax],"confidence":<0 sampai 1>}';
+async function kAiBoxes(a){
+ const r=lnJson(await lnTo(parent.osAiVision([{text:KASK},{inline_data:{mime_type:'image/jpeg',data:a.toDataURL('image/jpeg',.85).split(',')[1]}}],'Kamu menganalisis foto gabungan outfit dan model. Balas HANYA satu objek JSON, tanpa teks lain.',700),45000));
+ const ok=b=>Array.isArray(b)&&b.length===4&&b.every(v=>isFinite(+v))&&Math.abs(+b[2]-+b[0])>=40&&Math.abs(+b[3]-+b[1])>=40;
+ if(!r||!ok(r.outfit)||!ok(r.model))return null;
+ const f=b=>{b=b.map(v=>Math.max(0,Math.min(1000,+v)));return[Math.min(b[1],b[3]),Math.min(b[0],b[2]),Math.max(b[1],b[3]),Math.max(b[0],b[2])]};/* -> [x0,y0,x1,y1] skala 0-1000 */
+ const O=f(r.outfit),M=f(r.model),ix=Math.max(0,Math.min(O[2],M[2])-Math.max(O[0],M[0])),iy=Math.max(0,Math.min(O[3],M[3])-Math.max(O[1],M[1])),mA=(M[2]-M[0])*(M[3]-M[1]),oA=(O[2]-O[0])*(O[3]-O[1]);
+ if(ix*iy>.25*Math.min(mA,oA)||mA<.06e6||oA<.01e6)return null;
+ return{O,M,side:(O[0]+O[2])>(M[0]+M[2])?1:0}}
+function auto(f){const u=URL.createObjectURL(f),o=new Image();o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.onload=async()=>{URL.revokeObjectURL(u);try{
  const k0=Math.min(1,3200/Math.max(o.naturalWidth,o.naturalHeight)),iw=Math.round(o.naturalWidth*k0),ih=Math.round(o.naturalHeight*k0),c=document.createElement('canvas');c.width=iw;c.height=ih;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(o,0,0,iw,ih);
  /* salinan kecil utk analisis (dibagi dua berulang supaya halus) */
  const k1=Math.min(1,1400/Math.max(iw,ih)),aw=Math.max(1,Math.round(iw*k1)),ah=Math.max(1,Math.round(ih*k1));let cur=c,cw=iw,ch=ih;
  while(cw/2>=aw&&ch/2>=ah){const n=document.createElement('canvas');cw=Math.round(cw/2);ch=Math.round(ch/2);n.width=cw;n.height=ch;const q=n.getContext('2d');q.imageSmoothingQuality='high';q.drawImage(cur,0,0,cw,ch);cur=n}
  const a=document.createElement('canvas');a.width=aw;a.height=ah;const ag=a.getContext('2d',{willReadFrequently:true});ag.imageSmoothingQuality='high';ag.drawImage(cur,0,0,aw,ah);
- const P=klPlan(ag.getImageData(0,0,aw,ah).data,aw,ah),sx=iw/aw,sy=ih/ah,RC=r=>[cl(Math.round(r[0]*sx),0,iw),cl(Math.round(r[1]*sy),0,ih),cl(Math.round(r[2]*sx),0,iw),cl(Math.round(r[3]*sy),0,ih)];
- const M=RC(P.model),PN=RC(P.panel),IT=RC(P.items),PO=RC(P.post);
+ let P=klPlan(ag.getImageData(0,0,aw,ah).data,aw,ah),sx=iw/aw,sy=ih/ah,RC=r=>[cl(Math.round(r[0]*sx),0,iw),cl(Math.round(r[1]*sy),0,ih),cl(Math.round(r[2]*sx),0,iw),cl(Math.round(r[3]*sy),0,ih)];
+ let M=RC(P.model),PN=RC(P.panel),IT=RC(P.items),PO=RC(P.post),aiOk=false;
+ /* AI menunjuk panel outfit & foto model; kalau gagal, hasil hitung piksel (klPlan) tetap dipakai */
+ if(window.parent&&parent.osAiVision){try{kas('AI memisahkan outfit dan model…');const R=await kAiBoxes(a);
+  if(R){const fx=v=>v*iw/1000,fy=v=>v*ih/1000,mm=[fx(R.M[0]),fy(R.M[1]),fx(R.M[2]),fy(R.M[3])],oo=[fx(R.O[0]),fy(R.O[1]),fx(R.O[2]),fy(R.O[3])],ow=oo[2]-oo[0],oh=oo[3]-oo[1],pw=ow*.03,ph=oh*.03;
+   const pn=[cl(oo[0]-pw,0,iw),cl(oo[1]-ph,0,ih),cl(oo[2]+pw,0,iw),cl(oo[3]+ph,0,ih)];
+   if(R.side===0)pn[2]=Math.min(pn[2],mm[0]);else pn[0]=Math.max(pn[0],mm[2]);
+   const rd2=v=>v.map(Math.round);M=rd2(mm);IT=rd2(oo);PN=rd2(pn);
+   /* warna latar panel: warna dominan di sekeliling kotak outfit (analisis skala kecil) */
+   const ad=ag.getImageData(0,0,aw,ah).data,bx=[oo[0]/sx,oo[1]/sy,oo[2]/sx,oo[3]/sy],rw=Math.max(3,Math.round(Math.min(bx[2]-bx[0],bx[3]-bx[1])*.04)),X0=Math.round(bx[0]),Y0=Math.round(bx[1]),X1=Math.round(bx[2]),Y1=Math.round(bx[3]);
+   let bt=[255,255,255,0];try{bt=[kDom(ad,aw,X0,Y0,X1,Y0+rw,1),kDom(ad,aw,X0,Y1-rw,X1,Y1,1),kDom(ad,aw,X0,Y0,X0+rw,Y1,1),kDom(ad,aw,X1-rw,Y0,X1,Y1,1)].sort((p,q)=>q[3]-p[3])[0]}catch(e){}
+   P={...P,side:R.side,conf:'ok',notes:['ai'],erase:[],bg:[Math.round(bt[0]),Math.round(bt[1]),Math.round(bt[2])],bgF:bt[3]>=.5?+bt[3].toFixed(2):0,bgSd:3};aiOk=true}
+ }catch(e){console.warn('Pisah AI gagal, pakai cara biasa',e)}finally{kas('')}}
  /* garis pemisah dipertajam di resolusi penuh (analisis bisa meleset 1-2 piksel) */
- {const x0=Math.round(P.seam*sx),ex=Math.ceil(sx)+3,r0=Math.max(0,x0-ex),r1=Math.min(iw,x0+ex+1),ya=PO[1],yb=PO[3];
+ if(!aiOk){const x0=Math.round(P.seam*sx),ex=Math.ceil(sx)+3,r0=Math.max(0,x0-ex),r1=Math.min(iw,x0+ex+1),ya=PO[1],yb=PO[3];
   if(r1-r0>8&&yb-ya>8){const sd=g.getImageData(r0,ya,r1-r0,yb-ya).data,sw=r1-r0,st=Math.max(1,Math.floor((yb-ya)/240));let bx=x0,bv=-1;
    for(let x=3;x<sw-3;x++){let sum=0,n=0;for(let y=0;y<yb-ya;y+=st){let m=0;for(let q=0;q<3;q++){let l=0,r=0;for(let t=1;t<=2;t++){l+=sd[(y*sw+x-t)*4+q];r+=sd[(y*sw+x+t-1)*4+q]}m=Math.max(m,Math.abs(l-r)/2)}sum+=m;n++}sum/=n;if(sum>bv){bv=sum;bx=r0+x}}
    if(bv>=8){const dx=bx-x0;if(P.side===0){M[0]+=dx;PN[2]+=dx}else{M[2]+=dx;PN[0]+=dx}}}}
@@ -1046,8 +1086,8 @@ function auto(f){const u=URL.createObjectURL(f),o=new Image();o.onerror=()=>{URL
  cL.bg=flat&&!light?fc:null;
  PLAN={items:IT.slice(),model:M.slice(),side:P.side,conf:P.conf,notes:P.notes};
  const cL2=kcL(cL),cR2=kcR(cR);put('L',cL2);put('R',cR2);s.lw=cl(Math.round(100*(1-cR2.width/cR2.height*H/W)),24,52);s.zl=100;s.zr=100;sync('lw',s.lw);sync('zl',100);sync('zr',100);sched();save();if(s.ai)setTimeout(()=>kTidy(cL2),80);
- toast(P.notes.includes('outfit-tidak-ketemu')?'Dipisah, tapi benda outfit kurang jelas — cek hasilnya':P.conf==='ok'?'Foto berhasil dipisah':'Dipisah (perkiraan) — cek lebar panel kiri')
- }catch(x){toast('Gagal memisahkan, pilih foto satu-satu')}};o.src=u}
+ toast(aiOk?'Foto dipisah oleh AI':P.notes.includes('outfit-tidak-ketemu')?'Dipisah, tapi benda outfit kurang jelas — cek hasilnya':P.conf==='ok'?'Foto berhasil dipisah':'Dipisah (perkiraan) — cek lebar panel kiri')
+ }catch(x){kas('');toast('Gagal memisahkan, pilih foto satu-satu')}};o.src=u}
 const kfr=()=>{try{return Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))])}catch(e){return Promise.resolve()}};
 function dl(el){if(pon?!pimg:zon?!zimg:(!img.L||!img.R)){toast('Pilih foto outfit dan foto model dulu');return}busyDl(el,async say=>{say('Mengunduh…');try{await kfr();pexp=pon?1:0;draw();const b=await new Promise(r=>cv.toBlob(r,'image/png'));if(!b){toast('Gagal membuat gambar, coba lagi');return false}const r=await dlBlob(b,(pon?'panah-outfit-'+Date.now().toString(36):'kolase-outfit-'+(s.num.replace(/[^\w-]+/g,'')||'1'))+'.png');if(r==='dl')toast('Gambar diunduh');return r!=='abort'}catch(err){toast('Gagal mengunduh, coba lagi');return false}finally{pexp=0;sched()}})}
 /* v17.6: ALBUM KOLASE — tombol Simpan memasukkan hasil kolase ke album otomatis (IndexedDB 'pb_kol_alb_v1': foto utuh + thumbnail). 1 album maks. AMAX foto; "Unduh semua" mengunduh seluruh isi album, lalu simpanan berikutnya masuk album baru. */
@@ -1100,7 +1140,7 @@ async function adlAll(el){let P=[];try{P=(await aalb(AV)).sort((a,b)=>a.at-b.at)
   if(C&&C.Plugins&&C.Plugins.SaveImage&&typeof C.Plugins.SaveImage.save==='function'){
    let nx=pre(0),i=0;
    for(;i<P.length;i++){say('Mengunduh '+(i+1)+'/'+P.length+'…');const cur=nx;nx=pre(i+1);
-    try{await C.Plugins.SaveImage.save({data:await cur,fileName:anm(i).replace(/\.png$/,'')+'-'+Date.now()+'.png'})}catch(e){break}}
+    try{const dat=await cur,fn=anm(i).replace(/\.png$/,'')+'-'+Date.now()+'.png',sv=()=>svT(C.Plugins.SaveImage.save({data:dat,fileName:fn}),25000);try{await sv()}catch(e1){await wt(700);await sv()}}catch(e){break}}
    if(i>=P.length){ok=true;return true}
    st=i}
   for(let i=st;i<P.length;i++){say('Mengunduh '+(i+1)+'/'+P.length+'…');const r=await dlBlob(P[i].blob,anm(i));if(r!=='saved'&&r!=='dl'){if(r!=='abort')toast('Gagal mengunduh foto '+(i+1)+', coba lagi');return false}if(r==='dl'&&i<P.length-1)await wt(450)}
@@ -1500,7 +1540,22 @@ function pnXY(o){const bad=[NaN,NaN];if(!o)return bad;
 /* v18.25: PANAH OUTFIT v3 — AI cukup ambil NOMOR TERATAS (terbaru) di halaman koleksi. Contoh: 021 muncul di 3 foto teratas, foto bernomor lain (020, dst) diabaikan. Tiap foto bernomor itu = 1 panah "No 021", dipasang di foto outfit pada bagian yang SEJENIS (foto tas -> tas, foto celana -> celana, foto baju -> baju); warna/model boleh beda. Lalu tiap foto produk "diklik" (tautannya dibuka lewat pembaca halaman) untuk membaca harga di Shopee. Harga yang gagal dibaca: tautan Shopee-nya ditampilkan di bawah status supaya bisa dibuka & diisi manual. */
 const PNSYS='Kamu membaca halaman koleksi toko dan mencocokkan jenis pakaian. Balas HANYA dengan satu objek JSON, tanpa teks lain.';
 const PNASK2='Gambar pertama: foto outfit lengkap. Setelah itu ada KANDIDAT foto produk dari halaman koleksi toko, urut dari paling atas (Kandidat 1, 2, dst), tiap kandidat kadang disertai teks keterangannya (biasanya berisi nomor produk, mis. 021). Untuk SETIAP kandidat, urut, isi: "number" = nomor produk (angka apa adanya termasuk nol di depan; ambil dari teks keterangan; kalau tidak ada baca dari tulisan di foto; kalau tidak ada isi null, jangan menebak), "category" = jenis produk yang dijual (hijab, atasan, gamis, rok, celana, tas, sepatu, dll; kalau foto model memakai beberapa item, pilih item yang disebut teks atau banner di foto, atau yang paling menonjol; kalau bukan foto produk, mis. foto profil atau banner, isi null), "name" = nama singkat produk, dan "box":[ymin,xmin,ymax,xmax] = posisi bagian dengan JENIS YANG SAMA di foto outfit pertama, 4 angka bulat 0 sampai 1000 (bukan piksel; 0,0 = pojok kiri atas foto, 1000,1000 = pojok kanan bawah). Warna dan model boleh berbeda dari kandidat: kalau produknya tas, beri kotak pada tas yang dipegang atau dipakai di foto outfit; kalau celana, beri kotak pada celana; dst. Kalau jenis itu tidak terlihat di foto outfit, isi box null. Kalau dua kandidat sejenis, usahakan beri bagian yang berbeda di foto outfit. Balas JSON saja: {"items":[{"c":<nomor kandidat>,"number":"<angka atau null>","category":"<jenis atau null>","name":"<nama>","box":[<ymin>,<xmin>,<ymax>,<xmax>] atau null,"confidence":<0 sampai 1>}]}';
-const pnl=a=>{const e=$('kpnl');if(!e)return;e.innerHTML='';(a||[]).forEach(o=>{const l=document.createElement('a');l.href=o.h;l.target='_blank';l.rel='noopener';l.textContent=o.t;l.style.cssText='display:block;margin:4px 0;font-size:13px;color:var(--accent-2);text-decoration:underline;text-align:left';e.appendChild(l)})};
+/* v18.26: layar mini produk Shopee di dalam aplikasi. Urutan: (1) plugin Browser Capacitor kalau ada di APK, (2) panel mini berisi iframe (sebagian halaman Shopee menolak ditampilkan di iframe, makanya ada tombol "Buka di browser"). Klik tautan TIDAK lagi menavigasi halaman aplikasi (dulu muncul dialog "Konfirmasi Navigasi"). */
+function pnWeb(u){try{window.open(u,'_blank','noopener,noreferrer')}catch(e){}}
+async function pnOpen(u,t){if(!/^https?:\/\//i.test(u))return;
+ try{const C=window.Capacitor||(window.parent&&parent.Capacitor),B=C&&C.Plugins&&C.Plugins.Browser;if(C&&typeof C.isNativePlatform==='function'&&C.isNativePlatform()&&B&&typeof B.open==='function'){await B.open({url:u,presentationStyle:'popover'});return}}catch(e){}
+ const old=document.getElementById('pnmini');if(old)old.remove();
+ const w=document.createElement('div');w.id='pnmini';w.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;flex-direction:column;justify-content:flex-end';
+ const bx=document.createElement('div');bx.style.cssText='height:86%;background:var(--bg,#0b0b0d);color:var(--text,#fff);border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -8px 30px rgba(0,0,0,.5)';
+ const hd=document.createElement('div');hd.style.cssText='display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.12)';
+ const ti=document.createElement('b');ti.textContent=t||'Produk Shopee';ti.style.cssText='flex:1;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+ const mk=(x,f)=>{const b=document.createElement('button');b.type='button';b.textContent=x;b.style.cssText='border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;border-radius:10px;padding:8px 12px;font-size:13px';b.onclick=f;return b};
+ const cls=()=>{w.remove()};
+ hd.append(ti,mk('Buka di browser',()=>pnWeb(u)),mk('Tutup',cls));
+ const hn=document.createElement('div');hn.textContent='Kalau layar kosong, Shopee tidak mengizinkan tampil di sini. Tekan "Buka di browser".';hn.style.cssText='padding:6px 14px;font-size:12px;opacity:.7';
+ const fr=document.createElement('iframe');fr.src=u;fr.setAttribute('referrerpolicy','no-referrer');fr.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups');fr.style.cssText='flex:1;width:100%;border:0;background:#fff';
+ bx.append(hd,hn,fr);w.appendChild(bx);w.addEventListener('click',e=>{if(e.target===w)cls()});document.body.appendChild(w)}
+const pnl=a=>{const e=$('kpnl');if(!e)return;e.innerHTML='';(a||[]).forEach(o=>{const l=document.createElement('a');l.href=o.h;l.rel='noopener';l.textContent=o.t;l.style.cssText='display:block;margin:6px 0;font-size:14px;color:var(--accent-2);text-decoration:underline;text-align:left;cursor:pointer';l.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();pnOpen(o.h,o.t)});e.appendChild(l)})};
 /* nomor dari teks keterangan di bawah foto (hanya kalau isinya memang angka/No angka) */
 const pnCap=t=>{const m=String(t||'').replace(/^[^\w#]+/,'').match(/^\s*(?:no\.?\s*|nomor\s*|#)?(\d{2,5})(?![\d]|[.,]\d)/i);return m?m[1]:''};
 function pnIds(t){const m=String(t||'').match(/\/product\/(\d{4,})\/(\d{4,})|-i\.(\d{4,})\.(\d{4,})/);return m?[m[1]||m[3],m[2]||m[4]]:null}
@@ -1545,19 +1600,17 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
    let tx=cl((ox+cl(x,0,100)/100*dw)/W*100,2,98),ty=cl((oy+cl(y,0,100)/100*dh)/H*100,2,98);
    if(found.some(f=>Math.hypot(f.tx-tx,f.ty-ty)<6))ty=cl(ty+9,2,98);
    found.push({name:g.name,num:top.num,pv:0,cf:vis?g.cf:0,tx,ty,g,vis})});
-  pns('Nomor teratas '+top.num+' ada di '+G.length+' foto. Membuka tiap foto di Shopee untuk melihat harga');
-  await Promise.all(found.map(async f=>{let p=0;if(f.g.c.link)p=await pnPrice(f.g.c.link);f.pv=p||f.g.c.pr||0}));
+  pns('Nomor teratas '+top.num+' ada di '+G.length+' foto. Memasang panah');
   const base=pcur()||PD(),pre=(((pcur()||pa.a[0]||{t:'No'}).t||'').match(/^\D*/)||['No'])[0].trim()||'No',auto=a=>/^No \d+$/.test((a.t||'').trim())&&!(a.pr||'').trim(),used=new Set(),news=[];
   found.forEach(f=>{let bi=-1,bd=1e9;pa.a.forEach((a,i)=>{if(used.has(i))return;const d=Math.hypot(a.tx-f.tx,a.ty-f.ty);if(d<bd){bd=d;bi=i}});
-   if(bi>=0&&bd<=14&&!auto(pa.a[bi])&&!pa.a[bi].au){const a=pa.a[bi];used.add(bi);a.t=pre+' '+f.num;a.pr=f.pv?lnRp(f.pv):'';return}
+   if(bi>=0&&bd<=14&&!auto(pa.a[bi])&&!pa.a[bi].au){const a=pa.a[bi];used.add(bi);a.t=pre+' '+f.num;return}
    let lx=f.tx<50?17:83,ly=cl(f.ty-5,8,92);if(Math.abs(lx-f.tx)<14)lx=f.tx<50?Math.min(f.tx+30,88):Math.max(f.tx-30,12);
    for(let k=0;k<12&&pa.a.concat(news).some(o=>Math.abs(o.lx-lx)<24&&Math.abs(o.ly-ly)<9);k++)ly=ly+10>92?8:ly+10;
    news.push({...base,au:1,t:pre+' '+f.num,pr:lnRp(f.pv),tx:f.tx,ty:f.ty,lx,ly})});
   pa.a=pa.a.filter((a,i)=>used.has(i)||!(auto(a)||a.au)).concat(news);pa.s=pa.a.length?0:-1;
   pchips();fillP();sched();
-  pnl(found.filter(f=>f.g.c.link).map(f=>({h:f.g.c.link,t:pre+' '+f.num+' · '+(f.name||'produk')+(f.pv?' ('+lnRp(f.pv)+')':' (harga belum terbaca)')+' · buka di Shopee'})));
-  const nPr=found.filter(f=>f.pv).length;
-  pns('Nomor teratas: '+pre+' '+top.num+' ('+G.length+' foto: '+found.map(f=>f.name||'produk').join(', ')+'). Harga terisi '+nPr+' dari '+found.length+'.'+(nPr<found.length?' Yang belum terbaca: buka tautan Shopee di bawah, lalu isi harganya di kolom Harga.':'')+(nov.length?' Tidak terlihat di foto outfit (panah sementara, geser ya): '+nov.join(', ')+'.':'')+' Geser ujung panah kalau kurang pas.');
+  pnl(found.filter(f=>f.g.c.link).map(f=>({h:f.g.c.link,t:pre+' '+f.num+' · '+(f.name||'produk')+' · lihat produk'})));
+  pns('Nomor teratas: '+pre+' '+top.num+' ('+G.length+' foto: '+found.map(f=>f.name||'produk').join(', ')+'). Panah sudah terpasang.'+(nov.length?' Tidak terlihat di foto outfit (panah sementara, geser ya): '+nov.join(', ')+'.':'')+' Ketuk tautan di bawah untuk melihat produk & harganya di Shopee. Geser ujung panah kalau kurang pas.');
   toast(G.length+' panah terisi')
  }catch(e){pns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{lnBusy=0;el.disabled=false}}
