@@ -54,6 +54,8 @@ const PB_IMG_G5='media/g5.jpg';
 const PB_IMG_G6='media/g6.jpg';
 
 const PB_TOUR_KEY='pb_tour_done';
+// Tur dimatikan (22 Nov 2026): tandai selesai di storage juga, supaya file lain yang membaca 'pb_tour_done' langsung ikut menganggap tur sudah selesai.
+try{ if(!localStorage.getItem(PB_TOUR_KEY)) localStorage.setItem(PB_TOUR_KEY,'1'); }catch(e){}
 // ── ATURAN TUR PANDUAN PEMULA (permintaan user, v6.44) ───────────────
 // 1) Tur WAJIB muncul untuk akun Gmail yang belum pernah menyelesaikan /
 //    melewati tur (termasuk Gmail yang baru pertama kali dipakai). Status
