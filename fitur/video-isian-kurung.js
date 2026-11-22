@@ -58,6 +58,22 @@
     if(out!==n){desc.set.call(el,out);try{el.setSelectionRange(cc,cc);}catch(x){}}
   }
   document.addEventListener('input',onInput,true);
+  // salin / potong: yang masuk clipboard adalah teks lengkap (dengan isi kurung), supaya tempel di kolom lain tidak membawa penanda kosong
+  function onCopyCut(e){
+    var el=e.target;
+    if(!isTarget(el)||!el.__kr||!e.clipboardData)return;
+    var n=desc.get.call(el),a=el.selectionStart,b=el.selectionEnd;
+    if(a===b)return;
+    e.clipboardData.setData('text/plain',expand(el,n.slice(a,b)));
+    e.preventDefault();
+    if(e.type==='cut'){
+      desc.set.call(el,n.slice(0,a)+n.slice(b));
+      try{el.setSelectionRange(a,a);}catch(x){}
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+  }
+  document.addEventListener('copy',onCopyCut,true);
+  document.addEventListener('cut',onCopyCut,true);
   function scan(root){
     if(!root||root.nodeType!==1)return;
     if(isTarget(root))install(root);

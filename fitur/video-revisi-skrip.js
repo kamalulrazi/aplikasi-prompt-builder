@@ -1775,7 +1775,7 @@ const VB_EN_MAP={
   'bercanda':'super cheerful',
   'gaul':'super slangy',
   'toxic':'shouting and snapping',
-  'ramah':'warm and friendly',
+  'ramah':'upbeat and clear, chatty and energetic',
   'produk (outfit) digantung di hanger lalu dipegang oleh karakter menghadap kamera, belum dikenakan.':'The product (outfit) is hung on a hanger and held by the character facing the camera, not worn yet.',
   'produk diperlihatkan langsung ke arah kamera oleh karakter, dipegang dengan jelas terlihat.':'The character shows the product directly to the camera, holding it so it is clearly visible.'
 };
