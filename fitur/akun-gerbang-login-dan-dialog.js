@@ -30,7 +30,7 @@
         // keputusan diambil; jaring pengaman 10 detik kalau script itu gagal.
         try{
           var _tv = localStorage.getItem('pb_tour_done');
-          if(!_tv || (_tv.indexOf('v2:')===0 && _tv.slice(3)!==String(u.email).toLowerCase())){
+          if(false && (!_tv || (_tv.indexOf('v2:')===0 && _tv.slice(3)!==String(u.email).toLowerCase()))){ // tur dimatikan (22 Nov 2026): tirai tidak pernah dipasang
             document.documentElement.classList.add('pb-tour-curtain');
             setTimeout(function(){ document.documentElement.classList.remove('pb-tour-curtain'); },10000);
           }
