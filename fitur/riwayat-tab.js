@@ -641,15 +641,14 @@ function pbShowSavedOverlay(item){
   });
   let anyRendered=false;
   sections.forEach(function(s){
-    // Entri LAMA Mode 4 / Mirror Selfie (disimpan sebelum perbaikan) tidak
+    // Entri LAMA Mode 4 (disimpan sebelum perbaikan) tidak
     // punya HTML hasil sama sekali — prompt-nya deterministik dari state, jadi
     // dibangun ulang di sini supaya tidak lagi tampil kosong.
     if(!s.html && s.type==='video' && _pbCanRebuildVideo(item) && typeof VB!=='undefined'
-       && (VB.refMode==='ikuti'||VB.refMode==='mirrorselfie')){
+       && VB.refMode==='ikuti'){
       try{
         let o=JSON.parse(_pbVideoStateOf(item)||'{}');
         if(!('M4_OVERLAY' in o) && typeof VB_MODE4_OVERLAY_TEXT!=='undefined')VB_MODE4_OVERLAY_TEXT='';
-        if(!('MIRROR_OVERLAY' in o))_pbMirrorOvOpen='';
       }catch(e){}
       let sp=_pbCollectSpecialVideo();
       if(sp){s.html=sp.html;s.text=sp.text;}
@@ -908,7 +907,6 @@ function pbCloseSavedOverlay(){
   // ini dibuka lagi, isinya sudah pasti versi terakhir yang diketik.
   _pbSavedOverlayPendingFlushes.forEach(function(fn){fn();});
   _pbSavedOverlayPendingFlushes=[];
-  _pbMirrorOvOpen=null; // setelah flush (flush masih butuh nilainya)
   let overlay=document.getElementById('pb-saved-overlay');
   if(overlay){overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');}
   // FIX BUG (laporan user): dulu menutup overlay lewat × / backdrop / Esc
@@ -1241,36 +1239,17 @@ function _pbEnhanceVideoContent(content){
 }
 
 // ════════════════════════════════════════════════════════════════════
-// AUDIT SUSULAN #1 — Mode 4 (Ikuti Gerakan) & Mirror Selfie di Riwayat.
-// Prompt kedua mode ini hidup di elemen sendiri (#vb-mode4-prompt-text,
-// #vb-mirrorselfie-prompt-1/2), di luar #vb-multi-output, jadi tidak pernah
-// tertangkap Simpan. Di sini dibuat HTML sederhana (kartu + <pre>) langsung
-// dari state; overlay lalu menambahkan kolom Teks Overlay yang hidup.
 // ════════════════════════════════════════════════════════════════════
-let _pbMirrorOvOpen=null; // null = baca dari kolom asli; string = nilai entri yang sedang dibuka di overlay
-function _pbMirrorOvGet(){
-  if(_pbMirrorOvOpen!==null)return _pbMirrorOvOpen;
-  try{return _vbMirrorOverlayValue();}catch(e){return '';}
-}
-function _pbMirrorPromptFor(ov,n){
-  let base=_vbMirrorBasePrompt();
-  if(n===2||!ov)return base;
-  return base+' '+_vbOverlaySentence(ov).replace(/^\.\s*/,'');
-}
+// AUDIT SUSULAN #1 — Mode 4 (Ikuti Gerakan) di Riwayat.
+// Prompt mode ini hidup di elemen sendiri (#vb-mode4-prompt-text), di luar
+// #vb-multi-output, jadi tidak pernah tertangkap Simpan. Di sini dibuat HTML
+// sederhana (kartu + <pre>) langsung dari state.
+// ════════════════════════════════════════════════════════════════════
 function _pbCollectSpecialVideo(){
   if(typeof VB==='undefined')return null;
   let mode=VB.refMode;
-  if(mode!=='ikuti'&&mode!=='mirrorselfie')return null;
-  let defs;
-  if(mode==='ikuti'){
-    defs=[{label:'Prompt — Ikuti Gerakan Video',text:_vbMode4BuildText(),hidden:false}];
-  }else{
-    let ov=_pbMirrorOvGet();
-    defs=[
-      {label:ov?'Prompt 1 — Mirror Selfie (+ tulisan kecil)':'Prompt — Mirror Selfie',text:_pbMirrorPromptFor(ov,1),hidden:false},
-      {label:'Prompt 2 — Mirror Selfie (Original)',text:_pbMirrorPromptFor(ov,2),hidden:!ov}
-    ];
-  }
+  if(mode!=='ikuti')return null;
+  let defs=[{label:'Prompt — Ikuti Gerakan Video',text:_vbMode4BuildText(),hidden:false}];
   let root=document.createElement('div');
   root.setAttribute('data-pb-special',mode);
   let texts=[];
@@ -1300,57 +1279,6 @@ function _pbEnhanceSpecialVideo(content){
   let pres=cards.map(function(c){return c.querySelector('pre');});
   let labels=cards.map(function(c){return c.querySelector('.out-label');});
   pres.forEach(function(pr){if(pr)pr.dataset.pbLive='1';});
-  if(mode==='ikuti')return true; // Motion Control: tanpa kolom Teks Overlay (dihapus atas permintaan user)
-  function ovGet(){return mode==='ikuti'?(VB_MODE4_OVERLAY_TEXT||''):_pbMirrorOvGet();}
-  function refresh(){
-    let ov=ovGet();
-    if(mode==='ikuti'){
-      if(pres[0])pres[0].textContent=_vbMode4BuildText();
-    }else{
-      if(pres[0])pres[0].textContent=_pbMirrorPromptFor(ov,1);
-      if(pres[1])pres[1].textContent=_pbMirrorPromptFor(ov,2);
-      if(labels[0])labels[0].textContent=ov?'Prompt 1 — Mirror Selfie (+ tulisan kecil)':'Prompt — Mirror Selfie';
-      if(cards[1])cards[1].classList.toggle('hidden',!ov);
-    }
-  }
-  let wrap=document.createElement('div');
-  wrap.setAttribute('data-pb-ui','1');
-  wrap.style.cssText='margin-bottom:8px;';
-  let cur=ovGet();
-  let btn=document.createElement('button');
-  btn.type='button';
-  btn.style.cssText='background:none;border:none;color:var(--accent);font-size:var(--fs-xs2);cursor:pointer;padding:0;font-weight:500;';
-  btn.textContent=cur?'– Sembunyikan detail':'+ Atur Detail (opsional)';
-  let box=document.createElement('div');
-  box.className=cur?'':'hidden';
-  box.style.cssText='margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;';
-  let lab=document.createElement('label');
-  lab.className='inplabel';lab.style.cssText='font-size:var(--fs-2xs);';
-  lab.textContent=(mode==='ikuti')?'Teks Overlay':'Isi';
-  let inp=document.createElement('input');
-  inp.className='inp';inp.maxLength=60;
-  inp.placeholder=(mode==='ikuti')?'Contoh: polkadot':'Contoh: sepatu futsal';
-  inp.value=cur;
-  inp.addEventListener('input',function(){
-    let v=inp.value.trim();
-    if(mode==='ikuti')VB_MODE4_OVERLAY_TEXT=v;else _pbMirrorOvOpen=v;
-    refresh(); // event 'input' asli menggelembung ke content → autosave
-  });
-  btn.onclick=function(){
-    let opening=box.classList.contains('hidden');
-    box.classList.toggle('hidden');
-    btn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
-    if(opening)inp.focus();
-  };
-  box.appendChild(lab);box.appendChild(inp);
-  if(mode==='ikuti'){
-    let hint=document.createElement('p');
-    hint.style.cssText='font-size:var(--fs-2xs);color:var(--muted2);margin:6px 0 0;';
-    hint.textContent='Kalau diisi, teks ini otomatis ditambahkan ke akhir prompt: muncul tulisan kecil banget di pojok kanan paling bawah layar pada detik awal (0–2 detik) lalu menghilang. Kosongkan kalau tidak perlu teks overlay.';
-    box.appendChild(hint);
-  }
-  wrap.appendChild(btn);wrap.appendChild(box);
-  root.insertBefore(wrap,root.firstChild);
   return true;
 }
 

@@ -263,8 +263,8 @@ function vbToggleProdukFotoPanel(prefix){
   let panel=document.getElementById('vb-'+prefix+'-fotopanel');
   if(!panel)return;
   let willOpen=panel.classList.contains('hidden');
-  // tutup panel lain (ai/manual/mirrorselfie) biar tidak dobel kebuka
-  ['ai','manual','mirrorselfie'].forEach(function(p){
+  // tutup panel lain (ai/manual) biar tidak dobel kebuka
+  ['ai','manual'].forEach(function(p){
     let el=document.getElementById('vb-'+p+'-fotopanel');
     if(el&&p!==prefix)el.classList.add('hidden');
   });
@@ -273,7 +273,7 @@ function vbToggleProdukFotoPanel(prefix){
 }
 function _vbRenderProdukFotoMulti(){
   let list=vbProdukFotoList();
-  ['ai','manual','mirrorselfie'].forEach(function(prefix){
+  ['ai','manual'].forEach(function(prefix){
     let badge=document.getElementById('vb-'+prefix+'-fotobadge');
     if(badge)badge.textContent=list.length?(list.length+' foto'):'';
     let wrap=document.getElementById('vb-'+prefix+'-fotopanel-list');
@@ -306,8 +306,6 @@ const VB_REF_MODE_DESC={
   aset:'Video voice over tanpa wajah manusia: lampirkan beberapa foto sesuai urutan, tiap foto jadi satu adegan dengan transisi cut. Narasi terdengar sebagai suara dari luar layar. Cocok untuk produk dengan detail kecil dan rumit karena video mengikuti foto secara konsisten.',
   kp:'Mode tercepat tanpa perlu bikin foto AI. Tapi tidak cocok untuk mempromosikan produk dengan kategori fashion dan aksesoris kecil dengan detail yang rumit.',
   ikuti:'FOTO AI akan mengikuti setiap gerakan dari video yang kamu lampirkan, dengan mempertahankan lokasi, outfit, lighting pada FOTO AI.',
-  mirrorselfie:'Persiapkan 1 bahan aja, yaitu FOTO AI. FOTO AI wajib dengan pose mirror selfie. Kamu bisa pilih di Pose ketika merakit prompt foto.',
-  tess:'Memanfaatkan foto produk untuk menjadikan video dengan berbagai opsi visual.',
   fashion:'Khusus untuk fashion. Disini karakter tidak akan berbicara dan tidak ada musik. Pastikan produk yang ingin kamu promosikan sudah terlihat jelas dalam foto AI.',
   uiui:'Video unboxing produk gaya POV ala rekaman HP: kotak diketuk, dibuka, produk dilihat dari dekat, lalu ditutup dengan jempol. Tanpa orang bicara dan tanpa musik.',
   dua:'Video percakapan dua suara: 1 karakter terlihat di layar, 1 suara lain terdengar dari luar layar (jenis kelamin otomatis kebalikan karakter utama). Hanya 16 detik, hasilnya 2 prompt: Hook dan CTA.',
@@ -320,239 +318,6 @@ const VB_REF_MODE_DESC={
 // tampilkan kotak "Salin" di sini, dan sembunyikan tombol "Lanjut →"
 // (V2 dst tidak relevan buat mode ini).
 const VB_MODE4_PROMPT_TEXT='Now we will create a motion control video. First, for the starting frame, we will start from the reference photo (the location stays the same as in the reference photo). Then you copy 100% of every body movement of the human in the reference video.\n\nMANDATORY TASK: COPY 100% OF THE HUMAN\'S MOVEMENTS IN THE REFERENCE VIDEO. NEVER ADD OR INVENT ANY MOVEMENT THAT IS NOT IN THE REFERENCE VIDEO.';
-const VB_TESS_PROMPT_TEXT='Luxury product ad video from a single reference photo. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a dark room with a glossy black surface.\n\nScene 1 (0-3 seconds): The frame is almost dark, a thin beam of light slowly sweeps from left to right and reveals the silhouette of the product. The camera moves in very slowly (slow push-in).\nScene 2 (3-6 seconds): Macro on the most prominent part visible in the photo. Rim light makes the material shine, fine dust particles float in the air, shallow focus, soft bokeh.\nScene 3 (6-10 seconds): The camera slowly pulls back to a hero composition, with the product centered in the frame and its silhouette emphasized by rim light. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo. No humans, hands, wearers, or mannequins in the frame; if the photo contains a person, show only the product. No text or watermark.';
-// Prompt 2 — tess (permintaan user, Okt 2026): terjemahan Inggris APA ADANYA
-// dari teks Indonesia yang dikirim user, tanpa mengubah isi/strukturnya sama
-// sekali (cuma dialihbahasakan). Ditampilkan berdampingan dengan Prompt 1
-// (VB_TESS_PROMPT_TEXT di atas, versi lama) lewat alur vbTessGenerate().
-const VB_TESS_PROMPT_TEXT_2='Luxury product ad video from a single reference photo. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a dark room with a glossy black surface.\n\nScene 1 (0-3 seconds): The frame is almost dark, a thin beam of light slowly sweeps from left to right and reveals the silhouette of the product. The camera moves in very slowly (slow push-in).\n\nScene 2 (3-6 seconds): Macro shot on the most prominent part visible in the photo. Rim light makes the material shine, fine dust particles float in the air, shallow focus, soft bokeh.\n\nScene 3 (6-10 seconds): The camera slowly pulls back to a hero composition, with the product centered in the frame and its silhouette emphasized by rim light. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo. No humans, hands, or wearers; if the photo contains a person, show only the product. No text or watermark.\n\nAudio: adjust it to whatever fits best.';
-// Prompt — tess Gaya "Dinamis" (permintaan user, Okt 2026): terjemahan
-// Inggris APA ADANYA dari teks Indonesia yang dikirim user, isi/struktur
-// tidak diubah sama sekali (cuma dialihbahasakan). Dipakai sebagai
-// satu-satunya prompt yang tampil kalau user memilih Gaya "Dinamis" di
-// vbTessPilihGaya(2) — lihat vbTessGenerate().
-const VB_TESS_PROMPT_TEXT_DINAMIS='Dynamic product ad video from a single reference photo, made to hook the viewer from the very first second. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a dark studio with soft colored light accents that match the product\'s color.\n\nScene 1 (0-3 seconds, hook): A fast flash of light sweeps across the frame, the camera rushes in toward the product (fast push-in) then slows down and stops at a close-up.\n\nScene 2 (3-6 seconds): The camera whips quickly sideways (whip pan) toward the most striking part visible in the photo, then settles smoothly into a macro shot with shine on the material.\n\nScene 3 (6-10 seconds): The camera pulls back smoothly to a hero composition, the movement slows and the light locks onto the product centered in the frame. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo. No humans, hands, wearers, or mannequins in the frame; if the photo contains a person, show only the product. No text or watermark. Audio: adjust it to whatever fits best in your judgment.';
-// Prompt 2 — tess Gaya "Dinamis" (permintaan user, 17 Okt 2026): terjemahan
-// Inggris APA ADANYA dari teks Indonesia yang dikirim user, isi/struktur
-// tidak diubah (cuma dialihbahasakan). Lanjutan dari VB_TESS_PROMPT_TEXT_DINAMIS
-// di atas — dipakai sebagai Prompt 2 kalau Gaya "Dinamis" dipilih (lihat vbTessGenerate()).
-const VB_TESS_PROMPT_TEXT_DINAMIS_2='Dynamic product ad video from a single reference photo, made to hook the viewer from the very first second. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a dark studio with soft colored light accents that match the product\'s color.\n\nScene 1 (0-3 seconds): There is a transition at the start of the video signaling that this video is a continuation of the previous one; after that, a fast flash of light sweeps across the frame, the camera rushes in toward the product (fast push-in) then slows down and stops at a close-up.\n\nScene 2 (3-6 seconds): The camera whips quickly sideways (whip pan) toward the most striking part visible in the photo, then settles smoothly into a macro shot with shine on the material.\n\nScene 3 (6-10 seconds): The camera pulls back smoothly to a hero composition, the movement slows and the light locks onto the product centered in the frame. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo. No humans, hands, wearers, or mannequins in the frame; if the photo contains a person, show only the product. No text or watermark.\n\nAudio: adjust it to whatever fits best in your judgment.';
-// Prompt 1 & 2 — tess Gaya "Estetik" (permintaan user, 17 Okt 2026):
-// terjemahan Inggris APA ADANYA dari teks Indonesia yang dikirim user, isi/
-// struktur tidak diubah (cuma dialihbahasakan). Dipakai lewat vbTessGenerate()
-// kalau Gaya "Estetik" (vbTessPilihGaya(3)) dipilih.
-const VB_TESS_PROMPT_TEXT_ESTETIK='Aesthetic product ad video from a single reference photo. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a minimalist cream-toned room with warm window light.\n\nScene 1 (0-3 seconds): Hero wide shot, the camera moves in slowly (slow push-in). Morning light comes in from the side, leaf shadows move gently on the wall behind the product.\nScene 2 (3-6 seconds): Close-up on the most striking part visible in the photo, the camera glides slowly sideways. Warm light shifts slowly over the material, shallow focus, soft blurred background.\nScene 3 (6-10 seconds): The camera pulls back to a hero composition, the light is steady and clean. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo: shape, color, logo, and details do not change. No humans, hands, or wearers in the frame; if the photo contains a person, show only the product. No text or watermark. Audio: give audio that fits the video, whatever you think sounds good.';
-const VB_TESS_PROMPT_TEXT_ESTETIK_2='Aesthetic product ad video from a single reference photo. The product in the reference photo is the only subject and stays in the same position as in the photo. The background is changed into a minimalist cream-toned room with warm window light.\n\nScene 1 (0-3 seconds): Hero wide shot, the camera moves in slowly (slow push-in). Morning light comes in from the side, leaf shadows move gently on the wall behind the product.\n\nScene 2 (3-6 seconds): Close-up on the most striking part visible in the photo, the camera glides slowly sideways. Warm light shifts slowly over the material, shallow focus, soft blurred background.\n\nScene 3 (6-10 seconds): The camera pulls back to a hero composition, the light is steady and clean. Leave empty space at the top.\n\nSoft materials such as fabric move very subtly in the wind, hard materials stay still, the product does not open or rotate by itself. The product is identical to the reference photo: shape, color, logo, and details do not change. No humans, hands, wearers, or mannequins in the frame; if the photo contains a person, show only the product. No text or watermark.\n\nAudio: adjust it to whatever you think sounds good and fits.';
-// ── Alur bertahap mode tess (permintaan user, Okt 2026, direvisi): chip
-// "tess" diklik → tombol "Lanjut →" → pilih Gaya ("Mewah" = video & prompt
-// lama, "Dinamis" = video baru + prompt baru) → begitu salah satu Gaya
-// dipilih muncul tombol "Lanjut →" → wajib isi Nama Produk (TIDAK ikut
-// masuk ke prompt, cuma catatan) → begitu nama terisi muncul tombol
-// "Lanjut →" lagi → pilih Durasi (4 chip: 4/6/8/10 detik — cuma "10 detik"
-// yang bisa dipilih, 3 lainnya dikunci & kalau diklik cuma munculkan toast
-// "belum tersedia") → begitu "10 detik" dipilih muncul tombol "Generate
-// Prompt" → klik → loading sebentar → tampil 2 prompt (Awal→Lanjutan)
-// sesuai Gaya yang dipilih: "Mewah", "Dinamis", atau "Estetik".
-// Gaya "UGC" (17 Okt 2026): POV handheld ala rekaman HP. Prompt 1 = produk diangkat ke kamera, Prompt 2 = produk sudah di permukaan lalu disentuh tangan.
-const VB_TESS_PROMPT_TEXT_UGC="Vertical video, natural UGC-style content, as if filmed by oneself with a phone.\n\nUse the reference photo as the product reference.\nPOV (first-person) viewpoint, as if the viewer is holding the product themselves. Only hands are visible.\n\nAction: at the start of the video the product is not yet being held, then the product is slowly lifted toward the camera, showing the part of the product that matches the reference photo, then brought closer to the camera so the details of the material can be seen. Relaxed movement, not rushed.\n\nSetting: an ordinary, simple home room (plain wall, wooden table or a bed with simple sheets), slightly messy and as-is. Natural light from the window, warm and soft. No sense of luxury, studio, or decorative props.\n\nCamera: handheld with subtle shake, focus drifting slightly like real phone footage.\n\nSound: only the ambient sound of the room and the soft sound of the product rubbing. No music, no dialogue, no narration.\n\nRestrictions: no human faces, no text or watermarks, no extra logos, no excessive cinematic effects, no luxury feel.";
-const VB_TESS_PROMPT_TEXT_UGC_2="Use the reference photo as the product reference. The shape, color, material, details, and logo of the product must be exactly the same as in the photo, do not change or add anything.\n\nPOV (first-person) viewpoint, as if the viewer is the one looking at and touching the product. Only hands are visible.\nThe scene starts with the product already resting on a surface in front of the camera (wooden table, bed with simple sheets, or the floor of the house, depending on the type of product). The camera is slightly above the product, facing down at an angle.\n\nAction: the camera slowly moves closer, showing 2 to 3 distinctive details of the product. Then one hand enters the frame and naturally touches a part of the product. At the end, the hand moves away and the product is left alone in the center of the frame, stable and clear.\n\nSetting: an ordinary, simple home room (plain wall, wooden table or a bed with simple sheets), slightly messy and as-is. Natural light from the window, warm and soft. No sense of luxury, studio, or decorative props.\n\nCamera: handheld with subtle shake, focus drifting slightly like real phone footage, slowing down and becoming stable at the end.\n\nSound: only the ambient sound of the room and the soft sound of touch on the product. No music, no dialogue, no narration.\n\nRestrictions: no human faces, no text or watermarks, no extra logos, no excessive cinematic effects, no luxury feel. The camera never points upward toward the face, the frame is always chest height and below.";
-let VB_TESS_GAYA=null; // 1 = Mewah, 2 = Dinamis, 3 = Estetik, 4 = UGC
-let VB_TESS_DURASI=null; // 8 atau 10 (8 hanya untuk Gaya UGC)
-function vbTessPromptPair(){
-  if(VB_TESS_GAYA===2)return [VB_TESS_PROMPT_TEXT_DINAMIS,VB_TESS_PROMPT_TEXT_DINAMIS_2];
-  if(VB_TESS_GAYA===3)return [VB_TESS_PROMPT_TEXT_ESTETIK,VB_TESS_PROMPT_TEXT_ESTETIK_2];
-  if(VB_TESS_GAYA===4)return [VB_TESS_PROMPT_TEXT_UGC,VB_TESS_PROMPT_TEXT_UGC_2];
-  return [VB_TESS_PROMPT_TEXT,VB_TESS_PROMPT_TEXT_2];
-}
-function vbTessResetFlow(){
-  let stepLanjut=document.getElementById('vb-tess-step-lanjut');
-  let stepGaya=document.getElementById('vb-tess-step-gaya');
-  let stepNama=document.getElementById('vb-tess-step-nama');
-  let stepDurasi=document.getElementById('vb-tess-step-durasi');
-  let loading=document.getElementById('vb-tess-loading');
-  let result=document.getElementById('vb-tess-result');
-  let namaInp=document.getElementById('vb-tess-nama-input');
-  let gayaLanjutBtn=document.getElementById('vb-tess-gaya-lanjut-btn');
-  let namaLanjutBtn=document.getElementById('vb-tess-nama-lanjut-btn');
-  let genBtn=document.getElementById('vb-tess-generate-btn');
-  let durasi10=document.getElementById('vb-tess-durasi-10');
-  let gaya1=document.getElementById('vb-tess-gaya-1');
-  let gaya2=document.getElementById('vb-tess-gaya-2');
-  let gaya3=document.getElementById('vb-tess-gaya-3');
-  let gaya4=document.getElementById('vb-tess-gaya-4');
-  let durasi8=document.getElementById('vb-tess-durasi-8');
-  if(stepLanjut)stepLanjut.classList.remove('hidden');
-  if(stepGaya)stepGaya.classList.add('hidden');
-  if(stepNama)stepNama.classList.add('hidden');
-  if(stepDurasi)stepDurasi.classList.add('hidden');
-  if(loading)loading.classList.add('hidden');
-  if(result)result.classList.add('hidden');
-  if(namaInp)namaInp.value='';
-  if(gayaLanjutBtn)gayaLanjutBtn.classList.add('hidden');
-  if(namaLanjutBtn)namaLanjutBtn.classList.add('hidden');
-  if(genBtn)genBtn.classList.add('hidden');
-  if(durasi10)durasi10.classList.remove('sel');
-  if(gaya1)gaya1.classList.remove('sel');
-  if(gaya2)gaya2.classList.remove('sel');
-  if(gaya3)gaya3.classList.remove('sel');
-  if(gaya4)gaya4.classList.remove('sel');
-  if(durasi8){durasi8.classList.remove('sel');durasi8.classList.add('tess-durasi-locked');}
-  VB_TESS_GAYA=null;
-  VB_TESS_DURASI=null;
-  vbTessSetPreviewVideo(window.PB_IMG_VBTESS_VIDEO); // balik ke video Gaya Mewah (default)
-}
-function vbTessLanjut(){
-  let stepLanjut=document.getElementById('vb-tess-step-lanjut');
-  let stepGaya=document.getElementById('vb-tess-step-gaya');
-  if(stepLanjut)stepLanjut.classList.add('hidden');
-  if(stepGaya)stepGaya.classList.remove('hidden');
-}
-// Ganti video pratinjau di kartu atas (#vb-mode-preview-tess-video) sesuai
-// Gaya yang dipilih — beda dari pengisian lazy biasa di vbSyncTessPreview()
-// yang cuma mengisi kalau masih kosong, di sini SELALU dipaksa ganti.
-function vbTessSetPreviewVideo(url){
-  let vid=document.getElementById('vb-mode-preview-tess-video');
-  if(!vid||!url) return;
-  if(vid.getAttribute('src')===url) return;
-  vid.src=url;
-  try{ vid.load(); }catch(e){}
-  vid.muted=true;
-  try{ let p=vid.play(); if(p&&p.catch)p.catch(function(){}); }catch(e){}
-}
-function vbTessPilihGaya(n){
-  VB_TESS_GAYA=n;
-  let gaya1=document.getElementById('vb-tess-gaya-1');
-  let gaya2=document.getElementById('vb-tess-gaya-2');
-  let gaya3=document.getElementById('vb-tess-gaya-3');
-  let gaya4=document.getElementById('vb-tess-gaya-4');
-  let gayaLanjutBtn=document.getElementById('vb-tess-gaya-lanjut-btn');
-  if(gaya1)gaya1.classList.toggle('sel',n===1);
-  if(gaya2)gaya2.classList.toggle('sel',n===2);
-  if(gaya3)gaya3.classList.toggle('sel',n===3);
-  if(gaya4)gaya4.classList.toggle('sel',n===4);
-  if(gayaLanjutBtn)gayaLanjutBtn.classList.remove('hidden');
-  let videoByGaya=window.PB_IMG_VBTESS_VIDEO;
-  if(n===2)videoByGaya=window.PB_IMG_VBTESS_VIDEO_DINAMIS;
-  else if(n===3)videoByGaya=window.PB_IMG_VBTESS_VIDEO_ESTETIK;
-  else if(n===4)videoByGaya=window.PB_IMG_VBTESS_VIDEO_UGC;
-  vbTessSetPreviewVideo(videoByGaya);
-}
-// Gaya sudah dipilih → lanjut ke step isi Nama Produk.
-function vbTessGoNama(){
-  if(!VB_TESS_GAYA)return;
-  let stepGaya=document.getElementById('vb-tess-step-gaya');
-  let stepNama=document.getElementById('vb-tess-step-nama');
-  if(stepGaya)stepGaya.classList.add('hidden');
-  if(stepNama)stepNama.classList.remove('hidden');
-  let namaInp=document.getElementById('vb-tess-nama-input');
-  if(namaInp)namaInp.focus();
-}
-function vbTessNamaInput(){
-  let namaInp=document.getElementById('vb-tess-nama-input');
-  let namaLanjutBtn=document.getElementById('vb-tess-nama-lanjut-btn');
-  if(!namaInp||!namaLanjutBtn)return;
-  namaLanjutBtn.classList.toggle('hidden',!namaInp.value.trim());
-}
-// Nama Produk sudah wajib & terisi → lanjut ke step pilih Durasi.
-function vbTessGoDurasi(){
-  let namaInp=document.getElementById('vb-tess-nama-input');
-  if(!namaInp||!namaInp.value.trim())return;
-  let stepNama=document.getElementById('vb-tess-step-nama');
-  let stepDurasi=document.getElementById('vb-tess-step-durasi');
-  if(stepNama)stepNama.classList.add('hidden');
-  if(stepDurasi)stepDurasi.classList.remove('hidden');
-  // Gaya UGC: durasi 8 & 10 detik bisa dipilih. Gaya lain: hanya 10 detik.
-  let durasi8=document.getElementById('vb-tess-durasi-8');
-  let durasi10=document.getElementById('vb-tess-durasi-10');
-  let hint=document.getElementById('vb-tess-durasi-hint');
-  let genBtn=document.getElementById('vb-tess-generate-btn');
-  VB_TESS_DURASI=null;
-  if(durasi8){durasi8.classList.remove('sel');durasi8.classList.toggle('tess-durasi-locked',VB_TESS_GAYA!==4);}
-  if(durasi10)durasi10.classList.remove('sel');
-  if(genBtn)genBtn.classList.add('hidden');
-  if(hint)hint.textContent=(VB_TESS_GAYA===4)?'Durasi 4/6 detik belum tersedia — pilih 8 atau 10 detik.':'Durasi 4/6/8 detik belum tersedia — pakai 10 detik dulu ya.';
-}
-// Klik salah satu chip durasi yang masih dikunci (4/6/8 detik) — cuma
-// kasih tahu belum tersedia, tidak mengubah pilihan apapun.
-function vbTessDurasiLocked(){
-  showToast('Durasi ini belum tersedia','error');
-}
-// Durasi yang bisa dipilih: 10 detik (semua Gaya) dan 8 detik (khusus Gaya UGC).
-function vbTessPilihDurasi(n){
-  if(n===8&&VB_TESS_GAYA!==4){vbTessDurasiLocked();return;}
-  VB_TESS_DURASI=n;
-  let durasi8=document.getElementById('vb-tess-durasi-8');
-  let durasi10=document.getElementById('vb-tess-durasi-10');
-  let genBtn=document.getElementById('vb-tess-generate-btn');
-  if(durasi8)durasi8.classList.toggle('sel',n===8);
-  if(durasi10)durasi10.classList.toggle('sel',n===10);
-  if(genBtn)genBtn.classList.remove('hidden');
-}
-function vbTessGenerate(){
-  let namaInp=document.getElementById('vb-tess-nama-input');
-  if(!VB_TESS_GAYA)return;
-  if(!namaInp||!namaInp.value.trim())return;
-  if(!VB_TESS_DURASI)return;
-  let stepDurasi=document.getElementById('vb-tess-step-durasi');
-  let loading=document.getElementById('vb-tess-loading');
-  let result=document.getElementById('vb-tess-result');
-  if(stepDurasi)stepDurasi.classList.add('hidden');
-  if(result)result.classList.add('hidden');
-  if(loading)loading.classList.remove('hidden');
-  setTimeout(function(){
-    if(loading)loading.classList.add('hidden');
-    let p1=document.getElementById('vb-mode-tess-prompt-text');
-    let p2=document.getElementById('vb-mode-tess-prompt-text-2');
-    let label1=document.getElementById('vb-tess-result-label-1');
-    let card2=document.getElementById('vb-tess-result-card-2');
-    let note=document.getElementById('vb-tess-result-note');
-    let promptPair=vbTessPromptPair();
-    if(p1)p1.textContent=promptPair[0];
-    if(p2)p2.textContent=promptPair[1];
-    let label2=document.getElementById('vb-tess-result-label-2');
-    if(VB_TESS_GAYA===4){
-      if(label1)label1.textContent='Prompt 1 — UGC (Produk diangkat ke kamera)';
-      if(label2)label2.textContent='Prompt 2 — UGC (Produk di permukaan, disentuh tangan)';
-      if(note)note.textContent='Dua prompt ini adalah dua variasi adegan — generate masing-masing sebagai klip terpisah ('+VB_TESS_DURASI+' detik).';
-    }else{
-      if(label1)label1.textContent='Prompt 1 — Produk Editorial (Awal)';
-      if(label2)label2.textContent='Prompt 2 — Produk Editorial (Lanjutan dari Prompt 1)';
-      if(note)note.textContent='Pakai Prompt 1 dulu sampai selesai, baru lanjut pakai Prompt 2 — keduanya satu rangkaian, bukan pilihan.';
-    }
-    if(card2)card2.classList.remove('hidden');
-    if(note)note.classList.remove('hidden');
-    if(result)result.classList.remove('hidden');
-  },900);
-}
-function vbCopyTessPrompt(n){
-  let promptPair=vbTessPromptPair();
-  let txt=(n===2)?promptPair[1]:promptPair[0];
-  _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
-}
-// Pratinjau mode tess (1 foto produk -> Video AI). Pola sama dengan vbSyncMsPreview(); media diisi lazy.
-function vbSyncTessPreview(show){
-  let box=document.getElementById('vb-mode-preview-tess');
-  if(!box) return;
-  box.classList.toggle('hidden',!show);
-  let vid=document.getElementById('vb-mode-preview-tess-video');
-  let img=document.getElementById('vb-mode-preview-tess-foto');
-  if(show){
-    if(img && !img.getAttribute('src') && window.PB_IMG_VBTESS_FOTO) img.src=window.PB_IMG_VBTESS_FOTO;
-    if(vid){
-      if(!vid.getAttribute('src') && window.PB_IMG_VBTESS_VIDEO) vid.src=window.PB_IMG_VBTESS_VIDEO;
-      vid.muted=true;
-      let vt=document.getElementById('vb-mode-preview-tess-video-thumb');
-      if(vt && window.PB_IMG_VBTESS_FOTO){
-        vt.setAttribute('data-explain','Untuk menghasilkan video AI dibutuhkan 1\u00A0bahan');
-        vt.setAttribute('data-sub1-src',window.PB_IMG_VBTESS_FOTO);
-        vt.setAttribute('data-sub1-label','Foto Produk');
-      }
-      try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
-    }
-  }else if(vid){
-    try{ vid.pause(); }catch(e){}
-  }
-}
 // ── MODE BARU "Fashion Editorial" (18 Okt 2026) ─────────────────────────────
 // Self-contained seperti tess: Lanjut → Nama Produk → Durasi (cuma 8 detik) →
 // Generate → 2 prompt. Teks prompt SENGAJA bahasa Inggris (dikirim ke AI video).
@@ -1271,7 +1036,7 @@ function vbFeKembali(){
 function vbCopyFePrompt(){
   _copyTextRobust(vbFeBuildPrompt(),function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
 }
-// Pratinjau mode Fashion Editorial (video saja). Media diisi lazy, pola sama dengan vbSyncTessPreview().
+// Pratinjau mode Fashion Editorial (video saja). Media diisi lazy, pola sama dengan vbSyncModePreview().
 function vbSyncFashionPreview(show){
   let box=document.getElementById('vb-mode-preview-fashion');
   if(!box) return;
@@ -1902,31 +1667,6 @@ function vbSyncKpPreview(show){
     try{ vid.pause(); }catch(e){}
   }
 }
-// Pratinjau Mirror Selfie (1 foto -> Video AI) di kartu Mode Referensi Foto.
-// Pola sama dengan vbSyncModePreview(); media diisi lazy saat pertama tampil.
-function vbSyncMsPreview(show){
-  let box=document.getElementById('vb-mode-preview-ms');
-  if(!box) return;
-  box.classList.toggle('hidden',!show);
-  let vid=document.getElementById('vb-mode-preview-ms-video');
-  let img=document.getElementById('vb-mode-preview-ms-foto');
-  if(show){
-    if(img && !img.getAttribute('src') && window.PB_IMG_VBMS_FOTO) img.src=window.PB_IMG_VBMS_FOTO;
-    if(vid){
-      if(!vid.getAttribute('src') && window.PB_IMG_VBMS_VIDEO) vid.src=window.PB_IMG_VBMS_VIDEO;
-      vid.muted=true;
-      let vt=document.getElementById('vb-mode-preview-ms-video-thumb');
-      if(vt && window.PB_IMG_VBMS_FOTO){
-        vt.setAttribute('data-explain','Untuk menghasilkan video AI dibutuhkan 1\u00A0bahan');
-        vt.setAttribute('data-sub1-src',window.PB_IMG_VBMS_FOTO);
-        vt.setAttribute('data-sub1-label','Foto AI');
-      }
-      try{ let p=vid.play(); if(p && p.catch) p.catch(function(){}); }catch(e){}
-    }
-  }else if(vid){
-    try{ vid.pause(); }catch(e){}
-  }
-}
 // Pratinjau Motion Control (Foto AI + Video Referensi -> Video AI) di kartu Mode Referensi Foto.
 // Pola sama dengan vbSyncAsetPreview(); media diisi lazy saat pertama tampil.
 function vbSyncIkutiPreview(show){
@@ -1963,6 +1703,8 @@ function vbSyncIkutiPreview(show){
   }
 }
 function vbPickRefMode(mode){
+  // Mode Mirror Selfie & Produk Editorial sudah dihapus. Kalau Riwayat/draf lama masih membawa nilainya, jatuhkan ke Start Frame.
+  if(mode==='mirrorselfie'||mode==='tess')mode='satu';
   // FIX BUG #7 (ditemukan saat audit mendalam): sebelumnya baris terakhir
   // fungsi ini SELALU memanggil vbMode3ResetSteps() setiap kali mode 'kp'
   // diklik — termasuk kalau mode 'kp' itu MEMANG SUDAH terpilih sebelumnya.
@@ -1988,8 +1730,6 @@ function vbPickRefMode(mode){
   vbSyncModePreview(mode==='satu');
   vbSyncAsetPreview(false); // Frame Asset kini bagian dari uiui, pratinjaunya tidak dipakai lagi
   vbSyncKpPreview(mode==='kp');
-  vbSyncMsPreview(mode==='mirrorselfie');
-  vbSyncTessPreview(mode==='tess');
   vbSyncDuaPreview(mode==='dua');
   vbSyncFashionPreview(mode==='fashion');
   vbSyncIkutiPreview(mode==='ikuti');
@@ -1997,21 +1737,7 @@ function vbPickRefMode(mode){
   document.getElementById('vb-mode-kp').classList.toggle('sel',mode==='kp');
   let mode4Chip=document.getElementById('vb-mode-ikuti');
   if(mode4Chip)mode4Chip.classList.toggle('sel',mode==='ikuti');
-  // Mirror Selfie (permintaan user — dipindah fisik ke sini dari kartu
-  // Script/Dialog): mode ke-5 yang self-contained sama seperti Motion
-  // Control (mode 'ikuti') — lihat #vb-mode-selfie-area & vbGenerateMirrorSelfie().
-  let mirrorChip=document.getElementById('vb-mode-mirrorselfie');
-  if(mirrorChip)mirrorChip.classList.toggle('sel',mode==='mirrorselfie');
-  let tessChip=document.getElementById('vb-mode-tess');
-  if(tessChip)tessChip.classList.toggle('sel',mode==='tess');
-  let tessArea=document.getElementById('vb-mode-tess-area');
-  if(tessArea)tessArea.classList.toggle('hidden',mode!=='tess');
-  // Cuma reset ke step 1 ("Lanjut →") kalau BENERAN baru masuk ke mode tess
-  // dari mode lain — klik ulang chip tess yang sudah aktif tidak menghapus
-  // progres nama produk / hasil prompt yang sudah ada (pola sama seperti
-  // fix bug #7 di mode 'kp' di atas).
-  if(mode==='tess'&&_camPrevMode!=='tess')vbTessResetFlow();
-  // Fashion Editorial: pola sama dengan tess — chip, area, dan reset ke step 1
+  // Fashion Editorial: pola self-contained — chip, area, dan reset ke step 1
   // cuma kalau BENERAN baru masuk dari mode lain.
   let fashionChip=document.getElementById('vb-mode-fashion');
   if(fashionChip)fashionChip.classList.toggle('sel',mode==='fashion');
@@ -2048,18 +1774,12 @@ function vbPickRefMode(mode){
   // kotak salin promptnya langsung di sini.
   let mode4Area=document.getElementById('vb-mode4-area');
   if(mode4Area)mode4Area.classList.toggle('hidden',mode!=='ikuti');
-  // Mirror Selfie: sama seperti Mode 4, self-contained — tampilkan area-nya
-  // sendiri, sembunyikan footer normal juga (lihat toggle normalFooter di
-  // bawah, mode==='mirrorselfie' ditambahkan ke kondisinya).
-  let selfieArea=document.getElementById('vb-mode-selfie-area');
-  if(selfieArea)selfieArea.classList.toggle('hidden',mode!=='mirrorselfie');
-  if(mode==='mirrorselfie')_vbMirrorRefresh();
   let normalFooter=document.getElementById('vb-mode-normal-footer');
-  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='mirrorselfie'||mode==='tess'||mode==='fashion'||mode==='uiui');
+  if(normalFooter)normalFooter.classList.toggle('hidden',mode==='ikuti'||mode==='fashion'||mode==='uiui');
   if(justSwitchedToKp&&!(window.PB_PM&&window.PB_PM.sw))vbMode3ResetSteps(); // PERBAIKAN (16 Nov 2026): A4, jangan hapus chip Mode 3 saat PM yang berpindah mode
   // try/catch: dipanggil juga saat app baru dimuat, ketika STEP_PAUSE_STACK/VB bisa belum terdefinisi (TDZ).
-  // Motion Control & Mirror Selfie self-contained (tidak lewat wizard V2-V5) — jangan utak-atik kartu kamera di situ.
-  if(mode!=='ikuti'&&mode!=='mirrorselfie'&&mode!=='tess'&&mode!=='fashion'&&mode!=='uiui'){try{_vbReconcileCamStep();}catch(e){}}
+  // Motion Control self-contained (tidak lewat wizard V2-V5) — jangan utak-atik kartu kamera di situ.
+  if(mode!=='ikuti'&&mode!=='fashion'&&mode!=='uiui'){try{_vbReconcileCamStep();}catch(e){}}
   // Pilihan kamera & Visual Hook beda per mode: kalau mode BENAR-BENAR berganti, buang pilihan yang
   // bukan milik mode baru, lalu gambar ulang chip sesuai mode. Pilihan dari Riwayat (mode sama) tidak disentuh.
   try{

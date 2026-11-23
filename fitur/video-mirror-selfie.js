@@ -1,60 +1,6 @@
-// fitur/video-mirror-selfie.js — Video — mode Mirror Selfie.
-// Bagian dari js/10-main-app.js lama (baris 24450–24679). Isi tidak diubah.
+// fitur/video-mirror-selfie.js — SEKARANG HANYA berisi vbReset()/vbResetNow() (reset wizard Video).
+// Mode Mirror Selfie sudah dihapus; nama file dipertahankan supaya index.html & sw.js tidak perlu diubah.
 // ══════════════════════════════════════════════════════════════════
-// MODE "MIRROR SELFIE" (revisi permintaan user, Sept 2026): tanpa form Nama
-// Produk / foto produk / Gerakan-Pose. Begitu chip diklik LANGSUNG muncul 1
-// prompt siap-salin (sama polanya dengan Mode 4). "Atur Detail" membuka kolom
-// "Isi": kalau diisi, Prompt 1 otomatis ditambah kalimat "muncul tulisan kecil
-// banget…" DAN muncul Prompt 2 = versi Original tanpa tambahan itu. Kolom
-// dikosongkan lagi → Prompt 2 hilang, Prompt 1 balik ke versi dasar.
-// Karakter tidak berbicara, jadi wizard V2-V5 dilewati.
-// ══════════════════════════════════════════════════════════════════
-const VB_MIRROR_ACTION_TEXT='The character is recording themselves with a phone held in their hand, mirror selfie style, with an elegant and graceful pose. They do not speak, only subtle gentle movements.';
-function _vbMirrorBasePrompt(){
-  return VB_REF_MODE_TEXT.satu+' '+VB_MIRROR_ACTION_TEXT;
-}
-function _vbMirrorOverlayValue(){
-  let inp=document.getElementById('vb-mirrorselfie-overlay-input');
-  return inp?inp.value.trim():'';
-}
-// Prompt 1 = dasar (+ kalimat overlay kalau kolom Isi terisi).
-function _vbMirrorPrompt1(){
-  let txt=_vbMirrorBasePrompt();
-  let ov=_vbMirrorOverlayValue();
-  if(ov)txt+=' '+_vbOverlaySentence(ov).replace(/^\.\s*/,'');
-  return txt;
-}
-// Prompt 2 = versi Original, tanpa tambahan kalimat overlay.
-function _vbMirrorPrompt2(){
-  return _vbMirrorBasePrompt();
-}
-function _vbMirrorRefresh(){
-  let hasOv=!!_vbMirrorOverlayValue();
-  let p1=document.getElementById('vb-mirrorselfie-prompt-1');
-  let p2=document.getElementById('vb-mirrorselfie-prompt-2');
-  let l1=document.getElementById('vb-mirrorselfie-label-1');
-  let card2=document.getElementById('vb-mirrorselfie-card-2');
-  if(p1)p1.textContent=_vbMirrorPrompt1();
-  if(p2)p2.textContent=_vbMirrorPrompt2();
-  if(l1)l1.textContent=hasOv?'Prompt 1 — Mirror Selfie (+ tulisan kecil)':'Prompt — Mirror Selfie';
-  if(card2)card2.classList.toggle('hidden',!hasOv);
-}
-function vbMirrorOverlayInput(){ _vbMirrorRefresh(); }
-function vbCopyMirrorPrompt(n){
-  let txt=(n===2)?_vbMirrorPrompt2():_vbMirrorPrompt1();
-  _copyTextRobust(txt,function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
-}
-// Buka/tutup kolom "Isi" lewat tombol "Atur Detail".
-function vbToggleMirrorOverlay(){
-  let box=document.getElementById('vb-mirrorselfie-overlay-box');
-  let btn=document.getElementById('vb-mirrorselfie-overlay-toggle');
-  if(!box)return;
-  let opening=box.classList.contains('hidden');
-  box.classList.toggle('hidden');
-  if(btn)btn.textContent=opening?'– Sembunyikan detail':'+ Atur Detail (opsional)';
-  if(opening){let inp=document.getElementById('vb-mirrorselfie-overlay-input');if(inp)inp.focus();}
-}
-
 function vbReset(){
   showConfirm('Semua data video akan dihapus dan kamu mulai dari awal.',vbResetNow);
 }
@@ -169,17 +115,6 @@ function vbResetNow(){
     let eb=document.getElementById('vb-ai-error'); if(eb){eb.classList.add('hidden');eb.textContent='';}
     let manualArea=document.getElementById('vb-manual-script-area'); if(manualArea)manualArea.classList.add('hidden');
     let aiArea=document.getElementById('vb-mode-ai-area'); if(aiArea)aiArea.classList.add('hidden');
-    // Mirror Selfie sekarang bagian dari Step 1 (Mode Referensi Foto) —
-    // area-nya (#vb-mode-selfie-area) & chip-nya sudah otomatis ikut
-    // direset lewat vbPickRefMode('satu') di atas. Di sini cuma bersihkan
-    // isian field-nya sendiri biar tidak nyangkut ke sesi berikutnya.
-    let mirrorOvInp=document.getElementById('vb-mirrorselfie-overlay-input'); if(mirrorOvInp)mirrorOvInp.value='';
-    let mirrorOvBox=document.getElementById('vb-mirrorselfie-overlay-box'); if(mirrorOvBox)mirrorOvBox.classList.add('hidden');
-    let mirrorOvToggle=document.getElementById('vb-mirrorselfie-overlay-toggle'); if(mirrorOvToggle)mirrorOvToggle.textContent='+ Atur Detail (opsional)';
-    _vbMirrorRefresh();
-    // Mode tess juga ikut direset ke step 1 ("Lanjut →") biar sesi baru
-    // tidak kebawa nama produk / hasil prompt dari sesi sebelumnya.
-    vbTessResetFlow();
     vbFeResetFlow();
     vbUiResetFlow();
     document.querySelectorAll('#vb-mode-ai,#vb-mode-manual').forEach(c=>c.classList.remove('sel'));
