@@ -548,8 +548,8 @@ async function addPics(fl){const al=S.aid,t0=Date.now();toast('Menyimpan '+fl.le
 function setImg(k,f){const d=S.d,u=URL.createObjectURL(f);OI.ld(f,c=>{if(d[k])URL.revokeObjectURL(d[k]);d[k]=u;d[k+'C']=c;enter3();render()})}
 let dlBusy=false;
 async function busyDl(el,job,fast){
- if(dlBusy||!el)return;dlBusy=true;
- const all=[...document.querySelectorAll('[data-a=dl],[data-a=dlp]')],orig=el.innerHTML,t0=Date.now(),wait=ms=>new Promise(r=>setTimeout(r,ms));
+ if(dlBusy&&el){toast('Sedang diproses, tunggu sebentar');return}if(dlBusy||!el)return;dlBusy=true;
+ const all=[...document.querySelectorAll('[data-a=dl],[data-a=dlp],[data-kc=dl],[data-kc=sav]')],orig=el.innerHTML,t0=Date.now(),wait=ms=>new Promise(r=>setTimeout(r,ms));
  all.forEach(b=>b.disabled=true);el.classList.add('busy');el.setAttribute('aria-busy','true');
  const say=t=>{if(el.isConnected)el.innerHTML='<span class="spin"></span>'+t};
  say('Menyiapkan…');let ok=false;
@@ -1097,7 +1097,7 @@ function dl(el){if(pon?!pimg:zon?!zimg:(!img.L||!img.R)){toast('Pilih foto outfi
 const AMAX=30,AK='pb_kol_alb_v1';let AM={cur:1,dn:[]},AV=1,AU=[],ADB=null,ADLR=null;const ASV={};
 try{const j=JSON.parse(localStorage.getItem(AK)||'null');if(j&&j.cur>0)AM={cur:j.cur|0,dn:Array.isArray(j.dn)?j.dn:[]}}catch(e){}
 const asv=()=>{try{localStorage.setItem(AK,JSON.stringify(AM))}catch(e){}};
-const adb=()=>ADB||(ADB=new Promise((ok,no)=>{const r=indexedDB.open(AK,1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'}).createIndex('al','al');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}));
+const adb=()=>ADB||(ADB=new Promise((ok,no)=>{const r=indexedDB.open(AK,1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'}).createIndex('al','al');r.onsuccess=()=>{r.result.onversionchange=()=>{try{r.result.close()}catch(e){}ADB=null};ok(r.result)};r.onerror=()=>no(r.error)}).catch(e=>{ADB=null;throw e}));
 const aq=(m,f)=>adb().then(d=>new Promise((ok,no)=>{const t=d.transaction('p',m),q=f(t.objectStore('p'));t.oncomplete=()=>ok(q&&q.result);t.onerror=t.onabort=()=>no(t.error)}));
 const aall=()=>aq('readonly',s=>s.getAll()),acnt=al=>aq('readonly',s=>s.index('al').count(al));
 const aalb=al=>aq('readonly',s=>s.index('al').getAll(al));
@@ -1110,8 +1110,8 @@ const aTo=(p,ms)=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeou
 function asave(el){if(pon?!pimg:zon?!zimg:(!img.L||!img.R)){toast('Pilih foto outfit dan foto model dulu');return}
  return busyDl(el,async say=>{say('Menyimpan…');try{await kfr();pexp=pon?1:0;draw();
   const b=await new Promise(r=>cv.toBlob(r,'image/jpeg',.92));if(!b){toast('Gagal membuat gambar, coba lagi');return false}
-  const th=await athumb(),n=await acnt(AM.cur),full=n>=AMAX;if(full){AM.cur++;asv()}
-  await aq('readwrite',s=>s.put({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),al:AM.cur,at:Date.now(),blob:b,th}));
+  const th=await athumb(),n=await acnt(AM.cur),full=n>=AMAX,al=full?AM.cur+1:AM.cur;
+  await aq('readwrite',s=>s.put({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),al,at:Date.now(),blob:b,th}));if(full){AM.cur=al;asv()}
   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(x){}
   toast(full?'Album sebelumnya penuh, foto masuk Album '+AM.cur:'Tersimpan di Album '+AM.cur+' ('+(n+1)+'/'+AMAX+')');abadge();return true
  }catch(err){toast(err&&err.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan, coba lagi');return false}finally{pexp=0;sched()}},1)}
@@ -1172,8 +1172,8 @@ async function adlAll(el){
      for(let k=0;k<rest.length;k++){const j=rest[k];say('Menyiapkan '+(k+1)+'/'+rest.length+'…');const o=await W(prep(j),30000),w=await W(Pl.Filesystem.writeFile({path:'outfit-studio/'+nm(j)+'-'+Date.now()+'.'+o.x,data:o.d,directory:'CACHE',recursive:true}),30000);us.push(w.uri)}
      say('Membuka menu simpan…');
      await W(Pl.Share.share({title:'Album '+av,files:us,dialogTitle:'Simpan atau bagikan gambar'}),180000);rest.forEach(fin)}
-    catch(e){if(R.cx||/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))shareCx=true;else{toast('Gagal membuka menu simpan, gambar ditampilkan di layar');showAllView(rest.map(j=>P[j].blob))}}}
-   else{showAllView(rest.map(j=>P[j].blob))}}
+    catch(e){if(R.cx||/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))shareCx=true;else{toast('Gagal membuka menu simpan, gambar ditampilkan di layar');showAllView(rest.map(j=>P[j].blob));rest.forEach(fin)}}}
+   else{showAllView(rest.map(j=>P[j].blob));rest.forEach(fin)}}
  }catch(e){}
  const cx=R.cx||shareCx,cn=P.filter(p=>done.has(p.id)).length,all=cn>=n;ADLR=null;
  if(all){ASV[av]=null;if(!AM.dn.includes(av))AM.dn.push(av);if(was)AM.cur++;asv();toast(n+' foto diunduh'+(was?'. Simpanan berikutnya masuk Album '+AM.cur:''))}
@@ -1184,7 +1184,7 @@ const KS=(i,v)=>{const a=+i.min,b=+i.max,t=+i.step||1;i.value=Math.min(b,Math.ma
 let kd=null,kh=null;
 kl.addEventListener('pointerdown',e=>{const th=e.target.closest('.ktrk b');
  if(th){const r=th.closest('.krow'),i=r.querySelector('input');kd={i,r,x:e.clientX,v:+i.value,w:th.parentNode.getBoundingClientRect().width-28,id:e.pointerId};th.setPointerCapture(e.pointerId);th.parentNode.classList.add('drag');return}
- const sp=e.target.closest('.kst');if(sp){const i=sp.closest('.krow').querySelector('input'),d=+sp.dataset.sd*(+i.step||1);kh={i,d,id:e.pointerId,f:0};kh.to=setTimeout(()=>{kh.f=1;kh.iv=setInterval(()=>KS(i,+i.value+d),70)},380)}});
+ const sp=e.target.closest('.kst');if(sp){if(kh){clearTimeout(kh.to);clearInterval(kh.iv)}const i=sp.closest('.krow').querySelector('input'),d=+sp.dataset.sd*(+i.step||1);kh={i,d,id:e.pointerId,f:0};try{sp.setPointerCapture(e.pointerId)}catch(_){}kh.to=setTimeout(()=>{kh.f=1;kh.iv=setInterval(()=>KS(i,+i.value+d),70)},380)}});
 kl.addEventListener('pointermove',e=>{if(!kd||e.pointerId!==kd.id)return;const i=kd.i;KS(i,kd.v+(e.clientX-kd.x)/kd.w*(+i.max-+i.min))});
 ['pointerup','pointercancel'].forEach(n=>kl.addEventListener(n,e=>{
  if(kd&&e.pointerId===kd.id){kd.r.querySelector('.ktrk').classList.remove('drag');kd=null}
@@ -1219,11 +1219,11 @@ async function lnGo(el,auto){if(lnBusy){if(auto){const e2=$('kas2');if(e2)e2.tex
  try{lns('Membuka halaman link');const T=await lnPage(u),list=lnImgs(T).slice(0,7),CD=pnCands(T,u);
   if(list.length<2){lns('Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.');return}
   const ref=lnRef();let best=null;
-  for(let s=0;s<list.length&&!(best&&best.conf>=.6);s+=14){const grp=list.slice(s,s+14);lns('Mengunduh foto '+(s+1)+' sampai '+(s+grp.length)+' dari '+list.length);
+  for(let s=0;s<list.length&&!(best&&best.conf>=.6);s+=5){const grp=list.slice(s,s+5);lns('Mengunduh foto '+(s+1)+' sampai '+(s+grp.length)+' dari '+list.length);
    const pics=await lnPool(grp,4),parts=[{text:LNASK},{inline_data:{mime_type:'image/jpeg',data:ref}}],map=[];let c5=0;pics.forEach((b,i)=>{if(b&&++c5>5)pics[i]=null});
    pics.forEach((b,i)=>{if(!b)return;map.push(s+i);parts.push({text:'Kandidat '+map.length+(grp[i].c?' (teks di sekitarnya: "'+grp[i].c+'")':'')+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:b}})});
    if(!map.length)continue;lns('AI mencocokkan baju');
-   const r=lnJson(await parent.osAiVision(parts,LNSYS,500)),mi=parseInt(r.match,10),cf=Math.max(0,Math.min(1,+r.confidence||0));
+   const r=lnJson(await lnTo(parent.osAiVision(parts,LNSYS,500),60000)),mi=parseInt(r.match,10),cf=Math.max(0,Math.min(1,+r.confidence||0));
    if(mi>=1&&mi<=map.length&&(!best||cf>best.conf))best={idx:map[mi-1]+1,num:String(r.number==null?'':r.number).replace(/\D/g,'').slice(0,12),conf:cf}}
   if(!best){if(auto)set('pr','');lns('Baju yang sama tidak ditemukan di link ini. Cek link atau foto kolasenya.')}
   else if(!best.num){if(auto)set('pr','');lns('Bajunya ketemu (foto ke-'+best.idx+') tapi nomornya tidak terbaca. Isi nomor manual ya.')}
@@ -1241,10 +1241,10 @@ kl.addEventListener('click',e=>{const el=e.target.closest('[data-kc]');if(!el)re
  else if(c==='sv'){const v=String(s[F]).trim();if(!v){toast('Tulis dulu teksnya');return}if(!st[g].includes(v))st[g].unshift(v);st[g]=st[g].slice(0,30);chips(g);save();toast('Teks tersimpan')}
  else if(c==='clrpr')set('pr','')
  else if(c==='lgo')lnGo(el)
- else if(c==='inc'){const d=+el.dataset.d;set('num',/\d+$/.test(s.num)?s.num.replace(/\d+$/,m=>String(Math.max(0,+m+d)).padStart(m.length,'0')):(d>0&&!s.num.trim()?'1':s.num))}
+ else if(c==='inc'){const d=+el.dataset.d;set('num',/\d+$/.test(s.num)?s.num.replace(/\d+$/,m=>{const n=String(Math.max(0,+m+d));return m[0]==='0'?n.padStart(m.length,'0'):n}):(d>0&&!s.num.trim()?'1':s.num))}
  else if(c==='rst'&&pon){pa.a=[];pa.s=-1;padd()}
  else if(c==='rst'&&zon){zrst()}
- else if(c==='rst'){const k={title:s.title,pre:s.pre,num:s.num};s={...def(),...k};fill();sched();save()}
+ else if(c==='rst'){const k={title:s.title,pre:s.pre,num:s.num,pr:s.pr,ai:s.ai,ainum:s.ainum};s={...def(),...k};fill();sched();save()}
  else if(c==='dl')dl(el)
  else if(c==='sav')asave(el)
  else if(c==='alb'){AV=AM.cur;$('kal').classList.add('show');ar()}
@@ -1624,7 +1624,7 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
   pns('AI membaca nomor dan jenis tiap foto ('+C.length+' foto teratas)');
   const parts=[{text:PNASK2},{text:'Foto outfit lengkap:'},{inline_data:{mime_type:'image/jpeg',data:pnRef()}}];
   C.forEach((c,i)=>{parts.push({text:'Kandidat '+(i+1)+(c.cap?' (teks keterangan: "'+c.cap+'")':(c.c?' (teks di sekitarnya: "'+c.c+'")':''))+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:c.b}})});
-  const r=lnJson(await parent.osAiVision(parts,PNSYS,1800)),hs=Array.isArray(r.items)?r.items:[],by={};
+  const r=lnJson(await lnTo(parent.osAiVision(parts,PNSYS,1800),90000)),hs=Array.isArray(r.items)?r.items:[],by={};
   hs.forEach(o=>{const k=parseInt(o&&(o.c!=null?o.c:o.match),10);if(k>=1&&k<=C.length&&!by[k])by[k]=o});
   /* nomor tiap foto: teks keterangan (paling andal), kalau tidak ada pakai bacaan AI */
   const rows=C.map((c,i)=>{const o=by[i+1]||{};return{c,cat:String(o.category||'').slice(0,20),name:String(o.name||o.category||'').slice(0,24),o,cf:(o.confidence!=null&&isFinite(+o.confidence))?Math.max(0,Math.min(1,+o.confidence)):.6,num:pnCap(c.cap)||String(o.number!=null?o.number:'').replace(/\D/g,'').slice(0,12)}}),
@@ -1721,7 +1721,7 @@ async function pkdlAll(){if(pkRun)return;let P=[];try{P=(await pkall()).sort((a,
  try{
   if(nat&&Pl.SaveImage&&typeof Pl.SaveImage.save==='function'){
    for(let i=0;i<n&&!pkCx;i++){rep(i+.2,lb(i)+'menyiapkan…');
-    try{const d=await pkTo(b64(P[i].blob),20000);rep(i+.6,lb(i)+'menyimpan ke galeri…');await pkTo(Pl.SaveImage.save({data:d,fileName:nm(i)}),30000);ok++;rep(i+1,lb(i)+'tersimpan')}catch(e){bad.push(i+1)}}}
+    try{const d=await pkTo(b64(P[i].blob),20000);rep(i+.6,lb(i)+'menyimpan ke galeri…');await pkTo(Pl.SaveImage.save({data:d,fileName:nm(i)+'.jpg'}),30000);ok++;rep(i+1,lb(i)+'tersimpan')}catch(e){bad.push(i+1)}}}
   else if(nat&&Pl.Filesystem&&Pl.Share&&typeof Pl.Share.share==='function'){
    const us=[];for(let i=0;i<n&&!pkCx;i++){rep(i+.5,'Menyiapkan foto '+(i+1)+' dari '+n+'…');try{const w=await pkTo(Pl.Filesystem.writeFile({path:'outfit-studio/'+nm(i)+'.jpg',data:await b64(P[i].blob),directory:'CACHE',recursive:true}),30000);us.push(w.uri)}catch(e){bad.push(i+1)}}
    if(us.length&&!pkCx){rep(n,'Membuka menu simpan…');try{await Pl.Share.share({title:'Album Panah',files:us,dialogTitle:'Simpan atau bagikan gambar'});ok=us.length}catch(e){if(/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))pkCx=1;else{showAllView(P.map(p=>p.blob));ok=n}}}}
