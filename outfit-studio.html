@@ -255,7 +255,7 @@ function gl(){const q=S.q.trim().toLowerCase(),L=S.albums.filter(a=>a.name.toLow
 function home(){return `<h2 class="h">Mau buat apa hari ini?</h2><div class="mks">${[['insp','Inspirasi','Foto asli + item outfit, lengkap nomor link bio'],['rek','Rekomendasi','Kolase item dengan harga dan kode'],['kol','Kolase Outfit','Gabung foto outfit + foto model. Tanpa prompt']].map(([t,n,s])=>`<button type="button" class="mk" data-a="${t==='kol'?'kolo':'new'}" data-t="${t}"><div class="mkt">${t==='kol'?KL.thumb():compose(smp(t))}</div><b>${n}</b><small>${s}</small></button>`).join('')}</div>
 <div class="hd"><h3 class="h2">Album</h3><button type="button" class="btn sm ghost fit" data-a="newalb">${ic('plus',15)}Album baru</button></div>
 ${S.na?`<div class="add" style="margin:0 0 12px"><input class="inp" id="nn" maxlength="40" placeholder="Nama album baru"><button type="button" class="btn sm fit" data-a="mkalb">Buat</button></div>`:''}
-<div class="srch">${ic('search',16)}<input class="inp" id="q" type="search" placeholder="Cari nama album" value="${esc(S.q)}" aria-label="Cari album"></div><div id="gl">${gl()}</div>`}
+<p class="hint" id="cst" style="margin:0 0 10px">${esc(window.csStatus?window.csStatus():'')}</p><div class="srch">${ic('search',16)}<input class="inp" id="q" type="search" placeholder="Cari nama album" value="${esc(S.q)}" aria-label="Cari album"></div><div id="gl">${gl()}</div>`}
 function album(){const a=alb();return `<div class="add" style="margin:0"><input class="inp" id="rn" maxlength="40" value="${esc(a.name)}" aria-label="Nama album"><button type="button" class="btn sm ghost fit" data-a="rn">Simpan nama</button></div>
 <div class="hd" style="margin-top:18px"><span class="mu">${S.pics.length} gambar</span><label class="btn sm ghost fit"><input type="file" accept="image/*" multiple hidden data-f="addpic">${ic('plus',15)}Tambah gambar</label></div>
 ${S.pics.length?`<p class="hint" style="margin:0 0 10px">Ketuk gambar untuk memperbesar. Tombol hapus ada di layar pembesaran.</p><div class="grid">${S.pics.map(p=>`<div class="pic"><button type="button" class="tile" data-a="zoom" data-id="${p.id}" aria-label="Lihat gambar">${tile(p)}</button><div class="acts"><button type="button" class="btn ghost" data-a="dlp" data-id="${p.id}">Unduh</button></div></div>`).join('')}</div>`:`<div class="empty">Album ini masih kosong. Simpan hasil dari Inspirasi atau Rekomendasi, atau tambah gambar sendiri.</div>`}
@@ -511,7 +511,7 @@ function savePref(){const d=S.d;if(!d)return;const o={items:d.items.slice()};(d.
 /* album: IndexedDB 'pb_album_v1' yang sama dengan album lama (data lama tetap terbaca) */
 let DB=null;
 const db=()=>DB||(DB=new Promise((ok,no)=>{const r=indexedDB.open('pb_album_v1',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('albums',{keyPath:'id'});d.createObjectStore('photos',{keyPath:'id'}).createIndex('album','album')};r.onsuccess=()=>ok(r.result);r.onerror=()=>{DB=null;no(r.error)}}));
-const run=(st,m,fn)=>db().then(d=>new Promise((ok,no)=>{const t=d.transaction(st,m),q=fn(t);t.oncomplete=()=>ok(q&&q.result);t.onabort=()=>no(t.error)}));
+const run=(st,m,fn)=>db().then(d=>new Promise((ok,no)=>{const t=d.transaction(st,m),q=fn(t);t.oncomplete=()=>{if(m==='readwrite'&&window.csq){try{window.csq()}catch(x){}}ok(q&&q.result)};t.onabort=()=>no(t.error)}));
 const uid2=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const byNew=(x,y)=>y.at-x.at||(x.o||0)-(y.o||0);
 const thumbOf=f=>(window.createImageBitmap?createImageBitmap(f):Promise.reject()).then(b=>{const k=Math.min(1,360/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(b.width*k));c.height=Math.max(1,Math.round(b.height*k));c.getContext('2d').drawImage(b,0,0,c.width,c.height);b.close&&b.close();return new Promise(ok=>c.toBlob(ok,'image/webp',.8))}).catch(()=>null);
@@ -571,9 +571,9 @@ const ACT2={
  async rn(){if(S.aid==='a_panah')return toast('Nama Album Panah tidak bisa diubah');const v=($('rn').value||'').replace(/\s+/g,' ').trim();if(!v)return toast('Nama album tidak boleh kosong');try{await loadAlb();if(S.albums.some(a=>a.id!==S.aid&&a.name.toLowerCase()===v.toLowerCase()))return toast('Nama album itu sudah dipakai');const a=await run('albums','readonly',t=>t.objectStore('albums').get(S.aid));a.name=v;await run('albums','readwrite',t=>t.objectStore('albums').put(a));await loadAlb();$('bt').textContent=v;toast('Nama album disimpan')}catch(x){toast('Gagal menyimpan nama')}},
  zoom(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;if(S.zu)URL.revokeObjectURL(S.zu);S.zu=URL.createObjectURL(p.blob);S.zid=id;$('vw').innerHTML=`<button type="button" class="vdel" data-a="delz" aria-label="Hapus gambar ini">${ic('trash',15)}Hapus</button><img src="${S.zu}" alt="" style="max-width:100%;max-height:calc(100dvh - 140px);object-fit:contain;border-radius:var(--radius-sm)"><div class="row" style="width:min(100%,360px)"><button type="button" class="btn ghost" data-a="dlp">${ic('dl',16)}Unduh asli</button><button type="button" class="btn ghost" data-a="vx">Tutup</button></div>`;$('vw').classList.add('show')},
  vx(){$('vw').classList.remove('show');if(S.zu){URL.revokeObjectURL(S.zu);S.zu=null}},
- delp(el,e,d,id){ask('Hapus gambar ini dari album?',async()=>{try{await run('photos','readwrite',t=>t.objectStore('photos').delete(id));if(S.aid==='a_panah')KL.pkDel(id);await sync(S.aid);await loadView()}catch(x){toast('Gagal menghapus gambar')}},'Ya, hapus')},
+ delp(el,e,d,id){ask('Hapus gambar ini dari album?',async()=>{try{window.csDelP&&window.csDelP(id,S.aid);await run('photos','readwrite',t=>t.objectStore('photos').delete(id));if(S.aid==='a_panah')KL.pkDel(id);await sync(S.aid);await loadView()}catch(x){toast('Gagal menghapus gambar')}},'Ya, hapus')},
  delz(){const id=S.zid;if(!id)return;ACT2.vx();ACT2.delp(null,null,null,id)},
- dela(){if(S.aid==='a_panah')return toast('Album Panah tidak bisa dihapus. Hapus fotonya satu per satu.');ask('Hapus album ini beserta semua gambarnya?',async()=>{const al=S.aid;try{await run(['albums','photos'],'readwrite',t=>{t.objectStore('albums').delete(al);const c=t.objectStore('photos').index('album').openCursor(IDBKeyRange.only(al));c.onsuccess=()=>{const r=c.result;if(r){r.delete();r.continue()}}});go('home')}catch(x){toast('Gagal menghapus album')}},'Ya, hapus')}
+ dela(){if(S.aid==='a_panah')return toast('Album Panah tidak bisa dihapus. Hapus fotonya satu per satu.');ask('Hapus album ini beserta semua gambarnya?',async()=>{const al=S.aid;try{if(window.csDelA)await window.csDelA(al);await run(['albums','photos'],'readwrite',t=>{t.objectStore('albums').delete(al);const c=t.objectStore('photos').index('album').openCursor(IDBKeyRange.only(al));c.onsuccess=()=>{const r=c.result;if(r){r.delete();r.continue()}}});go('home')}catch(x){toast('Gagal menghapus album')}},'Ya, hapus')}
 };
 /* ===== Pintasan di layar Inspirasi/Rekomendasi (v14.96): Album sebagai laci + Prompt Foto AI =====
    Layar pembuatan TIDAK ditutup & TIDAK dirender ulang saat laci Album terbuka, jadi isian/foto/hasil Gemini tetap utuh.
@@ -1683,8 +1683,8 @@ async function pksync0(){const c=pkcl();if(!c){pkSt='Sinkron antar perangkat bel
   if(uid){let last='';try{last=localStorage.getItem(PKU)||''}catch(e){}
    if(last&&last!==uid){for(const q of await pkall())if(q.sy)await pkq('readwrite',s=>s.delete(q.id));pkds([])}
    try{localStorage.setItem(PKU,uid)}catch(e){}}
-  let L=await c.list(),dl=pkdl();
-  if(dl.length){for(const id of dl.slice()){if(L.some(x=>x.id===id))await c.del(id);dl=dl.filter(x=>x!==id);pkds(dl)}L=await c.list()}
+  let L=(await c.list()).filter(x=>!/^os[ap]-/.test(x.id)),dl=pkdl();
+  if(dl.length){for(const id of dl.slice()){if(L.some(x=>x.id===id))await c.del(id);dl=dl.filter(x=>x!==id);pkds(dl)}L=(await c.list()).filter(x=>!/^os[ap]-/.test(x.id))}
   const ids=new Set(L.map(x=>x.id)),loc=await pkall(),lid=new Set(loc.map(p=>p.id));
   for(const p of loc){if(ids.has(p.id)){if(!p.sy)await pkq('readwrite',s=>s.put({...p,sy:1}))}
    else if(p.sy)await pkq('readwrite',s=>s.delete(p.id));
@@ -1761,6 +1761,73 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
 return{pkDel(id){const d=pkdl();d.push(id);pkds(d);pksync()},pkSync:()=>pksync(),boot:pkboot,open(){if(!built)build();kl.classList.add('show');sched()},thumb:()=>`<svg viewBox="0 0 120 150" style="display:block;width:100%;aspect-ratio:4/5" aria-hidden="true"><rect width="120" height="150" fill="#fff"/><rect x="43" width="77" height="150" fill="#d9cfc4"/><circle cx="83" cy="34" r="11" fill="#7a3434"/><path d="M68 50h30l5 26H63zM66 76h34l12 70H54z" fill="#f4efe6"/><path d="M12 44h26l5 20H7z" fill="#f2e6a0"/><path d="M9 64h32l8 66H1z" fill="#f4f2ee" stroke="#e2ded6"/><rect x="9" y="12" width="26" height="4" rx="2" fill="#222"/><rect x="8" y="136" width="28" height="9" rx="4.5" fill="#111"/></svg>`}
 })();
 ACT2.kolo=()=>KL.open();KL.boot();
+
+/* v18.40: SINKRON SEMUA ALBUM KE AKUN GMAIL — album buatan user + isi fotonya disimpan juga di awan lewat parent.osCloud (akun Gmail yang login), jadi muncul di perangkat lain dengan Gmail yang sama. Id awan: 'osa-<idAlbum>' (penanda album, nama album di field name) dan 'osp-<idAlbum>-<idFoto>' (foto). Rename/hapus album & foto ikut tersinkron. Album Panah tetap disinkron oleh modul Panah sendiri. */
+(()=>{
+const DK='os_cs_del_v1',UK='os_cs_uid_v1',PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const cl=()=>{try{return parent.osCloud||null}catch(e){return null}};
+let st='',mute=0,job=null,again=0,tm=0;
+const tdl=()=>{try{const j=JSON.parse(localStorage.getItem(DK)||'[]');return Array.isArray(j)?j:[]}catch(e){return[]}},tsv=a=>{try{localStorage.setItem(DK,JSON.stringify(a))}catch(e){}};
+const setSt=s=>{st=s;const e=document.getElementById('cst');if(e)e.textContent=s};
+const mr=async(a,b,f)=>{mute++;try{return await run(a,b,f)}finally{mute--}};
+const mk=()=>{const s=atob(PNG),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return new Blob([u],{type:'image/png'})};
+const enc=a=>a.map(x=>encodeURIComponent(String(x==null?'':x))).join('|'),dec=s=>{try{return String(s||'').split('|').map(decodeURIComponent)}catch(e){return[]}};
+const aNm=n=>enc(['v1',n]),pNm=p=>enc(['v1',p.type||'image/png',p.o||0,String(p.name||'gambar').slice(0,60)]);
+const shrink=async b=>{if(!b||b.size<1.5e6)return b;try{const bm=await createImageBitmap(b),k=Math.min(1,2000/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bm.width*k));c.height=Math.max(1,Math.round(bm.height*k));const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(bm,0,0,c.width,c.height);bm.close&&bm.close();const r=await new Promise(ok=>c.toBlob(ok,'image/jpeg',.88));return r&&r.size<b.size?r:b}catch(e){return b}};
+const upA=a=>mr('albums','readwrite',t=>{const s=t.objectStore('albums');s.get(a.id).onsuccess=e=>{const c=e.target.result;if(c){c.sy=1;c.sn=a.sn;c.name=a.name;s.put(c)}}});
+const upP=id=>mr('photos','readwrite',t=>{const s=t.objectStore('photos');s.get(id).onsuccess=e=>{const c=e.target.result;if(c){c.sy=1;s.put(c)}}});
+async function pass(){
+ const c=cl();
+ if(!c){setSt('Sinkron antar perangkat belum aktif di versi aplikasi ini. Album tersimpan di perangkat ini.');return}
+ let ok=false;try{ok=await c.ready()}catch(e){}
+ if(!ok){setSt('Masuk dengan Gmail dulu supaya album juga muncul di HP atau laptop lain.');return}
+ setSt('Menyinkronkan…');
+ let ch=0;const touched=new Set(),getAll=s=>run(s,'readonly',t=>t.objectStore(s).getAll());
+ let uid='';try{uid=c.uid?String(c.uid()||''):''}catch(e){}
+ if(uid){let last='';try{last=localStorage.getItem(UK)||''}catch(e){}
+  if(last&&last!==uid){const A0=await getAll('albums'),P0=await getAll('photos');
+   await mr(['albums','photos'],'readwrite',t=>{P0.forEach(p=>{if(p.album!=='a_panah'&&p.sy)t.objectStore('photos').delete(p.id)});A0.forEach(a=>{if(a.id!=='a_panah'&&a.sy)t.objectStore('albums').delete(a.id)})});tsv([]);ch=1}
+  try{localStorage.setItem(UK,uid)}catch(e){}}
+ const flt=L=>L.filter(x=>/^os[ap]-/.test(x.id));
+ let L=flt(await c.list());
+ const T=tdl();
+ if(T.length){for(const id of T){for(const x of L){if(x.id===id||(id.startsWith('osa-')&&x.id.startsWith('osp-'+id.slice(4)+'-')))await c.del(x.id)}}tsv([]);L=flt(await c.list())}
+ const RA=new Map(),RP=new Map();
+ for(const x of L){if(x.id.startsWith('osa-'))RA.set(x.id.slice(4),x);else RP.set(x.id,x)}
+ const A=(await getAll('albums')).filter(a=>a.id!=='a_panah'),P=(await getAll('photos')).filter(p=>p.album!=='a_panah');
+ const la=new Set(A.map(a=>a.id));
+ for(const a of A){const r=RA.get(a.id);
+  if(r){const rn=(dec(r.name)[1])||a.name;let d=0;
+   if(!a.sy){a.sy=1;a.sn=rn;d=1}
+   if(a.sn===a.name){if(rn!==a.name){a.name=rn;a.sn=rn;d=1;ch=1}}
+   else{await c.put('osa-'+a.id,{at:a.at,name:aNm(a.name)},mk());a.sn=a.name;d=1}
+   if(d)await upA(a)}
+  else if(a.sy){await mr(['albums','photos'],'readwrite',t=>{t.objectStore('albums').delete(a.id);const q=t.objectStore('photos').index('album').openCursor(IDBKeyRange.only(a.id));q.onsuccess=()=>{const r2=q.result;if(r2){r2.delete();r2.continue()}}});la.delete(a.id);ch=1}
+  else{await c.put('osa-'+a.id,{at:a.at,name:aNm(a.name)},mk());a.sy=1;a.sn=a.name;await upA(a)}}
+ for(const [id,r] of RA){if(la.has(id))continue;const nm=dec(r.name)[1]||'Album';
+  await mr('albums','readwrite',t=>t.objectStore('albums').put({id,name:nm,at:r.at||Date.now(),n:0,cover:null,sy:1,sn:nm}));la.add(id);touched.add(id);ch=1}
+ for(const p of P){if(!la.has(p.album))continue;const cid='osp-'+p.album+'-'+p.id;
+  if(RP.has(cid)){if(!p.sy)await upP(p.id)}
+  else if(p.sy){await mr('photos','readwrite',t=>t.objectStore('photos').delete(p.id));touched.add(p.album);ch=1}
+  else{await c.put(cid,{at:p.at,name:pNm(p)},await shrink(p.blob));await upP(p.id)}}
+ const lp=new Set(P.map(p=>p.id));
+ for(const [cid,x] of RP){const s=cid.slice(4),i=s.lastIndexOf('-');if(i<1)continue;const al=s.slice(0,i),pid=s.slice(i+1);if(lp.has(pid)||!la.has(al))continue;
+  const b0=await c.get(cid),q=dec(x.name),ty=q[1]||(b0&&b0.type)||'image/png',b=b0.type===ty?b0:new Blob([b0],{type:ty}),th=await thumbOf(b);
+  await mr('photos','readwrite',t=>t.objectStore('photos').put({id:pid,album:al,name:q[3]||'gambar',type:ty,size:b.size,at:x.at||Date.now(),o:parseInt(q[2],10)||0,blob:b,thumb:th,sy:1}));touched.add(al);ch=1}
+ for(const id of touched){mute++;try{await sync(id)}finally{mute--}}
+ setSt('Tersinkron dengan akun Gmail kamu.');
+ if(ch){try{if(S.v==='album'&&S.aid!=='a_panah'&&!la.has(S.aid))go('home');else if(S.v==='home'||S.v==='album')loadView();if(DR.on)drLoad(DR.aid)}catch(e){}}
+}
+const go2=()=>{if(job){again=1;return job}job=(async()=>{try{do{again=0;await pass()}while(again)}catch(e){setSt('Sinkron gagal (cek internet), nanti dicoba lagi.')}finally{job=null}})();return job};
+const sched=ms=>{clearTimeout(tm);tm=setTimeout(go2,ms)};
+window.csq=()=>{if(!mute)sched(1500)};
+window.csStatus=()=>st;
+window.csDelP=(id,al)=>{if(!al||al==='a_panah')return;const d=tdl();d.push('osp-'+al+'-'+id);tsv(d)};
+window.csDelA=async al=>{if(!al||al==='a_panah')return;const d=tdl();d.push('osa-'+al);try{const P=await run('photos','readonly',t=>t.objectStore('photos').index('album').getAll(al));P.forEach(p=>d.push('osp-'+al+'-'+p.id))}catch(e){}tsv(d)};
+let lt=0;document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lt>45000){lt=Date.now();sched(300)}});
+window.addEventListener('online',()=>sched(500));
+sched(1200);
+})();
 
 render();loadView();
 </script></body></html>
