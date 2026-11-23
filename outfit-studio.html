@@ -638,10 +638,10 @@ window.osEnter=()=>{if(S.v==='home')loadView()};
 /* v17.4: KOLASE OUTFIT — gabung foto outfit (kiri) + foto model (kanan) jadi 1 gambar 1080x1440, TANPA prompt. Judul & nomor bisa digeser/diubah; teks judul & teks depan nomor bisa disimpan (localStorage 'pb_kol_v1'). Unduh lewat dlBlob() (di APK tersimpan ke galeri). Kartu pembuka ada di home() -> ACT2.kolo. */
 const KL=(()=>{
 let H=1440;const W=1080,K='pb_kol_v1',FN={s:'Arial,Helvetica,sans-serif',r:'Newsreader,Georgia,serif',h:'Caveat,cursive',e:'"Playfair Display",Georgia,serif',k:'"Cormorant Garamond",Georgia,serif',g:'"Great Vibes","Snell Roundhand",cursive',d:'"Dancing Script",cursive',m:'"Special Elite","Courier New",monospace',a:'Anton,Impact,"Arial Narrow",sans-serif'},kl=$('kl'),last={},box={},img={L:null,R:null},cl=(v,a,b)=>Math.max(a,Math.min(b,v));
-const tdef=()=>({t:{x:13.6,y:7.6,s:26,c:'#111111',bg:false,bc:'#ffffff',f:'s',b:false},n:{x:18,y:86.3,s:32,c:'#ffffff',bg:true,bc:'#000000',f:'s',b:true}});
-const def=()=>({ai:true,lw:36,zl:100,zr:100,xl:.5,yl:.5,xr:.5,yr:.5,title:'Outfit.Ideas',pre:'No.',num:'1225',...tdef()});
+const tdef=()=>({t:{x:13.6,y:7.6,s:26,c:'#111111',bg:false,bc:'#ffffff',f:'s',b:false},n:{x:18,y:86.3,s:32,c:'#ffffff',bg:true,bc:'#000000',f:'s',b:true},p:{x:18,y:92,s:28,c:'#ffffff',bg:true,bc:'#000000',f:'s',b:true}});
+const def=()=>({ai:true,lw:36,zl:100,zr:100,xl:.5,yl:.5,xr:.5,yr:.5,title:'Outfit.Ideas',pre:'No.',num:'1225',pr:'',ainum:true,...tdef()});
 let s=def(),st={t:['Outfit.Ideas'],p:['No.']},cv,cx,built=false,raf=0,dr=null,svT=0;
-try{const j=JSON.parse(localStorage.getItem(K)||'null');if(j&&j.s){const d=tdef();s={...def(),...j.s,t:{...d.t,...j.s.t},n:{...d.n,...j.s.n}};if(j.st&&Array.isArray(j.st.t)&&Array.isArray(j.st.p))st=j.st}}catch(e){}
+try{const j=JSON.parse(localStorage.getItem(K)||'null');if(j&&j.s){const d=tdef();s={...def(),...j.s,t:{...d.t,...j.s.t},n:{...d.n,...j.s.n},p:{...d.p,...j.s.p}};if(j.st&&Array.isArray(j.st.t)&&Array.isArray(j.st.p))st=j.st}}catch(e){}
 const flush=()=>{clearTimeout(svT);try{localStorage.setItem(K,JSON.stringify({s,st}))}catch(e){}},save=()=>{clearTimeout(svT);svT=setTimeout(flush,150)};
 addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.hidden)flush()});
 const ntxt=()=>(s.pre.trim()+' '+s.num.trim()).trim();
@@ -652,15 +652,15 @@ function txt(x,o,t){t=t.trim();if(!t)return null;x.font=(o.b?700:500)+' '+o.s+'p
 function draw(){raf=0;if(!cx)return;if(pon){drawP();return}if(zon){drawZ();return}const x=cx,lw=Math.round(W*s.lw/100);x.fillStyle='#fff';x.fillRect(0,0,W,H);if(img.L&&img.L.bg){x.fillStyle=img.L.bg;x.fillRect(0,0,lw,H)}
  if(img.L)last.L=pic(x,img.L,0,lw,s.zl,s.xl,s.yl,false);else ph(x,0,lw,'Foto outfit','#f4f2ee');
  if(img.R)last.R=pic(x,img.R,lw,W-lw,s.zr,s.xr,s.yr,true);else ph(x,lw,W-lw,'Foto model','#e6e0d8');
- box.t=txt(x,s.t,s.title);box.n=txt(x,s.n,ntxt())}
+ box.t=txt(x,s.t,s.title);box.n=txt(x,s.n,ntxt());box.p=txt(x,s.p,s.pr)}
 const pt=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}};
 const hit=(b,p,m)=>b&&p.x>=b.x-m&&p.x<=b.x+b.w+m&&p.y>=b.y-m&&p.y<=b.y+b.h+m;
 function sync(p,v){const i=kl.querySelector('[data-p="'+p+'"]');if(i){i.value=v;if(i.type==='range')KP(i)}}
 function set(k,v){s[k]=v;sync(k,v);sched();save()}
 function wire(){zwire();pwire();
- cv.addEventListener('pointerdown',e=>{const p=pt(e);dr={k:hit(box.n,p,16)?'n':hit(box.t,p,16)?'t':p.x<W*s.lw/100?'L':'R',x:p.x,y:p.y,id:e.pointerId};try{cv.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault()});
+ cv.addEventListener('pointerdown',e=>{const p=pt(e);dr={k:hit(box.p,p,16)?'p':hit(box.n,p,16)?'n':hit(box.t,p,16)?'t':p.x<W*s.lw/100?'L':'R',x:p.x,y:p.y,id:e.pointerId};try{cv.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault()});
  cv.addEventListener('pointermove',e=>{if(!dr||e.pointerId!==dr.id)return;const p=pt(e),dx=p.x-dr.x,dy=p.y-dr.y,k=dr.k;dr.x=p.x;dr.y=p.y;
-  if(k==='n'||k==='t'){const o=s[k];o.x=cl(o.x+dx/W*100,0,100);o.y=cl(o.y+dy/H*100,0,100);sync(k+'.x',o.x);sync(k+'.y',o.y)}
+  if(k==='n'||k==='t'||k==='p'){const o=s[k];o.x=cl(o.x+dx/W*100,0,100);o.y=cl(o.y+dy/H*100,0,100);sync(k+'.x',o.x);sync(k+'.y',o.y)}
   else if(last[k]){const rw=k==='L'?W*s.lw/100:W-W*s.lw/100,sx=rw-last[k].dw,sy=H-last[k].dh,a='x'+k.toLowerCase(),b='y'+k.toLowerCase();if(Math.abs(sx)>1)s[a]=cl(s[a]+dx/sx,0,1);if(Math.abs(sy)>1)s[b]=cl(s[b]+dy/sy,0,1)}
   sched()});
  const end=e=>{if(dr&&e.pointerId===dr.id){dr=null;save()}};cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end)}
@@ -672,9 +672,9 @@ const upl=(k,t,d)=>`<label id="kz${k}"><input type="file" accept="image/*" hidde
 const ui=()=>`<div class="kb"><button type="button" data-kc="close">${ic('back',18)}Kembali</button><span>Kolase Outfit</span><button type="button" data-kc="alb" style="margin-left:auto;padding-right:0;color:var(--accent-2)" aria-label="Buka album">${ic('album',16)}&nbsp;Album<b id="kab" class="kn" style="display:none">0</b></button></div>
 <div class="kv"><canvas id="kc" width="${W}" height="${H}"></canvas></div><div class="ktabs"><i></i><button type="button" data-kt="0" aria-selected="true">Judul</button><button type="button" data-kt="1">Nomor</button><button type="button" data-kt="2">Foto</button></div><div class="ks">
 <div class="kg kpn" data-kp="0"><h3>Judul</h3>${row('title','Contoh: Outfit.Ideas','t',40)}<div class="chips" id="kch-t"></div>${tx('t')}</div>
-<div class="kg kpn" data-kp="1"><h3>Nomor</h3><label class="kf">Link koleksi (nomor terisi otomatis)</label><div class="add"><input class="inp" id="kln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="klb" data-kc="lgo">Cari</button></div><p class="hint" id="klns" style="text-align:left;color:var(--accent-2)"></p><div class="add"><input class="inp" data-p="num" maxlength="12" placeholder="Contoh: 1225"><button type="button" class="btn sm ghost fit" data-kc="inc" data-d="-1">−</button><button type="button" class="btn sm ghost fit" data-kc="inc" data-d="1">+</button></div>
-<label class="kf">Tulisan di depan nomor (boleh dihapus atau diganti)</label>${row('pre','Contoh: No.','p',20)}<div class="chips" id="kch-p"></div>${tx('n')}</div>
-<div class="kg kpn" data-kp="2"><label class="kauto"><input type="file" accept="image/*" hidden data-kf="A"><b>Pisahkan otomatis</b><small>Kirim 1 foto gabungan (outfit &amp; model). AI yang memisahkan, kiri/kanan dikenali otomatis</small></label><label class="kck" style="margin-top:8px"><input type="checkbox" data-p="ai">Rapikan item outfit pakai AI</label><p class="hint" id="kas" style="text-align:left;color:var(--accent-2)"></p><div class="kup">${upl('L','Foto outfit','Sisi kiri')}${upl('R','Foto model','Sisi kanan')}</div>${rg('Lebar panel kiri','lw',20,60)}${rg('Zoom foto outfit','zl',50,300)}${rg('Zoom foto model','zr',100,300)}</div>${zui()}${pui()}</div>
+<div class="kg kpn" data-kp="1"><h3>Nomor</h3><label class="kf">Link koleksi (nomor &amp; harga terisi otomatis)</label><div class="add"><input class="inp" id="kln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="klb" data-kc="lgo">Cari</button></div><p class="hint" id="klns" style="text-align:left;color:var(--accent-2)"></p><div class="add"><input class="inp" data-p="num" maxlength="12" placeholder="Contoh: 1225"><button type="button" class="btn sm ghost fit" data-kc="inc" data-d="-1">−</button><button type="button" class="btn sm ghost fit" data-kc="inc" data-d="1">+</button></div>
+<label class="kf">Tulisan di depan nomor (boleh dihapus atau diganti)</label>${row('pre','Contoh: No.','p',20)}<div class="chips" id="kch-p"></div>${tx('n')}<label class="kf">Harga (terisi otomatis dari Shopee, boleh diubah)</label><div class="add"><input class="inp" data-p="pr" maxlength="20" placeholder="Rp 89.000"><button type="button" class="btn sm ghost fit" data-kc="clrpr">Hapus</button></div>${tx('p')}</div>
+<div class="kg kpn" data-kp="2"><label class="kauto"><input type="file" accept="image/*" hidden data-kf="A"><b>Pisahkan otomatis</b><small>Kirim 1 foto gabungan (outfit &amp; model). AI yang memisahkan, kiri/kanan dikenali otomatis</small></label><label class="kck" style="margin-top:8px"><input type="checkbox" data-p="ai">Rapikan item outfit pakai AI</label><label class="kck" style="margin-top:8px"><input type="checkbox" data-p="ainum">Isi nomor &amp; harga otomatis dari link koleksi (link diisi di tab Nomor)</label><p class="hint" id="kas" style="text-align:left;color:var(--accent-2)"></p><p class="hint" id="kas2" style="text-align:left;color:var(--accent-2)"></p><div class="kup">${upl('L','Foto outfit','Sisi kiri')}${upl('R','Foto model','Sisi kanan')}</div>${rg('Lebar panel kiri','lw',20,60)}${rg('Zoom foto outfit','zl',50,300)}${rg('Zoom foto model','zr',100,300)}</div>${zui()}${pui()}</div>
 <div class="kfoot"><button type="button" class="btn ghost" data-kc="rst" aria-label="Reset tata letak">Reset</button><button type="button" class="btn ghost" data-kc="dl">${ic('dl',16)}Unduh</button><button type="button" class="btn" data-kc="sav">${ic('album',16)}Simpan</button></div><div class="kal" id="kal"></div>`;
 const chips=g=>{const e=$('kch-'+g);if(e)e.innerHTML=st[g].length?st[g].map((t,i)=>`<span class="chip" data-kc="use" data-g="${g}" data-i="${i}">${esc(t)}<button type="button" data-kc="del" data-g="${g}" data-i="${i}" aria-label="Hapus dari simpanan">${ic('x',14)}</button></span>`).join(''):'<span class="hint" style="margin:0">Belum ada teks tersimpan. Tulis lalu tekan Simpan.</span>'};
 function fill(){kl.querySelectorAll('[data-p]').forEach(el=>{const a=el.dataset.p.split('.'),v=a.length>1?s[a[0]][a[1]]:s[a[0]];if(el.type==='checkbox')el.checked=!!v;else el.value=v});KP()}
@@ -1038,6 +1038,7 @@ async function kTidy(src){
   put('L',cv2);s.zl=100;sync('zl',100);sched();save();kas('');toast('Item outfit dirapikan AI: '+items.length+' item')
  }catch(e){clearTimeout(wt);console.warn('Rapikan AI gagal',e);kas('');if(live())toast('AI belum bisa merapikan (cek internet). Hasil biasa dipakai')}
 }
+/* v18.29: setelah Pisahkan otomatis, nomor DAN harga terisi otomatis dari link koleksi (nomor dari AI, harga dibaca dari halaman produk Shopee lewat pnPrice, sama seperti Panah & harga). Tombol Cari di tab Nomor juga ikut mengisi harga. Harga tampil sebagai kotak teks ke-3 (bisa digeser, diedit, dihapus). Opsi bisa dimatikan lewat centang di tab Pisahkan. */
 /* v18.28: PISAHKAN OTOMATIS pakai AI (sama seperti Panah & harga): AI melihat foto gabungan lalu menunjuk kotak panel OUTFIT (hanya benda outfit, tanpa tampilan aplikasi & tulisan) dan kotak foto MODEL. Pemotongan, pembersihan & tata letak sesudahnya sama seperti sebelumnya. AI gagal/offline -> otomatis pakai cara hitung piksel lama (klPlan). */
 const KASK='Foto ini adalah satu foto gabungan atau tangkapan layar: ada panel OUTFIT (foto produk pakaian, tas, sepatu, hijab, dll, bisa banyak benda di latar polos) dan foto MODEL (orang yang memakai outfit itu), berdampingan kiri-kanan. Tampilan aplikasi BUKAN bagian foto: jam/sinyal/baterai, header, footer, ikon suka/komentar/bagikan, keterangan, tulisan nomor atau judul, avatar, kotak atau bilah gelap, garis pemisah. Tentukan dua kotak: "outfit" = kotak yang rapat mengelilingi SEMUA benda outfit saja (tanpa tampilan aplikasi dan tanpa tulisan), dan "model" = kotak foto model (orang) saja, tanpa bilah atau ikon aplikasi. Format kotak [ymin,xmin,ymax,xmax], 4 angka bulat 0 sampai 1000 (bukan piksel; 0,0 = pojok kiri atas, 1000,1000 = pojok kanan bawah). Balas JSON saja: {"outfit":[ymin,xmin,ymax,xmax],"model":[ymin,xmin,ymax,xmax],"confidence":<0 sampai 1>}';
 async function kAiBoxes(a){
@@ -1048,7 +1049,7 @@ async function kAiBoxes(a){
  const O=f(r.outfit),M=f(r.model),ix=Math.max(0,Math.min(O[2],M[2])-Math.max(O[0],M[0])),iy=Math.max(0,Math.min(O[3],M[3])-Math.max(O[1],M[1])),mA=(M[2]-M[0])*(M[3]-M[1]),oA=(O[2]-O[0])*(O[3]-O[1]);
  if(ix*iy>.25*Math.min(mA,oA)||mA<.06e6||oA<.01e6)return null;
  return{O,M,side:(O[0]+O[2])>(M[0]+M[2])?1:0}}
-function auto(f){const u=URL.createObjectURL(f),o=new Image();o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.onload=async()=>{URL.revokeObjectURL(u);try{
+function auto(f){{const e2=$('kas2');if(e2)e2.textContent=''}const u=URL.createObjectURL(f),o=new Image();o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.onload=async()=>{URL.revokeObjectURL(u);try{
  const k0=Math.min(1,3200/Math.max(o.naturalWidth,o.naturalHeight)),iw=Math.round(o.naturalWidth*k0),ih=Math.round(o.naturalHeight*k0),c=document.createElement('canvas');c.width=iw;c.height=ih;const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(o,0,0,iw,ih);
  /* salinan kecil utk analisis (dibagi dua berulang supaya halus) */
  const k1=Math.min(1,1400/Math.max(iw,ih)),aw=Math.max(1,Math.round(iw*k1)),ah=Math.max(1,Math.round(ih*k1));let cur=c,cw=iw,ch=ih;
@@ -1086,7 +1087,7 @@ function auto(f){const u=URL.createObjectURL(f),o=new Image();o.onerror=()=>{URL
  cL.bg=flat&&!light?fc:null;
  PLAN={items:IT.slice(),model:M.slice(),side:P.side,conf:P.conf,notes:P.notes};
  const cL2=kcL(cL),cR2=kcR(cR);put('L',cL2);put('R',cR2);s.lw=cl(Math.round(100*(1-cR2.width/cR2.height*H/W)),24,52);s.zl=100;s.zr=100;sync('lw',s.lw);sync('zl',100);sync('zr',100);sched();save();if(s.ai)setTimeout(()=>kTidy(cL2),80);
- toast(aiOk?'Foto dipisah oleh AI':P.notes.includes('outfit-tidak-ketemu')?'Dipisah, tapi benda outfit kurang jelas — cek hasilnya':P.conf==='ok'?'Foto berhasil dipisah':'Dipisah (perkiraan) — cek lebar panel kiri')
+ toast(aiOk?'Foto dipisah oleh AI':P.notes.includes('outfit-tidak-ketemu')?'Dipisah, tapi benda outfit kurang jelas — cek hasilnya':P.conf==='ok'?'Foto berhasil dipisah':'Dipisah (perkiraan) — cek lebar panel kiri');if(s.ainum)setTimeout(()=>lnGo(null,1),700)
  }catch(x){kas('');toast('Gagal memisahkan, pilih foto satu-satu')}};o.src=u}
 const kfr=()=>{try{return Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))])}catch(e){return Promise.resolve()}};
 function dl(el){if(pon?!pimg:zon?!zimg:(!img.L||!img.R)){toast('Pilih foto outfit dan foto model dulu');return}busyDl(el,async say=>{say('Mengunduh…');try{await kfr();pexp=pon?1:0;draw();const b=await new Promise(r=>cv.toBlob(r,'image/png'));if(!b){toast('Gagal membuat gambar, coba lagi');return false}const r=await dlBlob(b,(pon?'panah-outfit-'+Date.now().toString(36):'kolase-outfit-'+(s.num.replace(/[^\w-]+/g,'')||'1'))+'.png');if(r==='dl')toast('Gambar diunduh');return r!=='abort'}catch(err){toast('Gagal mengunduh, coba lagi');return false}finally{pexp=0;sched()}})}
@@ -1163,7 +1164,7 @@ kl.addEventListener('input',e=>{const el=e.target,p=el.dataset.p;if(!p)return;co
 kl.addEventListener('change',e=>{const t=e.target,k=t.dataset.kf;if(!k)return;const f=t.files&&t.files[0];t.value='';if(f){if(k==='A')auto(f);else load(f,k)}});
 /* v18.20: LINK KOLEKSI -> NOMOR OTOMATIS. Tempel link koleksi (mis. collshp.com/namamu) di tab Nomor, tekan Cari: halaman dibaca (Jina Reader, lalu cadangan), foto-foto produknya diunduh, lalu AI (Gemini lewat Worker, parent.osAiVision) mencocokkan baju di kolase (foto outfit + foto model) dengan foto di link, membaca nomor di foto itu, dan mengisi kolom Nomor. Link diingat di localStorage 'pb_kol_link_v1'. */
 const LK='pb_kol_link_v1';let lnBusy=0;
-const lns=m=>{const e=$('klns');if(e)e.textContent=m||''};
+let lnAuto=0;const lns=m=>{const e=$('klns');if(e)e.textContent=m||'';if(lnAuto){const e2=$('kas2');if(e2)e2.textContent=m||''}};
 function lnInit(){try{const v=localStorage.getItem(LK);['kln','kpln'].forEach(i=>{const e=$(i);if(e&&v)e.value=v})}catch(x){}}
 const lnTo=(p,ms)=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new Error('timeout')),ms)})]).finally(()=>clearTimeout(t))};
 async function lnGet(u,ms){const r=await lnTo(fetch(u),ms);if(!r.ok)throw new Error('HTTP '+r.status);return r}
@@ -1179,12 +1180,12 @@ function lnRef(){const H2=640,P=[img.L,img.R].filter(Boolean),ws=P.map(i=>Math.r
 function lnJson(t){const m=String(t||'').match(/\{[\s\S]*\}/);try{return JSON.parse(m[0])}catch(e){return{}}}
 const LNSYS='Kamu mencocokkan pakaian pada foto fashion dan membaca nomor produk. Balas HANYA dengan satu objek JSON, tanpa teks lain.';
 const LNASK='Gambar pertama adalah REFERENSI: foto outfit dan/atau foto model dari sebuah kolase. Setelah itu ada beberapa KANDIDAT foto dari halaman koleksi toko (diberi nomor urut Kandidat 1, 2, dst, kadang dengan teks di sekitarnya). Tugasmu: cari kandidat yang menampilkan BAJU/OUTFIT YANG SAMA dengan referensi (cocokkan jenis, warna, motif, potongan, hijab/aksesori utama). Lalu baca NOMOR produk yang tertulis pada foto kandidat itu (angka seperti "NO. 1225" atau lencana angka); kalau tidak terlihat di gambar, pakai angka di teks sekitarnya. Jangan menebak nomor. Kalau tidak ada yang sama, match = null. Format: {"match":<nomor kandidat atau null>,"number":"<angka saja atau null>","confidence":<0 sampai 1>}';
-async function lnGo(el){if(lnBusy)return;const inp=$('kln');let u=(inp.value||'').trim();if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
- if(!/^https?:\/\/[^\s.\/]+\.[^\s]+/i.test(u)){toast('Tempel link koleksinya dulu');return}
- if(!img.L&&!img.R){toast('Pilih foto outfit atau foto model dulu');return}
- if(!(window.parent&&parent.osAiVision)){toast('Fitur AI belum siap. Muat ulang aplikasi');return}
- lnBusy=1;el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}
- try{lns('Membuka halaman link');const list=lnImgs(await lnPage(u)).slice(0,7);
+async function lnGo(el,auto){if(lnBusy){if(auto){const e2=$('kas2');if(e2)e2.textContent='Pencarian nomor sebelumnya masih jalan. Tekan Cari di tab Nomor setelah selesai.'}return}const inp=$('kln');let u=(auto?(()=>{try{return localStorage.getItem(LK)||''}catch(e){return ''}})():(inp.value||'')).trim();lnAuto=auto?1:0;if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
+ if(!/^https?:\/\/[^\s.\/]+\.[^\s]+/i.test(u)){if(auto){lns('Nomor & harga belum diisi: isi link koleksi di tab Nomor dulu.');lnAuto=0;return}toast('Tempel link koleksinya dulu');return}
+ if(!img.L&&!img.R){lnAuto=0;toast('Pilih foto outfit atau foto model dulu');return}
+ if(!(window.parent&&parent.osAiVision)){lnAuto=0;toast('Fitur AI belum siap. Muat ulang aplikasi');return}
+ lnBusy=1;if(el)el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}
+ try{lns('Membuka halaman link');const T=await lnPage(u),list=lnImgs(T).slice(0,7),CD=pnCands(T,u);
   if(list.length<2){lns('Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.');return}
   const ref=lnRef();let best=null;
   for(let s=0;s<list.length&&!(best&&best.conf>=.6);s+=14){const grp=list.slice(s,s+14);lns('Mengunduh foto '+(s+1)+' sampai '+(s+grp.length)+' dari '+list.length);
@@ -1193,17 +1194,21 @@ async function lnGo(el){if(lnBusy)return;const inp=$('kln');let u=(inp.value||''
    if(!map.length)continue;lns('AI mencocokkan baju');
    const r=lnJson(await parent.osAiVision(parts,LNSYS,500)),mi=parseInt(r.match,10),cf=Math.max(0,Math.min(1,+r.confidence||0));
    if(mi>=1&&mi<=map.length&&(!best||cf>best.conf))best={idx:map[mi-1]+1,num:String(r.number==null?'':r.number).replace(/\D/g,'').slice(0,12),conf:cf}}
-  if(!best)lns('Baju yang sama tidak ditemukan di link ini. Cek link atau foto kolasenya.');
-  else if(!best.num)lns('Bajunya ketemu (foto ke-'+best.idx+') tapi nomornya tidak terbaca. Isi nomor manual ya.');
-  else{set('num',best.num);lns((best.conf<.5?'Kurang yakin, cek lagi: ':'Ketemu: ')+'foto ke-'+best.idx+', nomor '+best.num+' sudah terisi.');toast('Nomor '+best.num+' terisi')}
+  if(!best){if(auto)set('pr','');lns('Baju yang sama tidak ditemukan di link ini. Cek link atau foto kolasenya.')}
+  else if(!best.num){if(auto)set('pr','');lns('Bajunya ketemu (foto ke-'+best.idx+') tapi nomornya tidak terbaca. Isi nomor manual ya.')}
+  else{set('num',best.num);const pf1=list[best.idx-1],cd=pf1&&CD.find(o=>o.u===pf1.u);let pv=0;lns('Nomor '+best.num+' terisi. Membaca harga di Shopee');
+   if(cd){if(cd.link)try{pv=await pnPrice(cd.link)}catch(e){}if(!pv)pv=cd.pr||0}
+   set('pr',pv?lnRp(pv):'');
+   lns((best.conf<.5?'Kurang yakin, cek lagi: ':'Ketemu: ')+'foto ke-'+best.idx+', nomor '+best.num+' terisi'+(pv?', harga '+lnRp(pv)+'.':'. Harga tidak terbaca, isi manual ya.'));toast(pv?'Nomor & harga terisi':'Nomor '+best.num+' terisi')}
  }catch(e){lns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
- finally{lnBusy=0;el.disabled=false}}
+ finally{lnBusy=0;lnAuto=0;if(el)el.disabled=false}}
 kl.addEventListener('click',e=>{const el=e.target.closest('[data-kc]');if(!el)return;const c=el.dataset.kc,g=el.dataset.g,i=+el.dataset.i,F=g==='t'?'title':'pre';
  if(c==='close')kl.classList.remove('show');
  else if(c==='use')set(F,st[g][i]);
  else if(c==='clr')set(F,'');
  else if(c==='del'){st[g].splice(i,1);chips(g);save()}
  else if(c==='sv'){const v=String(s[F]).trim();if(!v){toast('Tulis dulu teksnya');return}if(!st[g].includes(v))st[g].unshift(v);st[g]=st[g].slice(0,30);chips(g);save();toast('Teks tersimpan')}
+ else if(c==='clrpr')set('pr','')
  else if(c==='lgo')lnGo(el)
  else if(c==='inc'){const d=+el.dataset.d;set('num',/\d+$/.test(s.num)?s.num.replace(/\d+$/,m=>String(Math.max(0,+m+d)).padStart(m.length,'0')):(d>0&&!s.num.trim()?'1':s.num))}
  else if(c==='rst'&&pon){pa.a=[];pa.s=-1;padd()}
