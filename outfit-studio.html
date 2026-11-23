@@ -533,7 +533,7 @@ async function dlBlob(b,n){
  const C=capP();
  if(C){const P=C.Plugins||{};
   if(P.SaveImage&&typeof P.SaveImage.save==='function'){
-   try{await svT(P.SaveImage.save({data:await b64(b),fileName:n.replace(/\.(png|jpe?g|webp)$/i,'')+'-'+Date.now()+'.png'}),25000);toast('Tersimpan di galeri (album Pictures/PromptBuilder)');return 'saved'}
+   try{await svT(P.SaveImage.save({data:await b64(b),fileName:n.replace(/\.(png|jpe?g|webp)$/i,'')+'-'+Date.now()+'.'+(/jpe?g/i.test(b.type)?'jpg':'png')}),25000);toast('Tersimpan di galeri (album Pictures/PromptBuilder)');return 'saved'}
    catch(e){toast('Gagal menyimpan ke galeri, mencoba cara lain')}}
   if(P.Filesystem&&P.Share&&typeof P.Share.share==='function'){
    try{const w=await P.Filesystem.writeFile({path:'outfit-studio/'+n,data:await b64(b),directory:'CACHE',recursive:true});await P.Share.share({title:n,url:w.uri,dialogTitle:'Simpan atau bagikan gambar'});return 'share'}
@@ -547,15 +547,15 @@ async function saveTo(a){try{const b=await resBlob(),th=await thumbOf(b);await r
 async function addPics(fl){const al=S.aid,t0=Date.now();toast('Menyimpan '+fl.length+' gambar…');try{for(let i=0;i<fl.length;i++){const f=fl[i],th=await thumbOf(f);await run('photos','readwrite',t=>t.objectStore('photos').add({id:uid2('p'),album:al,name:f.name||'gambar',type:f.type,size:f.size,at:t0,o:i,blob:f,thumb:th}))}await sync(al);await loadView();toast(fl.length+' gambar tersimpan')}catch(e){toast(e&&e.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan gambar')}}
 function setImg(k,f){const d=S.d,u=URL.createObjectURL(f);OI.ld(f,c=>{if(d[k])URL.revokeObjectURL(d[k]);d[k]=u;d[k+'C']=c;enter3();render()})}
 let dlBusy=false;
-async function busyDl(el,job){
+async function busyDl(el,job,fast){
  if(dlBusy||!el)return;dlBusy=true;
  const all=[...document.querySelectorAll('[data-a=dl],[data-a=dlp]')],orig=el.innerHTML,t0=Date.now(),wait=ms=>new Promise(r=>setTimeout(r,ms));
  all.forEach(b=>b.disabled=true);el.classList.add('busy');el.setAttribute('aria-busy','true');
  const say=t=>{if(el.isConnected)el.innerHTML='<span class="spin"></span>'+t};
  say('Menyiapkan…');let ok=false;
  try{ok=await Promise.race([job(say),new Promise(r=>setTimeout(()=>r(false),150000))])}catch(err){}
- const w=700-(Date.now()-t0);if(w>0)await wait(w);
- if(ok&&el.isConnected){el.innerHTML=ic('check',16)+'Selesai';await wait(800)}
+ const w=(fast?0:700)-(Date.now()-t0);if(w>0)await wait(w);
+ if(ok&&el.isConnected){el.innerHTML=ic('check',16)+'Selesai';await wait(fast?250:800)}
  all.forEach(b=>{if(b.isConnected)b.disabled=false});
  if(el.isConnected){el.classList.remove('busy');el.removeAttribute('aria-busy');el.innerHTML=orig}
  dlBusy=false}
@@ -648,9 +648,11 @@ const ntxt=()=>(s.pre.trim()+' '+s.num.trim()).trim();
 const sched=()=>{if(!raf)raf=requestAnimationFrame(draw)};
 function ph(x,rx,rw,t,c){x.fillStyle=c;x.fillRect(rx,0,rw,H);x.fillStyle='#a39d92';x.font='600 36px Arial,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(t,rx+rw/2,H/2)}
 function pic(x,im,rx,rw,z,px,py,cover){const sc=(cover?Math.max:Math.min)(rw/im.width,H/im.height)*z/100,dw=im.width*sc,dh=im.height*sc;x.save();x.beginPath();x.rect(rx,0,rw,H);x.clip();x.drawImage(im,rx+(rw-dw)*px,(H-dh)*py,dw,dh);x.restore();return{dw,dh}}
+/* Foto outfit hasil "Pisahkan otomatis" / "Rapikan AI" selalu membawa properti bg (warna latar, atau null kalau latarnya putih) = sudah punya latar sendiri, jadi dimuat utuh (contain). Foto upload manual tidak punya bg -> isi penuh panel (cover), sama seperti foto model. */
+const own=o=>!!o&&'bg' in o;
 function txt(x,o,t){t=t.trim();if(!t)return null;x.font=(o.b?700:500)+' '+o.s+'px '+FN[o.f];x.textAlign='center';x.textBaseline='middle';const w=x.measureText(t).width,mx=W*o.x/100,my=H*o.y/100,p=o.s*.5,bx=mx-w/2-p,by=my-o.s/2-p*.45,bw=w+p*2,bh=o.s+p*.9;if(o.bg){x.fillStyle=o.bc;x.beginPath();(x.roundRect||x.rect).call(x,bx,by,bw,bh,bh/2);x.fill()}x.fillStyle=o.c;x.fillText(t,mx,my+o.s*.04);return{x:bx,y:by,w:bw,h:bh}}
 function draw(){raf=0;if(!cx)return;if(pon){drawP();return}if(zon){drawZ();return}const x=cx,lw=Math.round(W*s.lw/100);x.fillStyle='#fff';x.fillRect(0,0,W,H);if(img.L&&img.L.bg){x.fillStyle=img.L.bg;x.fillRect(0,0,lw,H)}
- if(img.L)last.L=pic(x,img.L,0,lw,s.zl,s.xl,s.yl,false);else ph(x,0,lw,'Foto outfit','#f4f2ee');
+ if(img.L)last.L=pic(x,img.L,0,lw,s.zl,s.xl,s.yl,!own(img.L));else ph(x,0,lw,'Foto outfit','#f4f2ee');
  if(img.R)last.R=pic(x,img.R,lw,W-lw,s.zr,s.xr,s.yr,true);else ph(x,lw,W-lw,'Foto model','#e6e0d8');
  box.t=txt(x,s.t,s.title);box.n=txt(x,s.n,ntxt());box.p=txt(x,s.p,s.pr)}
 const pt=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}};
@@ -680,7 +682,7 @@ const chips=g=>{const e=$('kch-'+g);if(e)e.innerHTML=st[g].length?st[g].map((t,i
 function fill(){kl.querySelectorAll('[data-p]').forEach(el=>{const a=el.dataset.p.split('.'),v=a.length>1?s[a[0]][a[1]]:s[a[0]];if(el.type==='checkbox')el.checked=!!v;else el.value=v});KP()}
 function build(){kl.innerHTML=ui();cv=$('kc');cx=cv.getContext('2d');wire();fill();fillZ();fillP();chips('t');chips('p');abadge();lnInit();built=true;
  try{['500 24px Newsreader','700 24px Newsreader','600 24px Caveat','italic 500 24px "Playfair Display"','italic 700 24px "Playfair Display"','italic 500 24px "Cormorant Garamond"','italic 700 24px "Cormorant Garamond"','400 24px "Great Vibes"','500 24px "Dancing Script"','700 24px "Dancing Script"','400 24px "Special Elite"','400 24px Anton'].forEach(f=>document.fonts.load(f).then(sched,()=>{}))}catch(e){}}
-function load(f,k){const u=URL.createObjectURL(f),o=new Image();o.onload=()=>{const m=Math.min(1,2000/Math.max(o.naturalWidth,o.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(o.naturalWidth*m);c.height=Math.round(o.naturalHeight*m);c.getContext('2d').drawImage(o,0,0,c.width,c.height);put(k,c,u);sched()};o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.src=u}
+function load(f,k){const u=URL.createObjectURL(f),o=new Image();o.onload=()=>{const m=Math.min(1,2000/Math.max(o.naturalWidth,o.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(o.naturalWidth*m);c.height=Math.round(o.naturalHeight*m);c.getContext('2d').drawImage(o,0,0,c.width,c.height);put(k,c,u);if(k==='L'&&s.zl<100){s.zl=100;sync('zl',100)}sched()};o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.src=u}
 function put(k,c,u){img[k]=c;const l=k.toLowerCase();s['x'+l]=.5;s['y'+l]=.5;const z=$('kz'+k),t=z.querySelector('img');if(t.src.indexOf('blob:')===0)URL.revokeObjectURL(t.src);t.src=u||c.toDataURL('image/jpeg',.5);z.classList.add('has')}
 /* ===== Pemisah otomatis v2 — inti analisis (tanpa DOM; d = RGBA piksel, w x h = ukuran analisis) =====
    Hasil: kotak (koordinat analisis) utk benda-benda outfit & foto model, plus sisi panel (kiri/kanan) dan tingkat keyakinan. */
@@ -1107,12 +1109,12 @@ const anm=i=>'kolase-outfit-a'+AV+'-'+String(i+1).padStart(2,'0')+'.png',wt=ms=>
 const aTo=(p,ms)=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new Error('timeout')),ms)})]).finally(()=>clearTimeout(t))};
 function asave(el){if(pon?!pimg:zon?!zimg:(!img.L||!img.R)){toast('Pilih foto outfit dan foto model dulu');return}
  return busyDl(el,async say=>{say('Menyimpan…');try{await kfr();pexp=pon?1:0;draw();
-  const b=await new Promise(r=>cv.toBlob(r,'image/png'));if(!b){toast('Gagal membuat gambar, coba lagi');return false}
+  const b=await new Promise(r=>cv.toBlob(r,'image/jpeg',.92));if(!b){toast('Gagal membuat gambar, coba lagi');return false}
   const th=await athumb(),n=await acnt(AM.cur),full=n>=AMAX;if(full){AM.cur++;asv()}
   await aq('readwrite',s=>s.put({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),al:AM.cur,at:Date.now(),blob:b,th}));
   try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(x){}
   toast(full?'Album sebelumnya penuh, foto masuk Album '+AM.cur:'Tersimpan di Album '+AM.cur+' ('+(n+1)+'/'+AMAX+')');abadge();return true
- }catch(err){toast(err&&err.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan, coba lagi');return false}finally{pexp=0;sched()}})}
+ }catch(err){toast(err&&err.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan, coba lagi');return false}finally{pexp=0;sched()}},1)}
 async function ar(){let K=[],P=[];try{K=await aals()}catch(e){toast('Album belum bisa dibuka di perangkat ini')}
  const nos=[...new Set(K.concat(AM.cur))].sort((a,b)=>b-a);if(!nos.includes(AV))AV=AM.cur;
  try{P=(await aalb(AV)).sort((a,b)=>a.at-b.at)}catch(e){}
@@ -1130,7 +1132,7 @@ async function adlAll(el){
  if(!P.length){toast('Album masih kosong');return}
  if(ADLR)return;
  const av=AV,was=av===AM.cur,n=P.length,done=ASV[av]||(ASV[av]=new Set()),todo=P.map((p,i)=>i).filter(i=>!done.has(P[i].id)),
-  nm=i=>'kolase-outfit-a'+av+'-'+String(i+1).padStart(2,'0'),C=capP(),Pl=(C&&C.Plugins)||{},
+  ex=i=>/jpe?g/i.test(P[i].blob.type||'')?'jpg':'png',nm=i=>'kolase-outfit-a'+av+'-'+String(i+1).padStart(2,'0'),C=capP(),Pl=(C&&C.Plugins)||{},
   hasSave=!!C&&!!Pl.SaveImage&&typeof Pl.SaveImage.save==='function',
   hasShare=!!C&&!!Pl.Filesystem&&!!Pl.Share&&typeof Pl.Share.share==='function',
   R=ADLR={t:'Menyiapkan…',cx:false},late={},bad=[],
@@ -1139,29 +1141,30 @@ async function adlAll(el){
   fin=i=>{done.add(P[i].id)};
  R.kp=new Promise((_,no)=>{R.kx=()=>no(new Error('cancel'))});R.kp.catch(()=>{});
  let shareCx=false;ar();
- const prep=async i=>{let b=P[i].blob,x='png';
-  if(b.size>600000){try{const bm=await createImageBitmap(b),c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bm,0,0);if(bm.close)bm.close();const j=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));if(j&&j.size<b.size*.75){b=j;x='jpg'}}catch(e){}}
+ const prep=async i=>{let b=P[i].blob,x=ex(i);
+  if(x==='png'&&b.size>600000){try{const bm=await createImageBitmap(b),c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bm,0,0);if(bm.close)bm.close();const j=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));c.width=c.height=0;if(j&&j.size<b.size*.75){b=j;x='jpg';aq('readwrite',s=>{const g=s.get(P[i].id);g.onsuccess=()=>{const r=g.result;if(r&&r.blob&&/png/i.test(r.blob.type))s.put({...r,blob:j})};return g}).catch(()=>{})}}catch(e){}}
   return{d:await b64(b),x}};
  const saveOne=async i=>{const o=await W(prep(i),30000);
   for(let r=0;;r++){const pr=Pl.SaveImage.save({data:o.d,fileName:nm(i)+'-'+Date.now()+'.'+o.x});pr.then(()=>{late[i]=1;fin(i)},()=>{});
    try{await W(pr,10000+Math.ceil(o.d.length/1e6)*5000);return}catch(e){if(r>=1||!e||e.message==='cancel'||e.message==='timeout')throw e;await wt(400)}}};
  try{
   if(!todo.length){}
-  else if(hasSave){let fl=0;
-   for(let k=0;k<todo.length&&!R.cx;k++){const i=todo[k];say('Mengunduh '+(k+1)+'/'+todo.length+'…');
-    try{await saveOne(i);fin(i);fl=0}
-    catch(e){if(R.cx||(e&&e.message==='cancel'))break;bad.push(i);if((e&&e.message==='timeout')||++fl>=2){bad.push(...todo.slice(k+1));break}}}}
+  else if(hasSave){let nx=0,ok=0,fl=0,stop=false;
+    const wk=async()=>{while(!R.cx&&!stop){const k=nx++;if(k>=todo.length)return;const i=todo[k];
+     try{await saveOne(i);fin(i);ok++;fl=0;say('Mengunduh '+ok+'/'+todo.length+'…')}
+     catch(e){if(R.cx||(e&&e.message==='cancel')){stop=true;return}bad.push(i);if((e&&e.message==='timeout')||++fl>=3){stop=true;bad.push(...todo.slice(nx));nx=todo.length;return}}}};
+    say('Mengunduh 0/'+todo.length+'…');await Promise.all([wk(),wk(),wk()])}
   else if(C)bad.push(...todo);
   else if(isIOS()){
-   const F=todo.map(i=>new File([P[i].blob],nm(i)+'.png',{type:'image/png'}));
+   const F=todo.map(i=>new File([P[i].blob],nm(i)+'.'+ex(i),{type:P[i].blob.type||'image/png'}));
    if(navigator.share&&navigator.canShare&&navigator.canShare({files:F})){say('Membuka menu simpan…');
     try{await W(navigator.share({files:F}),180000);todo.forEach(fin)}catch(e){if(R.cx||(e&&e.name==='AbortError'))shareCx=true;else toast('Gagal membuka menu simpan')}}
    else{showAllView(todo.map(i=>P[i].blob));todo.forEach(fin)}}
   else{
    for(let k=0;k<todo.length&&!R.cx;k++){const i=todo[k];say('Mengunduh '+(k+1)+'/'+todo.length+'…');
-    const r=await dlBlob(P[i].blob,nm(i)+'.png');
-    if(r==='dl'||r==='saved'){fin(i);if(k<todo.length-1)await wt(450)}else{if(r!=='abort')toast('Gagal mengunduh foto '+(i+1)+', coba lagi');break}}}
-  const rest=bad.filter(i=>!late[i]&&!done.has(P[i].id));
+    const r=await dlBlob(P[i].blob,nm(i)+'.'+ex(i));
+    if(r==='dl'||r==='saved'){fin(i);if(k<todo.length-1)await wt(120)}else{if(r!=='abort')toast('Gagal mengunduh foto '+(i+1)+', coba lagi');break}}}
+  const rest=[...new Set(bad)].filter(i=>!late[i]&&!done.has(P[i].id));
   if(rest.length&&!R.cx){
    if(hasSave&&hasShare)toast('Simpan ke galeri bermasalah, sisa foto lewat menu simpan');
    if(hasShare){
@@ -1169,8 +1172,8 @@ async function adlAll(el){
      for(let k=0;k<rest.length;k++){const j=rest[k];say('Menyiapkan '+(k+1)+'/'+rest.length+'…');const o=await W(prep(j),30000),w=await W(Pl.Filesystem.writeFile({path:'outfit-studio/'+nm(j)+'-'+Date.now()+'.'+o.x,data:o.d,directory:'CACHE',recursive:true}),30000);us.push(w.uri)}
      say('Membuka menu simpan…');
      await W(Pl.Share.share({title:'Album '+av,files:us,dialogTitle:'Simpan atau bagikan gambar'}),180000);rest.forEach(fin)}
-    catch(e){if(R.cx||/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))shareCx=true;else{toast('Gagal membuka menu simpan, gambar ditampilkan di layar');showAllView(rest.map(j=>P[j].blob));rest.forEach(fin)}}}
-   else{showAllView(rest.map(j=>P[j].blob));rest.forEach(fin)}}
+    catch(e){if(R.cx||/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))shareCx=true;else{toast('Gagal membuka menu simpan, gambar ditampilkan di layar');showAllView(rest.map(j=>P[j].blob))}}}
+   else{showAllView(rest.map(j=>P[j].blob))}}
  }catch(e){}
  const cx=R.cx||shareCx,cn=P.filter(p=>done.has(p.id)).length,all=cn>=n;ADLR=null;
  if(all){ASV[av]=null;if(!AM.dn.includes(av))AM.dn.push(av);if(was)AM.cur++;asv();toast(n+' foto diunduh'+(was?'. Simpanan berikutnya masuk Album '+AM.cur:''))}
