@@ -4,6 +4,8 @@
 // Skrip utama boleh memuat isian dalam tanda kurung, mis. (kamera mendekat memperlihatkan ...); aturannya ada di baris CAMERA CUE system prompt.
 // Format satu opsi: {nama:'Opsi 1', def:'hook: ...\ncta: ...', combo:{}}  (combo opsional, kunci 'nadaKey|aksen' seperti sebelumnya).
 // Skrip user sendiri ("Skrip Saya") tetap didahulukan lewat pbUserRefOpts() di _vbRefOpts().
+// 23 Nov 2026 (permintaan user): mode "Campur dengan contoh bawaan". _vbRefOpts() kini memberi pbUserRefOpts() cara mengambil daftar bawaan (_vbRefBuiltin);
+// saat mode campur, daftar yang dikembalikan = skrip user + contoh bawaan (satu array yang di-cache di pbUserRefOpts). Opsi milik user bertanda own:1.
 // Tiap kali skrip diminta ke AI, SATU opsi dipilih acak tanpa pengulangan berurutan.
 var VB_REFERENCE_HEAD='REFERENCE (MAIN SCRIPT): the sample below is a finished script for a DIFFERENT product. Use it as your base and rewrite it yourself for the product in DATA: keep its structure (what hook and cta each do, in the same order), sentence rhythm, casual voice, slang level and the way it talks to the viewer, but change the situation, wording and details so everything truly fits DATA. Never keep its product, its scenario or its exact sentences, and never mention its product. Product, use, daily problem and benefits come ONLY from DATA (benefits only from its advantages), and the script must say the product name from DATA. Pronouns and address follow Greeting/REGISTER, not the sample. If the sample tone or accent differs from DATA, use it for structure only. If a rule below conflicts with the sample, the rule wins. If a REVISION note includes a CURRENT SCRIPT, keep its wording and change only what the note asks.\n';
 
@@ -46,14 +48,15 @@ var VB_REFERENCE_OPTIONS_16=[
    def:'hook: '+"kalo lo pengen kaos murah tapi bahannya adem, nah ini rekomendasi dari gua, harganya gak sampai 60 ribu dan lu bisa dapat dua loh"+'\n'+'cta: '+"sini deketin kameranya(kamera mendekat ke arah kaos) tuh liat cakep abis kan, mau lu pakek buat nongkrong kek. kerja kek. ini tuh udah nyaman banget. cek dulu harganya di bawah",
    combo:{}}
 ];  // durasi 16 detik (hook + cta). 12 skrip utama dari user (21 Nov 2026), teks apa adanya
-function _vbRefOpts(){var _u=(typeof pbUserRefOpts==='function')?pbUserRefOpts():null;if(_u)return _u;return _vbIsDua()?VB_REFERENCE_OPTIONS_DUA:(_vb16()?VB_REFERENCE_OPTIONS_16:VB_REFERENCE_OPTIONS);}
+function _vbRefBuiltin(){return _vbIsDua()?VB_REFERENCE_OPTIONS_DUA:(_vb16()?VB_REFERENCE_OPTIONS_16:VB_REFERENCE_OPTIONS);}
+function _vbRefOpts(){var _u=(typeof pbUserRefOpts==='function')?pbUserRefOpts(_vbRefBuiltin):null;if(_u)return _u;return _vbRefBuiltin();}
 // 25 Okt 2026: contoh referensi diacak TANPA ulangan: semua opsi dikocok dulu, dipakai satu per satu (tiap panggilan AI = 1 opsi baru),
 // baru dikocok lagi kalau habis; opsi pertama putaran baru dijamin beda dari opsi terakhir putaran sebelumnya.
 var _vbRefBag=[],_vbRefLast=-1;
 var _vbRefBagList=null;
 // 13 Nov 2026 (audit): opsi contoh yang dipakai per produk disimpan (kunci = durasi|nama); saat REVISI (ada CURRENT SCRIPT) opsi yang sama dipakai lagi.
 var _vbRefMemo={};
-function _vbRefMemoKey(nama){return (typeof pbUserRefActive==='function'&&pbUserRefActive()?'own|':'')+(_vbIsDua()?'dua|':(_vb16()?'16|':'24|'))+String(nama||'').replace(/\s+/g,' ').trim().toLowerCase();}
+function _vbRefMemoKey(nama){return (typeof pbUserRefTag==='function'?pbUserRefTag():(typeof pbUserRefActive==='function'&&pbUserRefActive()?'own|':''))+(_vbIsDua()?'dua|':(_vb16()?'16|':'24|'))+String(nama||'').replace(/\s+/g,' ').trim().toLowerCase();}
 function _vbPickReferenceIdx(){_vbPickReferenceOption();return _vbRefLast;}
 function _vbPickReferenceOption(){
   var L=_vbRefOpts();
@@ -78,7 +81,11 @@ function _vbRefKey(pitch,accent){
 }
 function _vbRefText(opt,k){
   if(!opt)return '';
-  var base=(_vbRefOpts()||[])[0]||{},bc=base.combo||{};
+  // Mode campur: opsi milik user (own:1) dan opsi bawaan masing-masing memakai opsi PERTAMA dari kelompoknya sebagai dasar combo,
+  // jadi skrip user tidak pernah tertimpa combo bawaan (dan sebaliknya). Tanpa campuran, perilakunya sama dengan sebelumnya.
+  var L0=_vbRefOpts()||[],base=L0[0]||{},bc;
+  for(var bi=0;bi<L0.length;bi++){if(!!L0[bi].own===!!opt.own){base=L0[bi];break;}}
+  bc=base.combo||{};
   var hit=(opt.combo&&opt.combo[k])||bc[k];
   if(!hit&&_vb16()){var pk0=String(k).split('|')[0];hit=(opt.combo&&opt.combo[pk0+'|neutral standard accent'])||bc[pk0+'|neutral standard accent'];} // 16 detik: aksen tanpa contoh -> pakai contoh nada yang sama versi netral
   return hit||opt.def||base.def||'';
