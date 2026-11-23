@@ -1103,6 +1103,8 @@ const aals=()=>adb().then(d=>new Promise((ok,no)=>{const t=d.transaction('p','re
 const abadge=()=>acnt(AM.cur).then(n=>{const e=$('kab');if(e){e.textContent=n;e.style.display=n?'':'none'}}).catch(()=>{});
 const athumb=()=>new Promise(r=>{const c=document.createElement('canvas');c.width=240;c.height=Math.round(240*H/W);c.getContext('2d').drawImage(cv,0,0,240,c.height);c.toBlob(r,'image/jpeg',.72)});
 const anm=i=>'kolase-outfit-a'+AV+'-'+String(i+1).padStart(2,'0')+'.png',wt=ms=>new Promise(r=>setTimeout(r,ms));
+/* 23 Nov 2026: di lingkup kolase 'svT' adalah variabel timer (angka), BUKAN fungsi batas waktu di luar sana. Memanggilnya = TypeError tepat setelah plugin SaveImage.save() dipanggil, jadi foto tersimpan di latar tanpa ditunggu, lalu dicoba lagi & lagi (duplikat, jembatan native tersumbat = 'Unduh semua' lama). Pakai pembungkus batas waktu sendiri. */
+const aTo=(p,ms)=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new Error('timeout')),ms)})]).finally(()=>clearTimeout(t))};
 function asave(el){if(pon?!pimg:zon?!zimg:(!img.L||!img.R)){toast('Pilih foto outfit dan foto model dulu');return}
  return busyDl(el,async say=>{say('Menyimpan…');try{await kfr();pexp=pon?1:0;draw();
   const b=await new Promise(r=>cv.toBlob(r,'image/png'));if(!b){toast('Gagal membuat gambar, coba lagi');return false}
@@ -1124,6 +1126,9 @@ function showAllView(bs){if(S.zu)URL.revokeObjectURL(S.zu);S.zu=null;S.zid=null;
 async function adlAll(el){let P=[];try{P=(await aalb(AV)).sort((a,b)=>a.at-b.at)}catch(e){}
  if(!P.length){toast('Album masih kosong');return}let ok=false;const was=AV===AM.cur;
  const pre=i=>{if(i>=P.length)return null;const p=b64(P[i].blob);p.catch(()=>{});return p};
+ /* 23 Nov 2026: PNG foto besar (beberapa MB) dikirim sebagai base64 lewat jembatan native = lambat/macet. Bila PNG > 1,5 MB dan JPEG q95 jauh lebih kecil, kirim JPEG (ekstensi .jpg). */
+ const shr=async b=>{let x='png';if(b.size>1500000){try{const bm=await createImageBitmap(b),c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bm,0,0);const j=await new Promise(r=>c.toBlob(r,'image/jpeg',.95));if(j&&j.size<b.size*.7){b=j;x='jpg'}}catch(e){}}return{d:await b64(b),x}};
+ const pre2=i=>{if(i>=P.length)return null;const p=shr(P[i].blob);p.catch(()=>{});return p};
  await busyDl(el,async say=>{
   const C=capP();
   if(C){const Pl=C.Plugins||{};
@@ -1137,13 +1142,21 @@ async function adlAll(el){let P=[];try{P=(await aalb(AV)).sort((a,b)=>a.at-b.at)
    if(navigator.canShare({files:F})){try{await navigator.share({files:F});ok=true}catch(e){if(!e||e.name!=='AbortError')toast('Gagal membuka menu simpan')}return ok}}
   if(isIOS()&&!C){showAllView(P.map(p=>p.blob));return true}
   /* 20 Nov 2026 — UNDUH SEMUA CEPAT: di APK (plugin SaveImage) gambar berikutnya di-base64 sambil gambar sebelumnya disimpan, tanpa jeda tetap (dulu: base64 → simpan → tunggu 450 ms → ulangi, jadi terasa macet). Jeda hanya untuk unduhan browser. Bila satu gambar gagal, sisanya lewat jalur lama (cadangan Share / tampil di layar). */
-  let st=0;
+  let st=0,slow=0;
   if(C&&C.Plugins&&C.Plugins.SaveImage&&typeof C.Plugins.SaveImage.save==='function'){
-   let nx=pre(0),i=0;
-   for(;i<P.length;i++){say('Mengunduh '+(i+1)+'/'+P.length+'…');const cur=nx;nx=pre(i+1);
-    try{const dat=await cur,fn=anm(i).replace(/\.png$/,'')+'-'+Date.now()+'.png',sv=()=>svT(C.Plugins.SaveImage.save({data:dat,fileName:fn}),25000);try{await sv()}catch(e1){await wt(700);await sv()}}catch(e){break}}
+   let nx=pre2(0),i=0,tk=0;
+   for(;i<P.length;i++){const lb='Mengunduh '+(i+1)+'/'+P.length,t1=Date.now();say(lb+'…');clearInterval(tk);tk=setInterval(()=>{const q=Math.round((Date.now()-t1)/1000);if(q>=5)say(lb+' · '+q+' dtk…')},1000);const cur=nx;nx=pre2(i+1);
+    try{const o=await cur,fn=anm(i).replace(/\.png$/,'')+'-'+Date.now()+'.'+o.x,sv=()=>aTo(C.Plugins.SaveImage.save({data:o.d,fileName:fn}),15000);try{await sv()}catch(e1){if(e1&&e1.message==='timeout')throw e1;await wt(500);await sv()}}catch(e){break}}
+   clearInterval(tk);
    if(i>=P.length){ok=true;return true}
-   st=i}
+   st=i;slow=1}
+  /* penyimpanan ke galeri macet/gagal: sisa foto langsung lewat SATU menu simpan (bukan coba plugin lagi per foto) */
+  if(slow){const Pl=C.Plugins||{};toast('Simpan ke galeri terlalu lama, memakai menu simpan');
+   if(Pl.Filesystem&&Pl.Share&&typeof Pl.Share.share==='function'){
+    try{const us=[];let nx=pre2(st);for(let j=st;j<P.length;j++){say('Menyiapkan '+(j+1)+'/'+P.length+'…');const cur=nx;nx=pre2(j+1);const o=await cur,w=await Pl.Filesystem.writeFile({path:'outfit-studio/'+anm(j).replace(/\.png$/,'.'+o.x),data:o.d,directory:'CACHE',recursive:true});us.push(w.uri)}
+     await Pl.Share.share({title:'Album '+AV,files:us,dialogTitle:'Simpan atau bagikan gambar'});ok=true;return true}
+    catch(e){if(/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))return false;toast('Gagal membuka menu simpan, gambar ditampilkan di layar')}}
+   showAllView(P.slice(st).map(p=>p.blob));ok=true;return true}
   for(let i=st;i<P.length;i++){say('Mengunduh '+(i+1)+'/'+P.length+'…');const r=await dlBlob(P[i].blob,anm(i));if(r!=='saved'&&r!=='dl'){if(r!=='abort')toast('Gagal mengunduh foto '+(i+1)+', coba lagi');return false}if(r==='dl'&&i<P.length-1)await wt(450)}
   ok=true;return true});
  if(ok){if(!AM.dn.includes(AV))AM.dn.push(AV);if(was)AM.cur++;asv();toast(P.length+' foto diunduh'+(was?'. Simpanan berikutnya masuk Album '+AM.cur:''))}
