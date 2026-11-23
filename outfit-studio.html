@@ -553,7 +553,7 @@ async function busyDl(el,job){
  all.forEach(b=>b.disabled=true);el.classList.add('busy');el.setAttribute('aria-busy','true');
  const say=t=>{if(el.isConnected)el.innerHTML='<span class="spin"></span>'+t};
  say('Menyiapkan…');let ok=false;
- try{ok=await job(say)}catch(err){}
+ try{ok=await Promise.race([job(say),new Promise(r=>setTimeout(()=>r(false),150000))])}catch(err){}
  const w=700-(Date.now()-t0);if(w>0)await wait(w);
  if(ok&&el.isConnected){el.innerHTML=ic('check',16)+'Selesai';await wait(800)}
  all.forEach(b=>{if(b.isConnected)b.disabled=false});
@@ -1092,7 +1092,7 @@ function auto(f){{const e2=$('kas2');if(e2)e2.textContent=''}const u=URL.createO
 const kfr=()=>{try{return Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))])}catch(e){return Promise.resolve()}};
 function dl(el){if(pon?!pimg:zon?!zimg:(!img.L||!img.R)){toast('Pilih foto outfit dan foto model dulu');return}busyDl(el,async say=>{say('Mengunduh…');try{await kfr();pexp=pon?1:0;draw();const b=await new Promise(r=>cv.toBlob(r,'image/png'));if(!b){toast('Gagal membuat gambar, coba lagi');return false}const r=await dlBlob(b,(pon?'panah-outfit-'+Date.now().toString(36):'kolase-outfit-'+(s.num.replace(/[^\w-]+/g,'')||'1'))+'.png');if(r==='dl')toast('Gambar diunduh');return r!=='abort'}catch(err){toast('Gagal mengunduh, coba lagi');return false}finally{pexp=0;sched()}})}
 /* v17.6: ALBUM KOLASE — tombol Simpan memasukkan hasil kolase ke album otomatis (IndexedDB 'pb_kol_alb_v1': foto utuh + thumbnail). 1 album maks. AMAX foto; "Unduh semua" mengunduh seluruh isi album, lalu simpanan berikutnya masuk album baru. */
-const AMAX=30,AK='pb_kol_alb_v1';let AM={cur:1,dn:[]},AV=1,AU=[],ADB=null;
+const AMAX=30,AK='pb_kol_alb_v1';let AM={cur:1,dn:[]},AV=1,AU=[],ADB=null,ADLR=null;const ASV={};
 try{const j=JSON.parse(localStorage.getItem(AK)||'null');if(j&&j.cur>0)AM={cur:j.cur|0,dn:Array.isArray(j.dn)?j.dn:[]}}catch(e){}
 const asv=()=>{try{localStorage.setItem(AK,JSON.stringify(AM))}catch(e){}};
 const adb=()=>ADB||(ADB=new Promise((ok,no)=>{const r=indexedDB.open(AK,1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'}).createIndex('al','al');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}));
@@ -1121,45 +1121,60 @@ async function ar(){let K=[],P=[];try{K=await aals()}catch(e){toast('Album belum
  $('kal').innerHTML=`<div class="kb"><button type="button" data-kc="aback">${ic('back',18)}Kembali</button><span>Album Kolase</span></div>
 <div class="kap">${nos.map(n=>`<button type="button" class="${n===AV?'on':''}" data-kc="apick" data-n="${n}">Album ${n}<small>${n===AM.cur?'Aktif':AM.dn.includes(n)?'Sudah diunduh':'Belum diunduh'}</small></button>`).join('')}</div>
 <div class="ks"><p class="hint" style="margin-top:12px">${P.length}/${AMAX} foto. ${AV===AM.cur?'Tiap kali Simpan, hasil kolase masuk ke sini. Setelah Unduh semua, simpanan berikutnya masuk album baru.':dn?'Album ini sudah diunduh.':'Album ini belum diunduh.'}</p>${P.length?`<div class="kag">${P.map((p,i)=>`<div class="kat"><img alt="Foto ${i+1}" src="${AU[i]}"><button type="button" data-kc="adel" data-id="${p.id}" aria-label="Hapus foto ${i+1}">${ic('x',14)}</button></div>`).join('')}</div>`:'<p class="hint" style="margin-top:28px">Album masih kosong. Edit kolase lalu tekan Simpan.</p>'}</div>
-<div class="kfoot"><button type="button" class="btn ghost dng" data-kc="adela">${ic('trash',16)}Hapus</button><button type="button" class="btn" data-kc="adl"${P.length?'':' disabled'}>${ic('dl',16)}${dn?'Unduh lagi':'Unduh semua'} (${P.length})</button></div>`}
+<div class="kfoot">${ADLR?`<button type="button" class="btn ghost" data-kc="acx">Batal</button><button type="button" class="btn busy" data-kc="adl" disabled><span class="spin"></span>${ADLR.t}</button>`:`<button type="button" class="btn ghost dng" data-kc="adela">${ic('trash',16)}Hapus</button><button type="button" class="btn" data-kc="adl"${P.length?'':' disabled'}>${ic('dl',16)}${dn?'Unduh lagi':'Unduh semua'} (${P.length})</button>`}</div>`}
 function showAllView(bs){if(S.zu)URL.revokeObjectURL(S.zu);S.zu=null;S.zid=null;const us=bs.map(b=>URL.createObjectURL(b));$('vw').innerHTML='<p class="hint" style="margin:0;text-align:center">Tekan lama tiap gambar, lalu pilih “Simpan ke Foto” atau “Unduh gambar”.</p><div style="overflow-y:auto;max-height:calc(100dvh - 150px);display:flex;flex-direction:column;gap:12px;width:min(100%,360px)">'+us.map(u=>'<img src="'+u+'" alt="" style="width:100%;border-radius:var(--radius-sm);-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto">').join('')+'</div><div class="row" style="width:min(100%,360px)"><button type="button" class="btn ghost" data-a="vx">Tutup</button></div>';$('vw').classList.add('show')}
-async function adlAll(el){let P=[];try{P=(await aalb(AV)).sort((a,b)=>a.at-b.at)}catch(e){}
- if(!P.length){toast('Album masih kosong');return}let ok=false;const was=AV===AM.cur;
- const pre=i=>{if(i>=P.length)return null;const p=b64(P[i].blob);p.catch(()=>{});return p};
- /* 23 Nov 2026: PNG foto besar (beberapa MB) dikirim sebagai base64 lewat jembatan native = lambat/macet. Bila PNG > 1,5 MB dan JPEG q95 jauh lebih kecil, kirim JPEG (ekstensi .jpg). */
- const shr=async b=>{let x='png';if(b.size>1500000){try{const bm=await createImageBitmap(b),c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bm,0,0);const j=await new Promise(r=>c.toBlob(r,'image/jpeg',.95));if(j&&j.size<b.size*.7){b=j;x='jpg'}}catch(e){}}return{d:await b64(b),x}};
- const pre2=i=>{if(i>=P.length)return null;const p=shr(P[i].blob);p.catch(()=>{});return p};
- await busyDl(el,async say=>{
-  const C=capP();
-  if(C){const Pl=C.Plugins||{};
-   if(!(Pl.SaveImage&&typeof Pl.SaveImage.save==='function')){
-    if(Pl.Filesystem&&Pl.Share&&typeof Pl.Share.share==='function'){
-     try{const us=[];let nx=pre(0);for(let i=0;i<P.length;i++){say('Menyiapkan '+(i+1)+'/'+P.length+'…');const cur=nx;nx=pre(i+1);const w=await Pl.Filesystem.writeFile({path:'outfit-studio/'+anm(i),data:await cur,directory:'CACHE',recursive:true});us.push(w.uri)}
-      await Pl.Share.share({title:'Album '+AV,files:us,dialogTitle:'Simpan atau bagikan gambar'});ok=true;return true}
-     catch(e){if(/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))return false;toast('Gagal membuka menu simpan, gambar ditampilkan di layar')}}
-    showAllView(P.map(p=>p.blob));return true}}
-  if(isIOS()&&navigator.share&&navigator.canShare){const F=P.map((p,i)=>new File([p.blob],anm(i),{type:'image/png'}));
-   if(navigator.canShare({files:F})){try{await navigator.share({files:F});ok=true}catch(e){if(!e||e.name!=='AbortError')toast('Gagal membuka menu simpan')}return ok}}
-  if(isIOS()&&!C){showAllView(P.map(p=>p.blob));return true}
-  /* 20 Nov 2026 — UNDUH SEMUA CEPAT: di APK (plugin SaveImage) gambar berikutnya di-base64 sambil gambar sebelumnya disimpan, tanpa jeda tetap (dulu: base64 → simpan → tunggu 450 ms → ulangi, jadi terasa macet). Jeda hanya untuk unduhan browser. Bila satu gambar gagal, sisanya lewat jalur lama (cadangan Share / tampil di layar). */
-  let st=0,slow=0;
-  if(C&&C.Plugins&&C.Plugins.SaveImage&&typeof C.Plugins.SaveImage.save==='function'){
-   let nx=pre2(0),i=0,tk=0;
-   for(;i<P.length;i++){const lb='Mengunduh '+(i+1)+'/'+P.length,t1=Date.now();say(lb+'…');clearInterval(tk);tk=setInterval(()=>{const q=Math.round((Date.now()-t1)/1000);if(q>=5)say(lb+' · '+q+' dtk…')},1000);const cur=nx;nx=pre2(i+1);
-    try{const o=await cur,fn=anm(i).replace(/\.png$/,'')+'-'+Date.now()+'.'+o.x,sv=()=>aTo(C.Plugins.SaveImage.save({data:o.d,fileName:fn}),15000);try{await sv()}catch(e1){if(e1&&e1.message==='timeout')throw e1;await wt(500);await sv()}}catch(e){break}}
-   clearInterval(tk);
-   if(i>=P.length){ok=true;return true}
-   st=i;slow=1}
-  /* penyimpanan ke galeri macet/gagal: sisa foto langsung lewat SATU menu simpan (bukan coba plugin lagi per foto) */
-  if(slow){const Pl=C.Plugins||{};toast('Simpan ke galeri terlalu lama, memakai menu simpan');
-   if(Pl.Filesystem&&Pl.Share&&typeof Pl.Share.share==='function'){
-    try{const us=[];let nx=pre2(st);for(let j=st;j<P.length;j++){say('Menyiapkan '+(j+1)+'/'+P.length+'…');const cur=nx;nx=pre2(j+1);const o=await cur,w=await Pl.Filesystem.writeFile({path:'outfit-studio/'+anm(j).replace(/\.png$/,'.'+o.x),data:o.d,directory:'CACHE',recursive:true});us.push(w.uri)}
-     await Pl.Share.share({title:'Album '+AV,files:us,dialogTitle:'Simpan atau bagikan gambar'});ok=true;return true}
-    catch(e){if(/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))return false;toast('Gagal membuka menu simpan, gambar ditampilkan di layar')}}
-   showAllView(P.slice(st).map(p=>p.blob));ok=true;return true}
-  for(let i=st;i<P.length;i++){say('Mengunduh '+(i+1)+'/'+P.length+'…');const r=await dlBlob(P[i].blob,anm(i));if(r!=='saved'&&r!=='dl'){if(r!=='abort')toast('Gagal mengunduh foto '+(i+1)+', coba lagi');return false}if(r==='dl'&&i<P.length-1)await wt(450)}
-  ok=true;return true});
- if(ok){if(!AM.dn.includes(AV))AM.dn.push(AV);if(was)AM.cur++;asv();toast(P.length+' foto diunduh'+(was?'. Simpanan berikutnya masuk Album '+AM.cur:''))}
+/* 23 Nov 2026 (v3) UNDUH SEMUA ANTI-MACET: (1) semua panggilan native dibatasi waktu + ada tombol Batal, jadi kunci unduhan tidak bisa nyangkut lagi; (2) satu foto gagal tidak menghentikan sisanya, hanya foto yang gagal dicoba lewat menu simpan; (3) foto yang sudah terunduh tidak diunduh ulang saat mencoba lagi; (4) saat berjalan tombol jadi progres + Batal (tidak bisa tertekan dua kali); (5) PNG besar dikirim sebagai JPEG supaya cepat. */
+async function adlAll(el){
+ if(ADLR){toast('Sedang mengunduh. Tekan Batal untuk menghentikan');return}
+ let P=[];try{P=(await aalb(AV)).sort((a,b)=>a.at-b.at)}catch(e){}
+ if(!P.length){toast('Album masih kosong');return}
+ if(ADLR)return;
+ const av=AV,was=av===AM.cur,n=P.length,done=ASV[av]||(ASV[av]=new Set()),todo=P.map((p,i)=>i).filter(i=>!done.has(P[i].id)),
+  nm=i=>'kolase-outfit-a'+av+'-'+String(i+1).padStart(2,'0'),C=capP(),Pl=(C&&C.Plugins)||{},
+  hasSave=!!C&&!!Pl.SaveImage&&typeof Pl.SaveImage.save==='function',
+  hasShare=!!C&&!!Pl.Filesystem&&!!Pl.Share&&typeof Pl.Share.share==='function',
+  R=ADLR={t:'Menyiapkan…',cx:false},late={},bad=[],
+  W=(p,ms)=>Promise.race([aTo(p,ms),R.kp]),
+  say=t=>{R.t=t;const b=document.querySelector('[data-kc=adl].busy');if(b)b.innerHTML='<span class="spin"></span>'+t},
+  fin=i=>{done.add(P[i].id)};
+ R.kp=new Promise((_,no)=>{R.kx=()=>no(new Error('cancel'))});R.kp.catch(()=>{});
+ let shareCx=false;ar();
+ const prep=async i=>{let b=P[i].blob,x='png';
+  if(b.size>600000){try{const bm=await createImageBitmap(b),c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bm,0,0);if(bm.close)bm.close();const j=await new Promise(r=>c.toBlob(r,'image/jpeg',.92));if(j&&j.size<b.size*.75){b=j;x='jpg'}}catch(e){}}
+  return{d:await b64(b),x}};
+ const saveOne=async i=>{const o=await W(prep(i),30000);
+  for(let r=0;;r++){const pr=Pl.SaveImage.save({data:o.d,fileName:nm(i)+'-'+Date.now()+'.'+o.x});pr.then(()=>{late[i]=1;fin(i)},()=>{});
+   try{await W(pr,10000+Math.ceil(o.d.length/1e6)*5000);return}catch(e){if(r>=1||!e||e.message==='cancel'||e.message==='timeout')throw e;await wt(400)}}};
+ try{
+  if(!todo.length){}
+  else if(hasSave){let fl=0;
+   for(let k=0;k<todo.length&&!R.cx;k++){const i=todo[k];say('Mengunduh '+(k+1)+'/'+todo.length+'…');
+    try{await saveOne(i);fin(i);fl=0}
+    catch(e){if(R.cx||(e&&e.message==='cancel'))break;bad.push(i);if((e&&e.message==='timeout')||++fl>=2){bad.push(...todo.slice(k+1));break}}}}
+  else if(C)bad.push(...todo);
+  else if(isIOS()){
+   const F=todo.map(i=>new File([P[i].blob],nm(i)+'.png',{type:'image/png'}));
+   if(navigator.share&&navigator.canShare&&navigator.canShare({files:F})){say('Membuka menu simpan…');
+    try{await W(navigator.share({files:F}),180000);todo.forEach(fin)}catch(e){if(R.cx||(e&&e.name==='AbortError'))shareCx=true;else toast('Gagal membuka menu simpan')}}
+   else{showAllView(todo.map(i=>P[i].blob));todo.forEach(fin)}}
+  else{
+   for(let k=0;k<todo.length&&!R.cx;k++){const i=todo[k];say('Mengunduh '+(k+1)+'/'+todo.length+'…');
+    const r=await dlBlob(P[i].blob,nm(i)+'.png');
+    if(r==='dl'||r==='saved'){fin(i);if(k<todo.length-1)await wt(450)}else{if(r!=='abort')toast('Gagal mengunduh foto '+(i+1)+', coba lagi');break}}}
+  const rest=bad.filter(i=>!late[i]&&!done.has(P[i].id));
+  if(rest.length&&!R.cx){
+   if(hasSave&&hasShare)toast('Simpan ke galeri bermasalah, sisa foto lewat menu simpan');
+   if(hasShare){
+    try{const us=[];
+     for(let k=0;k<rest.length;k++){const j=rest[k];say('Menyiapkan '+(k+1)+'/'+rest.length+'…');const o=await W(prep(j),30000),w=await W(Pl.Filesystem.writeFile({path:'outfit-studio/'+nm(j)+'-'+Date.now()+'.'+o.x,data:o.d,directory:'CACHE',recursive:true}),30000);us.push(w.uri)}
+     say('Membuka menu simpan…');
+     await W(Pl.Share.share({title:'Album '+av,files:us,dialogTitle:'Simpan atau bagikan gambar'}),180000);rest.forEach(fin)}
+    catch(e){if(R.cx||/cancel/i.test(String((e&&(e.message||e.errorMessage))||e)))shareCx=true;else{toast('Gagal membuka menu simpan, gambar ditampilkan di layar');showAllView(rest.map(j=>P[j].blob));rest.forEach(fin)}}}
+   else{showAllView(rest.map(j=>P[j].blob));rest.forEach(fin)}}
+ }catch(e){}
+ const cx=R.cx||shareCx,cn=P.filter(p=>done.has(p.id)).length,all=cn>=n;ADLR=null;
+ if(all){ASV[av]=null;if(!AM.dn.includes(av))AM.dn.push(av);if(was)AM.cur++;asv();toast(n+' foto diunduh'+(was?'. Simpanan berikutnya masuk Album '+AM.cur:''))}
+ else toast(cx?(cn?cn+' dari '+n+' foto sudah diunduh':'Unduhan dibatalkan'):cn?cn+' dari '+n+' foto diunduh. Tekan Unduh lagi untuk sisanya':'Gagal mengunduh, coba lagi');
  ar();abadge()}
 function KP(el){(el?[el]:[...kl.querySelectorAll('.krow>input')]).forEach(i=>{const r=i.parentNode,v=+i.value,a=+i.min,b=+i.max;r.style.setProperty('--r',(v-a)/(b-a));r.querySelector('.ktrk b').dataset.v=r.querySelector('output').textContent=+v.toFixed(1)})}
 const KS=(i,v)=>{const a=+i.min,b=+i.max,t=+i.step||1;i.value=Math.min(b,Math.max(a,Math.round(v/t)*t));i.dispatchEvent(new Event('input',{bubbles:true}));KP(i)};
@@ -1234,6 +1249,7 @@ kl.addEventListener('click',e=>{const el=e.target.closest('[data-kc]');if(!el)re
  else if(c==='apick'){AV=+el.dataset.n;ar()}
  else if(c==='adel')aq('readwrite',x=>x.delete(el.dataset.id)).then(()=>{ar();abadge()},()=>toast('Gagal menghapus foto'))
  else if(c==='adl')adlAll(el)
+ else if(c==='acx'){if(ADLR){ADLR.cx=true;ADLR.kx();toast('Membatalkan…')}}
  else if(c==='adela')ask('Hapus Album '+AV+' beserta semua fotonya?',async()=>{try{await aq('readwrite',x=>{x.index('al').openKeyCursor(IDBKeyRange.only(AV)).onsuccess=ev=>{const k=ev.target.result;if(k){x.delete(k.primaryKey);k.continue()}}});AM.dn=AM.dn.filter(n=>n!==AV);asv();AV=AM.cur;ar();abadge();toast('Album dihapus')}catch(x){toast('Gagal menghapus album')}},'Ya, hapus')});
 /* v17.7: TEMPLATE TEKS + GANTI MODEL — poster seperti contoh (tulisan besar di kiri, model di kanan). Foto model baru dipotong dari latarnya dengan MediaPipe (dimuat dari CDN saat pertama dipakai); kalau gagal/offline, foto dipakai utuh. Tulisan bisa diedit & digeser; teks tersimpan di localStorage 'pb_kol_z_v1'. */
 const ZK='pb_kol_z_v1',ZF='Anton,Impact,"Arial Narrow",sans-serif',ZV='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14',zdef=()=>({t:'Inspirasi\nOutfit buat\nKalian yg\nBingung\nCari outfit',h:'@namaakun',q:'Simpan untuk nanti',c:'#111111',ts:100,ss:100,tx:8.5,ty:17.8,hx:10,hy:3.4,qx:null,qy:null,ms:100,mx:73,my:99.5,cut:true,ed:40});
@@ -1440,7 +1456,7 @@ kl.addEventListener('click',e=>{const el=e.target.closest('[data-zc]');if(!el)re
 /* v18.16: PANAH OUTFIT — upload 1 foto outfit, lalu tambahkan panah estetik yang menunjuk ke tiap item (jilbab, baju, rok, dll). Tiap panah punya teks (mis. "No 114") dan harga yang bisa diedit. Ujung panah & kotak teks bisa digeser langsung di gambar atau lewat slider. Simpan ke album & Unduh memakai fungsi yang sama dengan kolase. Ukuran kanvas mengikuti rasio foto (1080 lebar, tinggi 1080-1920). */
 const PD=()=>({t:'',pr:'',tx:50,ty:40,lx:22,ly:22,c:'#ffffff',tc:'#111111',bc:'#ffffff',bg:true,f:'s',b:true,ts:46,lw:5,bd:35,st:'c'});
 const FI={e:'italic ',k:'italic '},FX={g:1,m:1,a:1},FK={g:1.3,d:1.12,k:1.12,m:.9,a:.95},PS=[['c','Lengkung'],['s','Lurus'],['d','Titik'],['f','Panah isi'],['p','Putus-putus'],['w','Doodle'],['o','Cincin'],['k','Kilau'],['h','Hati']],PFT=[['s','Polos'],['r','Serif'],['h','Tulisan tangan'],['e','Editorial'],['k','Klasik'],['g','Script elegan'],['d','Script santai'],['m','Mesin tik'],['a','Poster']];
-let pon=false,pexp=0,pimg=null,pa={a:[],s:-1},pbx=[];
+let pon=false,pexp=0,pimg=null,pa={a:[],s:-1,u:1},pbx=[];/* SAMAKAN GAYA PANAH: saat aktif, ukuran/huruf/warna/kotak/bentuk panah yang diubah ikut berlaku di semua panah. Posisi, teks & harga tetap per panah. */const PSK=['ts','lw','bd','c','tc','bc','bg','b','f','st'];
 const pcur=()=>pa.a[pa.s]||null;
 function setH(h){H=h;if(!cv)return;cv.height=H;if(pon){cv.style.aspectRatio=W+'/'+H;cv.style.width='min(100cqw,'+(W/H*100).toFixed(2)+'cqh)'}else{cv.style.aspectRatio='';cv.style.width=''}}
 const prg=(l,p,a,b,t)=>KR(l,'data-pa',p,a,b,t||1);
@@ -1448,7 +1464,7 @@ const pui=()=>'<label class="kauto" data-kp="2" style="margin-top:8px"><input ty
 '<div class="kg kpa"><h3>Panah outfit</h3><p class="hint" style="text-align:left">Geser ujung panah (lingkaran putus-putus) atau kotak teks langsung di gambar. Ketuk panah untuk memilihnya.</p><label class="kf">Link koleksi (panah, nomor &amp; harga terisi otomatis)</label><div class="add"><input class="inp" id="kpln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="kplb" data-pc="lgo">Isi otomatis</button></div><p class="hint" id="kpns" style="text-align:left;color:var(--accent-2)"></p><div id="kpnl"></div><div class="chips" id="kch-pa"></div>'+
 '<div class="kzb"><button type="button" class="btn sm" data-pc="add">+ Tambah panah</button><button type="button" class="btn ghost sm" data-pc="del">Hapus panah ini</button></div>'+
 '<label class="kf">Teks (contoh: No 114)<input class="inp" maxlength="40" data-pa="t" placeholder="No 114"></label>'+
-'<label class="kf">Harga (contoh: Rp 89.000)<input class="inp" maxlength="30" data-pa="pr" placeholder="Rp 89.000"></label>'+
+'<label class="kf">Harga (contoh: Rp 89.000)<input class="inp" maxlength="30" data-pa="pr" placeholder="Rp 89.000"></label>'+'<label class="kck" style="margin-top:12px"><input type="checkbox" data-pu="1">Samakan gaya semua panah</label><p class="hint" style="text-align:left;margin:4px 0 0">Ukuran huruf, warna, kotak, dan bentuk panah ikut berubah di semua panah. Posisi, teks, dan harga tetap sendiri-sendiri.</p>'+
 prg('Ukuran huruf','ts',16,90)+prg('Teks kiri–kanan','lx',0,100,.5)+prg('Teks atas–bawah','ly',0,100,.5)+prg('Ujung kiri–kanan','tx',0,100,.5)+prg('Ujung atas–bawah','ty',0,100,.5)+prg('Tebal garis','lw',1,14)+prg('Lengkung','bd',-100,100)+
 '<div class="kr"><label class="kf">Warna panah<input type="color" data-pa="c"></label><label class="kf">Warna huruf<input type="color" data-pa="tc"></label></div>'+
 '<div class="kr"><label class="kf">Warna kotak<input type="color" data-pa="bc"></label><label class="kck"><input type="checkbox" data-pa="bg">Pakai kotak</label></div>'+
@@ -1456,7 +1472,7 @@ prg('Ukuran huruf','ts',16,90)+prg('Teks kiri–kanan','lx',0,100,.5)+prg('Teks 
 '<label class="kck"><input type="checkbox" data-pa="b">Huruf tebal</label>'+
 '<div class="kzb"><label class="btn ghost sm"><input type="file" accept="image/*" hidden data-pf="1">Ganti foto</label><button type="button" class="btn ghost sm" data-pc="back">Kembali ke kolase</button></div><div class="kzb"><button type="button" class="btn ghost sm" data-pk="open">Album Panah</button><button type="button" class="btn sm" data-pk="sav">Simpan ke Album Panah</button></div></div>';
 function pchips(){const e=$('kch-pa');if(!e)return;e.innerHTML=pa.a.length?pa.a.map((a,i)=>'<span class="chip" data-pc="sel" data-i="'+i+'" style="'+(i===pa.s?'border-color:var(--accent);color:var(--accent-2);background:var(--accent-dim-bg)':'')+'">'+(i+1)+(a.t.trim()?' · '+esc(a.t.trim().slice(0,14)):'')+'</span>').join(''):'<span class="hint" style="margin:0">Belum ada panah. Tekan Tambah panah.</span>'}
-function fillP(){const pn=kl.querySelector('.kpa');if(!pn)return;const a=pcur();pn.querySelectorAll('[data-pa]').forEach(el=>{const k=el.dataset.pa;if(el.type==='checkbox')el.checked=a?!!a[k]:false;else el.value=a?a[k]:(el.type==='range'?el.min:'');el.disabled=!a});KP();pchips();pstyl()}
+function fillP(){const pn=kl.querySelector('.kpa');if(!pn)return;const a=pcur();pn.querySelectorAll('[data-pa]').forEach(el=>{const k=el.dataset.pa;if(el.type==='checkbox')el.checked=a?!!a[k]:false;else el.value=a?a[k]:(el.type==='range'?el.min:'');el.disabled=!a});const pu=pn.querySelector('[data-pu]');if(pu)pu.checked=!!pa.u;KP();pchips();pstyl()}
 function psync(k,v){const i=kl.querySelector('.kpa [data-pa="'+k+'"]');if(i){i.value=v;if(i.type==='range')KP(i)}}
 function padd(){const b=pcur()||PD(),n=pa.a.length,left=n%2===0,lx=left?20:80,tk=new Set(pa.a.map(o=>String(o.t||'').trim()));let y=18+((n*17)%60),k=0;while(k++<14&&pa.a.some(o=>Math.abs(o.lx-lx)<24&&Math.abs(o.ly-y)<11))y=y+11>92?8:y+11;let nn=n+1;while(tk.has('No '+nn))nn++;pa.a.push({...b,au:0,t:'No '+nn,pr:'',lx,ly:y,tx:left?42:58,ty:Math.min(92,y+6)});pa.s=n;fillP();sched()}
 function parw(x,a,sx,sy,qx,qy,tx,ty){
@@ -1513,7 +1529,7 @@ function ponLoad(f){const u=URL.createObjectURL(f),o=new Image();o.onload=()=>{c
  o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.src=u}
 kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pf)return;const f=t.files&&t.files[0];t.value='';if(f)ponLoad(f)});
 kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||t.dataset.pa!=='pr')return;const a=pcur();if(!a)return;const v=pfmt(t.value);if(v!==t.value){t.value=v;a.pr=v;pchips();sched()}});
-kl.addEventListener('input',e=>{const el=e.target,k=el.dataset&&el.dataset.pa;if(!k)return;const a=pcur();if(!a)return;a[k]=el.type==='checkbox'?el.checked:el.type==='range'?+el.value:el.value;if(k==='t'||k==='pr')pchips();sched()});
+kl.addEventListener('input',e=>{const el=e.target,k=el.dataset&&el.dataset.pa;if(!k)return;const a=pcur();if(!a)return;a[k]=el.type==='checkbox'?el.checked:el.type==='range'?+el.value:el.value;if(pa.u&&PSK.includes(k))pa.a.forEach(o=>{o[k]=a[k]});if(k==='t'||k==='pr')pchips();sched()});kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pu)return;pa.u=t.checked?1:0;const a=pcur();if(pa.u&&a){pa.a.forEach(o=>{PSK.forEach(k=>{o[k]=a[k]})});sched();toast('Gaya semua panah disamakan dengan panah yang dipilih')}});
 /* v18.21: LINK KOLEKSI untuk PANAH OUTFIT. Tiap panah menunjuk 1 item (hijab, baju, rok...). Tekan "Isi nomor": foto outfit (dengan penanda bernomor di tiap ujung panah) + potongan bagian yang ditunjuk dikirim ke AI bersama foto-foto produk dari link; AI mencocokkan tiap item, membaca nomornya, dan teks tiap panah diganti jadi mis. "No 1225" (awalan teks lama dipertahankan). Memakai lnPage/lnImgs/lnPool/lnJson dari fitur Link Koleksi di tab Nomor. */
 const pns=m=>{const e=$('kpns');if(e)e.textContent=m||''};
 function pnPics(arr){const sc=Math.min(W/pimg.width,H/pimg.height),dw=pimg.width*sc,dh=pimg.height*sc,ox=(W-dw)/2,oy=(H-dh)/2,pw=pimg.width,ph2=pimg.height,k=Math.min(1,720/Math.max(pw,ph2)),
@@ -1638,7 +1654,7 @@ kl.addEventListener('click',e=>{const el=e.target.closest('[data-pc]');if(!el)re
   else if(c==='add')padd();
  else if(c==='del'){if(!pcur()){toast('Belum ada panah');return}pa.a.splice(pa.s,1);pa.s=Math.min(pa.s,pa.a.length-1);fillP();sched()}
  else if(c==='back')pexit()});
-kl.addEventListener('click',e=>{const b=e.target.closest('[data-pst]');if(!b)return;const a=pcur();if(!a)return;a[b.dataset.pst]=b.dataset.pv;pstyl();sched();if(b.dataset.pst==='f'){const v=b.dataset.pv;try{document.fonts.load((FI[v]||'')+(FX[v]?400:700)+' 24px '+FN[v]).then(sched,()=>{})}catch(_){}}});
+kl.addEventListener('click',e=>{const b=e.target.closest('[data-pst]');if(!b)return;const a=pcur();if(!a)return;a[b.dataset.pst]=b.dataset.pv;if(pa.u&&PSK.includes(b.dataset.pst))pa.a.forEach(o=>{o[b.dataset.pst]=b.dataset.pv});pstyl();sched();if(b.dataset.pst==='f'){const v=b.dataset.pv;try{document.fonts.load((FI[v]||'')+(FX[v]?400:700)+' 24px '+FN[v]).then(sched,()=>{})}catch(_){}}});
 /* v18.23: ALBUM PANAH — album terpisah untuk Panah & harga outfit. Foto disimpan di perangkat (IndexedDB 'pb_panah_alb_v1') dan disinkronkan ke akun Gmail yang login lewat parent.osCloud (lihat fitur/outfit-studio-album-awan.js). Hapus di satu perangkat ikut terhapus di perangkat lain. */
 const PKK='pb_panah_alb_v1',PKD='pb_panah_del_v1';let pkdb=null,pkU=[],pkSt='';
 const pkd=()=>pkdb||(pkdb=new Promise((ok,no)=>{const r=indexedDB.open(PKK,1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'id'});r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}));
