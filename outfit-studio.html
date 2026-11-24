@@ -1466,7 +1466,7 @@ const pcur=()=>pa.a[pa.s]||null;
 function setH(h){H=h;if(!cv)return;cv.height=H;if(pon){cv.style.aspectRatio=W+'/'+H;cv.style.width='min(100cqw,'+(W/H*100).toFixed(2)+'cqh)'}else{cv.style.aspectRatio='';cv.style.width=''}}
 const prg=(l,p,a,b,t)=>KR(l,'data-pa',p,a,b,t||1);
 const pui=()=>'<label class="kauto" data-kp="2" style="margin-top:8px"><input type="file" accept="image/*" hidden data-pf="1"><b>Panah &amp; harga outfit</b><small>Pilih 1 foto. Tambah panah estetik ke jilbab, baju, rok, lengkap nomor &amp; harga</small></label>'+
-'<div class="kg kpa"><h3>Panah outfit</h3><p class="hint" style="text-align:left">Geser ujung panah (lingkaran putus-putus) atau kotak teks langsung di gambar. Ketuk panah untuk memilihnya.</p><label class="kf">Link koleksi (nomor di tab Nomor dicari di koleksi, lalu panah dipasang)</label><div class="add"><input class="inp" id="kpln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="kplb" data-pc="lgo">Isi otomatis</button></div><p class="hint" id="kpns" style="text-align:left;color:var(--accent-2)"></p><div id="kpnl"></div><div class="chips" id="kch-pa"></div>'+
+'<div class="kg kpa"><h3>Panah outfit</h3><p class="hint" style="text-align:left">Geser ujung panah (lingkaran putus-putus) atau kotak teks langsung di gambar. Ketuk panah untuk memilihnya.</p><label class="kf">Link koleksi (nomor di tab Nomor dicari di koleksi, lalu panah dipasang)</label><div class="add"><input class="inp" id="kpln" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" id="kplb" data-pc="lgo">Isi otomatis</button></div><div class="add"><button type="button" class="btn sm ghost fit" data-pc="dx">Cek alamat pencarian koleksi</button></div><p class="hint" id="kpns" style="text-align:left;color:var(--accent-2)"></p><div id="kpnl"></div><div class="chips" id="kch-pa"></div>'+
 '<div class="kzb"><button type="button" class="btn sm" data-pc="add">+ Tambah panah</button><button type="button" class="btn ghost sm" data-pc="del">Hapus panah ini</button></div>'+
 '<label class="kf">Teks (contoh: No 114)<input class="inp" maxlength="40" data-pa="t" placeholder="No 114"></label>'+
 '<label class="kf">Harga (contoh: Rp 89.000)<input class="inp" maxlength="30" data-pa="pr" placeholder="Rp 89.000"></label>'+'<label class="kck" style="margin-top:12px"><input type="checkbox" data-pu="1">Samakan gaya semua panah</label><p class="hint" style="text-align:left;margin:4px 0 0">Ukuran huruf, warna, kotak, dan bentuk panah ikut berubah di semua panah. Posisi, teks, dan harga tetap sendiri-sendiri.</p>'+
@@ -1702,9 +1702,29 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
   toast(G.length+' panah terisi')
  }catch(e){pns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{lnBusy=0;el.disabled=false}}
+/* v18.28: PEMERIKSA ALAMAT PENCARIAN KOLEKSI (untuk HP tanpa komputer). Membaca halaman koleksi & file skripnya, mengumpulkan alamat/kata kunci pencarian yang terlihat, lalu hasilnya disalin supaya bisa dikirim ke pembuat aplikasi. Tanpa AI. */
+async function dxGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'').trim()||'https://collshp.com/aiza178';if(!/^https?:\/\//i.test(u))u='https://'+u;
+ lnBusy=1;el.disabled=true;
+ try{pns('Membaca halaman koleksi');
+  const get=async x=>{for(const s of[x,'https://api.allorigins.win/raw?url='+encodeURIComponent(x)]){try{const r=await lnTo(fetch(s),25000);if(r.ok){const t=await r.text();if(t&&t.length>50)return t}}catch(e){}}return ''};
+  const html=await get(srBase(u)),srcs=[];
+  for(const m of html.matchAll(/<(?:script|link)[^>]+(?:src|href)=["']([^"']+\.m?js[^"']*)["']/gi)){try{const h=new URL(m[1],u).href;if(!srcs.includes(h))srcs.push(h)}catch(e){}}
+  pns('Membaca '+srcs.length+' file skrip');
+  const txt=[html,...await Promise.all(srcs.slice(0,8).map(get))],hits=[],seen=new Set(),add=s=>{s=String(s).replace(/\s+/g,' ').trim();if(s&&!seen.has(s)&&hits.length<40){seen.add(s);hits.push(s)}};
+  txt.forEach(t=>{t=String(t);let n=0;
+   for(const m of t.matchAll(/https?:\/\/[^"'`\s\\)<>]{6,160}/g)){if(/api|search|keyword|collection|album|graphql|affiliate/i.test(m[0])&&!/\.(png|jpe?g|webp|svg|gif|css|woff2?|ico)(\?|$)/i.test(m[0])&&!/w3\.org|schema\.org|googleapis|gstatic|facebook|instagram/i.test(m[0]))add(m[0])}
+   for(const m of t.matchAll(/["'`](\/[A-Za-z0-9_\-\/.]*(?:api|search|collection|album)[A-Za-z0-9_\-\/.?=&{}$]*)["'`]/g))add(m[1]);
+   for(const m of t.matchAll(/.{0,70}(?:keyword|searchText|search_key|searchKey|\?q=|search=).{0,70}/gi)){if(n++<8)add(m[0])}});
+  const rep='Halaman: '+(html?html.length+' huruf':'TIDAK TERBACA')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)');
+  let ta=$('kdx');if(!ta){ta=document.createElement('textarea');ta.id='kdx';ta.readOnly=true;ta.style.cssText='width:100%;height:180px;margin:8px 0;font-size:12px;background:#111;color:#eee;border:1px solid #444;border-radius:8px;padding:8px';$('kpns').after(ta)}
+  ta.value=rep;ta.focus();ta.select();
+  try{await navigator.clipboard.writeText(rep);pns('Hasil sudah disalin. Tempel (paste) di chat dan kirim ke saya.')}catch(e){pns('Tekan lama di kotak hitam, pilih Salin semua, lalu tempel di chat dan kirim ke saya.')}
+ }catch(e){pns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah'))}
+ finally{lnBusy=0;el.disabled=false}}
 kl.addEventListener('click',e=>{const el=e.target.closest('[data-pc]');if(!el)return;const c=el.dataset.pc;
  if(c==='sel'){pa.s=+el.dataset.i;fillP();sched()}
  else if(c==='lgo')pnGo(el);
+  else if(c==='dx')dxGo(el);
   else if(c==='add')padd();
  else if(c==='del'){if(!pcur()){toast('Belum ada panah');return}pa.a.splice(pa.s,1);pa.s=Math.min(pa.s,pa.a.length-1);fillP();sched()}
  else if(c==='back')pexit()});
