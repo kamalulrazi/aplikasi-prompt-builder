@@ -1620,10 +1620,20 @@ async function pnPrice(link){let ids=pnIds(link);
 const srNum=()=>String(s.num==null?'':s.num).replace(/\D/g,'').slice(0,12);
 const srKey=n=>String(parseInt(String(n||'').replace(/\D/g,''),10));
 const srPg=/^(?:page|p|pg|offset|limit|size|per_?page|sort|tab)$/i,srIsN=(k,v)=>!srPg.test(k)&&/^\d{1,8}$/.test(String(v).trim());
-function srBase(u){try{const b=new URL(u);[...b.searchParams].forEach(([k,v])=>{if(srIsN(k,v))b.searchParams.delete(k)});return b.href}catch(e){return u}}
+/* contoh alamat hasil pencarian yang ditempel: angka berdiri sendiri di parameter (?keyword=022), di jalur (/search/022) atau di hash (#/search/022) -> angka itu diganti nomor yang dicari */
+const srRe=/(^|[^A-Za-z0-9])(\d{2,8})(?![A-Za-z0-9])/;
+function srOwn(b){for(const [k,v] of b.searchParams)if(srIsN(k,v))return'q';if(srRe.test(b.hash))return'h';if(srRe.test(b.pathname))return'p';return''}
+function srBase(u){try{const b=new URL(u),w=srOwn(b);
+ if(w==='q')[...b.searchParams].forEach(([k,v])=>{if(srIsN(k,v))b.searchParams.delete(k)});
+ else if(w==='h')b.hash='';
+ else if(w==='p'){b.pathname='/'+(b.pathname.split('/').filter(Boolean)[0]||'');b.hash=''}
+ return b.href}catch(e){return u}}
 function srUrls(u,n){let b;try{b=new URL(u)}catch(e){return[]}
- const mk=k=>{const x=new URL(srBase(u));x.searchParams.set(k,n);return x.href},own=[...b.searchParams].find(([k,v])=>srIsN(k,v));
- return own?[mk(own[0])]:['keyword','q','search','s','query'].map(mk)}
+ const w=srOwn(b),swap=t=>{const a=[...t.matchAll(new RegExp(srRe.source,'g'))];if(!a.length)return t;const m=a[a.length-1],i=m.index+m[1].length;return t.slice(0,i)+n+t.slice(i+m[2].length)},x=new URL(b.href);
+ if(w==='q'){x.searchParams.set([...b.searchParams].find(([k,v])=>srIsN(k,v))[0],n);return[x.href]}
+ if(w==='h'){x.hash=swap(b.hash);return[x.href]}
+ if(w==='p'){x.pathname=swap(b.pathname);return[x.href]}
+ return['keyword','q','search','s','query'].map(k=>{const y=new URL(srBase(u));y.searchParams.set(k,n);return y.href})}
 const srTxt=async u=>{try{return await (await lnGet('https://r.jina.ai/'+u,28000)).text()}catch(e){return ''}};
 function srHit(t,u,n){let all=[];try{all=pnCands(t,u)}catch(e){}const k=srKey(n);return{all,hit:all.filter(o=>{const c=pnCap(o.cap);return c&&srKey(c)===k}),nc:all.filter(o=>pnCap(o.cap)).length}}
 const srTop=a=>{const wl=a.filter(o=>o.link);return(wl.length>=2?wl:a).slice(0,8)};
