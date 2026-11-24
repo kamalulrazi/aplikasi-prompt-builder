@@ -1641,39 +1641,154 @@ function srHit(t,u,n){let all=[];try{all=pnCands(t,u)}catch(e){}const k=srKey(n)
 const srTop=a=>{const wl=a.filter(o=>o.link);return(wl.length>=2?wl:a).slice(0,8)};
 /* v18.31: PENCARIAN LANGSUNG KE SERVER COLLSHP. Dari skrip collshp: kolom pencariannya memanggil /api/v3/gql/graphql (StorefrontProductListQuery) dengan keyword = teks yang diketik. Aplikasi memanggil hal yang sama dengan keyword = nomor album, jadi nomor lama pun ketemu (tidak lagi bergantung pada 10 foto teratas). Jalur: plugin native (kalau ada) -> langsung -> lewat pembaca halaman. Kalau semua gagal, jatuh ke cara baca halaman di bawah. */
 const SRQ='query StorefrontProductListQuery($urlSuffix: String, $keyword: String, $sortType: SortType, $groupId: Long, $linkId: Long, $page: LinktreelandingpagePaginationInput, $listType: MyCollectionListType, $affiliateMeta: AffiliateMetaInput, $buyerId: Long, $uuId: String, $deviceId: String, $cid: String, $language: String) { storefrontProductList( urlSuffix: $urlSuffix keyword: $keyword sortType: $sortType groupId: $groupId linkId: $linkId page: $page listType: $listType affiliateMeta: $affiliateMeta buyerId: $buyerId uuId: $uuId deviceId: $deviceId cid: $cid language: $language ) { itemList { linkId link linkName image linkType itemId isPined h5Link itemCard } pagination { offset limit hasMore totalCount } } }';
-const PVX=[{pv:{offset:'0',limit:'50'},ex:{}},{pv:null,ex:{}},{pv:{offset:'0',limit:'10'},ex:{}},{pv:{offset:'0',limit:'20'},ex:{}},{pv:{limit:'20'},ex:{}},{pv:{pageNum:'1',pageSize:'20'},ex:{}},{pv:{offset:'0',limit:'20'},ex:{language:'id',cid:''}},{pv:null,ex:{language:'id',cid:''}},{pv:{pageNum:'1',pageSize:'20'},ex:{language:'id',cid:''}}];let srWin=null;
-const SRAPI='https://collshp.com/api/v3/gql/graphql',srLog=[];let srBest='';
+/* v18.33: MESIN PENCARIAN KOLEKSI YANG BELAJAR SENDIRI.
+   Fakta dari uji di HP: server collshp menjawab jumlah produk (totalCount) dengan benar, tetapi daftar produknya (itemList) kosong kalau permintaannya kurang cocok.
+   Jadi aplikasi MENCARI SENDIRI bentuk permintaan yang membuat daftar terisi (cara halaman, bahasa, jenis daftar, urutan, dll; juga membaca daftar nilai dari server atau dari kode skrip collshp),
+   MENGINGAT yang berhasil, lalu memakainya untuk (1) mencari nomor album di kolom pencarian server, (2) kalau perlu membaca SELURUH koleksi (ribuan foto) dan menyaring sendiri. Tanpa AI.
+   Kalau tetap gagal, laporan teknis lengkap disiapkan otomatis (kotak hitam) supaya tinggal dikirim. */
+const SRQG='query StorefrontGroupProductListQuery($urlSuffix: String, $keyword: String, $sortType: SortType, $groupId: Long, $linkId: Long, $page: LinktreelandingpagePaginationInput, $listType: MyCollectionListType, $affiliateMeta: AffiliateMetaInput, $buyerId: Long, $uuId: String, $deviceId: String, $cid: String, $language: String) { storefrontGroupProductList( urlSuffix: $urlSuffix keyword: $keyword sortType: $sortType groupId: $groupId linkId: $linkId page: $page listType: $listType affiliateMeta: $affiliateMeta buyerId: $buyerId uuId: $uuId deviceId: $deviceId cid: $cid language: $language ) { itemList { linkId link linkName image linkType itemId isPined h5Link itemCard } groupList { groupId groupName groupType isPined groupStatus itemList { linkId link linkName image linkType itemId isPined h5Link } totalCount } pagination { offset limit hasMore totalCount } } }';
+const SRAPI='https://collshp.com/api/v3/gql/graphql',srLog=[];let srBest='',srFail=0,srH=null;
 const srSlug=u=>{try{return new URL(u).pathname.split('/').filter(Boolean)[0]||''}catch(e){return ''}};
-async function srCall(vars,fast){const body={operationName:'StorefrontProductListQuery',query:SRQ,variables:vars},
- T={native:async()=>{const C=window.Capacitor||(window.parent&&parent.Capacitor),H=C&&C.Plugins&&C.Plugins.CapacitorHttp;if(!H||!H.post)throw new Error('tidak ada');const r=await lnTo(H.post({url:SRAPI,headers:{'content-type':'application/json'},data:body}),8000);return typeof r.data==='string'?JSON.parse(r.data):r.data},
-  langsung:async()=>{const r=await lnTo(fetch(SRAPI,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),20000);if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()},
-  'jina-get':async()=>{const q=SRAPI+'?operationName=StorefrontProductListQuery&query='+encodeURIComponent(SRQ)+'&variables='+encodeURIComponent(JSON.stringify(vars)),r=await lnTo(fetch('https://r.jina.ai/'+q,{headers:{'X-Return-Format':'text'}}),30000);if(!r.ok)throw new Error('HTTP '+r.status);const t=await r.text(),m=t.match(/\{[\s\S]*\}/);return JSON.parse(m[0])}};
- for(const nm of(fast&&srBest?[srBest]:[srBest,'langsung','jina-get','native']).filter((x,i,a)=>x&&a.indexOf(x)===i)){try{const j=await T[nm](),L=j&&j.data&&j.data.storefrontProductList;if(L&&Array.isArray(L.itemList)){srLog.push(nm+': ok, '+L.itemList.length+' item');srBest=nm;return L}srLog.push(nm+': balasan tak dikenal '+JSON.stringify(j).slice(0,200))}catch(e){srLog.push(nm+': gagal ('+(e&&e.message?e.message:'error')+')')}}
- return null}
-async function srApi(u,n,say){srLog.length=0;const slug=srSlug(u),none={ok:0,all:[],hit:[],nc:0};if(!slug)return none;
- const uu=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16)}),k=srKey(n),
- img=x=>{x=String(x||'');return/^https?:/i.test(x)?x:x?'https://mms.img.susercontent.com/'+x:''},
- conv=raw=>raw.map(o=>({u:img(o.image),c:String(o.linkName||''),pr:0,link:o.h5Link||o.link||'',cap:String(o.linkName||'')})).filter(o=>o.u),
- mine=c=>c.filter(o=>{const q=pnCap(o.cap);return q&&srKey(q)===k}),
- scan=async(extra,max)=>{const raw=[],seen={};let tc=0,cb=srWin;
-  const call=async(c,off,fast)=>{const pg=c.pv?{...c.pv}:null;if(pg){if('offset' in pg)pg.offset=String(off);if('pageNum' in pg)pg.pageNum=String(Math.floor(off/(+pg.pageSize||20))+1)}return srCall({urlSuffix:slug,uuId:uu,deviceId:uu,...extra,...c.ex,...(pg?{page:pg}:{})},fast)};
-  let L=await call(cb||PVX[0],0);if(!L)return null;tc=+(L.pagination&&L.pagination.totalCount)||0;
-  if(!cb&&!L.itemList.length&&tc>0){for(let q=1;q<PVX.length;q++){const L2=await call(PVX[q],0,1);const n2=L2?L2.itemList.length:-1;srLog.push('variasi '+q+' '+JSON.stringify(PVX[q])+': '+n2+' item');if(n2>0){L=L2;cb=PVX[q];srWin=cb;break}}}
-  else if(!cb&&L.itemList.length)cb=srWin=PVX[0];
-  cb=cb||PVX[0];let off=0;
-  for(let pg=0;pg<max;pg++){if(pg){L=await call(cb,off,1);if(!L)break}
-   const fresh=L.itemList.filter(o=>{const id=String(o.linkId||o.itemId||o.image);if(seen[id])return false;seen[id]=1;return true});raw.push(...fresh);const p=L.pagination||{};tc=+p.totalCount||tc;if(!p.hasMore||!L.itemList.length||!fresh.length)break;off+=L.itemList.length;if(say&&pg>1)say('Membaca koleksi lewat server ('+raw.length+(tc?' dari '+tc:'')+')')}
-  srLog.push('scan '+JSON.stringify(extra)+': '+raw.length+' item, total '+tc);return raw};
+const SROP={P:{n:'StorefrontProductListQuery',q:SRQ,f:'storefrontProductList'},G:{n:'StorefrontGroupProductListQuery',q:SRQG,f:'storefrontGroupProductList'}};
+const SRLK='os_sr_rc_v2',SRUK='os_sr_uu_v1',SRHK='os_sr_h_v1';
+const srUU=()=>{let v='';try{v=localStorage.getItem(SRUK)||''}catch(e){}if(!v){v=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16)});try{localStorage.setItem(SRUK,v)}catch(e){}}return v};
+const srRcGet=s=>{try{const o=JSON.parse(localStorage.getItem(SRLK)||'null');return o&&o.slug===s&&o.rc&&o.rc.op&&Date.now()-o.at<2592e6?o.rc:null}catch(e){return null}};
+const srRcSet=(s,rc)=>{try{localStorage.setItem(SRLK,JSON.stringify({slug:s,rc,at:Date.now()}))}catch(e){}};
+const srRcClear=()=>{try{localStorage.removeItem(SRLK)}catch(e){}};
+/* jalur kirim: langsung dari aplikasi, lewat pembaca halaman (GET), atau plugin native (kalau ada) */
+const SRT={
+ native:async b=>{const C=window.Capacitor||(window.parent&&parent.Capacitor),H=C&&C.Plugins&&C.Plugins.CapacitorHttp;if(!H||!H.post)throw new Error('tidak ada');const r=await lnTo(H.post({url:SRAPI,headers:{'content-type':'application/json'},data:b}),8000);return{st:r.status,t:typeof r.data==='string'?r.data:JSON.stringify(r.data)}},
+ langsung:async b=>{const r=await lnTo(fetch(SRAPI,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}),20000);return{st:r.status,t:await r.text()}},
+ 'jina-get':async b=>{const q=SRAPI+'?operationName='+encodeURIComponent(b.operationName||'')+'&query='+encodeURIComponent(b.query)+'&variables='+encodeURIComponent(JSON.stringify(b.variables)),r=await lnTo(fetch('https://r.jina.ai/'+q,{headers:{'X-Return-Format':'text'}}),30000);return{st:r.status,t:await r.text()}}};
+const srJ=t=>{try{return JSON.parse(t)}catch(e){const m=String(t||'').match(/\{[\s\S]*\}/);if(m){try{return JSON.parse(m[0])}catch(e2){}}return null}};
+async function srSend(b,tp){const order=tp?[tp]:[srBest,'langsung','jina-get','native'].filter((x,i,a)=>x&&a.indexOf(x)===i);let last='';
+ for(const nm of order){try{const r=await SRT[nm](b),j=srJ(r.t);if(j&&typeof j==='object'&&(j.data||j.errors)){if(!tp)srBest=nm;return{tp:nm,st:r.st,j,t:r.t}}last=nm+': HTTP '+r.st+' '+String(r.t||'').slice(0,120).replace(/\s+/g,' ');if(r.st===429)await new Promise(z=>setTimeout(z,1800))}catch(e){last=nm+': gagal ('+(e&&e.message?e.message:'error')+')'}}
+ return{tp:'',st:0,j:null,t:last}}
+async function srQ(op,vars,tp){const O=SROP[op||'P'],r=await srSend({operationName:O.n,query:O.q,variables:vars},tp),j=r.j,L=j&&j.data&&j.data[O.f];
+ const errs=((j&&j.errors)||[]).map(x=>String(x&&x.message!=null?x.message:x).replace(/\s+/g,' ').slice(0,220)).slice(0,3);
+ return{tp:r.tp,st:r.st,L:(L&&Array.isArray(L.itemList))?L:null,errs,t:r.t,net:!j&&!r.st}}
+const srSum=r=>{if(r.L){const p=r.L.pagination||{},g=r.L.groupList;return r.L.itemList.length+' item, total '+(p.totalCount==null?'?':p.totalCount)+', lim '+(p.limit==null?'?':p.limit)+', off '+(p.offset==null?'?':p.offset)+', more '+(p.hasMore==null?'?':p.hasMore)+(Array.isArray(g)?', grup '+g.length:'')+(r.errs.length?' | err: '+r.errs.join(' / '):'')}
+ return 'HTTP '+r.st+' '+(r.errs.length?r.errs.join(' / '):String(r.t||'').slice(0,160).replace(/\s+/g,' '))};
+/* bentuk "page": o = cara offset (i = nomor item, p0 = nomor halaman dari 0, p1 = dari 1), l = limit; num = kirim sebagai angka (bukan teks) */
+const SRPV=[{o:'i',l:50},{o:'',l:0},{o:'i',l:8},{o:'i',l:20},{o:'p1',l:8},{o:'p1',l:20},{o:'p0',l:8},{o:'',l:20},{o:'i',l:0},{o:'i',l:100},{o:'i',l:4},{o:'i',l:20,num:1}];
+const SREX=[{},{ke:1},{groupId:'0'},{language:'id'},{language:'en'},{language:'id',cid:'ID'},{cid:'ID'},{language:'id-ID'},{cid:'id'},{groupId:'-1'},{_hex:1}];
+const SRGUESS={list:['ALL','DEFAULT','NORMAL','PRODUCT','PRODUCTS','PRODUCT_LIST','LIST','COLLECTION','MY_COLLECTION','SEARCH','GROUP','UNGROUPED','VIDEO','SHOP','LIVE','PINNED','LINK','ITEM','STOREFRONT','H5','LANDING','PUBLIC','PUBLISHED','ONLINE','ACTIVE','HOME','FEED','GRID','UNKNOWN','NONE','MY_COLLECTION_LIST_TYPE_ALL','MY_COLLECTION_LIST_TYPE_PRODUCT','LIST_TYPE_ALL','LIST_TYPE_PRODUCT','TYPE_ALL'],sort:['DEFAULT','LATEST','NEWEST','NEW','TIME_DESC','TIME_ASC','CREATE_TIME_DESC','CREATE_TIME_ASC','PRICE_ASC','PRICE_DESC','SALES','POPULAR','HOT','RECOMMEND','MANUAL','CUSTOM']};
+function srPage(pv,done,per){if(!pv||(!pv.o&&!pv.l))return null;const l=pv.l||0,k=l||per||8,p={};if(pv.o){const x=pv.o==='i'?done:pv.o==='p0'?Math.floor(done/k):Math.floor(done/k)+1;p.offset=pv.num?x:String(x)}if(l)p.limit=pv.num?l:String(l);return p}
+function srVars(slug,uu,ex,pv,done,kw,per){const v={urlSuffix:slug,uuId:uu,deviceId:uu};if(kw!=null&&kw!=='')v.keyword=String(kw);const e={...(ex||{})};if(e._hex){const h=uu.replace(/-/g,'');v.uuId=h;v.deviceId=h;delete e._hex}if(e.ke){if(!v.keyword)v.keyword='';delete e.ke}Object.assign(v,e);const pg=srPage(pv,done,per);if(pg)v.page=pg;return v}
+/* kode skrip collshp: daftar nilai (enum) & potongan kode yang menyusun permintaan. Dipakai untuk menebak dan untuk laporan. */
+function srCode(texts){const E=[],U=new Set(),near={listType:[],sortType:[]},snips=[],routes={},bad=/^(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|TRUE|FALSE|NULL|UTF_8|JSON|HTML|XML|CSS|URL|API|SDK|ID|OK|ERROR|WARN|INFO|DEBUG)$/,nm=x=>String(x||'').split('/').pop().slice(0,28),cut=(t,i,a,b)=>t.slice(Math.max(0,i-a),i+b).replace(/\s+/g,' ');
+ for(const o of texts){const t=String(o&&o.t||''),n=o&&o.n;if(!t)continue;
+  for(const m of t.matchAll(/\[\s*["']([A-Za-z_$][\w$]*)["']\s*\]\s*=\s*["']([A-Z][A-Z0-9_]{1,39})["']/g))if(!bad.test(m[2]))E.push(m[2]);
+  for(const m of t.matchAll(/["']([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+|[A-Z]{3,20})["']/g))if(!bad.test(m[1]))U.add(m[1]);
+  const re=/(^|[^$\w"'])(listType|sortType|affiliateMeta|buyerId|uuId|deviceId|cid|language|groupId|keyword|pageNum|pageSize|limit|offset)\s*:\s*(?=[a-z0-9_!"'\[{(])/g,c={};
+  for(const m of t.matchAll(re)){const k=m[2],i=m.index+m[1].length;c[k]=(c[k]||0)+1;if(c[k]<=2&&snips.length<40)snips.push(nm(n)+' · '+k+': '+cut(t,i,140,360));
+   if(k==='listType'||k==='sortType'){const seg=t.slice(i,i+400);for(const q of seg.matchAll(/["']([A-Za-z][A-Za-z0-9_]{1,39})["']/g))if(!bad.test(q[1])&&q[1]!==k)near[k].push(q[1])}}
+  let v=0;for(const m of t.matchAll(/variables\s*:\s*/g)){if(v++<3&&snips.length<46)snips.push(nm(n)+' · variables: '+cut(t,m.index,200,520))}
+  let o2=0;for(const m of t.matchAll(/operationName/g)){if(o2++<2&&snips.length<50)snips.push(nm(n)+' · operationName: '+cut(t,m.index,200,420))}
+  const ps=[...new Set([...t.matchAll(/path\s*:\s*["']([^"']{1,60})["']/g)].map(m=>m[1]))].slice(0,20);if(ps.length)routes[nm(n)]=ps}
+ const uq=a=>[...new Set(a)];return{near:{listType:uq(near.listType),sortType:uq(near.sortType)},E:uq(E),U:[...U],snips,routes}}
+async function srHarvest(slug){
+ try{const c=JSON.parse(localStorage.getItem(SRHK)||'null');if(c&&c.slug===slug&&Date.now()-c.at<432e5&&c.h&&c.h.near)return c.h}catch(e){}
+ const B='https://collshp.com/'+slug,H={'X-Return-Format':'html'},get=async x=>{try{const r=await lnTo(fetch('https://r.jina.ai/'+x,{headers:H}),30000);return r.ok?await r.text():''}catch(e){return ''}};
+ const html=await get(B),srcs=[];
+ for(const m of html.matchAll(/<(?:script|link)[^>]+(?:src|href)=["']([^"']+\.m?js[^"']*)["']/gi)){try{const h=new URL(m[1],B).href;if(!srcs.includes(h))srcs.push(h)}catch(e){}}
+ const app=srcs.filter(x=>!/vendors/i.test(x)).slice(0,6),tx=await Promise.all(app.map(async x=>({n:x,t:await get(x)}))),h=srCode(tx);h.srcs=srcs;
+ srLog.push('kode skrip collshp: '+srcs.length+' file, '+tx.filter(x=>x.t).length+' terbaca, kandidat nilai: dekat listType '+h.near.listType.length+', enum '+h.E.length+', huruf besar '+h.U.length);
+ try{localStorage.setItem(SRHK,JSON.stringify({slug,at:Date.now(),h:{...h,snips:h.snips.slice(0,24).map(s=>s.slice(0,700)),U:h.U.slice(0,300),E:h.E.slice(0,300)}}))}catch(e){}
+ return h}
+/* introspeksi GraphQL: kalau server mengizinkan, nilai yang sah langsung terbaca */
+async function srIntro(slug,uu){
+ const q='{a:__type(name:"MyCollectionListType"){enumValues{name}} b:__type(name:"SortType"){enumValues{name}} c:__type(name:"LinktreelandingpagePaginationInput"){inputFields{name type{kind name ofType{kind name}}}} d:__type(name:"AffiliateMetaInput"){inputFields{name type{kind name ofType{kind name}}}} r:__type(name:"Query"){fields{name}}}';
+ const r=await srSend({query:q,variables:{urlSuffix:slug,uuId:uu,deviceId:uu}},srBest||'langsung'),d=r.j&&r.j.data;
+ if(!d){srLog.push('introspeksi: tidak tersedia ('+(r.j&&r.j.errors&&r.j.errors[0]?String(r.j.errors[0].message).slice(0,160):'HTTP '+r.st+' '+String(r.t||'').slice(0,120).replace(/\s+/g,' '))+')');return null}
+ const en=x=>x&&x.enumValues?x.enumValues.map(v=>v.name):null,ft=x=>x&&x.inputFields?x.inputFields.map(f=>f.name+':'+((f.type&&(f.type.name||(f.type.ofType&&f.type.ofType.name)))||'?')+(f.type&&f.type.kind==='NON_NULL'?'!':'')):null;
+ const o={list:en(d.a),sort:en(d.b),pg:ft(d.c),aff:ft(d.d),roots:d.r&&d.r.fields?d.r.fields.map(f=>f.name):null};
+ srLog.push('introspeksi: listType='+JSON.stringify(o.list)+' sortType='+JSON.stringify(o.sort)+' page='+JSON.stringify(o.pg)+' affiliateMeta='+JSON.stringify(o.aff)+' query='+JSON.stringify(o.roots));return o}
+/* BELAJAR: cari bentuk permintaan yang membuat daftar produk terisi. Berhenti di yang pertama berhasil. */
+async function srLearn(slug,uu,say){
+ const tried=new Set(),t0=Date.now(),sg=m=>{if(say)say(m)};let tot=0,intro=null,ans=0,first=1;const valid={};
+ const T=async c=>{const key=JSON.stringify([c.op,c.pv,c.ex,c.tp||'',c.kw||'']);if(tried.has(key))return{dup:1};tried.add(key);
+  const r=await srQ(c.op,srVars(slug,uu,c.ex,c.pv,0,c.kw||'',0),c.tp);if(!r.net)ans++;if(first){first=0;srLog.push('balasan mentah pertama: '+String(r.t||'').slice(0,320).replace(/\s+/g,' '))}if(c.k&&r.L&&!r.errs.length)(valid[c.k]=valid[c.k]||[]).push(c.v);
+  if(r.L){const p=r.L.pagination||{};tot=Math.max(tot,+p.totalCount||0)}
+  srLog.push((c.op+' '+JSON.stringify(c.pv)+' '+JSON.stringify(c.ex)+(c.tp?' @'+c.tp:'')+(c.kw?' kata:'+c.kw:'')+': '+srSum(r)).replace(/\s+/g,' '));
+  return{ok:!!(r.L&&r.L.itemList.length>0),r,c}};
+ const W=async(list,label,size)=>{size=size||5;for(let i=0;i<list.length;i+=size){if(Date.now()-t0>170000){srLog.push('waktu belajar habis');return null}if(label)sg(label+' '+Math.min(i+size,list.length)+'/'+list.length);
+   const rs=await Promise.all(list.slice(i,i+size).map(T)),w=rs.find(x=>x.ok);if(w)return w;if(!ans&&rs.length&&rs.every(x=>x.r&&x.r.net))return{net:1}}return null};
+ const fin=w=>w&&w.net?{net:1}:w&&w.ok?{op:w.c.op,pv:w.c.pv,ex:w.c.ex,tp:w.r.tp}:null,P0=SRPV[0],both=(pv,ex,tp,k,v)=>[{op:'P',pv,ex,tp,k,v},{op:'G',pv,ex,tp,k,v}],uq=a=>[...new Set(a.filter(Boolean))];
+ let f;sg('Mempelajari cara membaca koleksi (hanya pertama kali)');
+ f=fin(await W(both(P0,{}),'Mencoba cara dasar'));if(f)return f;
+ f=fin(await W(SRPV.slice(1).flatMap(pv=>both(pv,{})),'Mencoba cara halaman'));if(f)return f;
+ if(srBest!=='jina-get'){f=fin(await W(both(P0,{},'jina-get'),''));if(f)return f}
+ sg('Membaca daftar nilai dari server');intro=await srIntro(slug,uu);
+ f=fin(await W(SREX.slice(1).flatMap(ex=>both(P0,ex)),'Mencoba bahasa dan grup'));if(f)return f;
+ if(!tot){srLog.push('server tidak mengenali koleksi ini (jumlah 0)');return{empty:1}}
+ const lc=intro&&intro.list&&intro.list.length?intro.list:null,sc=intro&&intro.sort&&intro.sort.length?intro.sort:null;let sug=[];
+ if(!lc||!sc){sg('Membaca kode skrip collshp');try{srH=await srHarvest(slug)}catch(e){srLog.push('baca kode skrip gagal: '+(e&&e.message?e.message:'error'))}
+  try{const pr=await srQ('P',srVars(slug,uu,{listType:'ZZZ_NOPE'},P0,0,'',0));srLog.push('uji nilai salah listType: '+srSum(pr));for(const e of pr.errs)for(const m of e.matchAll(/["'`]([A-Z][A-Z0-9_]{2,40})["'`]/g))if(m[1]!=='ZZZ_NOPE')sug.push(m[1])}catch(e){}}
+ const LC=lc||uq([...sug,...(srH?srH.near.listType.concat(srH.E,srH.U):[]),...SRGUESS.list]).slice(0,200),SC=sc||uq([...(srH?srH.near.sortType:[]),...SRGUESS.sort]).slice(0,40),mk=(k,vals)=>vals.flatMap(v=>both(P0,{[k]:v},undefined,k,v));
+ f=fin(await W(mk('listType',LC),'Mencoba jenis daftar',6));if(f)return f;
+ f=fin(await W(mk('sortType',SC),'Mencoba urutan',6));if(f)return f;
+ /* nilai yang DITERIMA server (tanpa galat) tapi daftar masih kosong -> kemungkinan butuh dipasangkan dengan hal lain (bahasa, grup, urutan) */
+ const VL=uq(valid.listType||[]).slice(0,6),VS=uq(valid.sortType||[]).slice(0,4),exs=SREX.slice(1);srLog.push('nilai diterima server: listType '+JSON.stringify(VL)+' sortType '+JSON.stringify(VS));
+ if(VL.length){f=fin(await W(VL.flatMap(v=>exs.flatMap(ex=>both(P0,{...ex,listType:v}))),'Mencoba pasangan jenis daftar',6));if(f)return f}
+ if(VS.length){f=fin(await W(VS.flatMap(v=>exs.flatMap(ex=>both(P0,{...ex,sortType:v}))),'Mencoba pasangan urutan',6));if(f)return f}
+ if(VL.length&&VS.length){f=fin(await W(VL.flatMap(a=>VS.flatMap(b2=>both(P0,{listType:a,sortType:b2}))),'Mencoba jenis daftar + urutan',6));if(f)return f}
+ {const r1=await T({op:'P',pv:P0,ex:{affiliateMeta:{}}});if(r1.ok)return fin(r1);const fl=[];for(const e of(r1.r&&r1.r.errs)||[])for(const m of e.matchAll(/AffiliateMetaInput\.(\w+)/g))fl.push(m[1]);
+  if(fl.length){const o={};uq(fl).forEach(k2=>{o[k2]=''});f=fin(await W(both(P0,{affiliateMeta:o}),'Mencoba data afiliasi'));if(f)return f}}
+ f=fin(await W(['1','0'].flatMap(kw=>[{op:'P',pv:P0,ex:{},kw},{op:'G',pv:P0,ex:{},kw}]),'Mencoba dengan kata kunci'));if(f)return f;
+ if(!srH){try{srH=await srHarvest(slug)}catch(e){}}
+ srFail=1;return null}
+/* membaca halaman demi halaman memakai resep. kw kosong = seluruh koleksi. Halaman diambil 4 sekaligus; kalau ada halaman yang lebih pendek dari yang diharapkan, mulai lagi tepat setelahnya (tidak ada item yang terlewat). */
+async function srPages(slug,uu,rc,kw,say,cap,lbl){
+ const raw=[],seen={},get=(done,per)=>srQ(rc.op,srVars(slug,uu,rc.ex,rc.pv,done,kw,per),rc.tp);let tc=0,err=null;
+ const add=L=>{let f=0;for(const o of L.itemList){const id=String(o&&(o.linkId||o.itemId||o.image)||'');if(id){if(seen[id])continue;seen[id]=1}raw.push(o);f++}return f};
+ const r=await get(0,0);if(!r.L)return{raw,tc,err:r};
+ const p0=r.L.pagination||{};tc=+p0.totalCount||0;add(r.L);const n0=r.L.itemList.length;if(!n0)return{raw,tc,empty:1};
+ let done=n0,g=0,more=p0.hasMore===true||(p0.hasMore==null&&tc>n0);
+ while(more&&g++<cap){
+  const offs=[0,1,2,3].map(i=>done+i*n0),rs=await Promise.all(offs.map(d=>get(d,n0)));let fresh=0,next=done+n0*4;more=true;
+  for(let i=0;i<rs.length;i++){const q=rs[i];if(!q.L){more=false;err=q;break}const L=q.L,p=L.pagination||{};tc=+p.totalCount||tc;fresh+=add(L);
+   if(!L.itemList.length||p.hasMore===false){more=false;break}
+   if(L.itemList.length<n0){next=offs[i]+L.itemList.length;break}}
+  done=next;if(!fresh)more=false;
+  if(say&&lbl)say(lbl+' ('+raw.length+(tc?' dari '+tc:'')+')')}
+ return{raw,tc,err,more}}
+async function srApi(u,n,say){srLog.length=0;srFail=0;const slug=srSlug(u),none={ok:0,all:[],hit:[],nc:0};if(!slug)return none;
+ const uu=srUU(),k=srKey(n),img=x=>{x=String(x||'');return/^https?:/i.test(x)?x:x?'https://mms.img.susercontent.com/'+x:''},
+  conv=raw=>raw.map(o=>({u:img(o.image),c:String(o.linkName||''),pr:0,link:o.h5Link||o.link||'',cap:String(o.linkName||'')})).filter(o=>o.u),
+  mine=c=>c.filter(o=>{const q=pnCap(o.cap);return q&&srKey(q)===k});
+ let rc=srRcGet(slug),fresh=0;
+ const learn=async()=>{const r=await srLearn(slug,uu,say);fresh=1;if(r&&r.net)return{net:1};if(r&&r.empty)return{empty:1};if(r&&r.op){rc=r;srRcSet(slug,r);srLog.push('RESEP BERHASIL: '+JSON.stringify(r));return r}return null};
+ if(!rc){const r=await learn();if(!r)return{...none,fail:1};if(r.net)return{...none,net:1};if(r.empty)return{...none,empty:1}}
+ else srLog.push('memakai resep tersimpan: '+JSON.stringify(rc));
+ const run=async(kw,cap,lbl)=>{const R=await srPages(slug,uu,rc,kw,say,cap,lbl);return{R,c:conv(R.raw)}};
  if(say)say('Mencari nomor '+n+' di server koleksi');
- const r1=await scan({keyword:String(n)},5);let c=conv(r1||[]),hit=mine(c);
- if(hit.length)return{ok:1,all:c,hit,nc:c.length};
- /* server tidak menyaring / hasil kosong: baca SELURUH koleksi lewat server, saring di sini (tanpa AI) */
+ let Q1=await run(String(n),4,'Mencari nomor '+n);
+ if(!Q1.c.length&&!fresh&&(Q1.R.err||(Q1.R.empty&&Q1.R.tc>0))){srLog.push('resep tersimpan tidak cocok lagi, belajar ulang');srRcClear();rc=null;const r=await learn();if(!r)return{...none,fail:1};if(r.net)return{...none,net:1};if(r.empty)return{...none,empty:1};Q1=await run(String(n),4,'Mencari nomor '+n)}
+ srLog.push('cari "'+n+'": '+Q1.c.length+' item, total '+Q1.R.tc+', cocok '+mine(Q1.c).length);
+ let hit=mine(Q1.c);
+ /* nomor "024" di album bisa tertulis "24" di koleksi: cari juga tanpa nol di depan (hasilnya disaring persis di sini) */
+ const alt=String(parseInt(String(n).replace(/\D/g,''),10));
+ if(!hit.length&&alt&&alt!=='NaN'&&alt!==String(n)){const Q2=await run(alt,4,'Mencari nomor '+alt);srLog.push('cari "'+alt+'": '+Q2.c.length+' item, total '+Q2.R.tc+', cocok '+mine(Q2.c).length);if(Q2.c.length){Q1={R:Q2.R,c:Q1.c.concat(Q2.c)};hit=mine(Q1.c)}}
+ if(Q1.c.length&&!rc.kv){rc.kv=1;srRcSet(slug,rc)}
+ if(hit.length)return{ok:1,all:Q1.c,hit,nc:Q1.c.length};
+ /* hasil kosong dari kolom pencarian server dipercaya hanya kalau kolom itu pernah terbukti bekerja; kalau belum, seluruh koleksi dibaca dan disaring di sini */
+ if(!Q1.c.length&&rc.kv)return{ok:1,all:[],hit:[],nc:0,partial:false,tc:Q1.R.tc,got:0,confirmed:1};
+ /* kolom pencarian server tidak memberi nomor persis (mis. pencarian tidak menyaring): baca SELURUH koleksi lewat server dan saring di sini */
  if(say)say('Membaca seluruh koleksi lewat server');
- const r2=await scan({},60),c2=conv(r2||[]);
- if(c2.length){return{ok:1,all:c2,hit:mine(c2),nc:c2.length}}
- return c.length?{ok:1,all:c,hit:[],nc:c.length}:none}
+ const F=await run('',600,'Membaca koleksi');srLog.push('baca semua: '+F.c.length+' item, total '+F.R.tc+(F.R.err?' | berhenti karena galat':'')+', cocok '+mine(F.c).length);
+ if(F.c.length){const partial=!!F.R.err||(F.R.tc>0&&F.R.raw.length<F.R.tc*.98)||!!F.R.more;return{ok:1,all:F.c,hit:mine(F.c),nc:F.c.length,partial,tc:F.R.tc,got:F.R.raw.length}}
+ return Q1.c.length?{ok:1,all:Q1.c,hit:[],nc:Q1.c.length,partial:1,tc:Q1.R.tc,got:Q1.R.raw.length}:{...none,fail:1}}
+/* laporan teknis otomatis (kotak hitam) kalau server tetap tidak bisa dibaca */
+function srRepText(){const h=srH;return'LAPORAN PENCARIAN KOLEKSI ('+new Date().toISOString().slice(0,19)+')\n'+srLog.join('\n')+(h?'\n\n## kode skrip collshp\n'+h.snips.join('\n')+'\n\n## rute\n'+JSON.stringify(h.routes)+'\n\n## nilai enum\n'+h.E.slice(0,120).join(',')+'\n\n## teks HURUF BESAR\n'+h.U.slice(0,200).join(','):'')}
+function srShow(anchor){const rep=srRepText();let ta=$('kdx');if(!ta){ta=document.createElement('textarea');ta.id='kdx';ta.readOnly=true;ta.style.cssText='width:100%;height:220px;margin:8px 0;font-size:12px;background:#111;color:#eee;border:1px solid #444;border-radius:8px;padding:8px'}const a=$(anchor||'kpns');if(a)a.after(ta);ta.value=rep;try{const p=navigator.clipboard&&navigator.clipboard.writeText(rep);if(p&&p.catch)p.catch(()=>{})}catch(e){}return rep}
+function srMsg(R,want,anchor){if(R.net)return'Tidak bisa menghubungi server koleksi. Cek internet, lalu coba lagi.';
+ if(R.empty)return'Server collshp tidak mengenali koleksi dari link ini (hasilnya kosong). Cek link koleksi, contoh https://collshp.com/aiza178.';
+ srShow(anchor);return'Server collshp belum bisa dibaca otomatis (daftar produknya tetap kosong). Laporan teknis sudah disiapkan di kotak hitam di bawah: tekan lama, pilih Salin semua, lalu kirim ke saya.'}
+const srPart=(R,want)=>'Nomor '+want+' belum ketemu, tapi koleksi baru terbaca sebagian ('+(R.got||R.all.length)+(R.tc?' dari '+R.tc:'')+' produk). Coba lagi sebentar.';
 /* Urutan: (a) kalau link berisi contoh alamat hasil pencarian, pencarian itu dipakai DULUAN; (b) halaman koleksi apa adanya; (c) tebakan nama parameter pencarian, 3 dulu baru 2 (supaya tidak memborbardir pembaca halaman). */
-async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if(A.ok)return A.hit.length?{...A,cand:[],how:'pencarian server collshp'}:{all:A.all,hit:[],nc:A.nc,cand:[],how:'',none:1};const B=srBase(u),urls=srUrls(u,n),own=urls.length===1,rs=[];
+async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if(A.ok)return A.hit.length?{...A,cand:[],how:'pencarian server collshp'}:{all:A.all,hit:[],nc:A.nc,cand:[],how:'',none:!A.partial,partial:A.partial,tc:A.tc,got:A.got};const R=await srFindB(u,n,say);R.fail=A.fail;R.net=A.net;R.empty=A.empty;return R}
+async function srFindB(u,n,say){const B=srBase(u),urls=srUrls(u,n),own=urls.length===1,rs=[];
  const run=async us=>{const a=await Promise.all(us.map(async x=>({x,r:srHit(await srTxt(x),x,n)})));rs.push(...a);return a.filter(o=>o.r.hit.length).sort((p,q)=>q.r.hit.length-p.r.hit.length)[0]};
  const done=o=>({...o.r,cand:[],how:'kolom pencarian koleksi',url:o.x});let ok;
  if(own){say('Mencari nomor '+n+' di kolom pencarian koleksi');ok=await run(urls);if(ok)return done(ok)}
@@ -1686,7 +1801,7 @@ async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if
 async function lnFind(el,auto,u,want,inp){lnBusy=1;if(el)el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}
  try{const R=await srFind(u,want,lns);
   if(!R.hit.length){if(auto)set('pr','');
-   lns(R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi harga manual ya.':R.nc?'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.':'Halaman koleksi tidak memuat teks nomor, jadi nomor '+want+' tidak bisa dicari tanpa AI. Kosongkan kolom Nomor lalu tekan Cari (AI pencocok foto), atau pakai tab Panah.');return}
+   lns(R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'klns'):R.partial?srPart(R,want):R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi harga manual ya.':R.nc?'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.':'Halaman koleksi tidak memuat teks nomor, jadi nomor '+want+' tidak bisa dicari tanpa AI. Kosongkan kolom Nomor lalu tekan Cari (AI pencocok foto), atau pakai tab Panah.');return}
   const N=R.hit.length,c1=N===1?R.hit[0]:null;let pv=0;
   if(c1){lns('Nomor '+want+' ketemu. Membaca harga di Shopee');if(c1.link)try{pv=await pnPrice(c1.link)}catch(e){}if(!pv)pv=c1.pr||0}
   set('pr',pv?lnRp(pv):'');
@@ -1701,7 +1816,7 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
  const want=srNum();if(!want){toast('Isi kolom Nomor dulu (nomor album yang dicari)');return}
  lnBusy=1;el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}pnl([]);
  try{pns('Mencari nomor '+want+' di koleksi');const R=await srFind(u,want,pns),byAI=!R.hit.length,all=(byAI?R.cand:R.hit).slice(0,8);
-  if(!all.length){pns(R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.':'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.');return}
+  if(!all.length){pns(R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'kpns'):R.partial?srPart(R,want):R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.':'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.');return}
   pns('Mengunduh '+all.length+' foto');const pics=await lnPool(all,4),C=[];all.forEach((o,i)=>{if(pics[i])C.push({...o,b:pics[i]})});
   if(!C.length){pns('Foto produk tidak bisa diunduh. Coba lagi.');return}
   let hs=[],note='';
@@ -1722,8 +1837,8 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
    if(!vis){x=50;y=35+k*14;nov.push(g.cat||g.name||('foto '+(k+1)))}
    let tx=cl((ox+cl(x,0,100)/100*dw)/W*100,2,98),ty=cl((oy+cl(y,0,100)/100*dh)/H*100,2,98);
    if(found.some(f=>Math.hypot(f.tx-tx,f.ty-ty)<6))ty=cl(ty+9,2,98);
-   found.push({name:g.name,num:top.num,pv:0,cf:vis?g.cf:0,tx,ty,g,vis})});
-  pns('Nomor '+top.num+' ketemu di '+G.length+' foto. Memasang panah');
+   found.push({name:g.name,num:want,pv:0,cf:vis?g.cf:0,tx,ty,g,vis})});
+  pns('Nomor '+want+' ketemu di '+G.length+' foto. Memasang panah');
   const base=pcur()||PD(),pre=(((pcur()||pa.a[0]||{t:'No'}).t||'').match(/^\D*/)||['No'])[0].trim()||'No',auto=a=>/^No \d+$/.test((a.t||'').trim())&&!(a.pr||'').trim(),used=new Set(),news=[];
   found.forEach(f=>{let bi=-1,bd=1e9;pa.a.forEach((a,i)=>{if(used.has(i))return;const d=Math.hypot(a.tx-f.tx,a.ty-f.ty);if(d<bd){bd=d;bi=i}});
    if(bi>=0&&bd<=14&&!auto(pa.a[bi])&&!pa.a[bi].au){const a=pa.a[bi];used.add(bi);a.t=pre+' '+f.num;return}
@@ -1733,7 +1848,7 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
   pa.a=pa.a.filter((a,i)=>used.has(i)||!(auto(a)||a.au)).concat(news);pa.s=pa.a.length?0:-1;
   pchips();fillP();sched();
   pnl(found.filter(f=>f.g.c.link).map(f=>({h:f.g.c.link,t:pre+' '+f.num+' · '+(f.name||'produk')+' · lihat produk'})));
-  pns('Nomor '+pre+' '+top.num+' ketemu lewat '+R.how+' ('+G.length+' foto: '+found.map(f=>f.name||'produk').join(', ')+'). Panah sudah terpasang.'+(nov.length?' Tidak terlihat di foto outfit (panah sementara, geser ya): '+nov.join(', ')+'.':'')+note+' Ketuk tautan di bawah untuk melihat produk & harganya di Shopee. Geser ujung panah kalau kurang pas.');
+  pns('Nomor '+pre+' '+want+' ketemu lewat '+R.how+' ('+G.length+' foto: '+found.map(f=>f.name||'produk').join(', ')+'). Panah sudah terpasang.'+(nov.length?' Tidak terlihat di foto outfit (panah sementara, geser ya): '+nov.join(', ')+'.':'')+note+' Ketuk tautan di bawah untuk melihat produk & harganya di Shopee. Geser ujung panah kalau kurang pas.');
   toast(G.length+' panah terisi')
  }catch(e){pns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{lnBusy=0;el.disabled=false}}
@@ -1754,12 +1869,13 @@ async function dxGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
    for(const m of t.matchAll(/.{0,70}(?:keyword|searchText|search_key|searchKey|\?q=|search=).{0,70}/gi)){if(n++<8)add(m[0])}});
   const ex=[];txt.forEach(t=>{t=String(t);
    for(const nm of['StorefrontProductListQuery','StorefrontGroupProductListQuery']){const i=t.indexOf('query '+nm);if(i>=0&&!ex.some(x=>x.startsWith('## '+nm)))ex.push('## '+nm+'\n'+t.slice(i,i+1700).replace(/\\n/g,' ').replace(/\s+/g,' '))}
-   {let c=0;for(const m of t.matchAll(/.{0,350}(?:listType|sortType|buyerId|affiliateMeta|pageNum).{0,450}/g)){if(c++<4&&ex.filter(x=>x.startsWith('## kode')).length<10)ex.push('## kode pemanggil\n'+m[0].replace(/\s+/g,' '))}}const g=t.indexOf('/api/v3/gql/graphql');if(g>=0&&ex.filter(x=>x.startsWith('## panggilan')).length<2)ex.push('## panggilan api\n'+t.slice(Math.max(0,g-350),g+350).replace(/\s+/g,' '));
+
    const ps=[...new Set([...t.matchAll(/path:\s*["']([^"']{1,60})["']/g)].map(m=>m[1]))].slice(0,30);if(ps.length&&!ex.some(x=>x.startsWith('## rute')))ex.push('## rute\n'+ps.join(' | '))});
+  {const cd=srCode(srcs.slice(0,8).map((x,i)=>({n:x,t:txt[i+1]})));ex.push('## kode skrip collshp\n'+cd.snips.join('\n'));ex.push('## rute per file\n'+JSON.stringify(cd.routes))}
   pns('Membaca halaman lewat pembaca (Jina)');
   let md='';try{const r=await lnTo(fetch('https://r.jina.ai/'+B),35000);md=r.ok?await r.text():'HTTP '+r.status}catch(e){md='gagal ('+(e&&e.message?e.message:'error')+')'}
   let cp=[];try{cp=pnCands(md,B)}catch(e){}
-  pns('Menguji pencarian server');let sv='';try{const A=await srApi(u,srNum()||'024',null);sv='## uji server (nomor '+(srNum()||'024')+')\n'+srLog.join('\n')+'\nitem: '+A.all.length+' ['+A.all.slice(0,10).map(o=>o.cap).join(',')+'] cocok: '+A.hit.length}catch(e){sv='## uji server gagal: '+(e&&e.message?e.message:'error')}
+  pns('Menguji pencarian server (bisa sampai 3 menit)');let sv='';try{srRcClear();const A=await srApi(u,srNum()||'024',null);sv='## uji server (nomor '+(srNum()||'024')+')\n'+srLog.join('\n')+'\nitem: '+A.all.length+' ['+A.all.slice(0,10).map(o=>o.cap).join(',')+'] cocok: '+A.hit.length}catch(e){sv='## uji server gagal: '+(e&&e.message?e.message:'error')}
   const rep='Jalur baca halaman:\n'+rows.join('\n')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)')+'\n\nJina: '+md.length+' huruf, foto terbaca '+cp.length+'\nKeterangan nomor: '+(cp.slice(0,20).map(o=>pnCap(o.cap)||'-').join(',')||'-')+'\nContoh isi Jina:\n'+md.slice(0,1200)+'\n\n'+sv+'\n\n'+ex.join('\n\n');
   let ta=$('kdx');if(!ta){ta=document.createElement('textarea');ta.id='kdx';ta.readOnly=true;ta.style.cssText='width:100%;height:220px;margin:8px 0;font-size:12px;background:#111;color:#eee;border:1px solid #444;border-radius:8px;padding:8px';$('kpns').after(ta)}
   ta.value=rep;ta.focus();ta.select();
