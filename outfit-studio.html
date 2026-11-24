@@ -1634,7 +1634,7 @@ function srUrls(u,n){let b;try{b=new URL(u)}catch(e){return[]}
  if(w==='q'){x.searchParams.set([...b.searchParams].find(([k,v])=>srIsN(k,v))[0],n);return[x.href]}
  if(w==='h'){x.hash=swap(b.hash);return[x.href]}
  if(w==='p'){x.pathname=swap(b.pathname);return[x.href]}
- return['keyword','q','search','s','query'].map(k=>{const y=new URL(srBase(u));y.searchParams.set(k,n);return y.href})}
+ return['linkNameKeyword','keyword','q','search','s','query'].map(k=>{const y=new URL(srBase(u));y.searchParams.set(k,n);return y.href})}
 const srTxt=async u=>{try{return await (await lnGet('https://r.jina.ai/'+u,28000)).text()}catch(e){return ''}};
 function srHit(t,u,n){let all=[];try{all=pnCands(t,u)}catch(e){}const k=srKey(n);return{all,hit:all.filter(o=>{const c=pnCap(o.cap);return c&&srKey(c)===k}),nc:all.filter(o=>pnCap(o.cap)).length}}
 const srTop=a=>{const wl=a.filter(o=>o.link);return(wl.length>=2?wl:a).slice(0,8)};
@@ -1718,10 +1718,14 @@ async function dxGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
    for(const m of t.matchAll(/https?:\/\/[^"'`\s\\)<>]{6,160}/g)){if(/api|search|keyword|collection|album|graphql|affiliate/i.test(m[0])&&!/\.(png|jpe?g|webp|svg|gif|css|woff2?|ico)(\?|$)/i.test(m[0])&&!/w3\.org|schema\.org|googleapis|gstatic|facebook|instagram/i.test(m[0]))add(m[0])}
    for(const m of t.matchAll(/["'`](\/[A-Za-z0-9_\-\/.]*(?:api|search|collection|album)[A-Za-z0-9_\-\/.?=&{}$]*)["'`]/g))add(m[1]);
    for(const m of t.matchAll(/.{0,70}(?:keyword|searchText|search_key|searchKey|\?q=|search=).{0,70}/gi)){if(n++<8)add(m[0])}});
+  const ex=[];txt.forEach(t=>{t=String(t);
+   for(const nm of['StorefrontProductListQuery','StorefrontGroupProductListQuery']){const i=t.indexOf('query '+nm);if(i>=0&&!ex.some(x=>x.startsWith('## '+nm)))ex.push('## '+nm+'\n'+t.slice(i,i+1700).replace(/\\n/g,' ').replace(/\s+/g,' '))}
+   const g=t.indexOf('/api/v3/gql/graphql');if(g>=0&&ex.filter(x=>x.startsWith('## panggilan')).length<2)ex.push('## panggilan api\n'+t.slice(Math.max(0,g-350),g+350).replace(/\s+/g,' '));
+   const ps=[...new Set([...t.matchAll(/path:\s*["']([^"']{1,60})["']/g)].map(m=>m[1]))].slice(0,30);if(ps.length&&!ex.some(x=>x.startsWith('## rute')))ex.push('## rute\n'+ps.join(' | '))});
   pns('Membaca halaman lewat pembaca (Jina)');
   let md='';try{const r=await lnTo(fetch('https://r.jina.ai/'+B),35000);md=r.ok?await r.text():'HTTP '+r.status}catch(e){md='gagal ('+(e&&e.message?e.message:'error')+')'}
   let cp=[];try{cp=pnCands(md,B)}catch(e){}
-  const rep='Jalur baca halaman:\n'+rows.join('\n')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)')+'\n\nJina: '+md.length+' huruf, foto terbaca '+cp.length+'\nKeterangan nomor: '+(cp.slice(0,20).map(o=>pnCap(o.cap)||'-').join(',')||'-')+'\nContoh isi Jina:\n'+md.slice(0,1200);
+  const rep='Jalur baca halaman:\n'+rows.join('\n')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)')+'\n\nJina: '+md.length+' huruf, foto terbaca '+cp.length+'\nKeterangan nomor: '+(cp.slice(0,20).map(o=>pnCap(o.cap)||'-').join(',')||'-')+'\nContoh isi Jina:\n'+md.slice(0,1200)+'\n\n'+ex.join('\n\n');
   let ta=$('kdx');if(!ta){ta=document.createElement('textarea');ta.id='kdx';ta.readOnly=true;ta.style.cssText='width:100%;height:220px;margin:8px 0;font-size:12px;background:#111;color:#eee;border:1px solid #444;border-radius:8px;padding:8px';$('kpns').after(ta)}
   ta.value=rep;ta.focus();ta.select();
   try{await navigator.clipboard.writeText(rep);pns('Hasil sudah disalin. Tempel (paste) di chat dan kirim ke saya.')}catch(e){pns('Tekan lama di kotak hitam, pilih Salin semua, lalu tempel di chat dan kirim ke saya.')}
