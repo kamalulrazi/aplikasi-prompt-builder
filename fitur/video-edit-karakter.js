@@ -268,7 +268,9 @@ function _vbCharSnap(){try{if(typeof pbForceSaveDraftNow==='function')pbForceSav
 // 20 Nov 2026 (permintaan user): setelah user memilih chip, panel otomatis kembali ke "Semua pengaturan" (tidak perlu klik tombol kembali). Mengetik di kolom "Atau isi sendiri" TIDAK memicu ini (lewat vbCharCustom).
 function vbCharPick(prodIdx,el){vbCharSet(prodIdx,el.dataset.k,el.dataset.v);_vbCharSnap();vbCharTab(prodIdx,-1);}
 // TULISAN ESTETIK (19 Nov 2026, permintaan user): klik tile di panel pensil = nyala/mati. Nyala -> kalimat di bawah (bahasa Indonesia sejak 20 Nov 2026, permintaan user; awalnya harus "Muncul beberapa tulisan estetik" karena dikenali regex _scriptRe; teks persis dari user, ejaan "vidio"; diganti lagi 20 Nov 2026 jadi versi hook detik pertama, tetap diawali "Muncul beberapa tulisan estetik") otomatis masuk ke prompt (lihat _vbBuildFlowText).
-const VB_AESTHETIC_TEXT="Muncul beberapa tulisan estetik yang bikin visual vidio jadi lebih menarik dan tulisan pas vidio dimulai berupa tulisan hook yang menarik yang sesuai dengan produk dan isi skrip, supaya audiens bisa langsung fokus di detik pertama dimulai.";
+// 24 Nov 2026 (permintaan user): versi panjang (dengan tulisan hook) HANYA untuk kartu Hook; kartu Cerita & CTA memakai versi pendek di bawah.
+const VB_AESTHETIC_TEXT="Muncul beberapa tulisan estetik yang bikin visual vidio jadi lebih menarik dan tulisan pas vidio dimulai berupa tulisan hook yang menarik yang sesuai dengan produk dan isi skrip. Pastikan tulisannya jangan menutupi produk dan karakter.";
+const VB_AESTHETIC_TEXT_SHORT="Muncul beberapa tulisan estetik yang bikin visual vidio jadi lebih menarik. Pastikan tulisannya jangan menutupi produk dan karakter.";
 function vbCharToggleAesthetic(prodIdx){
   vbCharSet(prodIdx,'aesthetic',_vbCharVal(prodIdx*3,'aesthetic')?null:'1');
   _vbCharSnap();
