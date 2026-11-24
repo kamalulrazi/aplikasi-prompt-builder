@@ -1703,21 +1703,26 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
   toast(G.length+' panah terisi')
  }catch(e){pns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{lnBusy=0;el.disabled=false}}
-/* v18.28: PEMERIKSA ALAMAT PENCARIAN KOLEKSI (untuk HP tanpa komputer). Membaca halaman koleksi & file skripnya, mengumpulkan alamat/kata kunci pencarian yang terlihat, lalu hasilnya disalin supaya bisa dikirim ke pembuat aplikasi. Tanpa AI. */
+/* v18.30: PEMERIKSA KOLEKSI (untuk HP tanpa komputer). Mencoba beberapa jalur baca halaman koleksi, melaporkan jalur mana yang berhasil, contoh isi yang dibaca pembaca halaman (Jina), keterangan nomor yang terbaca, dan alamat/kata kunci pencarian di skripnya. Hasilnya disalin untuk dikirim ke pembuat aplikasi. Tanpa AI. */
 async function dxGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'').trim()||'https://collshp.com/aiza178';if(!/^https?:\/\//i.test(u))u='https://'+u;
  lnBusy=1;el.disabled=true;
- try{pns('Membaca halaman koleksi');
-  const get=async x=>{for(const s of[x,'https://api.allorigins.win/raw?url='+encodeURIComponent(x)]){try{const r=await lnTo(fetch(s),25000);if(r.ok){const t=await r.text();if(t&&t.length>50)return t}}catch(e){}}return ''};
-  const html=await get(srBase(u)),srcs=[];
-  for(const m of html.matchAll(/<(?:script|link)[^>]+(?:src|href)=["']([^"']+\.m?js[^"']*)["']/gi)){try{const h=new URL(m[1],u).href;if(!srcs.includes(h))srcs.push(h)}catch(e){}}
+ try{pns('Memeriksa halaman koleksi (bisa sampai 1 menit)');
+  const enc=encodeURIComponent,rows=[],B=srBase(u),
+   T=[['langsung',x=>x,{}],['allorigins',x=>'https://api.allorigins.win/raw?url='+enc(x),{}],['corsproxy',x=>'https://corsproxy.io/?url='+enc(x),{}],['jina-html',x=>'https://r.jina.ai/'+x,{'X-Return-Format':'html'}]];
+  const get=async(x,only)=>{for(const[nm,f,h]of T){if(only&&only!==nm)continue;try{const r=await lnTo(fetch(f(x),{headers:h}),25000);if(!r.ok){rows.push(nm+': HTTP '+r.status);continue}const t=await r.text();if(t&&t.length>50){rows.push(nm+': ok '+t.length+' huruf');return{t,nm}}rows.push(nm+': kosong')}catch(e){rows.push(nm+': gagal ('+(e&&e.message?e.message:'error')+')')}}return{t:'',nm:''}};
+  const H=await get(B),html=H.t,srcs=[];
+  for(const m of html.matchAll(/<(?:script|link)[^>]+(?:src|href)=["']([^"']+\.m?js[^"']*)["']/gi)){try{const h=new URL(m[1],B).href;if(!srcs.includes(h))srcs.push(h)}catch(e){}}
   pns('Membaca '+srcs.length+' file skrip');
-  const txt=[html,...await Promise.all(srcs.slice(0,8).map(get))],hits=[],seen=new Set(),add=s=>{s=String(s).replace(/\s+/g,' ').trim();if(s&&!seen.has(s)&&hits.length<40){seen.add(s);hits.push(s)}};
+  const txt=[html,...await Promise.all(srcs.slice(0,8).map(x=>get(x,H.nm).then(r=>r.t)))],hits=[],seen=new Set(),add=s=>{s=String(s).replace(/\s+/g,' ').trim();if(s&&!seen.has(s)&&hits.length<40){seen.add(s);hits.push(s)}};
   txt.forEach(t=>{t=String(t);let n=0;
    for(const m of t.matchAll(/https?:\/\/[^"'`\s\\)<>]{6,160}/g)){if(/api|search|keyword|collection|album|graphql|affiliate/i.test(m[0])&&!/\.(png|jpe?g|webp|svg|gif|css|woff2?|ico)(\?|$)/i.test(m[0])&&!/w3\.org|schema\.org|googleapis|gstatic|facebook|instagram/i.test(m[0]))add(m[0])}
    for(const m of t.matchAll(/["'`](\/[A-Za-z0-9_\-\/.]*(?:api|search|collection|album)[A-Za-z0-9_\-\/.?=&{}$]*)["'`]/g))add(m[1]);
    for(const m of t.matchAll(/.{0,70}(?:keyword|searchText|search_key|searchKey|\?q=|search=).{0,70}/gi)){if(n++<8)add(m[0])}});
-  const rep='Halaman: '+(html?html.length+' huruf':'TIDAK TERBACA')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)');
-  let ta=$('kdx');if(!ta){ta=document.createElement('textarea');ta.id='kdx';ta.readOnly=true;ta.style.cssText='width:100%;height:180px;margin:8px 0;font-size:12px;background:#111;color:#eee;border:1px solid #444;border-radius:8px;padding:8px';$('kpns').after(ta)}
+  pns('Membaca halaman lewat pembaca (Jina)');
+  let md='';try{const r=await lnTo(fetch('https://r.jina.ai/'+B),35000);md=r.ok?await r.text():'HTTP '+r.status}catch(e){md='gagal ('+(e&&e.message?e.message:'error')+')'}
+  let cp=[];try{cp=pnCands(md,B)}catch(e){}
+  const rep='Jalur baca halaman:\n'+rows.join('\n')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)')+'\n\nJina: '+md.length+' huruf, foto terbaca '+cp.length+'\nKeterangan nomor: '+(cp.slice(0,20).map(o=>pnCap(o.cap)||'-').join(',')||'-')+'\nContoh isi Jina:\n'+md.slice(0,1200);
+  let ta=$('kdx');if(!ta){ta=document.createElement('textarea');ta.id='kdx';ta.readOnly=true;ta.style.cssText='width:100%;height:220px;margin:8px 0;font-size:12px;background:#111;color:#eee;border:1px solid #444;border-radius:8px;padding:8px';$('kpns').after(ta)}
   ta.value=rep;ta.focus();ta.select();
   try{await navigator.clipboard.writeText(rep);pns('Hasil sudah disalin. Tempel (paste) di chat dan kirim ke saya.')}catch(e){pns('Tekan lama di kotak hitam, pilih Salin semua, lalu tempel di chat dan kirim ke saya.')}
  }catch(e){pns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah'))}
