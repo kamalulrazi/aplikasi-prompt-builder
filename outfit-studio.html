@@ -1638,8 +1638,26 @@ function srUrls(u,n){let b;try{b=new URL(u)}catch(e){return[]}
 const srTxt=async u=>{try{return await (await lnGet('https://r.jina.ai/'+u,28000)).text()}catch(e){return ''}};
 function srHit(t,u,n){let all=[];try{all=pnCands(t,u)}catch(e){}const k=srKey(n);return{all,hit:all.filter(o=>{const c=pnCap(o.cap);return c&&srKey(c)===k}),nc:all.filter(o=>pnCap(o.cap)).length}}
 const srTop=a=>{const wl=a.filter(o=>o.link);return(wl.length>=2?wl:a).slice(0,8)};
+/* v18.31: PENCARIAN LANGSUNG KE SERVER COLLSHP. Dari skrip collshp: kolom pencariannya memanggil /api/v3/gql/graphql (StorefrontProductListQuery) dengan keyword = teks yang diketik. Aplikasi memanggil hal yang sama dengan keyword = nomor album, jadi nomor lama pun ketemu (tidak lagi bergantung pada 10 foto teratas). Jalur: plugin native (kalau ada) -> langsung -> lewat pembaca halaman. Kalau semua gagal, jatuh ke cara baca halaman di bawah. */
+const SRQ='query StorefrontProductListQuery($urlSuffix: String, $keyword: String, $sortType: SortType, $groupId: Long, $linkId: Long, $page: LinktreelandingpagePaginationInput, $listType: MyCollectionListType, $affiliateMeta: AffiliateMetaInput, $buyerId: Long, $uuId: String, $deviceId: String, $cid: String, $language: String) { storefrontProductList( urlSuffix: $urlSuffix keyword: $keyword sortType: $sortType groupId: $groupId linkId: $linkId page: $page listType: $listType affiliateMeta: $affiliateMeta buyerId: $buyerId uuId: $uuId deviceId: $deviceId cid: $cid language: $language ) { itemList { linkId link linkName image linkType itemId isPined h5Link itemCard } pagination { offset limit hasMore totalCount } } }';
+const SRAPI='https://collshp.com/api/v3/gql/graphql',srLog=[];let srBest='';
+const srSlug=u=>{try{return new URL(u).pathname.split('/').filter(Boolean)[0]||''}catch(e){return ''}};
+async function srCall(vars){const body={operationName:'StorefrontProductListQuery',query:SRQ,variables:vars},
+ T={native:async()=>{const C=window.Capacitor||(window.parent&&parent.Capacitor),H=C&&C.Plugins&&C.Plugins.CapacitorHttp;if(!H||!H.post)throw new Error('tidak ada');const r=await lnTo(H.post({url:SRAPI,headers:{'content-type':'application/json'},data:body}),25000);return typeof r.data==='string'?JSON.parse(r.data):r.data},
+  langsung:async()=>{const r=await lnTo(fetch(SRAPI,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),20000);if(!r.ok)throw new Error('HTTP '+r.status);return await r.json()},
+  'jina-get':async()=>{const q=SRAPI+'?operationName=StorefrontProductListQuery&query='+encodeURIComponent(SRQ)+'&variables='+encodeURIComponent(JSON.stringify(vars)),r=await lnTo(fetch('https://r.jina.ai/'+q,{headers:{'X-Return-Format':'text'}}),30000);if(!r.ok)throw new Error('HTTP '+r.status);const t=await r.text(),m=t.match(/\{[\s\S]*\}/);return JSON.parse(m[0])}};
+ for(const nm of[srBest,...Object.keys(T)].filter((x,i,a)=>x&&a.indexOf(x)===i)){try{const j=await T[nm](),L=j&&j.data&&j.data.storefrontProductList;if(L&&Array.isArray(L.itemList)){srLog.push(nm+': ok, '+L.itemList.length+' item');srBest=nm;return L}srLog.push(nm+': balasan tak dikenal '+JSON.stringify(j).slice(0,200))}catch(e){srLog.push(nm+': gagal ('+(e&&e.message?e.message:'error')+')')}}
+ return null}
+async function srApi(u,n,say){srLog.length=0;const slug=srSlug(u),none={ok:0,all:[],hit:[],nc:0};if(!slug)return none;
+ if(say)say('Mencari nomor '+n+' di server koleksi');
+ const raw=[];let off=0;
+ for(let pg=0;pg<5;pg++){const L=(await srCall({urlSuffix:slug,keyword:String(n),page:{offset:off,limit:50}}))||(pg?null:await srCall({urlSuffix:slug,keyword:String(n)}));if(!L){if(!pg)return none;break}
+  raw.push(...L.itemList);const p=L.pagination||{};if(!p.hasMore||!L.itemList.length)break;off+=L.itemList.length}
+ const img=x=>{x=String(x||'');return/^https?:/i.test(x)?x:x?'https://mms.img.susercontent.com/'+x:''},
+  c=raw.map(o=>({u:img(o.image),c:String(o.linkName||''),pr:0,link:o.h5Link||o.link||'',cap:String(o.linkName||'')})).filter(o=>o.u),k=srKey(n);
+ return{ok:1,all:c,hit:c.filter(o=>{const q=pnCap(o.cap);return q&&srKey(q)===k}),nc:c.length}}
 /* Urutan: (a) kalau link berisi contoh alamat hasil pencarian, pencarian itu dipakai DULUAN; (b) halaman koleksi apa adanya; (c) tebakan nama parameter pencarian, 3 dulu baru 2 (supaya tidak memborbardir pembaca halaman). */
-async function srFind(u,n,say){say=say||(()=>{});const B=srBase(u),urls=srUrls(u,n),own=urls.length===1,rs=[];
+async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if(A.ok)return A.hit.length?{...A,cand:[],how:'pencarian server collshp'}:{all:A.all,hit:[],nc:A.nc,cand:[],how:'',none:1};const B=srBase(u),urls=srUrls(u,n),own=urls.length===1,rs=[];
  const run=async us=>{const a=await Promise.all(us.map(async x=>({x,r:srHit(await srTxt(x),x,n)})));rs.push(...a);return a.filter(o=>o.r.hit.length).sort((p,q)=>q.r.hit.length-p.r.hit.length)[0]};
  const done=o=>({...o.r,cand:[],how:'kolom pencarian koleksi',url:o.x});let ok;
  if(own){say('Mencari nomor '+n+' di kolom pencarian koleksi');ok=await run(urls);if(ok)return done(ok)}
@@ -1652,7 +1670,7 @@ async function srFind(u,n,say){say=say||(()=>{});const B=srBase(u),urls=srUrls(u
 async function lnFind(el,auto,u,want,inp){lnBusy=1;if(el)el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}
  try{const R=await srFind(u,want,lns);
   if(!R.hit.length){if(auto)set('pr','');
-   lns(!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi harga manual ya.':R.nc?'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.':'Halaman koleksi tidak memuat teks nomor, jadi nomor '+want+' tidak bisa dicari tanpa AI. Kosongkan kolom Nomor lalu tekan Cari (AI pencocok foto), atau pakai tab Panah.');return}
+   lns(R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi harga manual ya.':R.nc?'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.':'Halaman koleksi tidak memuat teks nomor, jadi nomor '+want+' tidak bisa dicari tanpa AI. Kosongkan kolom Nomor lalu tekan Cari (AI pencocok foto), atau pakai tab Panah.');return}
   const N=R.hit.length,c1=N===1?R.hit[0]:null;let pv=0;
   if(c1){lns('Nomor '+want+' ketemu. Membaca harga di Shopee');if(c1.link)try{pv=await pnPrice(c1.link)}catch(e){}if(!pv)pv=c1.pr||0}
   set('pr',pv?lnRp(pv):'');
@@ -1667,7 +1685,7 @@ async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
  const want=srNum();if(!want){toast('Isi kolom Nomor dulu (nomor album yang dicari)');return}
  lnBusy=1;el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}pnl([]);
  try{pns('Mencari nomor '+want+' di koleksi');const R=await srFind(u,want,pns),byAI=!R.hit.length,all=(byAI?R.cand:R.hit).slice(0,8);
-  if(!all.length){pns(!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.':'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.');return}
+  if(!all.length){pns(R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.':'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.');return}
   pns('Mengunduh '+all.length+' foto');const pics=await lnPool(all,4),C=[];all.forEach((o,i)=>{if(pics[i])C.push({...o,b:pics[i]})});
   if(!C.length){pns('Foto produk tidak bisa diunduh. Coba lagi.');return}
   let hs=[],note='';
@@ -1725,7 +1743,8 @@ async function dxGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'
   pns('Membaca halaman lewat pembaca (Jina)');
   let md='';try{const r=await lnTo(fetch('https://r.jina.ai/'+B),35000);md=r.ok?await r.text():'HTTP '+r.status}catch(e){md='gagal ('+(e&&e.message?e.message:'error')+')'}
   let cp=[];try{cp=pnCands(md,B)}catch(e){}
-  const rep='Jalur baca halaman:\n'+rows.join('\n')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)')+'\n\nJina: '+md.length+' huruf, foto terbaca '+cp.length+'\nKeterangan nomor: '+(cp.slice(0,20).map(o=>pnCap(o.cap)||'-').join(',')||'-')+'\nContoh isi Jina:\n'+md.slice(0,1200)+'\n\n'+ex.join('\n\n');
+  pns('Menguji pencarian server');let sv='';try{const A=await srApi(u,srNum()||'024',null);sv='## uji server (nomor '+(srNum()||'024')+')\n'+srLog.join('\n')+'\nitem: '+A.all.length+' ['+A.all.slice(0,10).map(o=>o.cap).join(',')+'] cocok: '+A.hit.length}catch(e){sv='## uji server gagal: '+(e&&e.message?e.message:'error')}
+  const rep='Jalur baca halaman:\n'+rows.join('\n')+'\nSkrip: '+srcs.length+' ('+txt.slice(1).filter(Boolean).length+' terbaca)\n'+(hits.length?hits.join('\n'):'(tidak ada alamat/kata kunci pencarian yang terlihat)')+'\n\nJina: '+md.length+' huruf, foto terbaca '+cp.length+'\nKeterangan nomor: '+(cp.slice(0,20).map(o=>pnCap(o.cap)||'-').join(',')||'-')+'\nContoh isi Jina:\n'+md.slice(0,1200)+'\n\n'+sv+'\n\n'+ex.join('\n\n');
   let ta=$('kdx');if(!ta){ta=document.createElement('textarea');ta.id='kdx';ta.readOnly=true;ta.style.cssText='width:100%;height:220px;margin:8px 0;font-size:12px;background:#111;color:#eee;border:1px solid #444;border-radius:8px;padding:8px';$('kpns').after(ta)}
   ta.value=rep;ta.focus();ta.select();
   try{await navigator.clipboard.writeText(rep);pns('Hasil sudah disalin. Tempel (paste) di chat dan kirim ke saya.')}catch(e){pns('Tekan lama di kotak hitam, pilih Salin semua, lalu tempel di chat dan kirim ke saya.')}
