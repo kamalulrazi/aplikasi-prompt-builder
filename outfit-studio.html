@@ -1650,13 +1650,21 @@ async function srCall(vars){const body={operationName:'StorefrontProductListQuer
  for(const nm of[srBest,'langsung','jina-get','native'].filter((x,i,a)=>x&&a.indexOf(x)===i)){try{const j=await T[nm](),L=j&&j.data&&j.data.storefrontProductList;if(L&&Array.isArray(L.itemList)){srLog.push(nm+': ok, '+L.itemList.length+' item');srBest=nm;return L}srLog.push(nm+': balasan tak dikenal '+JSON.stringify(j).slice(0,200))}catch(e){srLog.push(nm+': gagal ('+(e&&e.message?e.message:'error')+')')}}
  return null}
 async function srApi(u,n,say){srLog.length=0;const slug=srSlug(u),none={ok:0,all:[],hit:[],nc:0};if(!slug)return none;
+ const uu=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16)}),k=srKey(n),
+ img=x=>{x=String(x||'');return/^https?:/i.test(x)?x:x?'https://mms.img.susercontent.com/'+x:''},
+ conv=raw=>raw.map(o=>({u:img(o.image),c:String(o.linkName||''),pr:0,link:o.h5Link||o.link||'',cap:String(o.linkName||'')})).filter(o=>o.u),
+ mine=c=>c.filter(o=>{const q=pnCap(o.cap);return q&&srKey(q)===k}),
+ scan=async(extra,max,lim)=>{const raw=[],seen={};let off=0,tc=0;for(let pg=0;pg<max;pg++){const L=await srCall({urlSuffix:slug,uuId:uu,deviceId:uu,...extra,page:{offset:String(off),limit:String(lim)}})||(pg?null:await srCall({urlSuffix:slug,uuId:uu,deviceId:uu,...extra}));if(!L){if(!pg)return null;break}
+   const fresh=L.itemList.filter(o=>{const id=String(o.linkId||o.itemId||o.image);if(seen[id])return false;seen[id]=1;return true});raw.push(...fresh);const p=L.pagination||{};tc=+p.totalCount||tc;if(!p.hasMore||!L.itemList.length||!fresh.length)break;off+=L.itemList.length;if(say&&pg>1)say('Membaca koleksi lewat server ('+raw.length+(tc?' dari '+tc:'')+')')}
+  srLog.push('scan '+JSON.stringify(extra)+': '+raw.length+' item, total '+tc);return raw};
  if(say)say('Mencari nomor '+n+' di server koleksi');
- const raw=[],uu=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16)}),mk=o=>({urlSuffix:slug,keyword:String(n),uuId:uu,deviceId:uu,...o});let off=0;
- for(let pg=0;pg<5;pg++){const L=(await srCall(mk({page:{offset:String(off),limit:'50'}})))||(pg?null:await srCall(mk({})));if(!L){if(!pg)return none;break}
-  raw.push(...L.itemList);const p=L.pagination||{};if(!p.hasMore||!L.itemList.length)break;off+=L.itemList.length}
- const img=x=>{x=String(x||'');return/^https?:/i.test(x)?x:x?'https://mms.img.susercontent.com/'+x:''},
-  c=raw.map(o=>({u:img(o.image),c:String(o.linkName||''),pr:0,link:o.h5Link||o.link||'',cap:String(o.linkName||'')})).filter(o=>o.u),k=srKey(n);
- return{ok:1,all:c,hit:c.filter(o=>{const q=pnCap(o.cap);return q&&srKey(q)===k}),nc:c.length}}
+ const r1=await scan({keyword:String(n)},5,50);let c=conv(r1||[]),hit=mine(c);
+ if(hit.length)return{ok:1,all:c,hit,nc:c.length};
+ /* server tidak menyaring / hasil kosong: baca SELURUH koleksi lewat server, saring di sini (tanpa AI) */
+ if(say)say('Membaca seluruh koleksi lewat server');
+ const r2=await scan({},60,50),c2=conv(r2||[]);
+ if(c2.length){return{ok:1,all:c2,hit:mine(c2),nc:c2.length}}
+ return c.length?{ok:1,all:c,hit:[],nc:c.length}:none}
 /* Urutan: (a) kalau link berisi contoh alamat hasil pencarian, pencarian itu dipakai DULUAN; (b) halaman koleksi apa adanya; (c) tebakan nama parameter pencarian, 3 dulu baru 2 (supaya tidak memborbardir pembaca halaman). */
 async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if(A.ok)return A.hit.length?{...A,cand:[],how:'pencarian server collshp'}:{all:A.all,hit:[],nc:A.nc,cand:[],how:'',none:1};const B=srBase(u),urls=srUrls(u,n),own=urls.length===1,rs=[];
  const run=async us=>{const a=await Promise.all(us.map(async x=>({x,r:srHit(await srTxt(x),x,n)})));rs.push(...a);return a.filter(o=>o.r.hit.length).sort((p,q)=>q.r.hit.length-p.r.hit.length)[0]};
