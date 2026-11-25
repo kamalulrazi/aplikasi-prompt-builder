@@ -28,6 +28,7 @@ Satu fitur sering menyentuh beberapa file: logika di `fitur/`, tampilan (tombol,
 | **Layar tunggu saat Generate** | `generate-layar-tunggu.js` | `video-efek-ketik.js` |
 | **Langkah/pilihan Prompt Foto AI** | `foto-wizard-langkah.js` + `foto-susun-prompt.js` | `index.html` bila ada chip/kartu baru |
 | **Isi hasil prompt Foto (JSON)** | `foto-susun-prompt.js` | — |
+| **Mode "Outfit saja" (Foto Referensi cuma Outfit atau Outfit + Lokasi, tanpa Wajah): Pose 1 opsi tanpa wajah** | `foto-wizard-langkah.js` (`fIsOutfitOnly`, `F_POSE_OUTFIT_ONLY`, `fSyncPoseOutfitOnly`, gerbang di `fKonfirmRef`) | `foto-susun-prompt.js` (buang kata "face" di `output_quality`, teks `ignore_completely` outfit) |
 | **Karakter Sheet** | `karakter-sheet.js` | — |
 | **Tampilan Riwayat** | `riwayat-tab.js` | `riwayat-halaman-tersimpan.js` |
 | **Harga, paket, kuota, pembayaran** | `akun-paket-kuota-bayar.js` | — |
@@ -56,6 +57,7 @@ Sudah diperiksa lokasinya. Pakai ini kalau kamu tahu nama kodenya tapi tidak tah
 | `_vbCallBulkBatch`, `vbGenerateBulkAI` | `video-bulk-ai.js` (`vbGenerateBulkAI` juga ditimpa di `video-atur-mode-produk.js`) |
 | `vbReset`, `vbResetNow` | `video-mirror-selfie.js` |
 | `showCard`, `fResetFrom` | `foto-wizard-langkah.js` (`showCard` ditimpa di `foto-pov-tangan-lewati-sudut-kamera.js`) |
+| `fIsOutfitOnly`, `fSyncPoseOutfitOnly`, `F_POSE_OUTFIT_ONLY` | `foto-wizard-langkah.js` (dipakai juga oleh `foto-susun-prompt.js`) |
 | `fRenderSummary` | `foto-ringkasan.js` (ditimpa di `foto-pov-tangan-lewati-sudut-kamera.js`) |
 | `csOpenModal` | `karakter-sheet.js` |
 | `historyAdd`, `pbSaveCurrentPage` | `riwayat-halaman-tersimpan.js` |
@@ -74,6 +76,7 @@ Kalau namanya tidak ada di sini, cari teksnya di seluruh `fitur/` (di GitHub: te
 - **Teks prompt Video tidak ada di `video-builder-inti.js`.** Penempelan teks ke prompt tiap kartu ada di `video-revisi-skrip.js`, walau namanya "revisi".
 - **Fungsi yang ditimpa file lain.** Kalau satu fungsi ada di dua file, yang menang adalah yang dimuat belakangan (urutan `<script>` di `index.html`). Pasangan yang diketahui: `showCard`, `fRenderSummary`, `fSummaryEdit`, `fGenerate`, `fBack9`, `fActiveSteps`, `fKonfirmRef` (Foto: asal di `foto-wizard-langkah.js`/`foto-ringkasan.js`, ditimpa `foto-pov-tangan-lewati-sudut-kamera.js` dan `foto-timeline-lipat-ringkasan.js`); `vbPickRefMode`, `vbGenerateBulkAI`, `_vbRunBulkGenerate`, `vbBulkResumeAI`, `vbResetNow`, `_vbCharSnap`, `pbOpenSavedPage`, `pbSaveCurrentPage` (Video/Riwayat: ditimpa `video-atur-mode-produk.js`); `vbResetNow`, `vbUpdateProgress`, `vbSyncStep6Mode3` (ditimpa `video-builder-alur-percabangan.js`). **Kalau mengubah fungsi di daftar ini, ubah versi yang menang, atau kirim kedua file.**
 - **Urutan `<script>` jangan diubah.** Urutan baris di `index.html` = urutan jalan. `umum-mulai-app.js` sengaja paling akhir, `umum-boot-reload.js` paling awal. Urutan di `app.css` juga menentukan gaya mana yang menang.
+- **Mode "Outfit saja" melewati gerbang "Wajib Karakter Sheet".** Gerbang itu ada di `fKonfirmRef` (`foto-wizard-langkah.js`) dan sekarang mengecualikan `fIsOutfitOnly()`. `fKonfirmRef` juga ditimpa file lain (lihat daftar di atas): kalau gerbang itu disalin ulang di versi yang menang, mode ini kembali terblokir.
 - **`outfit-studio-album-awan.js` tidak dimuat.** Sudah digantikan `outfit-studio-album-drive.js`.
 - File yang baris pertamanya memuat "dulu js/NN-…" adalah tambalan lama yang menimpa kode di file lain. Kalau fitur yang diubah menyentuhnya, kirim sekalian.
 
@@ -94,12 +97,12 @@ Ukuran perkiraan, dihitung saat peta ini ditulis. File besar (≥100 KB): `foto-
 | `fitur/foto-refresh-penghitung-referensi.js` | Menyegarkan penghitung foto referensi | — | <1 KB |
 | `fitur/foto-ringkasan-dan-panel-live.js` | Strip langkah, ringkasan, dan panel Prompt live (tambalan) | `_fDoGenerate`, `fResetNow` | 18 KB |
 | `fitur/foto-ringkasan.js` | Ringkasan Visual sebelum Generate | `fRenderSummary`, `fSummaryEdit`, `fRestoreStepUI` | 31 KB |
-| `fitur/foto-susun-prompt.js` | Menyusun hasil prompt Foto (JSON), impor prompt lama, penyesuaian kualitas output | `_fIdentityRuleText`, `_fPoseAngleDesc`, `_fAdaptQuality`, `_F_POSE_DETAIL` | 82 KB |
+| `fitur/foto-susun-prompt.js` | Menyusun hasil prompt Foto (JSON), impor prompt lama, penyesuaian kualitas output (termasuk mode Outfit saja: tanpa kata "face") | `_fIdentityRuleText`, `_fPoseAngleDesc`, `_fAdaptQuality`, `_F_POSE_DETAIL` | 83 KB |
 | `fitur/foto-thumbnail-ilustrasi.js` | Ilustrasi thumbnail pilihan chip | `setTh`, `LOCICO`, `HLDICO`, `LITICO` | 21 KB |
 | `fitur/foto-timeline-lipat-ringkasan.js` | Lipat alur step jadi ringkasan setelah Generate (menimpa `fGenerate`) | `info`, `set`, `sync` | 2 KB |
 | `fitur/foto-timeline-step.js` | Garis waktu step (centang, opsional) | `act`, `sync` | 2 KB |
 | `fitur/foto-tunggu-generate.js` | Tampilan menunggu saat step dibuka/generate | `stepOpen`, `init` | 1 KB |
-| `fitur/foto-wizard-langkah.js` | Wizard Prompt Foto: kartu langkah f1–f9, buka/tutup/reset step, `showCard` | `showCard`, `fResetFrom`, `FTYPE`, `F_MAX_REFS`, `STEP_PAUSE_STACK` | 183 KB |
+| `fitur/foto-wizard-langkah.js` | Wizard Prompt Foto: kartu langkah f1–f9, buka/tutup/reset step, `showCard`; mode Outfit saja (Pose 1 opsi tanpa wajah) | `showCard`, `fResetFrom`, `FTYPE`, `F_MAX_REFS`, `STEP_PAUSE_STACK`, `fIsOutfitOnly`, `fSyncPoseOutfitOnly`, `F_POSE_OUTFIT_ONLY` | 186 KB |
 
 ### Prompt Video AI (menu Video)
 
@@ -231,3 +234,4 @@ Kalau user bilang "peta belum diperbarui", kerjakan langkah di atas lebih dulu s
 
 - **24 Nov 2026** — Ditulis ulang: tambah kolom kata kunci, tabel cari-lewat-nama-fungsi, bagian jebakan dan fungsi yang ditimpa, serta aturan pembaruan. Tambah 3 file yang belum tercatat (`video-isian-kurung.js`, `outfit-studio-album-drive.js`, `outfit-studio-album-awan.js`). Koreksi deskripsi `video-mirror-selfie.js` (kini hanya reset), `video-contoh-skrip-referensi.js` (kini ±10 KB) dan ukuran file lain.
 - **25 Nov 2026** — Sinkron album Outfit Studio: tombol Hubungkan + status alasan di `outfit-studio.html` (blok v18.40, coba ulang otomatis), pembaruan token Drive lebih awal di `outfit-studio-album-drive.js`, izin Drive diminta saat `osOpen` di `outfit-studio-pembuka.js`.
+- **25 Nov 2026** — Fitur baru mode "Outfit saja" (Outfit atau Outfit + Lokasi tanpa Wajah Karakter): Pose hanya 1 opsi "Outfit Check (tanpa wajah)". Tambah `fIsOutfitOnly`, `fSyncPoseOutfitOnly`, `F_POSE_OUTFIT_ONLY` di `foto-wizard-langkah.js`; gerbang Karakter Sheet di `fKonfirmRef` dikecualikan; `foto-susun-prompt.js` membuang kata "face" dari `output_quality` dan teks outfit yang merujuk Karakter Sheet. Ukuran dua file diperbarui.
