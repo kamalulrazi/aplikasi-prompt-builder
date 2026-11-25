@@ -13,6 +13,8 @@ function osOpen(){
   }
   else if(st==='1'){try{f.contentWindow.osEnter&&f.contentWindow.osEnter();}catch(e){}}
   o.classList.add('show');
+  // Minta izin Google Drive langsung saat Outfit Studio dibuka (ini terjadi dari ketukan pengguna, jadi popup tidak diblokir).
+  try{var c=window.osCloud;if(c&&c.needsAuth&&c.needsAuth()&&c.connect)c.connect().catch(function(){});}catch(e){}
 }
 function osClose(){var o=document.getElementById('os-overlay');if(o)o.classList.remove('show');}
 
