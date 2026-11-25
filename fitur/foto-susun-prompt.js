@@ -69,6 +69,17 @@ function _fRefNoOf(list, type){
 function _fPoseAngleDesc(n){
   return 'follow the exact camera angle of pose reference photo ' + n + ' \u2014 same camera height, shooting direction (front, side, or three-quarter), tilt (high, low, or eye level), distance, lens perspective, and framing of the character as in that photo; do not choose a different camera angle';
 }
+/* v18.41 (Nov 2026, permintaan user) — MODE FACELESS (Foto Referensi cuma Outfit / Outfit + Lokasi).
+   Kepala keluar dari tepi atas frame (bukan dihapus/diblur): orang berdiri dekat kamera, tepi atas gambar memotong leher,
+   badan full-length sampai sepatu. Sudut kamera dikunci otomatis (lihat foto-pov-tangan-lewati-sudut-kamera.js). */
+var _F_FACELESS_ANGLE_LBL = 'Faceless \u00b7 Full-length (otomatis)';
+var _F_FACELESS_ANGLE_DESC = 'faceless full-length outfit-check framing: the person stands CLOSE to the camera and fills about 90% of the frame height; the very top edge of the image cuts straight through the middle of the neck, so the shoulders and neck run off the top edge and there is NO empty wall or empty space above the shoulders; the head is outside the frame, exactly like a phone held at chest height with the person standing close; the shoes are fully visible with only a small strip of floor (about 5% of the frame height) below them; camera handheld at chest-to-waist height, about 1.5 meters from the subject, pointing straight ahead with a very slight upward tilt, smartphone main lens about 24mm equivalent, torso slightly larger and legs slightly foreshortened; casual TikTok outfit check, not a mirror selfie, no phone visible';
+function _fFacelessRuleText(){
+  var t = 'FACELESS BY FRAME EDGE: no head, face, eyes, nose, lips, chin, or hair anywhere in the image, because the top edge of the frame cuts through the neck. Do NOT erase, blur, cover, or hide the head, and do NOT leave blank space where the head would be. No floating collar, no empty neckline, no mannequin or headless-body effect. No part of the pose may bring the head into the frame.';
+  try{ if(FS && FS.subjek==='hijab') t += ' If the outfit reference includes a hijab, keep it exactly as in the reference (same color, wrapping style, and fabric); only the part from the neck down is visible, cut off by the top edge of the image.'; }catch(e){}
+  t += ' Avoid: visible lips, nose, chin, or skin of the face, empty wall above the shoulders, small distant subject, wide shot, mirror selfie, phone in frame, cropped shoes, cut-off feet, close-up, medium shot cropped at the thigh.';
+  return t;
+}
 function _fIdentityRuleText(charNo){
   return 'FACE & IDENTITY LOCK: The face, facial features, skin tone, and hair of the person in the final image come ONLY from reference photo ' + charNo + ' (character sheet). Any human face visible in any other reference photo (outfit, location, product, pose, accessories) must be completely ignored \u2014 never copy, blend, average, or let it influence the character\u2019s face in any way. If there is any conflict, photo ' + charNo + ' always wins for the face.';
 }
@@ -263,6 +274,8 @@ function _fBuildImportedPromptJSON(ov){
     instruction: (FS.importProductBlock && FS.importProductBlock.instruction) || 'This product MUST be clearly visible, sharp, and prominently displayed. Preserve its exact shape, color, size, logo, and all visual details. Do NOT alter, resize, or obscure the product at any point.'
   } : null;
 
+  // v18.41: prompt faceless yang diimpor ulang (camera_angle = framing faceless) tetap membawa aturan faceless-nya.
+  let _impFaceless = !isProdukSaja && typeof effAngle==='string' && effAngle.indexOf('faceless full-length outfit-check framing')===0;
   let introProdukSajaTextImp = angleHasHand
     ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
     : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
@@ -280,6 +293,7 @@ function _fBuildImportedPromptJSON(ov){
     + (isProdukSaja ? '' : (effPose ? 'Character pose: ' + effPose + '. ' : ''))
     + (effKamera ? 'Camera framing: ' + effKamera + '. ' : '')
     + 'Camera angle: ' + effAngle + '. '
+    + (_impFaceless ? _fFacelessRuleText() + ' ' : '')
     + 'Mood & tone: ' + effMood + '.';
 
   // v11.58: output_quality asli dari JSON hanya dipakai kalau cahaya/mood/mode belum berubah sejak impor.
@@ -327,6 +341,7 @@ function _fBuildImportedPromptJSON(ov){
       return (FS.importConflictRule && FS.refs && FS.refs.some(function(r){return r.type==='produk';})) ? {conflict_priority: FS.importConflictRule} : {};
     })(),
     ...(_impIdRule ? {identity_rule: _impIdRule} : {}),
+    ...(_impFaceless ? {faceless_rule: _fFacelessRuleText()} : {}),
     // FIX BUG KRITIS — REFERENCE_PHOTOS TIDAK PERNAH KE-UPDATE: sebelumnya
     // baris ini ({reference_photos: FS.importRefPhotos}) selalu pakai array
     // MENTAH hasil parse JSON saat pertama kali ditempel — TIDAK PERNAH
@@ -992,6 +1007,10 @@ function _fBuildPromptJSON(ov){
   else if(FS.angleLabel===_F_POSE_ANGLE_LBL && !ov.angleOverride) effAngle = 'natural eye-level camera angle';
   let _charNoA = _fRefNoOf(realRefs,'wajah');
   let _idIntro = (_charNoA && !isProdukSaja && realRefs.length>1) ? _fIdentityIntro(_charNoA) : '';
+  // v18.41: MODE FACELESS (Outfit saja / Outfit + Lokasi): framing full-length + kepala di luar frame dikunci,
+  // jadi sudut kamera pilihan user / foto lokasi tidak boleh menimpa.
+  let _ooF = !isProdukSaja && typeof fIsOutfitOnly==='function' && fIsOutfitOnly();
+  if(_ooF && !ov.angleOverride) effAngle = _F_FACELESS_ANGLE_DESC;
   // FIX: kalau mode produk-saja TAPI angle yang dipilih adalah "dipegang tangan"
   // (ada tangan di frame), jangan bilang "no person or human visible" — itu
   // kontradiksi langsung sama instruksi tangannya sendiri, bikin AI bingung
@@ -1049,6 +1068,7 @@ function _fBuildPromptJSON(ov){
   // teks lengkapnya, dengan fallback ke field lama untuk jaga-jaga.
   let effPose = ov.poseOverride || FS.poseDesc || FS.pose;
   let effKamera = ov.kameraNote || FS.kamera;
+  if(_ooF && !ov.kameraNote) effKamera = '';
   let effLokasi = ov.lokasiOverride || FS.lokasiDesc || FS.lokasi;
   let effCahaya = ov.cahayaOverride || FS.cahayaDesc || FS.cahaya;
   let effMood = ov.moodOverride || FS.mood;
@@ -1100,6 +1120,7 @@ function _fBuildPromptJSON(ov){
     + (isProdukSaja || !effPose ? '' : 'Character pose: ' + effPose + '. ')
     + (effKamera ? 'Camera framing: ' + effKamera + '. ' : '')
     + 'Camera angle: ' + effAngle + '. '
+    + (_ooF ? _fFacelessRuleText() + ' ' : '')
     + 'Mood & tone: ' + effMood + '.';
 
   // ── FULL JSON ───────────────────────────────────────────────────
@@ -1112,6 +1133,7 @@ function _fBuildPromptJSON(ov){
     } : {}),
     ...(conflictRule ? {conflict_priority: conflictRule} : {}),
     ...((_charNoA && !isProdukSaja && realRefs.length>1) ? {identity_rule: _fIdentityRuleText(_charNoA)} : {}),
+    ...(_ooF ? {faceless_rule: _fFacelessRuleText()} : {}),
     ...(refPhotos.length > 0 ? {reference_photos: refPhotos} : {}),
     ...(generatedOutfits.length > 0 && !ov.forceProdukSaja ? {generated_outfit: generatedOutfits} : {}),
     ...(produkBlock ? {product: produkBlock} : {}),

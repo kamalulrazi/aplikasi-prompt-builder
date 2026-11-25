@@ -2563,7 +2563,7 @@ function fBuildPoseChips(){
   let subjek=FS.subjek||'hijab';
   let poses;
   if(fIsOutfitOnly()){
-    poses=[F_POSE_OUTFIT_ONLY];
+    poses=F_POSES_OUTFIT_ONLY;
   } else if(hasProduk){
     // Kalau holdKey terisi (dari step 3), pakai holdKey
     // Kalau holdKey kosong tapi produkMode='dipakai' (dari step 2, skip step 3), pakai 'dipakai'
@@ -2994,9 +2994,29 @@ const F_STEP_TITLES={f0:'Subjek',f1:'Foto Referensi',f3:'Cara Tampil',f4:'Pose',
 // MODE "PRODUK + LOKASI SAJA" (permintaan user): kalau di Foto Referensi user cuma memilih Produk dan Lokasi
 // (tanpa Karakter Sheet / Outfit / Aksesori), alur tetap boleh lanjut. Hasilnya diperlakukan seperti foto produk
 // tanpa karakter: step Pose dilewati, prompt tidak menyebut karakter, dan Cara Tampil (mis. "di atas meja") dipakai.
-// MODE "OUTFIT SAJA" (permintaan user): Foto Referensi cuma berisi Outfit (atau Outfit + Lokasi), TANPA Wajah Karakter
-// dan TANPA Produk. Step Pose hanya punya 1 opsi: foto outfit-check tanpa wajah (frame dipotong di leher).
-var F_POSE_OUTFIT_ONLY=['standing straight and relaxed, facing the camera directly, arms hanging naturally at the sides, feet slightly apart, casual outfit-check pose. Faceless framing: the camera frame is cropped at the neck so the head, face and hair are completely out of frame and not visible. Full outfit shown from neck down to the shoes, vertical portrait composition, subject centered, like a casual outfit check video still','Outfit Check (tanpa wajah)'];
+// MODE "OUTFIT SAJA" = FACELESS (permintaan user): Foto Referensi cuma berisi Outfit (atau Outfit + Lokasi), TANPA Wajah Karakter
+// dan TANPA Produk. Hasilnya foto outfit-check tanpa wajah: kepala keluar dari tepi atas frame (bukan dihapus).
+// v18.41 (Nov 2026): step Pose sekarang punya beberapa pilihan pose yang aman untuk faceless + kolom "isi sendiri",
+// jadi user bisa mengatur pose. Framing/sudut kamera dikunci otomatis di foto-pov-tangan-lewati-sudut-kamera.js
+// (teksnya: F_FACELESS_ANGLE_DESC di foto-susun-prompt.js), dan aturan faceless disuntik di _fBuildPromptJSON.
+// Teks pose di bawah TIDAK boleh menyebut wajah/kepala/ekspresi/arah pandang (kepala di luar frame).
+var F_POSES_OUTFIT_ONLY=[
+  ['standing straight and relaxed, facing the camera directly, arms hanging naturally at the sides, feet slightly apart, casual outfit-check stance','Santai Tangan Menggantung'],
+  ['standing facing the camera with weight shifted onto one leg, one hand resting in the pocket, the other arm hanging naturally, relaxed shoulders, casual outfit-check stance','Satu Tangan di Saku'],
+  ['standing facing the camera, both hands resting in the front pockets, relaxed shoulders, feet slightly apart, casual outfit-check stance','Dua Tangan di Saku'],
+  ['standing facing the camera with a slight hip shift, one hand lightly holding the hem of the outfit, the other arm relaxed at the side','Pegang Ujung Outfit'],
+  ['body turned about 45 degrees to the side while the torso still faces the camera, one foot slightly forward, one hand in the pocket, the other arm relaxed','Badan Miring 45\u00b0'],
+  ['mid-step walking toward the camera in a natural relaxed stride, arms swinging naturally, casual outfit-check feel','Jalan Santai']
+];
+// Alias lama (dipakai pengecekan pose lama): pose pertama.
+var F_POSE_OUTFIT_ONLY=F_POSES_OUTFIT_ONLY[0];
+function fIsOutfitPoseDesc(d){
+  d=String(d||'');
+  if(!d)return false;
+  if(d===F_POSE_OUTFIT_ONLY[0])return true;
+  for(var i=0;i<F_POSES_OUTFIT_ONLY.length;i++){if(F_POSES_OUTFIT_ONLY[i][0]===d)return true;}
+  return false;
+}
 function fIsOutfitOnly(){
   try{
     if(!FS||!FS.refs||FS.importActive||FS.subjek==='produk')return false;
@@ -3009,27 +3029,33 @@ function fIsOutfitOnly(){
     return hasOutfit;
   }catch(e){return false;}
 }
-// Menyinkronkan step Pose dengan mode Outfit Saja: 1 opsi, kolom "isi sendiri" disembunyikan,
-// dan pose lama dari mode lain dikosongkan supaya tidak terbawa.
+// Menyinkronkan step Pose dengan mode Outfit Saja (faceless): daftar pose khusus faceless + kolom "isi sendiri",
+// dan pose chip dari mode lain dikosongkan supaya tidak terbawa.
 function fSyncPoseOutfitOnly(){
   try{
     if(!FS||FS.importActive)return;
     var on=fIsOutfitOnly();
     var cur=String(FS.poseDesc||'');
-    var isOO=(cur===F_POSE_OUTFIT_ONLY[0]);
+    var isOO=fIsOutfitPoseDesc(cur);
+    var isCustom=(FS.poseLabel==='Custom');
     var inp=document.getElementById('f4-custom');
-    var wrap=inp&&inp.closest?inp.closest('.mt12'):null;
-    if(wrap)wrap.style.display=on?'none':'';
+    // Kolom "isi sendiri" TETAP tampil di mode faceless (user boleh atur pose sendiri); cuma placeholder-nya disesuaikan.
+    if(inp){
+      if(inp.dataset.phDefault===undefined)inp.dataset.phDefault=inp.getAttribute('placeholder')||'';
+      inp.setAttribute('placeholder',on?'Contoh: satu tangan pegang ujung jaket, badan miring sedikit... (tanpa kepala/wajah)':inp.dataset.phDefault);
+    }
     var cont=document.getElementById('f4-chips');
-    var chipOO=!!(cont&&cont._posesData&&cont._posesData.length===1&&cont._posesData[0][0]===F_POSE_OUTFIT_ONLY[0]);
-    var needReset=(!on&&isOO)||(on&&cur&&!isOO);
+    var chipOO=!!(cont&&cont._posesData&&cont._posesData.length&&cont._posesData[0][0]===F_POSES_OUTFIT_ONLY[0][0]);
+    // Reset pose kalau mode berganti: keluar dari faceless (pose bawaan faceless tidak dibawa),
+    // atau masuk faceless dengan pose chip dari mode lain (pose "isi sendiri" boleh terbawa).
+    var needReset=(!on&&isOO)||(on&&cur&&!isOO&&!isCustom);
     if(needReset){
       FS.pose='';FS.poseLabel='';FS.poseDesc='';
       var c4=document.getElementById('f4');
       if(c4){c4.classList.remove('done','hidden');c4.classList.add('pending');}
       var a4=document.getElementById('fa4');if(a4)a4.textContent='';
       if(inp)inp.value='';
-      if(typeof fSyncStepNums==='function')fSyncStepNums();
+      if(typeof fSyncStepNums==='function'){try{fSyncStepNums();}catch(e){}}
     }
     if(needReset||on!==chipOO){
       if(typeof fBuildPoseChips==='function')fBuildPoseChips();

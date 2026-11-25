@@ -8,11 +8,22 @@
    DISEMBUNYIKAN dan sudut kamera WAJIB mengikuti foto pose itu (label "Ikut foto pose (otomatis)").
    Teks sudut kamera final dibuat di foto-susun-prompt.js (_fPoseAngleDesc) supaya nomor foto selalu benar.
    Foto pose dihapus -> step Sudut Kamera muncul lagi seperti biasa. */
+/* v18.41 (Nov 2026, permintaan user) — MODE FACELESS: kalau Foto Referensi cuma Outfit atau Outfit + Lokasi (fIsOutfitOnly()),
+   step Sudut Kamera DISEMBUNYIKAN dan sudut kamera dikunci ke framing faceless full-length (label "Faceless · Full-length (otomatis)",
+   teks di foto-susun-prompt.js: _F_FACELESS_ANGLE_DESC). Prioritas mode kunci: pov > pose > faceless. Alur lompat/kembali sama dengan mode foto pose. */
 (function(){
 'use strict';
 var LBL='POV (otomatis)';
 var DESC='POV style (first-person perspective), as if the viewer is holding the product';
 var LBL_POSE=(typeof _F_POSE_ANGLE_LBL!=='undefined')?_F_POSE_ANGLE_LBL:'Ikut foto pose (otomatis)';
+var LBL_FACELESS=(typeof _F_FACELESS_ANGLE_LBL!=='undefined')?_F_FACELESS_ANGLE_LBL:'Faceless \u00b7 Full-length (otomatis)';
+function facelessOn(){
+  try{
+    if(povOn()||poseOn())return false;
+    return !!(typeof fIsOutfitOnly==='function'&&fIsOutfitOnly());
+  }catch(e){return false;}
+}
+function lblOf(m){return m==='pose'?LBL_POSE:(m==='faceless'?LBL_FACELESS:LBL);}
 function povOn(){try{return !!(typeof _fIsPovHandNoChar==='function'&&_fIsPovHandNoChar());}catch(e){return false;}}
 function poseOn(){
   try{
@@ -22,20 +33,24 @@ function poseOn(){
     return true;
   }catch(e){return false;}
 }
-/* mode kunci aktif: 'pov' | 'pose' | '' */
-function mode(){return povOn()?'pov':(poseOn()?'pose':'');}
+/* mode kunci aktif: 'pov' | 'pose' | 'faceless' | '' */
+function mode(){return povOn()?'pov':(poseOn()?'pose':(facelessOn()?'faceless':''));}
 function on(){return mode()!=='';}
-function isAuto(){try{return FS.angleLabel===LBL||FS.angleLabel===LBL_POSE;}catch(e){return false;}}
+function isAuto(){try{return FS.angleLabel===LBL||FS.angleLabel===LBL_POSE||FS.angleLabel===LBL_FACELESS;}catch(e){return false;}}
 function sync(){try{fSyncStepNums();}catch(e){}}
 function poseDesc(){
   var n=1;try{n=_scPoseNo();}catch(e){}
   try{return _fPoseAngleDesc(n);}catch(e){}
   return 'follow the exact camera angle of pose reference photo '+n+' \u2014 same camera height, shooting direction, tilt, distance, lens perspective, and framing as in that photo';
 }
+function facelessDesc(){
+  try{if(typeof _F_FACELESS_ANGLE_DESC!=='undefined')return _F_FACELESS_ANGLE_DESC;}catch(e){}
+  return 'faceless full-length outfit-check framing: the top edge of the image cuts through the neck so the head is outside the frame, person close to the camera filling about 90% of the frame height, shoes fully visible near the bottom';
+}
 function lock(m){
   m=m||mode();
-  var lbl=(m==='pose')?LBL_POSE:LBL;
-  var desc=(m==='pose')?poseDesc():DESC;
+  var lbl=lblOf(m);
+  var desc=(m==='pose')?poseDesc():(m==='faceless'?facelessDesc():DESC);
   FS.angle=lbl;FS.angleLabel=lbl;FS.angleDesc=desc;
   try{_fAngle={val:desc,label:lbl};}catch(e){}
   document.querySelectorAll('#f8 .chip').forEach(function(x){x.classList.remove('sel');});
@@ -57,7 +72,7 @@ function unlock(){
 function applyLock(allowUnlock){
   var m=mode();
   if(m){
-    var want=(m==='pose')?LBL_POSE:LBL;
+    var want=lblOf(m);
     if(!FS||FS.angleLabel!==want||!FS.angle)lock(m);
   }else if(allowUnlock&&isAuto()){unlock();}
 }
@@ -89,7 +104,7 @@ if(typeof _sc==='function')window.showCard=function(id){
 var _se=window.fSummaryEdit;
 if(typeof _se==='function')window.fSummaryEdit=function(n){
   if(Number(n)===8&&on()){
-    try{showToast(mode()==='pose'?'Sudut kamera otomatis mengikuti foto pose. Hapus foto pose kalau mau pilih sudut lain.':'Sudut kamera otomatis POV. Ganti Cara Tampil kalau mau pilih sudut lain.','info');}catch(e){}
+    try{var _m=mode();showToast(_m==='pose'?'Sudut kamera otomatis mengikuti foto pose. Hapus foto pose kalau mau pilih sudut lain.':(_m==='faceless'?'Sudut kamera otomatis faceless (kepala di luar frame). Tambah foto Karakter Sheet kalau mau pilih sudut lain.':'Sudut kamera otomatis POV. Ganti Cara Tampil kalau mau pilih sudut lain.'),'info');}catch(e){}
     return;
   }
   return _se.apply(this,arguments);
