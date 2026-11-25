@@ -3,7 +3,7 @@
 > **Untuk AI:** baca bagian 1–3 dulu. Jangan menebak file dari namanya, karena beberapa nama menyesatkan (lihat bagian 3). Kalau perubahan menyentuh fitur baru atau file baru, **perbarui peta ini** (bagian 7).
 > **Untuk user:** cari fiturmu di bagian 1, lalu kirim file yang disebut. Kalau ragu, kirim file ini dan sebutkan fiturnya. Atau kirim seluruh repo (GitHub → Code → Download ZIP).
 
-Terakhir diperbarui: 25 Nov 2026 · Jumlah file di `fitur/`: 68 (67 dimuat `index.html`, 1 tidak dimuat).
+Terakhir diperbarui: 25 Nov 2026 (sore) · Jumlah file di `fitur/`: 68 (67 dimuat `index.html`, 1 tidak dimuat).
 
 ---
 
@@ -33,7 +33,8 @@ Satu fitur sering menyentuh beberapa file: logika di `fitur/`, tampilan (tombol,
 | **Harga, paket, kuota, pembayaran** | `akun-paket-kuota-bayar.js` | — |
 | **Pilihan model AI** | `ai-model-dan-koneksi.js` | — |
 | **Login** | `akun-login-firebase.js` atau `akun-login-google.js` | — |
-| **Outfit Studio** | `outfit-studio.html` (±900 KB) | `outfit-studio-pembuka.js`, `outfit-studio-album-drive.js` |
+| **Outfit Studio** | `outfit-studio.html` (±900 KB) | `outfit-studio-pembuka.js` |
+| **Album Outfit Studio tidak sinkron antar perangkat (Google Drive)** | `outfit-studio-album-drive.js` (isi `CLIENT_ID_MANUAL` di baris atas) | `outfit-studio.html` (blok `v18.40`, pesan status) |
 | **Tur panduan pertama kali** | `panduan-tur-pertama-kali.js` | — |
 | **Warna, ukuran, gaya** | `app.css` | `index.html` |
 | **Teks atau tombol di layar** | `index.html` | file fiturnya bila tombol harus melakukan hal baru |
@@ -67,6 +68,7 @@ Sudah diperiksa lokasinya. Pakai ini kalau kamu tahu nama kodenya tapi tidak tah
 | `pbGetTier`, `pbGetQuota` | `akun-paket-kuota-bayar.js` |
 | `PB_AI_MODELS` | `ai-model-dan-koneksi.js` |
 | `osOpen` | `outfit-studio-pembuka.js` |
+| `osCloud` (`uid/ready/list/put/get/del/connect`), `CLIENT_ID_MANUAL` | `outfit-studio-album-drive.js` (dipanggil `outfit-studio.html` lewat `parent.osCloud`) |
 | `switchPage` | `umum-alat-bantu.js` (juga ditimpa di 3 file lain) |
 | `pbReplayTour` | `panduan-tur-pertama-kali.js` |
 
@@ -78,7 +80,8 @@ Kalau namanya tidak ada di sini, cari teksnya di seluruh `fitur/` (di GitHub: te
 - **Teks prompt Video tidak ada di `video-builder-inti.js`.** Penempelan teks ke prompt tiap kartu ada di `video-revisi-skrip.js`, walau namanya "revisi".
 - **Fungsi yang ditimpa file lain.** Kalau satu fungsi ada di dua file, yang menang adalah yang dimuat belakangan (urutan `<script>` di `index.html`). Pasangan yang diketahui: `showCard`, `fRenderSummary`, `fSummaryEdit`, `fGenerate`, `fBack9`, `fActiveSteps`, `fKonfirmRef` (Foto: asal di `foto-wizard-langkah.js`/`foto-ringkasan.js`, ditimpa `foto-pov-tangan-lewati-sudut-kamera.js` dan `foto-timeline-lipat-ringkasan.js`); `vbPickRefMode`, `vbGenerateBulkAI`, `_vbRunBulkGenerate`, `vbBulkResumeAI`, `vbResetNow`, `_vbCharSnap`, `pbOpenSavedPage`, `pbSaveCurrentPage` (Video/Riwayat: ditimpa `video-atur-mode-produk.js`); `vbResetNow`, `vbUpdateProgress`, `vbSyncStep6Mode3` (ditimpa `video-builder-alur-percabangan.js`). **Kalau mengubah fungsi di daftar ini, ubah versi yang menang, atau kirim kedua file.**
 - **Urutan `<script>` jangan diubah.** Urutan baris di `index.html` = urutan jalan. `umum-mulai-app.js` sengaja paling akhir, `umum-boot-reload.js` paling awal. Urutan di `app.css` juga menentukan gaya mana yang menang.
-- **`outfit-studio-album-awan.js` tidak dimuat.** Sudah digantikan `outfit-studio-album-drive.js`.
+- **`outfit-studio-album-drive.js` wajib diisi Client ID.** Tanpa `CLIENT_ID_MANUAL` (atau `window.OS_DRIVE_CLIENT_ID` / `GOOGLE_CLIENT_ID` yang terdeteksi), album tidak pernah sinkron dan muncul pesan "OS_DRIVE_CLIENT_ID belum diisi". Drive API harus di-Enable dan scope `drive.appdata` ditambahkan di Google Cloud Console (langkah lengkap di komentar atas file). Izin Drive berlaku ±1 jam di web, diperbarui pada ketukan berikutnya (hanya saat Outfit Studio terbuka dan perangkat sudah pernah menekan Hubungkan). **Jangan ganti Client ID setelah dipakai** dan pilih Gmail yang sama di popup: kalau Drive yang tersambung berbeda dari sebelumnya, sinkron sengaja ditolak ("Akun Google yang dipilih berbeda") supaya album lokal tidak ikut terhapus.
+- **`outfit-studio-album-awan.js` tidak dimuat dan jangan dipasang lagi.** Ia menulis ke `users/{uid}/panahAlbum`, yang ditolak Firestore Rules (Rules hanya mengizinkan `users/{uid}` dan `users/{uid}/blobs`).
 - File yang baris pertamanya memuat "dulu js/NN-…" adalah tambalan lama yang menimpa kode di file lain. Kalau fitur yang diubah menyentuhnya, kirim sekalian.
 
 ## 4. Daftar lengkap per fitur
@@ -156,8 +159,8 @@ Ukuran perkiraan, dihitung saat peta ini ditulis. File besar (≥100 KB): `foto-
 
 | File | Isi | Kata kunci (nama fungsi / konstanta) | Ukuran |
 |---|---|---|---|
-| `fitur/outfit-studio-album-awan.js` | Album Outfit Studio versi Firestore. **Tidak dimuat `index.html`** (digantikan versi Drive) | `osCloud`, `panahAlbum` | 2 KB |
-| `fitur/outfit-studio-album-drive.js` | Album Outfit Studio disimpan di Google Drive akun login (menggantikan versi Firestore) | `osCloud`, `OS_DRIVE_CLIENT_ID`, `appDataFolder` | 8 KB |
+| `fitur/outfit-studio-album-awan.js` | Album Outfit Studio versi Firestore lama (koleksi `panahAlbum`, ditolak Rules). **Tidak dimuat `index.html`, jangan dipasang** | `osCloud`, `panahAlbum` | 2 KB |
+| `fitur/outfit-studio-album-drive.js` | Album Outfit Studio disimpan di Google Drive akun login (appDataFolder, kuota 15 GB milik user). Client ID dibaca lazy; perlu setup Google Cloud sekali. Punya pengaman akun (brankas `os_drive_vault_v1`) dan popup Google hanya saat Outfit Studio terbuka | `osCloud`, `CLIENT_ID_MANUAL`, `cid`, `getToken`, `ensureMark`, `os_drive_vault_v1`, `os_drive_linked_v1` | 15 KB |
 | `fitur/outfit-studio-jembatan-foto.js` | Jembatan Outfit Studio ⇄ Prompt Foto AI | `ensureStrip`, `modeLabel` | 3 KB |
 | `fitur/outfit-studio-pembuka.js` | Membuka/menutup Outfit Studio (memuat `outfit-studio.html`) | `osOpen`, `osClose`, `osAiVision` | 3 KB |
 
@@ -236,3 +239,4 @@ Kalau user bilang "peta belum diperbarui", kerjakan langkah di atas lebih dulu s
 - **24 Nov 2026** — Ditulis ulang: tambah kolom kata kunci, tabel cari-lewat-nama-fungsi, bagian jebakan dan fungsi yang ditimpa, serta aturan pembaruan. Tambah 3 file yang belum tercatat (`video-isian-kurung.js`, `outfit-studio-album-drive.js`, `outfit-studio-album-awan.js`). Koreksi deskripsi `video-mirror-selfie.js` (kini hanya reset), `video-contoh-skrip-referensi.js` (kini ±10 KB) dan ukuran file lain.
 - **25 Nov 2026** — Tambah konstanta `VB_AESTHETIC_ID` (Tulisan Estetik: kalimat "dalam bahasa Indonesia" hanya di kartu Hook dan CTA) di bagian 1, 2, dan 4.
 - **25 Nov 2026** — Bagian 2: tandai versi yang menang untuk `vbResetNow`, `vbPickRefMode`, `pbSaveCurrentPage`, `pbOpenSavedPage` (ditimpa `video-atur-mode-produk.js`, file yang dimuat paling akhir di antara pasangannya).
+- **25 Nov 2026 (sore)** — Album Outfit Studio: `outfit-studio-album-drive.js` diperbaiki (Client ID dibaca lazy + `CLIENT_ID_MANUAL`, cek scope dicentang, upload ulang saat file Drive hilang, migrasi Firestore lama dibuang, token terikat uid, hapus semua salinan ganda, pengaman akun/brankas Drive, popup hanya saat Outfit Studio terbuka). Perbarui bagian 1, 2, 3, 4; tandai `outfit-studio-album-awan.js` jangan dipasang.
