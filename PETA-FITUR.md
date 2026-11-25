@@ -3,7 +3,7 @@
 > **Untuk AI:** baca bagian 1–3 dulu. Jangan menebak file dari namanya, karena beberapa nama menyesatkan (lihat bagian 3). Kalau perubahan menyentuh fitur baru atau file baru, **perbarui peta ini** (bagian 7).
 > **Untuk user:** cari fiturmu di bagian 1, lalu kirim file yang disebut. Kalau ragu, kirim file ini dan sebutkan fiturnya. Atau kirim seluruh repo (GitHub → Code → Download ZIP).
 
-Terakhir diperbarui: 25 Nov 2026 (sore) · Jumlah file di `fitur/`: 68 (67 dimuat `index.html`, 1 tidak dimuat).
+Terakhir diperbarui: 25 Nov 2026 (malam) · Jumlah file di `fitur/`: 68 (67 dimuat `index.html`, 1 tidak dimuat).
 
 ---
 
@@ -28,6 +28,7 @@ Satu fitur sering menyentuh beberapa file: logika di `fitur/`, tampilan (tombol,
 | **Layar tunggu saat Generate** | `generate-layar-tunggu.js` | `video-efek-ketik.js` |
 | **Langkah/pilihan Prompt Foto AI** | `foto-wizard-langkah.js` + `foto-susun-prompt.js` | `index.html` bila ada chip/kartu baru |
 | **Isi hasil prompt Foto (JSON)** | `foto-susun-prompt.js` | — |
+| **Mode Faceless** (Foto Referensi cuma Outfit / Outfit + Lokasi): pilihan pose, framing, aturan tanpa wajah | `foto-wizard-langkah.js` (`F_POSES_OUTFIT_ONLY`, `fIsOutfitOnly`, `fSyncPoseOutfitOnly`) + `foto-susun-prompt.js` (`_F_FACELESS_ANGLE_DESC`, `_fFacelessRuleText`) | `foto-pov-tangan-lewati-sudut-kamera.js` (kunci Sudut Kamera) |
 | **Karakter Sheet** | `karakter-sheet.js` | — |
 | **Tampilan Riwayat** | `riwayat-tab.js` | `riwayat-halaman-tersimpan.js` |
 | **Harga, paket, kuota, pembayaran** | `akun-paket-kuota-bayar.js` | — |
@@ -58,6 +59,8 @@ Sudah diperiksa lokasinya. Pakai ini kalau kamu tahu nama kodenya tapi tidak tah
 | `vbReset` | `video-mirror-selfie.js` |
 | `vbResetNow` | asal `video-mirror-selfie.js`, **versi yang menang `video-atur-mode-produk.js`** (sebelumnya juga ditimpa `video-builder-alur-percabangan.js`) |
 | `vbPickRefMode` | asal `video-builder-inti.js`, **versi yang menang `video-atur-mode-produk.js`** |
+| `F_POSES_OUTFIT_ONLY`, `F_POSE_OUTFIT_ONLY` (alias pose pertama), `fIsOutfitOnly`, `fIsOutfitPoseDesc`, `fSyncPoseOutfitOnly` | `foto-wizard-langkah.js` |
+| `_F_FACELESS_ANGLE_LBL`, `_F_FACELESS_ANGLE_DESC`, `_fFacelessRuleText` | `foto-susun-prompt.js` (dipakai juga oleh `foto-pov-tangan-lewati-sudut-kamera.js`) |
 | `showCard`, `fResetFrom` | `foto-wizard-langkah.js` (`showCard` ditimpa di `foto-pov-tangan-lewati-sudut-kamera.js`) |
 | `fRenderSummary` | `foto-ringkasan.js` (ditimpa di `foto-pov-tangan-lewati-sudut-kamera.js`) |
 | `csOpenModal` | `karakter-sheet.js` |
@@ -82,6 +85,7 @@ Kalau namanya tidak ada di sini, cari teksnya di seluruh `fitur/` (di GitHub: te
 - **Urutan `<script>` jangan diubah.** Urutan baris di `index.html` = urutan jalan. `umum-mulai-app.js` sengaja paling akhir, `umum-boot-reload.js` paling awal. Urutan di `app.css` juga menentukan gaya mana yang menang.
 - **`outfit-studio-album-drive.js` wajib diisi Client ID.** Tanpa `CLIENT_ID_MANUAL` (atau `window.OS_DRIVE_CLIENT_ID` / `GOOGLE_CLIENT_ID` yang terdeteksi), album tidak pernah sinkron dan muncul pesan "OS_DRIVE_CLIENT_ID belum diisi". Drive API harus di-Enable dan scope `drive.appdata` ditambahkan di Google Cloud Console (langkah lengkap di komentar atas file). Izin Drive berlaku ±1 jam di web, diperbarui pada ketukan berikutnya (hanya saat Outfit Studio terbuka dan perangkat sudah pernah menekan Hubungkan). **Jangan ganti Client ID setelah dipakai** dan pilih Gmail yang sama di popup: kalau Drive yang tersambung berbeda dari sebelumnya, sinkron sengaja ditolak ("Akun Google yang dipilih berbeda") supaya album lokal tidak ikut terhapus.
 - **`outfit-studio-album-awan.js` tidak dimuat dan jangan dipasang lagi.** Ia menulis ke `users/{uid}/panahAlbum`, yang ditolak Firestore Rules (Rules hanya mengizinkan `users/{uid}` dan `users/{uid}/blobs`).
+- **Mode Faceless tersebar di 3 file.** Daftar pose dan deteksi mode ada di `foto-wizard-langkah.js`; teks framing (kepala keluar dari tepi atas frame, full-length) dan `faceless_rule` di `foto-susun-prompt.js`; penguncian + penyembunyian step Sudut Kamera di `foto-pov-tangan-lewati-sudut-kamera.js` (prioritas kunci: POV > foto pose > faceless). Teks pose faceless tidak boleh menyebut wajah/kepala/ekspresi. Menambah foto Karakter Sheet otomatis mematikan mode ini.
 - File yang baris pertamanya memuat "dulu js/NN-…" adalah tambalan lama yang menimpa kode di file lain. Kalau fitur yang diubah menyentuhnya, kirim sekalian.
 
 ## 4. Daftar lengkap per fitur
@@ -96,17 +100,17 @@ Ukuran perkiraan, dihitung saat peta ini ditulis. File besar (≥100 KB): `foto-
 | `fitur/foto-konflik-dan-cahaya.js` | Pendeteksi konflik AI (dinonaktifkan), urutan/hint Cahaya sesuai lokasi | `fRunAIConflictCheck`, `fApplyCahayaContext` | 6 KB |
 | `fitur/foto-mode-produk-saja-pov.js` | Mode "Produk saja · POV" | `POV_CAMERA`, `isOnlyProduk` | 21 KB |
 | `fitur/foto-panggung-pratinjau.js` | Panggung pratinjau (backdrop, cahaya) | `pvw`, `pvo` | 19 KB |
-| `fitur/foto-pov-tangan-lewati-sudut-kamera.js` | "Dipegang tangan (POV)" melewati Sudut Kamera (tambalan, menimpa `showCard` dkk) | `povOn`, `poseOn`, `fActiveSteps`, `fBack9` | 6 KB |
+| `fitur/foto-pov-tangan-lewati-sudut-kamera.js` | "Dipegang tangan (POV)", foto pose, dan mode Faceless mengunci/melewati Sudut Kamera (tambalan, menimpa `showCard` dkk) | `povOn`, `poseOn`, `facelessOn`, `mode`, `fActiveSteps`, `fBack9` | 8 KB |
 | `fitur/foto-preload-pratinjau.js` | Unduh foto pratinjau di latar belakang | `run`, `start` | 2 KB |
 | `fitur/foto-refresh-penghitung-referensi.js` | Menyegarkan penghitung foto referensi | — | <1 KB |
 | `fitur/foto-ringkasan-dan-panel-live.js` | Strip langkah, ringkasan, dan panel Prompt live (tambalan) | `_fDoGenerate`, `fResetNow` | 18 KB |
 | `fitur/foto-ringkasan.js` | Ringkasan Visual sebelum Generate | `fRenderSummary`, `fSummaryEdit`, `fRestoreStepUI` | 31 KB |
-| `fitur/foto-susun-prompt.js` | Menyusun hasil prompt Foto (JSON), impor prompt lama, penyesuaian kualitas output | `_fIdentityRuleText`, `_fPoseAngleDesc`, `_fAdaptQuality`, `_F_POSE_DETAIL` | 82 KB |
+| `fitur/foto-susun-prompt.js` | Menyusun hasil prompt Foto (JSON), impor prompt lama, penyesuaian kualitas output | `_fIdentityRuleText`, `_fPoseAngleDesc`, `_fAdaptQuality`, `_F_POSE_DETAIL`, `_F_FACELESS_ANGLE_DESC`, `_fFacelessRuleText` | 86 KB |
 | `fitur/foto-thumbnail-ilustrasi.js` | Ilustrasi thumbnail pilihan chip | `setTh`, `LOCICO`, `HLDICO`, `LITICO` | 21 KB |
 | `fitur/foto-timeline-lipat-ringkasan.js` | Lipat alur step jadi ringkasan setelah Generate (menimpa `fGenerate`) | `info`, `set`, `sync` | 2 KB |
 | `fitur/foto-timeline-step.js` | Garis waktu step (centang, opsional) | `act`, `sync` | 2 KB |
 | `fitur/foto-tunggu-generate.js` | Tampilan menunggu saat step dibuka/generate | `stepOpen`, `init` | 1 KB |
-| `fitur/foto-wizard-langkah.js` | Wizard Prompt Foto: kartu langkah f1–f9, buka/tutup/reset step, `showCard` | `showCard`, `fResetFrom`, `FTYPE`, `F_MAX_REFS`, `STEP_PAUSE_STACK` | 183 KB |
+| `fitur/foto-wizard-langkah.js` | Wizard Prompt Foto: kartu langkah f1–f9, buka/tutup/reset step, `showCard` | `showCard`, `fResetFrom`, `FTYPE`, `F_MAX_REFS`, `STEP_PAUSE_STACK`, `F_POSES_OUTFIT_ONLY`, `fIsOutfitOnly`, `fSyncPoseOutfitOnly` | 186 KB |
 
 ### Prompt Video AI (menu Video)
 
@@ -240,3 +244,4 @@ Kalau user bilang "peta belum diperbarui", kerjakan langkah di atas lebih dulu s
 - **25 Nov 2026** — Tambah konstanta `VB_AESTHETIC_ID` (Tulisan Estetik: kalimat "dalam bahasa Indonesia" hanya di kartu Hook dan CTA) di bagian 1, 2, dan 4.
 - **25 Nov 2026** — Bagian 2: tandai versi yang menang untuk `vbResetNow`, `vbPickRefMode`, `pbSaveCurrentPage`, `pbOpenSavedPage` (ditimpa `video-atur-mode-produk.js`, file yang dimuat paling akhir di antara pasangannya).
 - **25 Nov 2026 (sore)** — Album Outfit Studio: `outfit-studio-album-drive.js` diperbaiki (Client ID dibaca lazy + `CLIENT_ID_MANUAL`, cek scope dicentang, upload ulang saat file Drive hilang, migrasi Firestore lama dibuang, token terikat uid, hapus semua salinan ganda, pengaman akun/brankas Drive, popup hanya saat Outfit Studio terbuka). Perbarui bagian 1, 2, 3, 4; tandai `outfit-studio-album-awan.js` jangan dipasang.
+- **25 Nov 2026 (malam)** — Mode Faceless (Foto Referensi cuma Outfit / Outfit + Lokasi) diperluas: step Pose kini punya 6 pilihan pose aman-faceless + kolom "isi sendiri" (`F_POSES_OUTFIT_ONLY`), framing full-length dengan kepala keluar dari tepi atas frame dan `faceless_rule` otomatis di JSON, step Sudut Kamera dikunci/disembunyikan saat mode aktif. Perbarui bagian 1, 2, 3, 4.
