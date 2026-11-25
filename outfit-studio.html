@@ -1999,7 +1999,7 @@ const DK='os_cs_del_v1',UK='os_cs_uid_v1',PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABC
 const cl=()=>{try{return parent.osCloud||null}catch(e){return null}};
 let st='',mute=0,job=null,again=0,tm=0;
 const tdl=()=>{try{const j=JSON.parse(localStorage.getItem(DK)||'[]');return Array.isArray(j)?j:[]}catch(e){return[]}},tsv=a=>{try{localStorage.setItem(DK,JSON.stringify(a))}catch(e){}};
-let stAct=0,nTry=0;
+let stAct=0,nTry=0,emptyN=0;
 const msg=e=>String(e&&e.message||e||'tidak diketahui').slice(0,120);
 const stHTML=()=>{const t=String(st).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));return stAct?t+' <button type="button" class="btn sm fit" data-cs="connect" style="margin-top:6px">Hubungkan Gmail / Drive</button>':t};
 const setSt=(s,act)=>{st=s;stAct=act?1:0;const e=document.getElementById('cst');if(e)e.innerHTML=stHTML()};
@@ -2012,9 +2012,9 @@ const upA=a=>mr('albums','readwrite',t=>{const s=t.objectStore('albums');s.get(a
 const upP=id=>mr('photos','readwrite',t=>{const s=t.objectStore('photos');s.get(id).onsuccess=e=>{const c=e.target.result;if(c){c.sy=1;s.put(c)}}});
 async function pass(){
  const c=cl();
- if(!c){setSt('Sinkron antar perangkat belum aktif di versi aplikasi ini. Album tersimpan di perangkat ini.');return}
+ if(!c){setSt('Sinkron antar perangkat belum aktif di versi aplikasi ini. Album tersimpan di perangkat ini.');return 'noapi'}
  let ok=false;try{ok=await c.ready()}catch(e){}
- if(!ok){setSt('Masuk dengan Gmail dulu supaya album juga muncul di HP atau laptop lain.'+(c.why?' ('+c.why+')':''),1);return 'noauth'}
+ if(!ok){setSt('Masuk dengan Gmail dulu supaya album juga muncul di HP atau laptop lain.'+(c.why?' ('+c.why+')':''),c.why!=='belum login');return 'noauth'}
  setSt('Menyinkronkan…');
  let ch=0,bad=0,lastErr='';const touched=new Set(),getAll=s=>run(s,'readonly',t=>t.objectStore(s).getAll());
  let uid='';try{uid=c.uid?String(c.uid()||''):''}catch(e){}
@@ -2024,8 +2024,9 @@ async function pass(){
   try{localStorage.setItem(UK,uid)}catch(e){}}
  const flt=L=>L.filter(x=>/^os[ap]-/.test(x.id));
  let L=flt(await c.list());
+ if(L.length)emptyN=0;
  const T=tdl();
- if(!L.length&&!T.length){const A1=await getAll('albums'),P1=await getAll('photos');if(A1.some(a=>a.id!=='a_panah'&&a.sy)||P1.some(p=>p.album!=='a_panah'&&p.sy)){setSt('Daftar dari Drive kosong. Sinkron ditunda supaya album di perangkat ini tidak terhapus. Coba lagi nanti.');return 'wait'}}
+ if(!L.length&&!T.length){const A1=await getAll('albums'),P1=await getAll('photos');if((A1.some(a=>a.id!=='a_panah'&&a.sy)||P1.some(p=>p.album!=='a_panah'&&p.sy))&&++emptyN<3){setSt('Daftar dari Drive kosong. Sinkron ditunda supaya album di perangkat ini tidak terhapus. Coba lagi nanti.');return 'wait'}}
  if(T.length){for(const id of T){for(const x of L){if(x.id===id||(id.startsWith('osa-')&&x.id.startsWith('osp-'+id.slice(4)+'-')))await c.del(x.id)}}tsv([]);L=flt(await c.list())}
  const RA=new Map(),RP=new Map();
  for(const x of L){if(x.id.startsWith('osa-'))RA.set(x.id.slice(4),x);else RP.set(x.id,x)}
@@ -2044,17 +2045,17 @@ async function pass(){
  for(const p of P){if(!la.has(p.album))continue;const cid='osp-'+p.album+'-'+p.id;
   if(RP.has(cid)){if(!p.sy)await upP(p.id)}
   else if(p.sy){await mr('photos','readwrite',t=>t.objectStore('photos').delete(p.id));touched.add(p.album);ch=1}
-  else{try{await c.put(cid,{at:p.at,name:pNm(p)},await shrink(p.blob));await upP(p.id)}catch(e){bad++;lastErr=msg(e)}}}
+  else{try{await c.put(cid,{at:p.at,name:pNm(p)},await shrink(p.blob));await upP(p.id)}catch(e){if(/izin Drive|Drive 401/.test(msg(e)))throw e;bad++;lastErr=msg(e)}}}
  const lp=new Set(P.map(p=>p.id));
  for(const [cid,x] of RP){const s=cid.slice(4),i=s.lastIndexOf('-');if(i<1)continue;const al=s.slice(0,i),pid=s.slice(i+1);if(lp.has(pid)||!la.has(al))continue;
-  let b0;try{b0=await c.get(cid)}catch(e){bad++;lastErr=msg(e);continue}if(!b0){bad++;continue}const q=dec(x.name),ty=q[1]||(b0&&b0.type)||'image/png',b=b0.type===ty?b0:new Blob([b0],{type:ty}),th=await thumbOf(b);
+  let b0;try{b0=await c.get(cid)}catch(e){if(/izin Drive|Drive 401/.test(msg(e)))throw e;bad++;lastErr=msg(e);continue}if(!b0){bad++;continue}const q=dec(x.name),ty=q[1]||(b0&&b0.type)||'image/png',b=b0.type===ty?b0:new Blob([b0],{type:ty}),th=await thumbOf(b);
   await mr('photos','readwrite',t=>t.objectStore('photos').put({id:pid,album:al,name:q[3]||'gambar',type:ty,size:b.size,at:x.at||Date.now(),o:parseInt(q[2],10)||0,blob:b,thumb:th,sy:1}));touched.add(al);ch=1}
  for(const id of touched){mute++;try{await sync(id)}finally{mute--}}
- setSt(bad?'Sebagian foto belum tersinkron ('+bad+' gagal: '+lastErr+'). Akan dicoba lagi.':'Tersinkron dengan akun Gmail kamu.');if(bad)return 'retry';
+ setSt(bad?'Sebagian foto belum tersinkron ('+bad+' gagal: '+lastErr+'). Akan dicoba lagi.':'Tersinkron dengan akun Gmail kamu.');
  if(ch){try{if(S.v==='album'&&S.aid!=='a_panah'&&!la.has(S.aid))go('home');else if(S.v==='home'||S.v==='album')loadView();if(DR.on)drLoad(DR.aid)}catch(e){}}
-}
-const go2=()=>{if(job){again=1;return job}job=(async()=>{let r='';try{do{again=0;r=await pass()}while(again);nTry=0}catch(e){if(/izin Drive|Drive 401/.test(msg(e))){r='noauth';setSt('Izin Drive habis (berlaku ±1 jam). Ketuk Hubungkan lagi.',1)}else{r='retry';setSt('Sinkron gagal: '+msg(e)+'. Dicoba lagi otomatis.')}}finally{job=null}
- if(r==='noauth')sched(10000);else if(r==='retry'||r==='wait'){nTry=Math.min(nTry+1,6);sched(Math.min(60000,5000*nTry))}})();return job};
+ if(bad)return 'retry'}
+const go2=()=>{if(job){again=1;return job}job=(async()=>{let r='';try{do{again=0;r=await pass()}while(again);if(r!=='retry'&&r!=='wait')nTry=0}catch(e){if(/izin Drive|Drive 401/.test(msg(e))){r='noauth';setSt('Izin Drive habis (berlaku ±1 jam). Ketuk Hubungkan lagi.',1)}else{r='retry';setSt('Sinkron gagal: '+msg(e)+'. Dicoba lagi otomatis.')}}finally{job=null}
+ if(r==='noauth')sched(10000);else if(r==='noapi')sched(30000);else if(r==='wait')sched(15000);else if(r==='retry'){nTry=Math.min(nTry+1,6);sched(Math.min(60000,5000*nTry))}})();return job};
 const sched=ms=>{clearTimeout(tm);tm=setTimeout(go2,ms)};
 window.csq=()=>{if(!mute)sched(1500)};
 window.csStatus=()=>st;window.csStatusHTML=stHTML;
