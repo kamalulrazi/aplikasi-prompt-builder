@@ -14,7 +14,7 @@ Satu fitur sering menyentuh beberapa file: logika di `fitur/`, tampilan (tombol,
 | Mau ubah | File utama | Cek juga |
 |---|---|---|
 | **Teks yang masuk ke prompt Video per kartu** (Hook / Cerita / CTA) | `video-revisi-skrip.js` (`_vbBuildFlowText`) | `video-edit-karakter.js` (teks pilihannya), `video-builder-inti.js` |
-| **Tombol "Tulisan Estetik"** dan kalimatnya | `video-edit-karakter.js` (`VB_AESTHETIC_TEXT`, `VB_AESTHETIC_TEXT_SHORT`) | `video-revisi-skrip.js` (yang memilih kalimat per kartu) |
+| **Tombol "Tulisan Estetik"** dan kalimatnya | `video-edit-karakter.js` (`VB_AESTHETIC_TEXT`, `VB_AESTHETIC_TEXT_SHORT`, `VB_AESTHETIC_ID`) | `video-revisi-skrip.js` (yang memilih kalimat per kartu) |
 | **Pilihan kamera, hook, teks overlay Hook** | `video-builder-inti.js` (`VB_CAM_*`, `VB_HOOK_OVERLAY`) | `video-gerak-kamera-dan-visual-hook.js` (hanya tab) |
 | **Wizard Prompt Video** (langkah, dialog, 2 suara, kecepatan bicara) | `video-builder-inti.js` (±240 KB) | `index.html` |
 | **Prompt sistem untuk AI penulis skrip** (mode 1 produk) | `video-prompt-sistem-dan-perbaikan-skrip.js` | `video-sapaan-dan-perapian-teks.js` |
@@ -28,7 +28,6 @@ Satu fitur sering menyentuh beberapa file: logika di `fitur/`, tampilan (tombol,
 | **Layar tunggu saat Generate** | `generate-layar-tunggu.js` | `video-efek-ketik.js` |
 | **Langkah/pilihan Prompt Foto AI** | `foto-wizard-langkah.js` + `foto-susun-prompt.js` | `index.html` bila ada chip/kartu baru |
 | **Isi hasil prompt Foto (JSON)** | `foto-susun-prompt.js` | — |
-| **Mode "Outfit saja" (Foto Referensi cuma Outfit atau Outfit + Lokasi, tanpa Wajah): Pose 1 opsi tanpa wajah** | `foto-wizard-langkah.js` (`fIsOutfitOnly`, `F_POSE_OUTFIT_ONLY`, `fSyncPoseOutfitOnly`, gerbang di `fKonfirmRef`) | `foto-susun-prompt.js` (buang kata "face" di `output_quality`, teks `ignore_completely` outfit) |
 | **Karakter Sheet** | `karakter-sheet.js` | — |
 | **Tampilan Riwayat** | `riwayat-tab.js` | `riwayat-halaman-tersimpan.js` |
 | **Harga, paket, kuota, pembayaran** | `akun-paket-kuota-bayar.js` | — |
@@ -46,7 +45,7 @@ Sudah diperiksa lokasinya. Pakai ini kalau kamu tahu nama kodenya tapi tidak tah
 | Nama | Ada di |
 |---|---|
 | `_vbBuildFlowText` | `video-revisi-skrip.js` |
-| `VB_AESTHETIC_TEXT`, `VB_AESTHETIC_TEXT_SHORT` | didefinisikan di `video-edit-karakter.js`, dipakai di `video-revisi-skrip.js` |
+| `VB_AESTHETIC_TEXT`, `VB_AESTHETIC_TEXT_SHORT`, `VB_AESTHETIC_ID` | didefinisikan di `video-edit-karakter.js`, dipakai di `video-revisi-skrip.js`. Hook = panjang + ID, Cerita = pendek, CTA = pendek + ID |
 | `_vbBuildDuaJson`, `_vbBuildDuaSystemPrompt`, `_vbOverlaySentence`, `_vbHookOverlayText` | `video-builder-inti.js` |
 | `VB_CAM_MOVES`, `VB_CAM_HOOKS`, `VB_HOOK_OVERLAY`, `VB_REF_MODE_TEXT`, `vbCamConfirm` | `video-builder-inti.js` |
 | `_vbBuildSingleModeSystemPrompt`, `_vbDeal`, `VB_SHORTFIX_SYSTEM` | `video-prompt-sistem-dan-perbaikan-skrip.js` |
@@ -55,13 +54,16 @@ Sudah diperiksa lokasinya. Pakai ini kalau kamu tahu nama kodenya tapi tidak tah
 | `_vbCharVal`, `vbCharSet` | `video-edit-karakter.js` |
 | `_vbGenerateWithFallback` | `video-streaming-ai.js` |
 | `_vbCallBulkBatch`, `vbGenerateBulkAI` | `video-bulk-ai.js` (`vbGenerateBulkAI` juga ditimpa di `video-atur-mode-produk.js`) |
-| `vbReset`, `vbResetNow` | `video-mirror-selfie.js` |
+| `vbReset` | `video-mirror-selfie.js` |
+| `vbResetNow` | asal `video-mirror-selfie.js`, **versi yang menang `video-atur-mode-produk.js`** (sebelumnya juga ditimpa `video-builder-alur-percabangan.js`) |
+| `vbPickRefMode` | asal `video-builder-inti.js`, **versi yang menang `video-atur-mode-produk.js`** |
 | `showCard`, `fResetFrom` | `foto-wizard-langkah.js` (`showCard` ditimpa di `foto-pov-tangan-lewati-sudut-kamera.js`) |
-| `fIsOutfitOnly`, `fSyncPoseOutfitOnly`, `F_POSE_OUTFIT_ONLY` | `foto-wizard-langkah.js` (dipakai juga oleh `foto-susun-prompt.js`) |
 | `fRenderSummary` | `foto-ringkasan.js` (ditimpa di `foto-pov-tangan-lewati-sudut-kamera.js`) |
 | `csOpenModal` | `karakter-sheet.js` |
-| `historyAdd`, `pbSaveCurrentPage` | `riwayat-halaman-tersimpan.js` |
-| `_scriptRe`, `pbOpenSavedPage` | `riwayat-tab.js` |
+| `historyAdd` | `riwayat-halaman-tersimpan.js` |
+| `pbSaveCurrentPage` | asal `riwayat-halaman-tersimpan.js`, **versi yang menang `video-atur-mode-produk.js`** |
+| `_scriptRe` | `riwayat-tab.js` |
+| `pbOpenSavedPage` | asal `riwayat-tab.js`, **versi yang menang `video-atur-mode-produk.js`** |
 | `pbGetTier`, `pbGetQuota` | `akun-paket-kuota-bayar.js` |
 | `PB_AI_MODELS` | `ai-model-dan-koneksi.js` |
 | `osOpen` | `outfit-studio-pembuka.js` |
@@ -76,7 +78,6 @@ Kalau namanya tidak ada di sini, cari teksnya di seluruh `fitur/` (di GitHub: te
 - **Teks prompt Video tidak ada di `video-builder-inti.js`.** Penempelan teks ke prompt tiap kartu ada di `video-revisi-skrip.js`, walau namanya "revisi".
 - **Fungsi yang ditimpa file lain.** Kalau satu fungsi ada di dua file, yang menang adalah yang dimuat belakangan (urutan `<script>` di `index.html`). Pasangan yang diketahui: `showCard`, `fRenderSummary`, `fSummaryEdit`, `fGenerate`, `fBack9`, `fActiveSteps`, `fKonfirmRef` (Foto: asal di `foto-wizard-langkah.js`/`foto-ringkasan.js`, ditimpa `foto-pov-tangan-lewati-sudut-kamera.js` dan `foto-timeline-lipat-ringkasan.js`); `vbPickRefMode`, `vbGenerateBulkAI`, `_vbRunBulkGenerate`, `vbBulkResumeAI`, `vbResetNow`, `_vbCharSnap`, `pbOpenSavedPage`, `pbSaveCurrentPage` (Video/Riwayat: ditimpa `video-atur-mode-produk.js`); `vbResetNow`, `vbUpdateProgress`, `vbSyncStep6Mode3` (ditimpa `video-builder-alur-percabangan.js`). **Kalau mengubah fungsi di daftar ini, ubah versi yang menang, atau kirim kedua file.**
 - **Urutan `<script>` jangan diubah.** Urutan baris di `index.html` = urutan jalan. `umum-mulai-app.js` sengaja paling akhir, `umum-boot-reload.js` paling awal. Urutan di `app.css` juga menentukan gaya mana yang menang.
-- **Mode "Outfit saja" melewati gerbang "Wajib Karakter Sheet".** Gerbang itu ada di `fKonfirmRef` (`foto-wizard-langkah.js`) dan sekarang mengecualikan `fIsOutfitOnly()`. `fKonfirmRef` juga ditimpa file lain (lihat daftar di atas): kalau gerbang itu disalin ulang di versi yang menang, mode ini kembali terblokir.
 - **`outfit-studio-album-awan.js` tidak dimuat.** Sudah digantikan `outfit-studio-album-drive.js`.
 - File yang baris pertamanya memuat "dulu js/NN-…" adalah tambalan lama yang menimpa kode di file lain. Kalau fitur yang diubah menyentuhnya, kirim sekalian.
 
@@ -97,12 +98,12 @@ Ukuran perkiraan, dihitung saat peta ini ditulis. File besar (≥100 KB): `foto-
 | `fitur/foto-refresh-penghitung-referensi.js` | Menyegarkan penghitung foto referensi | — | <1 KB |
 | `fitur/foto-ringkasan-dan-panel-live.js` | Strip langkah, ringkasan, dan panel Prompt live (tambalan) | `_fDoGenerate`, `fResetNow` | 18 KB |
 | `fitur/foto-ringkasan.js` | Ringkasan Visual sebelum Generate | `fRenderSummary`, `fSummaryEdit`, `fRestoreStepUI` | 31 KB |
-| `fitur/foto-susun-prompt.js` | Menyusun hasil prompt Foto (JSON), impor prompt lama, penyesuaian kualitas output (termasuk mode Outfit saja: tanpa kata "face") | `_fIdentityRuleText`, `_fPoseAngleDesc`, `_fAdaptQuality`, `_F_POSE_DETAIL` | 83 KB |
+| `fitur/foto-susun-prompt.js` | Menyusun hasil prompt Foto (JSON), impor prompt lama, penyesuaian kualitas output | `_fIdentityRuleText`, `_fPoseAngleDesc`, `_fAdaptQuality`, `_F_POSE_DETAIL` | 82 KB |
 | `fitur/foto-thumbnail-ilustrasi.js` | Ilustrasi thumbnail pilihan chip | `setTh`, `LOCICO`, `HLDICO`, `LITICO` | 21 KB |
 | `fitur/foto-timeline-lipat-ringkasan.js` | Lipat alur step jadi ringkasan setelah Generate (menimpa `fGenerate`) | `info`, `set`, `sync` | 2 KB |
 | `fitur/foto-timeline-step.js` | Garis waktu step (centang, opsional) | `act`, `sync` | 2 KB |
 | `fitur/foto-tunggu-generate.js` | Tampilan menunggu saat step dibuka/generate | `stepOpen`, `init` | 1 KB |
-| `fitur/foto-wizard-langkah.js` | Wizard Prompt Foto: kartu langkah f1–f9, buka/tutup/reset step, `showCard`; mode Outfit saja (Pose 1 opsi tanpa wajah) | `showCard`, `fResetFrom`, `FTYPE`, `F_MAX_REFS`, `STEP_PAUSE_STACK`, `fIsOutfitOnly`, `fSyncPoseOutfitOnly`, `F_POSE_OUTFIT_ONLY` | 186 KB |
+| `fitur/foto-wizard-langkah.js` | Wizard Prompt Foto: kartu langkah f1–f9, buka/tutup/reset step, `showCard` | `showCard`, `fResetFrom`, `FTYPE`, `F_MAX_REFS`, `STEP_PAUSE_STACK` | 183 KB |
 
 ### Prompt Video AI (menu Video)
 
@@ -115,7 +116,7 @@ Ukuran perkiraan, dihitung saat peta ini ditulis. File besar (≥100 KB): `foto-
 | `fitur/video-bulk-ai.js` | Mode Bulk AI: generate banyak produk sekaligus | `_vbCallBulkBatch`, `_vbHardEnforceCta`, `VB_MAX_PRODUK_PER_CALL` | 80 KB |
 | `fitur/video-bulk-hasil-akordeon.js` | Tampilan hasil Bulk (akordeon per produk) | `vbAccToggle`, `VB_ACC_OPEN` | 21 KB |
 | `fitur/video-contoh-skrip-referensi.js` | Daftar contoh skrip referensi bawaan (kini 12 skrip 16 detik) + cara memilihnya ke prompt | `VB_REFERENCE_OPTIONS_16`, `VB_REFERENCE_HEAD`, `_vbRefOpts`, `_vbPickReferenceOption` | 11 KB |
-| `fitur/video-edit-karakter.js` | Edit karakter di prompt (ikon pensil): panel opsi per produk, tombol Tulisan Estetik | `_vbCharVal`, `vbCharSet`, `vbCharToggleAesthetic`, `VB_AESTHETIC_TEXT`, `VB_AESTHETIC_TEXT_SHORT`, `VBC_META` | 62 KB |
+| `fitur/video-edit-karakter.js` | Edit karakter di prompt (ikon pensil): panel opsi per produk, tombol Tulisan Estetik | `_vbCharVal`, `vbCharSet`, `vbCharToggleAesthetic`, `VB_AESTHETIC_TEXT`, `VB_AESTHETIC_TEXT_SHORT`, `VB_AESTHETIC_ID`, `VBC_META` | 62 KB |
 | `fitur/video-efek-ketik.js` | Efek mengetik (typewriter) pada kotak skrip | `_vbRevealScriptBox`, `_vbTypeBoostFor` | 29 KB |
 | `fitur/video-gerak-kamera-dan-visual-hook.js` | Tab Pergerakan Kamera dan Visual Hook (hanya perpindahan tab) | `vbCamTab`, `vbCamDots` | 5 KB |
 | `fitur/video-info-produk-dan-penonton.js` | Tab Info Produk dan Penonton | `vbInfoTab`, `vbInfoNext` | 6 KB |
@@ -156,9 +157,9 @@ Ukuran perkiraan, dihitung saat peta ini ditulis. File besar (≥100 KB): `foto-
 | File | Isi | Kata kunci (nama fungsi / konstanta) | Ukuran |
 |---|---|---|---|
 | `fitur/outfit-studio-album-awan.js` | Album Outfit Studio versi Firestore. **Tidak dimuat `index.html`** (digantikan versi Drive) | `osCloud`, `panahAlbum` | 2 KB |
-| `fitur/outfit-studio-album-drive.js` | Album Outfit Studio disimpan di Google Drive akun login (menggantikan versi Firestore). Token Drive ±1 jam: diperbarui otomatis sebelum habis, `connect()` dari ketukan, `why` = alasan belum siap | `osCloud`, `OS_DRIVE_CLIENT_ID`, `appDataFolder`, `needsAuth`, `refresh` | 9 KB |
+| `fitur/outfit-studio-album-drive.js` | Album Outfit Studio disimpan di Google Drive akun login (menggantikan versi Firestore) | `osCloud`, `OS_DRIVE_CLIENT_ID`, `appDataFolder` | 8 KB |
 | `fitur/outfit-studio-jembatan-foto.js` | Jembatan Outfit Studio ⇄ Prompt Foto AI | `ensureStrip`, `modeLabel` | 3 KB |
-| `fitur/outfit-studio-pembuka.js` | Membuka/menutup Outfit Studio (memuat `outfit-studio.html`); saat dibuka meminta izin Drive bila perlu | `osOpen`, `osClose`, `osAiVision` | 4 KB |
+| `fitur/outfit-studio-pembuka.js` | Membuka/menutup Outfit Studio (memuat `outfit-studio.html`) | `osOpen`, `osClose`, `osAiVision` | 3 KB |
 
 ### Akun, paket, kuota, login
 
@@ -233,5 +234,5 @@ Kalau user bilang "peta belum diperbarui", kerjakan langkah di atas lebih dulu s
 ## 8. Riwayat perubahan peta
 
 - **24 Nov 2026** — Ditulis ulang: tambah kolom kata kunci, tabel cari-lewat-nama-fungsi, bagian jebakan dan fungsi yang ditimpa, serta aturan pembaruan. Tambah 3 file yang belum tercatat (`video-isian-kurung.js`, `outfit-studio-album-drive.js`, `outfit-studio-album-awan.js`). Koreksi deskripsi `video-mirror-selfie.js` (kini hanya reset), `video-contoh-skrip-referensi.js` (kini ±10 KB) dan ukuran file lain.
-- **25 Nov 2026** — Sinkron album Outfit Studio: tombol Hubungkan + status alasan di `outfit-studio.html` (blok v18.40, coba ulang otomatis), pembaruan token Drive lebih awal di `outfit-studio-album-drive.js`, izin Drive diminta saat `osOpen` di `outfit-studio-pembuka.js`.
-- **25 Nov 2026** — Fitur baru mode "Outfit saja" (Outfit atau Outfit + Lokasi tanpa Wajah Karakter): Pose hanya 1 opsi "Outfit Check (tanpa wajah)". Tambah `fIsOutfitOnly`, `fSyncPoseOutfitOnly`, `F_POSE_OUTFIT_ONLY` di `foto-wizard-langkah.js`; gerbang Karakter Sheet di `fKonfirmRef` dikecualikan; `foto-susun-prompt.js` membuang kata "face" dari `output_quality` dan teks outfit yang merujuk Karakter Sheet. Ukuran dua file diperbarui.
+- **25 Nov 2026** — Tambah konstanta `VB_AESTHETIC_ID` (Tulisan Estetik: kalimat "dalam bahasa Indonesia" hanya di kartu Hook dan CTA) di bagian 1, 2, dan 4.
+- **25 Nov 2026** — Bagian 2: tandai versi yang menang untuk `vbResetNow`, `vbPickRefMode`, `pbSaveCurrentPage`, `pbOpenSavedPage` (ditimpa `video-atur-mode-produk.js`, file yang dimuat paling akhir di antara pasangannya).
