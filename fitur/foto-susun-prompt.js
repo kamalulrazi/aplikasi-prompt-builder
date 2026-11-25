@@ -947,6 +947,10 @@ function _fBuildPromptJSON(ov){
       type: def.label
     };
     if(extractText) obj.extract_only = extractText + (r.ukuran && r.type==='produk' ? '. Product physical size: '+r.ukuran+' — render the product accurately to this size ratio relative to the scene.' : '');
+    // MODE OUTFIT SAJA: tidak ada foto Karakter Sheet, jadi kalimat yang merujuk ke sana dibuang agar AI tidak bingung.
+    if(ignoreText && typeof fIsOutfitOnly==='function' && fIsOutfitOnly()){
+      ignoreText = ignoreText.replace('wajah karakter HANYA dari foto Karakter Sheet','tidak ada wajah yang boleh muncul di hasil');
+    }
     if(ignoreText) obj.ignore_completely = ignoreText;
     _fApplyFaceRule(obj, r, realRefs);
     if(r.type==='lokasi'){
@@ -1058,6 +1062,12 @@ function _fBuildPromptJSON(ov){
   // FIX: output_quality dulu SELALU menulis "foto HP, bukan studio", "hindari cahaya rata" dan menyebut "wajah" —
   // bentrok dengan Softbox/Studio rata/Dark Moody, mood Clean/Luxury/Editorial, dan mode Produk Saja (tanpa wajah).
   _fAdaptQuality(quality, effCahaya, effMood, isProdukSaja);
+  // MODE OUTFIT SAJA (tanpa wajah): teks kualitas tidak boleh menyebut "face", supaya AI tidak memunculkan wajah.
+  if(!isProdukSaja && typeof fIsOutfitOnly==='function' && fIsOutfitOnly()){
+    ['camera','lighting'].forEach(function(k){
+      quality[k]=String(quality[k]||'').replace(/the subject(?:'|\u2019)s face/g,'the outfit').replace(/of the face/g,'of the outfit');
+    });
+  }
   if(_lokRef){
     quality.lighting = 'Follow the lighting of reference photo ' + _lokNo + ' exactly and keep it consistent across the whole frame, on the character, the outfit, and the background; do not add studio lighting or any light that contradicts the location.';
     quality.camera = String(quality.camera || '') + (isProdukSaja ? ' The product must not look cut-out or pasted into the scene.' : ' The character must not look cut-out or pasted into the scene.');
