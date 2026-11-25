@@ -1953,7 +1953,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
     // Awal kalimat "Make sure no icon" JANGAN diubah (dipakai regex tombol Salin per kartu).
     flowText+='. Make sure no icon of any kind appears during the CTA. The keranjang bawah mentioned in the narration is only a checkout button on the shopping platform, so do not show any physical basket, shopping cart, shopping bag, or basket-like object, and '+(VB.refMode==='aset'?'a hand':'the character')+' must not hold, point at, or reach for one. Also do not show any shopping cart icon, basket icon, shopping bag icon, buy button, or any e-commerce interface element anywhere in the frame, as an overlay, sticker, graphic, or animation.';
   }
-  // PERMINTAAN USER (19 Nov 2026): "Tulisan Estetik" (ikon pensil, grup Visual). Kalau dinyalakan, kalimat VB_AESTHETIC_TEXT (versi panjang) ditempel di kartu Hook, VB_AESTHETIC_TEXT_SHORT di kartu Cerita/CTA produk itu,
+  // PERMINTAAN USER (19 Nov 2026): "Tulisan Estetik" (ikon pensil, grup Visual). Kalau dinyalakan, kalimat VB_AESTHETIC_TEXT (versi panjang) ditempel di kartu Hook, VB_AESTHETIC_TEXT_SHORT di kartu Cerita/CTA produk itu, plus VB_AESTHETIC_ID di Hook & CTA,
   // sebelum ambient (ambient & kalimat POV Produk tetap paling akhir). Default mati: tanpa klik di pensil, tidak ada teks otomatis.
   if(typeof idx==='number'&&VB.refMode!=='dua'&&_vbCharVal(idx,'aesthetic')){
     // Frame Asset & Percobaan: teks dasarnya melarang teks sama sekali — dilonggarkan supaya tidak bertabrakan (sama seperti overlay Hook di atas).
@@ -1962,7 +1962,9 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
         .replace('no text other than the small overlay described at the end','no text other than the small overlay and the aesthetic text overlays described below');
     }
     let _aeT=flowText.replace(/\s+$/,'');
-    flowText=_aeT+(/[.!?]$/.test(_aeT)?' ':'. ')+((idx%3===0||typeof VB_AESTHETIC_TEXT_SHORT==='undefined')?VB_AESTHETIC_TEXT:VB_AESTHETIC_TEXT_SHORT); // kartu Hook (idx%3===0) = versi panjang; Cerita/CTA = versi pendek (24 Nov 2026). typeof = pengaman kalau video-edit-karakter.js masih versi lama/cache (tanpa konstanta SHORT)
+    let _aeSent=(idx%3===0||typeof VB_AESTHETIC_TEXT_SHORT==='undefined')?VB_AESTHETIC_TEXT:VB_AESTHETIC_TEXT_SHORT; // kartu Hook (idx%3===0) = versi panjang; Cerita/CTA = versi pendek (24 Nov 2026). typeof = pengaman kalau video-edit-karakter.js masih versi lama/cache (tanpa konstanta SHORT)
+    if(idx%3!==1&&typeof VB_AESTHETIC_ID!=='undefined')_aeSent+=' '+VB_AESTHETIC_ID; // 25 Nov 2026 (permintaan user): "Tulisannya dalam bahasa Indonesia." hanya di Hook (idx%3===0) dan CTA (idx%3===2); Cerita (idx%3===1) tidak. 16 detik: slot Story disembunyikan, Hook=0 & CTA=2 tetap
+    flowText=_aeT+(/[.!?]$/.test(_aeT)?' ':'. ')+_aeSent;
   }
   // PERMINTAAN USER (1 Nov 2026): kalimat ambient ditempel PALING AKHIR prompt (setelah overlay Hook / larangan icon CTA)
   // khusus Start Frame (satu), Raw Asset (kp), dan uiui jalur "Pakai Dialog / Skrip" (refMode 'aset'). Semua kartu Hook/Story/CTA.

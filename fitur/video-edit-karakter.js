@@ -38,7 +38,7 @@ function _vbCharFields(){
     fl.push({key:'camMove',title:'Gerakan Kamera',none:'Tanpa gerakan kamera',ph:(VB.refMode==='aset'?'Atau isi sendiri, contoh: slow zoom out from the product to the full scene':'Atau isi sendiri, contoh: slow zoom out from the product to the character'),max:200,chips:(VB_CAM_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
     fl.push({key:'camHook',title:'Visual Hook · kartu Hook',none:'Tidak dipakai',ph:(VB.refMode==='aset'?'Atau isi sendiri, contoh: a hand quickly slides the product into the frame':'Atau isi sendiri, contoh: the character gasps and points at the product'),max:200,chips:(VB_CAM_HOOK_OPTS[_m]||[]).map(function(o){return [o[0],o[1]];})});
   }
-  // TULISAN ESTETIK (19 Nov 2026, permintaan user): tombol nyala/mati satu klik di grup Visual. Nyala = kalimat VB_AESTHETIC_TEXT masuk ke prompt Hook/Cerita/CTA produk ini.
+  // TULISAN ESTETIK (19 Nov 2026, permintaan user): tombol nyala/mati satu klik di grup Visual. Nyala = kalimat estetik masuk ke prompt produk ini, BEDA per kartu (dipilih di _vbBuildFlowText, video-revisi-skrip.js): Hook = VB_AESTHETIC_TEXT + VB_AESTHETIC_ID; Cerita = VB_AESTHETIC_TEXT_SHORT; CTA = VB_AESTHETIC_TEXT_SHORT + VB_AESTHETIC_ID.
   fl.push({key:'aesthetic',title:'Tulisan Estetik',none:'Tidak dipakai',chips:[['1','Aktif']]});
   if(VB.refMode==='aset')fl=fl.filter(function(f){return f.key!=='motion';}); // Frame Asset tanpa karakter
   if(VB.refMode==='dua')fl=fl.filter(function(f){return f.key==='gender'||f.key==='age';}); // Percakapan 2 Suara: prompt video JSON hanya memakai jenis kelamin & usia (suara off-screen otomatis kebalikan)
@@ -271,6 +271,8 @@ function vbCharPick(prodIdx,el){vbCharSet(prodIdx,el.dataset.k,el.dataset.v);_vb
 // 24 Nov 2026 (permintaan user): versi panjang (dengan tulisan hook) HANYA untuk kartu Hook; kartu Cerita & CTA memakai versi pendek di bawah.
 const VB_AESTHETIC_TEXT="Muncul beberapa tulisan estetik yang bikin visual vidio jadi lebih menarik dan tulisan pas vidio dimulai berupa tulisan hook yang menarik yang sesuai dengan produk dan isi skrip. Pastikan tulisannya jangan menutupi produk dan karakter.";
 const VB_AESTHETIC_TEXT_SHORT="Muncul beberapa tulisan estetik yang bikin visual vidio jadi lebih menarik. Pastikan tulisannya jangan menutupi produk dan karakter.";
+// 25 Nov 2026 (permintaan user): kalimat ini ditambahkan di belakang kalimat estetik HANYA untuk kartu Hook dan CTA (bukan Cerita).
+const VB_AESTHETIC_ID="Tulisannya dalam bahasa Indonesia.";
 function vbCharToggleAesthetic(prodIdx){
   vbCharSet(prodIdx,'aesthetic',_vbCharVal(prodIdx*3,'aesthetic')?null:'1');
   _vbCharSnap();
