@@ -1962,7 +1962,7 @@ function _vbBuildFlowText(scriptText,produkOverride,tampilOverride,lokasiOverrid
         .replace('no text other than the small overlay described at the end','no text other than the small overlay and the aesthetic text overlays described below');
     }
     let _aeT=flowText.replace(/\s+$/,'');
-    flowText=_aeT+(/[.!?]$/.test(_aeT)?' ':'. ')+((idx%3===0)?VB_AESTHETIC_TEXT:VB_AESTHETIC_TEXT_SHORT); // kartu Hook (idx%3===0) = versi panjang; Cerita/CTA = versi pendek (24 Nov 2026)
+    flowText=_aeT+(/[.!?]$/.test(_aeT)?' ':'. ')+((idx%3===0||typeof VB_AESTHETIC_TEXT_SHORT==='undefined')?VB_AESTHETIC_TEXT:VB_AESTHETIC_TEXT_SHORT); // kartu Hook (idx%3===0) = versi panjang; Cerita/CTA = versi pendek (24 Nov 2026). typeof = pengaman kalau video-edit-karakter.js masih versi lama/cache (tanpa konstanta SHORT)
   }
   // PERMINTAAN USER (1 Nov 2026): kalimat ambient ditempel PALING AKHIR prompt (setelah overlay Hook / larangan icon CTA)
   // khusus Start Frame (satu), Raw Asset (kp), dan uiui jalur "Pakai Dialog / Skrip" (refMode 'aset'). Semua kartu Hook/Story/CTA.
