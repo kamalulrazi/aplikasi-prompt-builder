@@ -27,7 +27,7 @@
    JANGAN mengganti Client ID setelah dipakai: data tersembunyi (appDataFolder) terikat ke Client ID, brankas lama jadi tak terlihat
    dan sinkron akan menolak dengan pesan "Akun Google yang dipilih berbeda". */
 (function(){
-const CLIENT_ID_MANUAL='';   /* <<< ISI DI SINI (paling pasti): 'xxxxxxxx.apps.googleusercontent.com'. Kosong pun boleh: file ini mencoba menemukannya sendiri (detectCid). */
+const CLIENT_ID_MANUAL='73740157914-lp3pegp6pg9jrnrpgfbsfv0eimuaetts.apps.googleusercontent.com';   /* <<< ISI DI SINI (paling pasti): 'xxxxxxxx.apps.googleusercontent.com'. Kosong pun boleh: file ini mencoba menemukannya sendiri (detectCid). */
 
 /* dibaca LAZY (saat dipakai), karena script login memuat variabelnya setelah file ini */
 let autoCid='',detJob=null;
