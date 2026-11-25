@@ -104,7 +104,7 @@ window.osCloud={
  /* dipanggil dari tombol/ketukan pengguna */
  async connect(){try{await getToken(true);await ensureMig();poke();return true}catch(e){lastFail=Date.now();throw e}},
  /* true kalau perlu izin baru dari pengguna (web, token belum ada/hampir habis) */
- needsAuth(){return !!us()&&!NP()&&!!CID&&!hasTok()},
+ needsAuth(){return !!us()&&!NP()&&!!CID&&!hasTok()&&Date.now()-lastFail>30000},
  status(){return (hasTok()||NP())?'Google Drive tersambung.':'Ketuk layar sekali untuk menyambungkan Google Drive.'}
 };
 
@@ -113,12 +113,13 @@ function poke(){/* bangunkan sinkron di iframe aplikasi (ia mendengarkan 'online
   document.querySelectorAll('iframe').forEach(f=>{try{f.contentWindow.dispatchEvent(new Event('online'))}catch(e){}})}
 /* token sisa <10 menit dianggap hampir habis: diperbarui lebih awal supaya sinkron tidak putus selama app dipakai */
 const soon=()=>!tok||exp-Date.now()<600000;
-function refresh(){if(NP()||!CID||!us()||!soon()||pend||Date.now()-lastFail<30000)return;
+function refresh(auto){if(NP()||!CID||!us()||!soon()||pend||(auto&&!tok)||Date.now()-lastFail<(auto?300000:30000))return;
   getToken(true,true).then(()=>ensureMig()).then(poke).catch(()=>{lastFail=Date.now()})}
-function onTap(){refresh()}
-setInterval(()=>{if(!document.hidden)refresh()},60000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(refresh,300)});
+function onTap(){refresh(false)}
+setInterval(()=>{if(!document.hidden)refresh(true)},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>refresh(true),300)});
 function hook(d){try{d.addEventListener('pointerup',onTap,{passive:true})}catch(e){}}
+try{if(!NP()&&CID)loadGis().catch(()=>{})}catch(e){}
 hook(document);
 function hookFrames(){document.querySelectorAll('iframe').forEach(f=>{if(f.__osd)return;f.__osd=1;
   const go=()=>{try{hook(f.contentDocument)}catch(e){}};go();f.addEventListener('load',go)})}
