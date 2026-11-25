@@ -407,7 +407,7 @@ const VB_FE_SLOT=[null,
   {t:'Tengah',r:'3–6 dtk',q:'Pose apa di tengah video?',o:[{v:'pose',k:2,l:'Pose'},{v:'pinggang',k:'2pinggang',l:'Tangan di pinggang'},{v:'rapikan',k:'2rapikan',l:'Merapikan outfit'},{v:'anggun',k:'2anggun',l:'Pose anggun'},{v:'putar',k:'2putar',l:'Berputar'},{v:'tunjuk',k:'2tunjuk',l:'Menunjuk outfit'},{v:'lupa',k:'2lupa',l:'Lupa gerakan'},{v:'salahtingkah',k:'2salahtingkah',l:'Salah tingkah'},{v:'putarpunggung',k:'2putarpunggung',l:'Putar belakang'},{v:'tangandiperut',k:'2tangandiperut',l:'Tangan di perut'},{v:'miring',k:'2miring',l:'Miring badan'},{v:'rentang',k:'2rentang',l:'Rentang lengan'}]},
   {t:'Akhir',r:'6–8 dtk',q:'Bagaimana video ditutup?',c:[{v:'penutup',l:'Penutup'},{v:'isi',l:'Isi'}],o:[{v:'penutup',k:3,l:'Tutup kamera'},{v:'isi',k:'3isi',l:'Mendekat'},{v:'lempar',cat:'penutup',k:'3lempar',l:'Melempar barang'},{v:'dekatmiring',cat:'penutup',k:'3dekatmiring',l:'Mendekat miring kepala'},{v:'angkattangan',cat:'isi',k:'3angkattangan',l:'Angkat tangan'},{v:'hijabpipi',cat:'isi',k:'3hijabpipi',l:'Sentuh hijab pipi'},{v:'puas',cat:'isi',k:'3puas',l:'Mengangguk puas'},{v:'kibas',cat:'isi',k:'3kibas',l:'Mengibas outfit'},{v:'putarbelakang',cat:'isi',k:'3putarbelakang',l:'Memutar badan'},{v:'tunjukoutfit',cat:'isi',k:'3tunjukoutfit',l:'Tunjuk outfit'},{v:'putarayun',cat:'isi',k:'3putarayun',l:'Putar tangan mengayun'}]}];
 const VB_FE_ICO='<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3a4 4 0 0 1-8 0z"/></svg>';
-let VB_FASHION_DURASI=null; // cuma 8 yang tersedia
+let VB_FASHION_DURASI=null; // 8 atau 10 (10 = alur 4 bingkai vbFe10*)
 let VB_FE_PICK={1:false,2:false,3:false};
 let VB_FE_VAR={1:'buka',2:'pose',3:'penutup'};
 // 25 Okt 2026: opsi "Isi sendiri". VB_FE_CUS[n] = null (pakai opsi bawaan) atau {id,name,text,cat}.
@@ -491,12 +491,15 @@ function vbFeResetFlow(){
   if(stepLanjut)stepLanjut.classList.remove('hidden');
   let durasi8=document.getElementById('vb-fe-durasi-8');
   if(durasi8)durasi8.classList.remove('sel');
+  let durasi10=document.getElementById('vb-fe-durasi-10');
+  if(durasi10)durasi10.classList.remove('sel');
   let board=document.getElementById('vb-fe-board');
   if(board)board.classList.remove('hidden');
   let pt=document.getElementById('vb-fe-prompt-text');
   if(pt)pt.textContent='';
   vbFeClearPreview();
   VB_FASHION_DURASI=null;
+  vbFe10Reset();
   VB_FE_PICK={1:false,2:false,3:false};
   VB_FE_VAR={1:'buka',2:'pose',3:'penutup'};
   VB_FE_OUTFIT='';
@@ -516,11 +519,10 @@ function vbFeDurasiLocked(){
   showToast('Durasi ini belum tersedia','error');
 }
 function vbFePilihDurasi(n){
-  if(n!==8){vbFeDurasiLocked();return;}
-  VB_FASHION_DURASI=8;
-  let durasi8=document.getElementById('vb-fe-durasi-8');
+  if(n!==8&&n!==10){vbFeDurasiLocked();return;}
+  VB_FASHION_DURASI=n;
+  [8,10].forEach(function(d){let c=document.getElementById('vb-fe-durasi-'+d);if(c)c.classList.toggle('sel',d===n);});
   let btn=document.getElementById('vb-fe-durasi-lanjut-btn');
-  if(durasi8)durasi8.classList.add('sel');
   if(btn)btn.classList.remove('hidden');
 }
 // Durasi 8 detik terpilih → buka kotak pratinjau + Step 0-3.
@@ -529,6 +531,7 @@ function vbFeGoSteps(){
   let stepDurasi=document.getElementById('vb-fe-step-durasi');
   let steps=document.getElementById('vb-fe-steps');
   if(stepDurasi)stepDurasi.classList.add('hidden');
+  if(VB_FASHION_DURASI===10){vbFe10Open();return;} // durasi 10 detik: alur 4 bingkai sendiri
   if(steps)steps.classList.remove('hidden');
   let board=document.getElementById('vb-fe-board'),rv=document.getElementById('vb-fe-resultview');
   if(board)board.classList.remove('hidden');
@@ -1035,6 +1038,132 @@ function vbFeKembali(){
 }
 function vbCopyFePrompt(){
   _copyTextRobust(vbFeBuildPrompt(),function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+}
+// ── Fashion Editorial DURASI 10 DETIK (25 Nov 2026) ──────────────────────────
+// 4 bingkai (0–2,5 / 2,5–5 / 5–7,5 / 7,5–10 dtk). Tanpa video pratinjau, tanpa tab Pembukaan/Isi/Penutup:
+// tiap bingkai punya opsi sendiri (sekarang 1 opsi per bingkai). Teks di bawah ditempel APA ADANYA dari user.
+// Mau tambah opsi baru di sebuah bingkai: tambah satu {k,l,text} di daftar o bingkai itu.
+const VB_FE10_HEAD=[
+  'Video rekaman natural biasa, bukan rekaman shooting profesional studio. Bikin dengan natural aja.',
+  '',
+  'Ini video mirror selfie. Karakter memegang hp di depan wajahnya dan memotret dirinya sendiri di cermin. Wajah karakter selalu tertutup hp dari detik pertama sampai video selesai, wajahnya tidak pernah terlihat sama sekali.'
+].join('\n');
+const VB_FE10_TAIL=[
+  'Kamera: hp yang dipegang karakter, posisinya tetap di depan wajah dan hampir tidak bergerak. Hanya ada sedikit goyangan alami tangan.',
+  'Hp terlihat di cermin karena dipegang karakter, tapi tidak ada kamera lain atau hp lain di dalam frame.',
+  'Tidak ada musik. Karakter tidak berbicara dan tidak mengeluarkan suara apapun.'
+].join('\n');
+const VB_FE10_SLOT=[null,
+  {t:'Awal',r:'0–2,5 dtk',q:'Bagaimana video dibuka?',o:[{k:'a1',l:'Pembukaan',text:'Detik 0-2,5: satu tangan memegang hp menutupi wajah. Tangan satunya merapikan sesuatu di dekat bahu, lalu turun. Karakter melangkah sedikit mendekat ke cermin, badan miring sedikit.'}]},
+  {t:'Tengah 1',r:'2,5–5 dtk',q:'Pose apa di bingkai kedua?',o:[{k:'b1',l:'Pose',text:'Detik 2,5-5: Karakter berdiri menghadap cermin, tangan bebas menyentuh pinggang atau perut, lalu turun ke samping. Badan sedikit miring sambil memperlihatkan outfit dari depan.'}]},
+  {t:'Tengah 2',r:'5–7,5 dtk',q:'Pose apa di bingkai ketiga?',o:[{k:'c1',l:'Samping',text:'Detik 5-7,5: Karakter memutar badan ke samping dan bersandar sedikit ke dinding, memperlihatkan outfit dari samping, hp tetap menutupi wajah.'}]},
+  {t:'Akhir',r:'7,5–10 dtk',q:'Bagaimana video ditutup?',o:[{k:'d1',l:'Penutup',text:'Detik 7,5-10: Karakter berbalik menghadap cermin lagi, tangan bebas mengayun pelan lalu turun dan diam.'}]}
+];
+let VB_FE10_SEL={1:null,2:null,3:null,4:null}; // kunci opsi terpilih per bingkai (null = belum)
+let VB_FE10_TOKEN=0;
+function vbFe10Opt(n,k){return VB_FE10_SLOT[n].o.filter(function(x){return x.k===k;})[0]||null;}
+function vbFe10AllPicked(){return [1,2,3,4].every(function(n){return !!VB_FE10_SEL[n];});}
+function vbFe10Open(){
+  let st=document.getElementById('vb-fe-step-durasi'),box=document.getElementById('vb-fe10-steps');
+  if(st)st.classList.add('hidden');
+  if(box)box.classList.remove('hidden');
+  ['vb-fe10-loading','vb-fe10-result'].forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
+  let b=document.getElementById('vb-fe10-board');if(b)b.classList.remove('hidden');
+  vbFe10Render();
+}
+function vbFe10Render(){
+  let strip=document.getElementById('vb-fe10-strip');
+  if(!strip)return;
+  if(!strip.children.length){
+    strip.innerHTML=[1,2,3,4].map(function(n){
+      let t=VB_FE10_SLOT[n];
+      return '<button type="button" class="vb-fe-fr" id="vb-fe10-fr-'+n+'" aria-haspopup="dialog" onclick="vbFe10OpenSheet('+n+')">'+
+        '<small>'+t.r+'</small><span class="vb-fe-fr-ic" aria-hidden="true">+</span><b>Pilih</b></button>';
+    }).join('');
+  }
+  [1,2,3,4].forEach(vbFe10Update);
+  vbFe10UpdateSeq();
+}
+function vbFe10Update(n){
+  let fr=document.getElementById('vb-fe10-fr-'+n);
+  if(!fr)return;
+  let t=VB_FE10_SLOT[n],k=VB_FE10_SEL[n];
+  let ic=fr.querySelector('.vb-fe-fr-ic'),lb=fr.querySelector('b');
+  fr.classList.toggle('on',!!k);
+  if(!k){
+    ic.textContent='+';lb.textContent='Pilih';
+    fr.setAttribute('aria-label',(t.t+' '+t.r)+', belum dipilih');
+    return;
+  }
+  let o=vbFe10Opt(n,k);
+  ic.innerHTML=VB_FE_ICO;lb.textContent=o?o.l:'';
+  fr.setAttribute('aria-label',(t.t+' '+t.r)+': '+(o?o.l:'')+'. Ketuk untuk mengubah');
+}
+function vbFe10UpdateSeq(){
+  let el=document.getElementById('vb-fe10-seq');
+  let c=[1,2,3,4].filter(function(n){return VB_FE10_SEL[n];}).length;
+  if(el)el.textContent=c?[1,2,3,4].map(function(n){let o=VB_FE10_SEL[n]?vbFe10Opt(n,VB_FE10_SEL[n]):null;return o?o.l:'…';}).join(' → '):'Belum ada yang dipilih';
+  let btn=document.getElementById('vb-fe10-generate-btn');
+  if(btn)btn.disabled=c<4;
+}
+// Bottom sheet memakai elemen #vb-fe-sheet yang sama dengan durasi 8 detik.
+function vbFe10OpenSheet(n){
+  if(!VB_FE10_SLOT[n])return;
+  vbFeEnsureSheet();
+  let t=VB_FE10_SLOT[n],bk=document.getElementById('vb-fe-bk'),sh=document.getElementById('vb-fe-sheet');
+  VB_FE_SHEET_N=n;VB_FE_SHEET_OPENER=document.getElementById('vb-fe10-fr-'+n);VB_FE_EDIT=null;VB_FE_NAMING=null;
+  sh.setAttribute('aria-label',t.q);
+  sh.innerHTML='<h3>'+t.t+' · '+t.r+'</h3>'+t.o.map(function(o){
+    return '<button type="button" class="vb-fe-row" aria-pressed="'+(VB_FE10_SEL[n]===o.k)+'" onclick="vbFe10Pick('+n+',\''+o.k+'\')"><span class="vb-fe-rd"></span>'+o.l+'</button>';
+  }).join('');
+  bk.hidden=sh.hidden=false;
+  let f=sh.querySelector('.vb-fe-row[aria-pressed="true"]')||sh.querySelector('.vb-fe-row');
+  if(f){try{f.focus({preventScroll:true});}catch(e){}}
+}
+function vbFe10Pick(n,k){
+  if(!vbFe10Opt(n,k))return;
+  VB_FE10_SEL[n]=k;
+  vbFeCloseSheet();
+  vbFe10Update(n);
+  vbFe10UpdateSeq();
+}
+function vbFe10BuildPrompt(){
+  let lines=[1,2,3,4].map(function(n){let o=vbFe10Opt(n,VB_FE10_SEL[n]);return o?o.text.trim():'';});
+  return VB_FE10_HEAD+'\n\n'+lines.join('\n')+'\n\n'+VB_FE10_TAIL;
+}
+function vbFe10Generate(){
+  if(VB_FASHION_DURASI!==10||!vbFe10AllPicked())return;
+  let board=document.getElementById('vb-fe10-board'),loading=document.getElementById('vb-fe10-loading'),result=document.getElementById('vb-fe10-result');
+  let token=++VB_FE10_TOKEN;
+  if(board)board.classList.add('hidden');
+  if(result)result.classList.add('hidden');
+  if(loading)loading.classList.remove('hidden');
+  setTimeout(function(){
+    if(token!==VB_FE10_TOKEN)return;
+    if(loading)loading.classList.add('hidden');
+    let p=document.getElementById('vb-fe10-prompt-text');
+    if(p)p.textContent=vbFe10BuildPrompt();
+    if(result)result.classList.remove('hidden');
+  },900);
+}
+function vbFe10Kembali(){
+  VB_FE10_TOKEN++;
+  let p=document.getElementById('vb-fe10-prompt-text');if(p)p.textContent='';
+  ['vb-fe10-result','vb-fe10-loading'].forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
+  let b=document.getElementById('vb-fe10-board');if(b)b.classList.remove('hidden');
+  vbFe10UpdateSeq();
+}
+function vbFe10Copy(){
+  _copyTextRobust(vbFe10BuildPrompt(),function(){showToast('Prompt tersalin!','success');},function(){showToast('Gagal salin — coba tap & tahan teksnya lalu Copy','error');});
+}
+// Dipanggil dari vbFeResetFlow(): kembali ke keadaan awal (semua bingkai kosong, area 10 detik tersembunyi).
+function vbFe10Reset(){
+  VB_FE10_TOKEN++;
+  VB_FE10_SEL={1:null,2:null,3:null,4:null};
+  ['vb-fe10-steps','vb-fe10-loading','vb-fe10-result'].forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
+  let b=document.getElementById('vb-fe10-board');if(b)b.classList.remove('hidden');
+  let p=document.getElementById('vb-fe10-prompt-text');if(p)p.textContent='';
+  if(document.getElementById('vb-fe10-strip'))vbFe10Render();
 }
 // Pratinjau mode Fashion Editorial (video saja). Media diisi lazy, pola sama dengan vbSyncModePreview().
 function vbSyncFashionPreview(show){
