@@ -3,7 +3,7 @@
 > **Untuk AI:** baca bagian 1–3 dulu. Jangan menebak file dari namanya, karena beberapa nama menyesatkan (lihat bagian 3). Kalau perubahan menyentuh fitur baru atau file baru, **perbarui peta ini** (bagian 7).
 > **Untuk user:** cari fiturmu di bagian 1, lalu kirim file yang disebut. Kalau ragu, kirim file ini dan sebutkan fiturnya. Atau kirim seluruh repo (GitHub → Code → Download ZIP).
 
-Terakhir diperbarui: 24 Nov 2026 · Jumlah file di `fitur/`: 68 (67 dimuat `index.html`, 1 tidak dimuat).
+Terakhir diperbarui: 25 Nov 2026 · Jumlah file di `fitur/`: 68 (67 dimuat `index.html`, 1 tidak dimuat).
 
 ---
 
@@ -153,9 +153,9 @@ Ukuran perkiraan, dihitung saat peta ini ditulis. File besar (≥100 KB): `foto-
 | File | Isi | Kata kunci (nama fungsi / konstanta) | Ukuran |
 |---|---|---|---|
 | `fitur/outfit-studio-album-awan.js` | Album Outfit Studio versi Firestore. **Tidak dimuat `index.html`** (digantikan versi Drive) | `osCloud`, `panahAlbum` | 2 KB |
-| `fitur/outfit-studio-album-drive.js` | Album Outfit Studio disimpan di Google Drive akun login (menggantikan versi Firestore) | `osCloud`, `OS_DRIVE_CLIENT_ID`, `appDataFolder` | 8 KB |
+| `fitur/outfit-studio-album-drive.js` | Album Outfit Studio disimpan di Google Drive akun login (menggantikan versi Firestore). Token Drive ±1 jam: diperbarui otomatis sebelum habis, `connect()` dari ketukan, `why` = alasan belum siap | `osCloud`, `OS_DRIVE_CLIENT_ID`, `appDataFolder`, `needsAuth`, `refresh` | 9 KB |
 | `fitur/outfit-studio-jembatan-foto.js` | Jembatan Outfit Studio ⇄ Prompt Foto AI | `ensureStrip`, `modeLabel` | 3 KB |
-| `fitur/outfit-studio-pembuka.js` | Membuka/menutup Outfit Studio (memuat `outfit-studio.html`) | `osOpen`, `osClose`, `osAiVision` | 3 KB |
+| `fitur/outfit-studio-pembuka.js` | Membuka/menutup Outfit Studio (memuat `outfit-studio.html`); saat dibuka meminta izin Drive bila perlu | `osOpen`, `osClose`, `osAiVision` | 4 KB |
 
 ### Akun, paket, kuota, login
 
@@ -230,3 +230,4 @@ Kalau user bilang "peta belum diperbarui", kerjakan langkah di atas lebih dulu s
 ## 8. Riwayat perubahan peta
 
 - **24 Nov 2026** — Ditulis ulang: tambah kolom kata kunci, tabel cari-lewat-nama-fungsi, bagian jebakan dan fungsi yang ditimpa, serta aturan pembaruan. Tambah 3 file yang belum tercatat (`video-isian-kurung.js`, `outfit-studio-album-drive.js`, `outfit-studio-album-awan.js`). Koreksi deskripsi `video-mirror-selfie.js` (kini hanya reset), `video-contoh-skrip-referensi.js` (kini ±10 KB) dan ukuran file lain.
+- **25 Nov 2026** — Sinkron album Outfit Studio: tombol Hubungkan + status alasan di `outfit-studio.html` (blok v18.40, coba ulang otomatis), pembaruan token Drive lebih awal di `outfit-studio-album-drive.js`, izin Drive diminta saat `osOpen` di `outfit-studio-pembuka.js`.
