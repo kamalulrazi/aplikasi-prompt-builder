@@ -612,24 +612,33 @@ function fvIsi(src){
  try{const n=32,t=document.createElement('canvas');t.width=t.height=n;const g=t.getContext('2d',{willReadFrequently:true});g.drawImage(src,0,0,n,n);const d=g.getImageData(0,0,n,n).data;let a=0,b=0,m=0;
   for(let i=0;i<d.length;i+=4){if(d[i+3]<8)continue;const l=d[i]*.299+d[i+1]*.587+d[i+2]*.114;a+=l;b+=l*l;m++}
   if(!m)return false;const mu=a/m;return !(mu<8&&b/m-mu*mu<16)}catch(e){return true}}
-function fvGambar(c,src,w,h){
+/* v18.52: GAGAL-DIGAMBAR. Kadang drawImage ke kanvas ukuran penuh belum "mengendap" (WebView dengan GPU lambat) saat langsung
+   diperiksa, atau kanvas sebesar itu gagal dialokasikan di HP bermemori/GPU terbatas — padahal fvAda/fvIsi di atas sudah
+   membuktikan foto aslinya bisa didekode & tidak hitam. Sekarang: (1) beri jeda 2 frame sebelum memeriksa hasil gambar,
+   (2) kalau tetap kosong, coba lagi dengan kanvas yang makin kecil sebelum menyerah. Foto asli ("Unduh asli") tidak berubah. */
+const fvSettle=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+async function fvGambar(c,src,w,h){
  if(!w||!h)throw new Error('ukuran-0');
  /* decode yang gagal diam-diam menghasilkan gambar kosong tanpa error */
  if(!fvAda(src))throw new Error('gambar-kosong');
  if(!fvIsi(src))throw new Error('gambar-hitam');
- const s=Math.max(w,h),k=Math.min(FV_MAX,Math.max(FV_MIN,s))/s;
- c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
- const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,c.width,c.height);
- if(!fvAda(c))throw new Error('gagal-digambar')}
+ const s=Math.max(w,h),caps=[Math.min(FV_MAX,Math.max(FV_MIN,s)),1400,1000,700,480];
+ for(let i=0;i<caps.length;i++){
+  const cap=Math.min(caps[i],s),k=cap/s;
+  c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
+  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,c.width,c.height);
+  await fvSettle();
+  if(fvAda(c))return}
+ throw new Error('gagal-digambar')}
 async function fvLukis(c,b,masih){
  let salah;const u=URL.createObjectURL(b);
  try{const im0=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('tidak-bisa-dibuka'));i.src=u});
-  if(masih())fvGambar(c,im0,im0.naturalWidth,im0.naturalHeight);return}
+  if(masih())await fvGambar(c,im0,im0.naturalWidth,im0.naturalHeight);return}
  catch(e){salah=e}finally{URL.revokeObjectURL(u)}
  /* cara cadangan */
- try{const bm=await createImageBitmap(b);try{if(masih())fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()};return}catch(e){}
+ try{const bm=await createImageBitmap(b);try{if(masih())await fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()};return}catch(e){}
  /* v18.51: foto besar kadang ter-decode hitam di WebView HP; coba lagi dengan didecode langsung diperkecil */
- try{const bm=await createImageBitmap(b,{resizeWidth:1600,resizeQuality:'high'});try{if(masih())fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()}}catch(e){throw salah}}
+ try{const bm=await createImageBitmap(b,{resizeWidth:1600,resizeQuality:'high'});try{if(masih())await fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()}}catch(e){throw salah}}
 async function fvAsli(p){
  let b=p.blob;
  try{const r=await run('photos','readonly',t=>t.objectStore('photos').get(p.id));if(r&&r.blob)b=r.blob}catch(e){}
