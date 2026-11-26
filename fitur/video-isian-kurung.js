@@ -3,7 +3,9 @@
 // tapi di balik layar tetap tersimpan apa adanya: ta.value (dibaca prompt video, hitungan kata, Simpan skrip, draf) selalu mengembalikan teks LENGKAP.
 // Kata dalam kurung tidak dihitung dalam rentang kata (lihat _vbWcNoParen di video-sapaan-dan-perapian-teks.js).
 // Cara kerja: bagian kurung di dalam kolom diganti penanda tak terlihat (karakter lebar-nol), isinya disimpan di el.__cues.
-// Berlaku untuk kolom skrip kartu hasil: textarea dengan id vb-bulk-script-N (jalur Kami Bantu Isi, Tulis Manual, Bulk).
+// Berlaku untuk kolom skrip kartu hasil: textarea dengan id vb-bulk-script-N (jalur Kami Bantu Isi, Tulis Manual, Bulk)
+// dan, di mode Percakapan 2 Suara, 4 baris dialog (textarea.vb-dua-line; textarea penyimpan data aslinya dilewati lewat el.__duaBacked).
+// 26 Nov 2026 (permintaan user): kurung berlaku di semua mode.
 (function(){
   var TOK=/\u2063([\u200B\u200C]+)\u2063/g;
   var desc=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value');
@@ -24,7 +26,11 @@
     var cues=[];el.__cues=cues;
     return String(full).replace(/\([^()]*\)/g,function(m){cues.push(m);return enc(cues.length-1);});
   }
-  function isTarget(el){return !!el&&el.tagName==='TEXTAREA'&&/^vb-bulk-script-\d+$/.test(el.id||'');}
+  function isTarget(el){
+    if(!el||el.tagName!=='TEXTAREA')return false;
+    if(el.classList&&el.classList.contains('vb-dua-line'))return true; // 4 baris dialog mode Percakapan 2 Suara
+    return /^vb-bulk-script-\d+$/.test(el.id||'')&&!el.__duaBacked; // textarea penyimpan data mode 2 suara dilewati
+  }
   function install(el){
     if(!isTarget(el)||el.__kr)return;
     el.__kr=1;
@@ -77,7 +83,7 @@
   function scan(root){
     if(!root||root.nodeType!==1)return;
     if(isTarget(root))install(root);
-    if(root.querySelectorAll)[].forEach.call(root.querySelectorAll('textarea[id^="vb-bulk-script-"]'),install);
+    if(root.querySelectorAll)[].forEach.call(root.querySelectorAll('textarea[id^="vb-bulk-script-"],textarea.vb-dua-line'),install);
   }
   function start(){
     scan(document.body);
