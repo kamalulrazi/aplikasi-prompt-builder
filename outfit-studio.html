@@ -1949,14 +1949,17 @@ async function srPages(slug,uu,rc,kw,say,cap,lbl){
  const add=L=>{let f=0;for(const o of L.itemList){const id=String(o&&(o.linkId||o.itemId||o.image)||'');if(id){if(seen[id])continue;seen[id]=1}raw.push(o);f++}return f};
  const r=await get(0,0);if(!r.L)return{raw,tc,err:r};
  const p0=r.L.pagination||{};tc=+p0.totalCount||0;add(r.L);if(kw===''||kw==null)srLog.push('baca halaman 1: '+r.L.itemList.length+' item; pagination='+JSON.stringify(p0).slice(0,200)+'; grup='+JSON.stringify(r.L.groupList==null?null:r.L.groupList).slice(0,400)+'; resep='+JSON.stringify({op:rc.op,pv:rc.pv,ex:rc.ex,tp:rc.tp}).slice(0,200));const n0=r.L.itemList.length;if(!n0)return{raw,tc,empty:1};
- let done=n0,g=0,more=p0.hasMore===true||(p0.hasMore==null&&(tc>n0||n0>=8));/* v18.49: jumlah total dari server tidak selalu benar; lanjut baca selama masih ada produk baru */
+ let done=n0,g=0,more=true,endSaid=false;/* v18.52: hasMore & totalCount dari server TIDAK dipercaya mentah (pernah tertulis "58 produk dari 8" lalu membaca berhenti). Berhenti hanya kalau halaman benar-benar kosong, atau server bilang habis DAN jumlahnya masuk akal. */
  while(more&&g++<cap){
-  const offs=[0,1,2,3].map(i=>done+i*n0),rs=await Promise.all(offs.map(d=>get(d,n0)));let fresh=0,next=done+n0*4;more=true;
-  for(let i=0;i<rs.length;i++){const q=rs[i];if(!q.L){more=false;err=q;break}const L=q.L,p=L.pagination||{};tc=+p.totalCount||tc;fresh+=add(L);
-   if(!L.itemList.length||p.hasMore===false){more=false;break}
+  const offs=[0,1,2,3].map(i=>done+i*n0),rs=await Promise.all(offs.map(d=>get(d,n0)));let fresh=0,next=done+n0*4;
+  for(let i=0;i<rs.length;i++){const q=rs[i];if(!q.L){if(!endSaid)err=q;more=false;break}const L=q.L,p=L.pagination||{};tc=+p.totalCount||tc;fresh+=add(L);
+   if(!L.itemList.length){more=false;break}
+   if(p.hasMore===false&&tc>n0&&raw.length>=tc){more=false;endSaid=true;break}
    if(L.itemList.length<n0){next=offs[i]+L.itemList.length;break}}
-  done=next;if(!fresh)more=false;
-  if(say&&lbl)say(lbl+' ('+raw.length+(tc?' dari '+tc:'')+')')}
+  done=next;
+  /* halaman berisi tapi semuanya sudah pernah terbaca = server mengabaikan offset. Itu BUKAN tanda koleksi habis, kecuali jumlah total masuk akal dan sudah tercapai. */
+  if(more&&!fresh){if(tc>n0&&raw.length>=tc)more=false;srLog.push('baca koleksi macet di '+raw.length+' item (halaman berulang), total server '+tc);break}
+  if(say&&lbl)say(lbl+' ('+raw.length+(tc>=raw.length?' dari '+tc:'')+')')}
  return{raw,tc,err,more}}
 async function srApi(u,n,say){srLog.length=0;srFail=0;const slug=srSlug(u),none={ok:0,all:[],hit:[],nc:0};if(!slug)return none;
  const uu=srUU(),k=srKey(n),img=x=>{x=String(x||'');return/^https?:/i.test(x)?x:x?'https://mms.img.susercontent.com/'+x:''},
@@ -1995,7 +1998,7 @@ function prShow(anchor){return repBox('LAPORAN HARGA ('+new Date().toISOString()
 function srMsg(R,want,anchor){if(R.net)return'Tidak bisa menghubungi server koleksi. Cek internet, lalu coba lagi.';
  if(R.empty)return'Server collshp tidak mengenali koleksi dari link ini (hasilnya kosong). Cek link koleksi, contoh https://collshp.com/aiza178.';
  srShow(anchor);return'Server collshp belum bisa dibaca otomatis (daftar produknya tetap kosong). Laporan teknis sudah disiapkan di kotak hitam di bawah: tekan lama, pilih Salin semua, lalu kirim ke saya.'}
-const srPart=(R,want)=>'Nomor '+want+' belum ketemu, tapi koleksi baru terbaca sebagian ('+(R.got||R.all.length)+(R.tc?' dari '+R.tc:'')+' produk). Coba lagi sebentar.';
+const srPart=(R,want)=>'Nomor '+want+' belum ketemu, karena koleksi baru terbaca sebagian ('+(R.got||R.all.length)+((R.tc||0)>=(R.got||R.all.length)?' dari '+R.tc:'')+' produk, sisanya belum bisa dimuat). Tekan Cari item lagi sebentar lagi.';
 /* Urutan: (a) kalau link berisi contoh alamat hasil pencarian, pencarian itu dipakai DULUAN; (b) halaman koleksi apa adanya; (c) tebakan nama parameter pencarian, 3 dulu baru 2 (supaya tidak memborbardir pembaca halaman). */
 async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if(A.ok)return A.hit.length?{...A,cand:[],how:'pencarian server collshp'}:{all:A.all,hit:[],nc:A.nc,cand:[],how:'',none:!A.partial,partial:A.partial,tc:A.tc,got:A.got};const R=await srFindB(u,n,say);R.fail=A.fail;R.net=A.net;R.empty=A.empty;return R}
 async function srFindB(u,n,say){const B=srBase(u),urls=srUrls(u,n),own=urls.length===1,rs=[];
@@ -2234,7 +2237,7 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
    for(let i=0;i<tiers.length;i++){const lo=list.filter(tiers[i]);if(lo.length)return{lo,tier:i+1}}return{lo:[],tier:0}};
   if(!R.hit.length&&R.all&&R.all.length){const m=inCocok(R.all,want);if(m.lo.length)R={...R,hit:m.lo,how:R.how||'keterangan produk'}}
   const smp=(R.all||[]).slice(0,3).map(o=>(inAllTx(o)[0]||'(kosong)').slice(0,30)).join(' | ');
-  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+(R.tc?' dari '+R.tc:'')+((R.all||[]).length?'; nomor tertinggi yang terbaca: '+(R.all.map(o=>pnCap(o.cap)).filter(Boolean).sort().pop()||'-'):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Contoh keterangan yang terbaca: '+(smp||'-')+'. Server collshp belum memuat nomor itu (mungkin belum sinkron) atau penulisan nomornya berbeda. Coba lagi nanti, atau tambah item manual.'};
+  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+((R.tc||0)>=(R.all||[]).length&&R.tc?' dari '+R.tc:'')+((R.all||[]).length?'; nomor tertinggi yang terbaca: '+(R.all.map(o=>pnCap(o.cap)).filter(Boolean).sort().pop()||'-'):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Contoh keterangan yang terbaca: '+(smp||'-')+'. Server collshp belum memuat nomor itu (mungkin belum sinkron) atau penulisan nomornya berbeda. Coba lagi nanti, atau tambah item manual.'};
   const H=R.hit.slice(0,12),tx=H.map(inNm),nm=tx.map(inCat),need=nm.map((c,i)=>c?-1:i).filter(i=>i>=0);
   if(need.length&&window.parent&&parent.osAiVision){try{say('Mengenali '+need.length+' produk dari foto');const pics=await lnPool(need.map(i=>H[i]),4),parts=[{text:INASK}];
    need.forEach((i,k)=>{if(pics[k]){parts.push({text:'Kandidat '+(k+1)+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:pics[k]}})}});
