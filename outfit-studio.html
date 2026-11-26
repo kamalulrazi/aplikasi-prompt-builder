@@ -611,7 +611,7 @@ async function inspCari(nd,auto){if(!nd||nd.type!=='insp'||(S.ikb&&!auto))return
  try{const r=await window.osInspCari(u,no,say);if(S.d!==nd||S.ikt!==tk)return;
   if(!r.items.length){say(r.msg||'Item tidak ketemu.');return}
   nd.items=r.items;nd.prices=[];nd.mid=-1;
-  say('Nomor '+no+' ketemu: '+r.total+' produk'+(r.total>12?' (dipakai 12 pertama)':'')+'. Item outfit dan prompt sudah terisi: '+r.items.join(', ')+'.');render()}
+  say('Nomor '+no+' ketemu: '+r.total+' produk'+(r.total>12?' (dipakai 12 pertama)':'')+'. Item outfit dan prompt sudah terisi: '+r.items.join(', ')+'.'+(r.skip?' '+r.skip+' produk belum terbaca jenisnya, tambahkan manual.':''));render()}
  catch(e){say('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{if(S.ikt===tk){S.ikb=0;const b2=document.querySelector('[data-a="ikgo"]');if(b2)b2.disabled=false}}}
 document.addEventListener('input',e=>{const t=e.target;if(t&&t.id==='ikl'){try{localStorage.setItem('pb_kol_link_v1',t.value.trim())}catch(x){}}});
@@ -2103,7 +2103,7 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
  const INCAT={Hijab:'hijab|jilbab|pashmina|pasmina|kerudung|khimar|bergo|segi ?empat|scarf|syal',Abaya:'abaya',Gamis:'gamis|maxi dress|long dress',Dress:'dress|terusan',Rok:'rok|skirt',Celana:'celana|jeans|kulot|cargo|palazzo|legging',Outer:'outer|cardigan|kardigan|jaket|blazer|rompi|vest',Atasan:'atasan|blouse|blus|kemeja|kaos|tunik|sweater|knit|top|baju|kebaya',Tas:'tas|bag|ransel|backpack|tote|sling|clutch|selempang|pouch',Sepatu:'sepatu|sneakers?|flats?|heels|loafers?|boots?',Sandal:'sandal|selop|slippers?','Jam tangan':'jam tangan|jam|watch',Kacamata:'kacamata|glasses',Gelang:'gelang|bracelet',Kalung:'kalung|necklace',Anting:'anting|earrings?',Cincin:'cincin|ring',Topi:'topi|hat|cap'};
  const INRE=Object.keys(INCAT).map(k=>[k,new RegExp('(?:^|[^a-z])(?:'+INCAT[k]+')(?![a-z])','i')]);
  const inCat=t=>{t=String(t||'');for(const[k,re]of INRE)if(re.test(t))return k;return''},cap1=s=>s?s.charAt(0).toUpperCase()+s.slice(1):'';
- const inShort=t=>String(t||'').replace(/[\[\](){}|•·]/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(0,3).join(' ').slice(0,24);
+ const inShort=t=>String(t||'').replace(/[\[\](){}|•·"]/g,' ').replace(/\s+/g,' ').trim().split(' ').slice(0,3).join(' ').slice(0,24);
  /* nama produk: teks keterangan setelah nomor; kalau kosong, kunci name/title di itemCard (kunci toko/merek/kategori diabaikan) */
  function inNm(o){let t=String(o.cap||'').replace(/^[^\w#]+/,'').replace(/^\s*(?:no\.?\s*|nomor\s*|#)?\d{2,5}\s*[-–.:|]?\s*/i,'').trim();if(t.replace(/[^A-Za-z]/g,'').length>=3)return t;
   let c=o.card;if(typeof c==='string'){try{c=JSON.parse(c)}catch(e){c=null}}let b='';
@@ -2116,8 +2116,8 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
    need.forEach((i,k)=>{if(pics[k]){parts.push({text:'Kandidat '+(k+1)+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:pics[k]}})}});
    const r=lnJson(await lnTo(parent.osAiVision(parts,INSYS,700),90000));
    (Array.isArray(r.items)?r.items:[]).forEach(o=>{const k=parseInt(o&&o.c,10)-1,c=String(o&&o.category||'').trim();if(k>=0&&k<need.length&&c)nm[need[k]]=inCat(c)||cap1(c.slice(0,24))})}catch(e){}}
-  const seen={},items=H.map((o,i)=>{const n=nm[i]||inShort(tx[i])||'Item '+(i+1),k=n.toLowerCase();seen[k]=(seen[k]||0)+1;return seen[k]>1?n+' '+seen[k]:n});
-  return{items,total:R.hit.length,how:R.how}}
+  const seen={},items=[];let skip=0;H.forEach((o,i)=>{const n=nm[i]||inShort(tx[i]);if(!n){skip++;return}const k=n.toLowerCase();seen[k]=(seen[k]||0)+1;items.push(seen[k]>1?n+' '+seen[k]:n)});
+  return{items,skip,total:R.hit.length,how:R.how,msg:items.length?'':'Produk nomor '+want+' ketemu ('+R.hit.length+') tapi jenisnya belum terbaca. Tambahkan item manual.'}}
  window.osInspCari=inspItems;
 return{/* v18.29: dari album: foto album masuk ke fitur Panah, Nomor = angka di nama album, lalu pencarian & panah otomatis (kalau link koleksi sudah tersimpan) */panah(b,n,th){if(!built)build();kl.classList.add('show');const t=kl.querySelector('[data-kt="2"]');if(t)t.click();pa.a=[];pa.s=-1;set('num',n);lnInit();const blank=c=>{try{const k=document.createElement('canvas');k.width=k.height=24;const x=k.getContext('2d');x.drawImage(c,0,0,24,24);const d=x.getImageData(0,0,24,24).data;let lo=255,al=0;for(let i=0;i<d.length;i+=4){al=Math.max(al,d[i+3]);lo=Math.min(lo,d[i],d[i+1],d[i+2])}return al<12||lo>246}catch(e){return false}},go=()=>{const i=$('kpln');if(i&&(i.value||'').trim())pnGo($('kplb'));else pns('Nomor '+n+' diambil dari nama album. Tempel link koleksi di kolom link, lalu tekan Isi otomatis.')},bad='Foto album ini terbaca putih/kosong. Coba tambah ulang fotonya ke album, atau pilih foto lewat tab Foto.';ponLoad(b,()=>{if(pimg&&blank(pimg)){if(th)ponLoad(th,()=>{if(pimg&&blank(pimg))pns(bad);else go()});else pns(bad)}else go()});sched()},pkDel(id){const d=pkdl();d.push(id);pkds(d);pksync()},pkSync:()=>pksync(),boot:pkboot,open(){if(!built)build();kl.classList.add('show');sched()},thumb:()=>`<svg viewBox="0 0 120 150" style="display:block;width:100%;aspect-ratio:4/5" aria-hidden="true"><rect width="120" height="150" fill="#fff"/><rect x="43" width="77" height="150" fill="#d9cfc4"/><circle cx="83" cy="34" r="11" fill="#7a3434"/><path d="M68 50h30l5 26H63zM66 76h34l12 70H54z" fill="#f4efe6"/><path d="M12 44h26l5 20H7z" fill="#f2e6a0"/><path d="M9 64h32l8 66H1z" fill="#f4f2ee" stroke="#e2ded6"/><rect x="9" y="12" width="26" height="4" rx="2" fill="#222"/><rect x="8" y="136" width="28" height="9" rx="4.5" fill="#111"/></svg>`}
 })();
