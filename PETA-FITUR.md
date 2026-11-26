@@ -73,6 +73,7 @@ Sudah diperiksa lokasinya. Pakai ini kalau kamu tahu nama kodenya tapi tidak tah
 | `pbGetTier`, `pbGetQuota` | `akun-paket-kuota-bayar.js` |
 | `PB_AI_MODELS` | `ai-model-dan-koneksi.js` |
 | `osOpen` | `outfit-studio-pembuka.js` |
+| `fvTampil`, `fvLukis`, `fvAsli`, `fvGambar`, `fvAda` (penampil foto album yang diperbesar, di layar Album dan laci Album) | `outfit-studio.html` |
 | `osCloud` (`uid/ready/list/put/get/del/connect`), `CLIENT_ID_MANUAL`, `detectCid` | `outfit-studio-album-drive.js` (dipanggil `outfit-studio.html` lewat `parent.osCloud`) |
 | `switchPage` | `umum-alat-bantu.js` (juga ditimpa di 3 file lain) |
 | `pbReplayTour` | `panduan-tur-pertama-kali.js` |
@@ -253,3 +254,4 @@ Kalau user bilang "peta belum diperbarui", kerjakan langkah di atas lebih dulu s
 - **26 Nov 2026** — Kurung `( )` berlaku di semua mode: AI menyalin bentuk kurung dari contoh referensi (mode 1 produk, Bulk, dan mode 2 suara), kurung disembunyikan juga di 4 baris dialog mode 2 suara, isinya tidak dihitung kata/detik, prompt perbaikan terarah tidak menyentuh isi kurung. Perbarui bagian 1, 3, 4.
 - **26 Nov 2026 (siang)** — Tambah 21 contoh skrip referensi 16 detik (Opsi 13-33, 5 di antaranya berkurung) di `video-contoh-skrip-referensi.js`. Kata khas produk baru (storage box, bad cover, piyama, jam tangan, rotan, ransel) ditambahkan ke `VB_FOREIGN_SAMPLE_WORDS_16` di `video-prompt-sistem-dan-perbaikan-skrip.js`. CAMERA CUE: kurung yang tidak menyebut produk (mis. gerakan tangan) disalin apa adanya.
 - **26 Nov 2026 (sore)** — Panduan logat Medan (`VB_LOGAT_SCRIPT_GUIDE` di `video-builder-inti.js`) ditambah: `alah`, `pala bapak kau` (maks sekali per skrip), `cemana pulak` (= bagaimana), `kalen` dipertegas; tiap kalimat wajib punya minimal satu penanda Medan. Petunjuk nada toxic x Medan (`VB_NADA_AKSEN_HINT`) ikut diperbarui, dan `VB_FIX_WORDS_BY_LOGAT` (Medan, `video-sapaan-dan-perapian-teks.js`) ditambah `alah` dan `cemana pulak` (daftar ini hanya dipakai untuk batch campuran aksen; batch biasa hanya memakai bagian NEVER-nya lewat `_vbFixSystemFor`).
+- **26 Nov 2026** — Outfit Studio v18.41: perbaikan foto album yang hitam saat diperbesar. Layar Album dan laci Album kini menggambar ke canvas (thumbnail dulu, lalu foto asli yang dibaca ulang dan diperkecil maks. 2048 px); kalau foto asli gagal, thumbnail tetap tampil + kode penyebab. Perbarui bagian 2.

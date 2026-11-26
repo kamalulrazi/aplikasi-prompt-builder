@@ -69,6 +69,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin-top:8px}input[typ
 .tl{aspect-ratio:4/5;background:var(--surface3)}.tl img{width:100%;height:100%;object-fit:contain;display:block}
 #vw{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;cursor:pointer}#vw.show{display:flex}
 #vw .res,#vw .tl{width:min(100%,calc((100dvh - 140px)*.8))}
+#vw .vimg{flex:none;max-width:100%;max-height:calc(100dvh - 140px);object-fit:contain;border-radius:var(--radius-sm)}#vw .vmsg{margin:0;text-align:center}
 .vdel{position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px;display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:99px;border:1px solid rgba(248,113,113,.35);background:rgba(8,8,10,.7);color:var(--red);font-size:var(--fs-xs2);cursor:pointer}.vdel:active{transform:scale(.97)}
 #sheet{position:absolute;inset:0;z-index:25;display:none;align-items:flex-end;background:rgba(0,0,0,.6)}#sheet.show{display:flex}
 .sheet{width:100%;max-height:80%;overflow:auto;background:var(--surface);border-top:1px solid var(--border-hi);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:16px 14px calc(16px + env(safe-area-inset-bottom))}.sheet h3{margin:0 0 10px;font-size:var(--fs-md);font-weight:600}
@@ -118,10 +119,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin-top:8px}input[typ
 .dv-top{flex:none;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 8px}
 .dv-ttl{flex:1;min-width:0}.dv-ttl b{display:block;font-size:var(--fs-sm);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dv-ttl small{display:block;color:var(--muted);font-size:var(--fs-xs2)}
 .dv-st{flex:1;min-height:0;position:relative;touch-action:pan-y;-webkit-user-select:none;user-select:none}
-.dv-st img{position:absolute;left:14px;top:4px;width:calc(100% - 28px);height:calc(100% - 8px);object-fit:contain;transition:opacity .15s;-webkit-user-drag:none}.dv-st img.ld{opacity:.25}
+.dv-st canvas{position:absolute;left:14px;top:4px;width:calc(100% - 28px);height:calc(100% - 8px);object-fit:contain}
 .dv-nv{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;padding:0;border-radius:50%;border:1px solid var(--border-hi);background:rgba(8,8,10,.72);color:var(--text);display:grid;place-items:center;cursor:pointer}.dv-nv[disabled]{opacity:.3;pointer-events:none}.dv-pv{left:8px}.dv-nx{right:8px}
 .dv-bar{flex:none;display:flex;gap:8px;padding:10px 14px calc(12px + env(safe-area-inset-bottom))}
-@media (prefers-reduced-motion:reduce){.dr-sh,.dr-bk,.dv-st img{transition:none}.sk{animation:none}}
+@media (prefers-reduced-motion:reduce){.dr-sh,.dr-bk{transition:none}.sk{animation:none}}
 /* v17.4: Kolase Outfit (tanpa prompt) */
 #kl{position:absolute;inset:0;z-index:20;background:var(--bg);display:none;flex-direction:column}#kl.show{display:flex}
 #kl .kb{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
@@ -198,7 +199,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin-top:8px}input[typ
 <div class="app">
 <div id="os" class="show" role="dialog" aria-label="Outfit Studio"><div id="bar"><button type="button" data-a="back" id="bk"></button><span class="bt" id="bt">Outfit Studio</span><div class="tools" id="tools" hidden></div></div><div id="bd"></div><div id="ft" hidden></div></div>
 <div id="vw" data-a="vx" role="dialog" aria-label="Pratinjau gambar"></div><div id="sheet" data-a="sx"></div><div id="dr" class="dr" aria-hidden="true"><div class="dr-bk" data-a="dr-close"></div><section class="dr-sh" id="dr-sh" role="dialog" aria-modal="true" aria-label="Album"><div class="dr-gz"><i></i></div><div class="dr-hd" id="dr-hd"></div><div class="dr-bd" id="dr-bd"></div></section></div>
-<div id="dv" role="dialog" aria-modal="true" aria-label="Pratinjau gambar album"><div class="dv-top"><div class="dv-ttl"><b id="dv-t"></b><small id="dv-n"></small></div><button type="button" class="dr-ib" id="dv-x" data-a="dv-close" aria-label="Tutup pratinjau"></button></div><div class="dv-st" id="dv-st"><img id="dv-img" alt=""><button type="button" class="dv-nv dv-pv" id="dv-pv" data-a="dv-prev" aria-label="Gambar sebelumnya"></button><button type="button" class="dv-nv dv-nx" id="dv-nx" data-a="dv-next" aria-label="Gambar berikutnya"></button></div><div class="dv-bar"><button type="button" class="btn ghost" data-a="dv-close">Tutup</button><button type="button" class="btn" id="dv-dl" data-a="dv-dl"></button></div></div>
+<div id="dv" role="dialog" aria-modal="true" aria-label="Pratinjau gambar album"><div class="dv-top"><div class="dv-ttl"><b id="dv-t"></b><small id="dv-n"></small></div><button type="button" class="dr-ib" id="dv-x" data-a="dv-close" aria-label="Tutup pratinjau"></button></div><div class="dv-st" id="dv-st"><canvas id="dv-img" width="1" height="1" role="img" aria-label="Foto album diperbesar"></canvas><button type="button" class="dv-nv dv-pv" id="dv-pv" data-a="dv-prev" aria-label="Gambar sebelumnya"></button><button type="button" class="dv-nv dv-nx" id="dv-nx" data-a="dv-next" aria-label="Gambar berikutnya"></button></div><div class="dv-bar"><button type="button" class="btn ghost" data-a="dv-close">Tutup</button><button type="button" class="btn" id="dv-dl" data-a="dv-dl"></button></div></div>
 <div id="kl" role="dialog" aria-label="Kolase Outfit"></div>
 <div class="toast" id="ts" role="status"></div>
 </div>
@@ -560,6 +561,42 @@ async function busyDl(el,job,fast){
  all.forEach(b=>{if(b.isConnected)b.disabled=false});
  if(el.isConnected){el.classList.remove('busy');el.removeAttribute('aria-busy');el.innerHTML=orig}
  dlBusy=false}
+/* v18.41: PENAMPIL FOTO ANTI-HITAM. Di HP, foto asli yang ditaruh langsung di <img> bisa dapat ruang tapi tidak tergambar (layar hitam).
+   Urutan sekarang: (1) thumbnail (yang sama dengan di grid) digambar dulu, (2) foto asli dibaca ulang dari penyimpanan, diperkecil seperlunya
+   lalu digambar ke canvas, (3) kalau foto asli gagal, thumbnail tetap tampil + kode penyebab. File asli tidak diubah ("Unduh asli" tetap utuh). */
+const FV_MAX=2048,FV_MIN=1280;let zTk=0,dvTk=0;
+function fvAda(src){/* cek 16px dulu; kalau kosong, cek lagi di 256px supaya PNG yang hampir transparan tidak dianggap gagal */
+ return [16,256].some(n=>{const t=document.createElement('canvas');t.width=t.height=n;const g=t.getContext('2d',{willReadFrequently:true});g.imageSmoothingQuality='high';g.drawImage(src,0,0,n,n);return g.getImageData(0,0,n,n).data.some((v,i)=>i%4===3&&v>0)})}
+function fvGambar(c,src,w,h){
+ if(!w||!h)throw new Error('ukuran-0');
+ /* decode yang gagal diam-diam menghasilkan gambar kosong tanpa error */
+ if(!fvAda(src))throw new Error('gambar-kosong');
+ const s=Math.max(w,h),k=Math.min(FV_MAX,Math.max(FV_MIN,s))/s;
+ c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
+ const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,c.width,c.height);
+ if(!fvAda(c))throw new Error('gagal-digambar')}
+async function fvLukis(c,b,masih){
+ let salah;const u=URL.createObjectURL(b);
+ try{const im0=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(new Error('tidak-bisa-dibuka'));i.src=u});
+  if(masih())fvGambar(c,im0,im0.naturalWidth,im0.naturalHeight);return}
+ catch(e){salah=e}finally{URL.revokeObjectURL(u)}
+ /* cara cadangan */
+ try{const bm=await createImageBitmap(b);try{if(masih())fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()}}catch(e){throw salah}}
+async function fvAsli(p){
+ let b=p.blob;
+ try{const r=await run('photos','readonly',t=>t.objectStore('photos').get(p.id));if(r&&r.blob)b=r.blob}catch(e){}
+ let data;try{data=await new Response(b).arrayBuffer()}catch(e){throw new Error('file-tidak-terbaca')}
+ if(!data.byteLength)throw new Error('file-kosong');
+ return new Blob([data],{type:b.type||p.type||'image/jpeg'})}
+/* masih() = penampil masih menunjuk foto ini; siap() = sudah ada gambar di layar. Hasil: '' kalau sukses, atau pesan kegagalan. */
+async function fvTampil(c,p,masih,siap){
+ let kecil=false;
+ if(p.thumb){try{await fvLukis(c,p.thumb,masih);kecil=true;if(masih())siap()}catch(e){}}
+ if(!masih())return '';
+ try{const b=await fvAsli(p);if(!masih())return '';await fvLukis(c,b,masih);if(masih())siap();return ''}
+ catch(e){if(kecil){try{await fvLukis(c,p.thumb,masih)}catch(_){kecil=false}}
+  const mb=((p.blob?p.blob.size:p.size||0)/1048576).toFixed(2);
+  return (kecil?'Foto asli gagal dibuka, yang tampil versi kecil.':'Foto ini tidak bisa dibuka.')+' (kode: '+((e&&e.message)||'tidak-diketahui')+', '+mb+' MB)'}}
 const ACT2={
  panreset(){OI.reset();upChip()},
  gen(el,e,d){d.gen=true;render();const c=$('pcard');c&&c.scrollIntoView({behavior:'smooth',block:'nearest'})},
@@ -571,8 +608,10 @@ const ACT2={
  async newsave(){const x=await mkAlb($('na').value);if(x)saveTo(x)},
  async mkalb(){const x=await mkAlb($('nn').value);if(x){S.na=false;await loadView();toast('Album dibuat')}},
  async rn(){if(S.aid==='a_panah')return toast('Nama Album Panah tidak bisa diubah');const v=($('rn').value||'').replace(/\s+/g,' ').trim();if(!v)return toast('Nama album tidak boleh kosong');try{await loadAlb();if(S.albums.some(a=>a.id!==S.aid&&a.name.toLowerCase()===v.toLowerCase()))return toast('Nama album itu sudah dipakai');const a=await run('albums','readonly',t=>t.objectStore('albums').get(S.aid));a.name=v;await run('albums','readwrite',t=>t.objectStore('albums').put(a));await loadAlb();$('bt').textContent=v;toast('Nama album disimpan')}catch(x){toast('Gagal menyimpan nama')}},
- zoom(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;if(S.zu)URL.revokeObjectURL(S.zu);S.zu=URL.createObjectURL(p.blob);S.zid=id;$('vw').innerHTML=`<button type="button" class="vdel" data-a="delz" aria-label="Hapus gambar ini">${ic('trash',15)}Hapus</button><img src="${S.zu}" alt="" style="max-width:100%;max-height:calc(100dvh - 140px);object-fit:contain;border-radius:var(--radius-sm)"><div class="row" style="width:min(100%,360px)"><button type="button" class="btn ghost" data-a="dlp">${ic('dl',16)}Unduh asli</button><button type="button" class="btn ghost" data-a="vx">Tutup</button></div>`;$('vw').classList.add('show')},
- vx(){$('vw').classList.remove('show');if(S.zu){URL.revokeObjectURL(S.zu);S.zu=null}},
+ zoom(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;if(S.zu){URL.revokeObjectURL(S.zu);S.zu=null}S.zid=id;$('vw').innerHTML=`<button type="button" class="vdel" data-a="delz" aria-label="Hapus gambar ini">${ic('trash',15)}Hapus</button><canvas class="vimg" width="1" height="1" role="img" aria-label="Foto album diperbesar"></canvas><p class="hint vmsg">Memuat foto…</p><div class="row" style="width:min(100%,360px)"><button type="button" class="btn ghost" data-a="dlp">${ic('dl',16)}Unduh asli</button><button type="button" class="btn ghost" data-a="vx">Tutup</button></div>`;$('vw').classList.add('show');
+  const c=$('vw').querySelector('.vimg'),m=$('vw').querySelector('.vmsg'),tk=++zTk,masih=()=>tk===zTk&&c.isConnected;
+  fvTampil(c,p,masih,()=>{m.hidden=true}).then(t=>{if(t&&masih()){m.textContent=t;m.hidden=false}})},
+ vx(){zTk++;$('vw').classList.remove('show');const c=$('vw').querySelector('.vimg');if(c)c.width=c.height=1;if(S.zu){URL.revokeObjectURL(S.zu);S.zu=null}},
  delp(el,e,d,id){ask('Hapus gambar ini dari album?',async()=>{try{window.csDelP&&window.csDelP(id,S.aid);await run('photos','readwrite',t=>t.objectStore('photos').delete(id));if(S.aid==='a_panah')KL.pkDel(id);await sync(S.aid);await loadView()}catch(x){toast('Gagal menghapus gambar')}},'Ya, hapus')},
  delz(){const id=S.zid;if(!id)return;ACT2.vx();ACT2.delp(null,null,null,id)},
  dela(){if(S.aid==='a_panah')return toast('Album Panah tidak bisa dihapus. Hapus fotonya satu per satu.');ask('Hapus album ini beserta semua gambarnya?',async()=>{const al=S.aid;try{if(window.csDelA)await window.csDelA(al);await run(['albums','photos'],'readwrite',t=>{t.objectStore('albums').delete(al);const c=t.objectStore('photos').index('album').openCursor(IDBKeyRange.only(al));c.onsuccess=()=>{const r=c.result;if(r){r.delete();r.continue()}}});go('home')}catch(x){toast('Gagal menghapus album')}},'Ya, hapus')}
@@ -583,7 +622,7 @@ const ACT2={
 P.wand='M4 20L14.5 9.5M13 4.5l1 2.3 2.3 1-2.3 1-1 2.3-1-2.3-2.3-1 2.3-1zM18.5 12.5l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7z';
 $('tools').innerHTML='<button type="button" class="tb" data-a="dr-open" aria-label="Buka album">'+ic('album',16)+'<span>Album</span></button><button type="button" class="tb gold" data-a="pfa" aria-label="Buka Prompt Foto AI">'+ic('wand',16)+'<span>Prompt AI</span></button>';
 $('dv-x').innerHTML=ic('x',18);$('dv-pv').innerHTML=ic('back',20);$('dv-nx').innerHTML=ic('chev',20);$('dv-dl').innerHTML=ic('dl',16)+'Unduh';
-const DR={on:false,loading:false,view:'list',aid:null,q:'',albums:[],pics:[],urls:[],tk:0,vi:-1,vu:null};
+const DR={on:false,loading:false,view:'list',aid:null,q:'',albums:[],pics:[],urls:[],tk:0,vi:-1};
 const drU=b=>{const u=URL.createObjectURL(b);DR.urls.push(u);return u},drRev=()=>{DR.urls.forEach(u=>URL.revokeObjectURL(u));DR.urls=[]},drAlb=()=>DR.albums.find(a=>a.id===DR.aid);
 function drHead(){const al=DR.view==='album'?drAlb():null,t=al?al.name:'Album',s=al?DR.pics.length+' gambar':(DR.albums.length?DR.albums.length+' album':(DR.loading?'Memuat…':'Belum ada album'));
  $('dr-hd').innerHTML=(al?'<button type="button" class="dr-ib" data-a="dr-back" aria-label="Kembali ke daftar album">'+ic('back',18)+'</button>':'<span class="dr-ico">'+ic('album',20)+'</span>')+'<div class="dr-tt"><b>'+esc(t)+'</b><small>'+esc(s)+'</small></div><button type="button" class="dr-ib" data-a="dr-close" aria-label="Tutup album">'+ic('x',18)+'</button>'}
@@ -606,10 +645,10 @@ async function drLoad(aid,first){const tk=++DR.tk;DR.loading=true;DR.aid=aid||nu
 function drOpen(){if(DR.on)return;DR.on=true;DR.q='';const el=$('dr');el.classList.add('show');el.setAttribute('aria-hidden','false');void el.offsetWidth;el.classList.add('on');drLoad(DR.aid,true)}
 function drClose(){if(!DR.on)return;dvClose();DR.on=false;DR.tk++;DR.loading=false;const el=$('dr');el.setAttribute('aria-hidden','true');el.classList.remove('on');
  setTimeout(()=>{if(!DR.on){el.classList.remove('show');drRev();DR.albums=[];DR.pics=[];$('dr-bd').innerHTML=''}},320)}
-function dvShow(i){const n=DR.pics.length;if(!n)return;i=Math.max(0,Math.min(n-1,i));DR.vi=i;const p=DR.pics[i],img=$('dv-img');
- if(DR.vu)URL.revokeObjectURL(DR.vu);DR.vu=URL.createObjectURL(p.blob);img.classList.add('ld');img.onload=img.onerror=()=>img.classList.remove('ld');img.src=DR.vu;
+function dvShow(i){const n=DR.pics.length;if(!n)return;i=Math.max(0,Math.min(n-1,i));DR.vi=i;const p=DR.pics[i],c=$('dv-img'),tk=++dvTk,masih=()=>tk===dvTk;
+ c.width=c.height=1;fvTampil(c,p,masih,()=>{}).then(t=>{if(t&&masih())$('dv-n').textContent=(i+1)+' dari '+n+' · '+t});
  $('dv-t').textContent=(drAlb()||{name:'Album'}).name;$('dv-n').textContent=(i+1)+' dari '+n;$('dv-pv').disabled=i===0;$('dv-nx').disabled=i===n-1;$('dv').classList.add('show')}
-function dvClose(){const v=$('dv');if(!v.classList.contains('show'))return;v.classList.remove('show');const img=$('dv-img');img.onload=img.onerror=null;img.removeAttribute('src');if(DR.vu){URL.revokeObjectURL(DR.vu);DR.vu=null}DR.vi=-1}
+function dvClose(){const v=$('dv');if(!v.classList.contains('show'))return;v.classList.remove('show');dvTk++;const c=$('dv-img');c.width=c.height=1;DR.vi=-1}
 function drDlName(p){const al=DR.albums.find(x=>x.id===p.album),ty=p.type||'',ext=/jpe?g/i.test(ty)?'jpg':/webp/i.test(ty)?'webp':'png',bad=[92,34,60,62,47,58,42,63,124],an=al&&al.name?al.name.split('').map(c=>(bad.includes(c.charCodeAt(0))||c.charCodeAt(0)<32)?'-':c).join('').trim():'';return an?an+'.'+ext:(p.name||'gambar.png')}
 function drDownload(el,p){busyDl(el,async say=>{say('Mengunduh…');const r=await dlBlob(p.blob,drDlName(p));if(r==='dl')toast('Gambar diunduh');return r!=='abort'})}
 Object.assign(ACT2,{
