@@ -642,7 +642,7 @@ const ACT2={
   /* v18.47: foto dimuat DULU (sebelum pencarian jaringan berjalan, supaya memori HP tidak rebutan), dengan 3 cara: penampil album, pemuat foto biasa (sama dengan pilih foto manual), lalu thumbnail */
   const buka=async b=>{const c=document.createElement('canvas');await fvLukis(c,b,()=>true);return{b,c}};
   const biasa=b=>new Promise((ok,no)=>{const t=setTimeout(()=>no(new Error('waktu-habis')),20000);OI.ld(b,c=>{clearTimeout(t);ok({b,c})})});
-  const coba=async b=>{if(!b)throw new Error('kosong');try{return await buka(b)}catch(x){return await biasa(b)}};
+  const coba=async b=>{if(!b)throw new Error('kosong');try{const q=await biasa(b);if(q&&q.c&&q.c.width>1&&fvAda(q.c))return q}catch(x){}return await buka(b)};
   let r=null,kecil=false;
   try{r=await coba(await fvAsli(p))}catch(x1){}
   if(!r&&p.blob){try{r=await coba(p.blob)}catch(x2){}}
@@ -2173,9 +2173,11 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
  async function inspItems(u,want,say){let R=await srFind(u,want,say);
   /* v18.47: pencarian server yang kosong tidak lagi dipercaya begitu saja: baca seluruh koleksi lalu saring di sini */
   if(!R.hit.length&&!R.fail&&!R.net&&!R.empty&&!R.partial){say('Nomor '+want+' belum ketemu lewat pencarian. Membaca seluruh koleksi…');srForceFull=1;try{const R2=await srFind(u,want,say);if(!R2.fail&&!R2.net&&!R2.empty)R=R2}catch(e){}finally{srForceFull=0}}
+  /* v18.48: resep baca tersimpan bisa usang (hanya sebagian koleksi terbaca): hapus, belajar ulang, baca lagi */
+  if(!R.hit.length&&!R.fail&&!R.net&&!R.empty&&!R.partial){say('Mengulang cara membaca koleksi…');srRcClear();srForceFull=1;try{const R3=await srFind(u,want,say);if(!R3.fail&&!R3.net&&!R3.empty&&((R3.hit&&R3.hit.length)||(R3.all||[]).length>=(R.all||[]).length))R=R3}catch(e){}finally{srForceFull=0}}
   /* v18.47: keterangan produk yang tidak diawali angka (mis. "LINK BIO NO. 031 ...", "Bio 031") tetap dikenali */
   if(!R.hit.length&&R.all&&R.all.length){const kk=parseInt(String(want).replace(/\D/g,''),10);if(isFinite(kk)){const re=new RegExp('^\\s*(?:(?:link\\s*bio|bio|no\\.?|nomor|#|-|:)\\s*)*0*'+kk+'(?![0-9]|[.,][0-9])','i'),lo=R.all.filter(o=>re.test(String(o.cap||'').replace(/^[^\w#]+/,'').slice(0,40)));if(lo.length)R={...R,hit:lo,how:R.how||'keterangan produk'}}}
-  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+((R.all||[]).length?'; contoh keterangan: '+R.all.slice(0,4).map(o=>String(o.cap||'-').replace(/\s+/g,' ').slice(0,28)).join(' | '):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Cek nomor album dan link.'};
+  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+(R.tc?' dari '+R.tc:'')+((R.all||[]).length?'; nomor yang terbaca: '+[...new Set(R.all.map(o=>pnCap(o.cap)||String(o.cap||'-').replace(/\s+/g,' ').slice(0,12)))].sort().join(', ').slice(0,320):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Cek nomor album dan link.'};
   const H=R.hit.slice(0,12),tx=H.map(inNm),nm=tx.map(inCat),need=nm.map((c,i)=>c?-1:i).filter(i=>i>=0);
   if(need.length&&window.parent&&parent.osAiVision){try{say('Mengenali '+need.length+' produk dari foto');const pics=await lnPool(need.map(i=>H[i]),4),parts=[{text:INASK}];
    need.forEach((i,k)=>{if(pics[k]){parts.push({text:'Kandidat '+(k+1)+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:pics[k]}})}});
