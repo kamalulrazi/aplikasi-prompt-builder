@@ -1420,7 +1420,7 @@ function zbForce(){if(!zbn)return;zbG++;zbn=0;++ztk;zbShow(false);if(zimg){try{z
 try{const j=JSON.parse(localStorage.getItem(ZK)||'null');if(j&&typeof j==='object')z={...z,...j}}catch(e){}
 let zcp=z.cut;
 const zsv=()=>{clearTimeout(zT);zT=setTimeout(()=>{try{const r=v=>+(+v).toFixed(1);if(zimg){if(z.cut&&zcut)z.mc=[r(z.mx),r(z.my)];else if(!z.cut)z.mn=[r(z.mx),r(z.my)]}const{t,h,q,c,ts,ss,tx,ty,hx,hy,qx,qy,ms,ed,sp,mc,mn}=z;localStorage.setItem(ZK,JSON.stringify({t,h,q,c,ts,ss,tx,ty,hx,hy,qx,qy,ms,ed,sp,mc,mn,cut:zcp}))}catch(e){}},200)};
-const zpos=c=>{const p=c?z.mc:z.mn,o=Array.isArray(p)&&p.length===2&&isFinite(p[0])&&isFinite(p[1]);z.mx=o?+p[0]:c?73:50;z.my=o?+p[1]:c?99.5:50},zst=m=>{const e=$('kzs');if(e)e.textContent=m||'';zbMsg(m)};
+const zpos=c=>{const p=c?z.mc:z.mn,o=Array.isArray(p)&&p.length===2&&typeof p[0]==='number'&&typeof p[1]==='number'&&isFinite(p[0])&&isFinite(p[1])&&p[0]>=0&&p[0]<=100&&p[1]>=(c?20:0)&&p[1]<=(c?150:100);z.mx=o?+p[0]:c?73:50;z.my=o?+p[1]:c?99.5:50},zst=m=>{const e=$('kzs');if(e)e.textContent=m||'';zbMsg(m)};
 function fillZ(){kl.querySelectorAll('[data-zp]').forEach(el=>{const v=z[el.dataset.zp];if(el.type==='checkbox')el.checked=!!v;else el.value=v});const sp=zsty().id;kl.querySelectorAll('[data-zs]').forEach(b=>{const on=b.dataset.zs===sp;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});KP()}
 const zrg=(l,p,a,b)=>KR(l,"data-zp",p,a,b,1);
 const zui=()=>`<label class="kauto" data-kp="2" style="margin-top:10px"><input type="file" accept="image/*" hidden data-zf="1"><b>Template teks &amp; ganti model</b><small>Pilih foto model. Hasilnya poster bertulisan di kiri, modelnya diganti foto ini</small></label>
@@ -1437,7 +1437,7 @@ ${zrg('Rapatkan tepi model','ed',0,100)}${zrg('Ukuran model','ms',50,250)}
 <div class="kzb"><label class="btn ghost sm"><input type="file" accept="image/*" hidden data-zf="1">Ganti foto</label><button type="button" class="btn ghost sm" data-zc="back">Kembali ke kolase</button></div></div>`;
 function drawZ(){const x=cx,rx=Math.round(W*.46);x.fillStyle='#fff';x.fillRect(0,0,W,H);
  if(!zimg)ph(x,rx,W-rx,'Foto model','#f3efe9');
- else if(z.cut&&zcut){const b=zcut.b,k=H*.97*z.ms/100/b.h,dw=b.w*k,dh=b.h*k;x.drawImage(zcut.c,b.x,b.y,b.w,b.h,W*z.mx/100-dw/2,H*z.my/100-dh,dw,dh)}
+ else if(z.cut&&zcut){const b=zcut.b,k=H*.97*z.ms/100/b.h,dw=b.w*k,dh=b.h*k;let px=W*z.mx/100-dw/2,py=H*z.my/100-dh;if(!isFinite(px)||!isFinite(py)||px+dw<W*.1||px>W*.9||py+dh<H*.1||py>H*.9){z.mx=73;z.my=99.5;px=W*.73-dw/2;py=H*.995-dh;zsv()}x.drawImage(zcut.c,b.x,b.y,b.w,b.h,px,py,dw,dh)}
  else zl=pic(x,zimg,rx,W-rx,z.ms,z.mx/100,z.my/100,true);
  zb={};x.fillStyle=z.c;x.textAlign='left';x.textBaseline='middle';
  const ST=zsty(),FT=px=>(ST.i?'italic ':'')+ST.w+' '+px+'px '+ST.f,L=z.t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>ST.u?l.toUpperCase():l),lx=W*z.tx/100,ly=H*z.ty/100;zpt=H*.125;zbot=ly;
@@ -1536,8 +1536,9 @@ async function zcutoutMP(){if(!zimg)return;const my=++ztk;zst('Mesin cadangan: m
   zp=res;zbuild();zpos(true);zst('');sched();toast('Mesin cadangan dipakai (kurang akurat). Ada bagian model terpotong? Buka “Rapikan latar (kuas)” > Pulihkan, atau tap “Potong ulang (AI)”')}
  catch(e){if(my!==ztk)return;console.warn('MediaPipe gagal',e);zlast()}}
 /* v18.46: kalau Hapus latar aktif, layar tunggu sudah menyala sejak foto mulai dibuka (tidak menunggu mesin AI mulai) dan baru dilepas di akhir; zcutout() memegang layar sendiri jadi tidak ada celah. */
+function zblank(c){try{const s=document.createElement('canvas');s.width=s.height=24;const g=s.getContext('2d',{willReadFrequently:true});g.drawImage(c,0,0,24,24);const d=g.getImageData(0,0,24,24).data;let lo=255,hi=0;for(let i=0;i<d.length;i+=4){const l=(d[i]+d[i+1]+d[i+2])/3;if(l<lo)lo=l;if(l>hi)hi=l}return hi-lo<6}catch(e){return false}}
 function zload(f,bad){const u=URL.createObjectURL(f),o=new Image(),g=z.cut?zbOn('Membuka foto…'):null,rel=()=>{if(g!==null)zbOff(g)};o.onerror=()=>{URL.revokeObjectURL(u);if(bad){try{bad()}finally{rel()}return}rel();toast('Foto tidak bisa dibuka, coba foto lain')};
- o.onload=()=>{try{URL.revokeObjectURL(u);const m=Math.min(1,2000/Math.max(o.naturalWidth,o.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(o.naturalWidth*m);c.height=Math.round(o.naturalHeight*m);c.getContext('2d').drawImage(o,0,0,c.width,c.height);
+ o.onload=()=>{try{URL.revokeObjectURL(u);const m=Math.min(1,2000/Math.max(o.naturalWidth,o.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(o.naturalWidth*m);c.height=Math.round(o.naturalHeight*m);{const q=c.getContext('2d');q.fillStyle='#fff';q.fillRect(0,0,c.width,c.height);q.drawImage(o,0,0,c.width,c.height)}if(bad&&zblank(c)){bad();return}
   zimg=c;zcut=null;zp=null;if(pon)pexit();zon=true;kl.classList.add('zm');zpos(false);zfl();fillZ();sched();if(z.cut)zcutout();else zst('')}finally{rel()}};o.src=u}
 function zrst(){const k={t:z.t,h:z.h,q:z.q,cut:z.cut};z={...zdef(),...k};zpos(!!zcut&&z.cut);fillZ();sched();zsv()}
 kl.addEventListener('input',e=>{const el=e.target,k=el.dataset.zp;if(!k)return;z[k]=el.type==='checkbox'?el.checked:el.type==='range'?+el.value:el.value;
