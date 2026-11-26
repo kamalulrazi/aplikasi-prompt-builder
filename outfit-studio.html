@@ -2000,7 +2000,11 @@ function srMsg(R,want,anchor){if(R.net)return'Tidak bisa menghubungi server kole
  srShow(anchor);return'Server collshp belum bisa dibaca otomatis (daftar produknya tetap kosong). Laporan teknis sudah disiapkan di kotak hitam di bawah: tekan lama, pilih Salin semua, lalu kirim ke saya.'}
 const srPart=(R,want)=>'Nomor '+want+' belum ketemu, karena koleksi baru terbaca sebagian ('+(R.got||R.all.length)+((R.tc||0)>=(R.got||R.all.length)?' dari '+R.tc:'')+' produk, sisanya belum bisa dimuat). Tekan Cari item lagi sebentar lagi.';
 /* Urutan: (a) kalau link berisi contoh alamat hasil pencarian, pencarian itu dipakai DULUAN; (b) halaman koleksi apa adanya; (c) tebakan nama parameter pencarian, 3 dulu baru 2 (supaya tidak memborbardir pembaca halaman). */
-async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if(A.ok)return A.hit.length?{...A,cand:[],how:'pencarian server collshp'}:{all:A.all,hit:[],nc:A.nc,cand:[],how:'',none:!A.partial,partial:A.partial,tc:A.tc,got:A.got};const R=await srFindB(u,n,say);R.fail=A.fail;R.net=A.net;R.empty=A.empty;return R}
+async function srFind(u,n,say){say=say||(()=>{});const A=await srApi(u,n,say);if(A.ok){if(A.hit.length)return{...A,cand:[],how:'pencarian server collshp'};
+  /* v18.52: data server collshp bisa tertinggal (produk TERBARU belum ada di sana, padahal sudah tampil di halaman koleksi). Kalau server tidak menemukan nomor, baca juga halaman koleksinya langsung: produk terbaru ada di bagian paling atas. */
+  if(!srForceFull){say('Nomor '+n+' belum ada di data server. Membaca halaman koleksi langsung (produk terbaru)…');try{const B=await srFindB(u,n,say);if(B&&B.hit&&B.hit.length)return{...B,cand:[],how:B.how||'halaman koleksi'}}catch(e){}}
+  return{all:A.all,hit:[],nc:A.nc,cand:[],how:'',none:!A.partial,partial:A.partial,tc:A.tc,got:A.got}}
+ const R=await srFindB(u,n,say);R.fail=A.fail;R.net=A.net;R.empty=A.empty;return R}
 async function srFindB(u,n,say){const B=srBase(u),urls=srUrls(u,n),own=urls.length===1,rs=[];
  const run=async us=>{const a=await Promise.all(us.map(async x=>({x,r:srHit(await srTxt(x),x,n)})));rs.push(...a);return a.filter(o=>o.r.hit.length).sort((p,q)=>q.r.hit.length-p.r.hit.length)[0]};
  const done=o=>({...o.r,cand:[],how:'kolom pencarian koleksi',url:o.x});let ok;
