@@ -638,7 +638,19 @@ const ACT2={
  dl(el){busyDl(el,async say=>{try{const b=await resBlob();say('Mengunduh…');const r=await dlBlob(b,resName());if(r==='dl')toast('Gambar diunduh');return r!=='abort'}catch(err){toast(err==='need'?needMsg():'Unduh gagal. Pastikan gambar hasil sudah tampil.');return false}})},
  pnh(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const al=S.albums.find(x=>x.id===p.album),num=((al&&al.name||'').match(/\d+/)||[''])[0];if(!num)return toast('Nama album harus berisi nomor, misalnya 024');KL.panah(p.blob,num,p.thumb)},
  /* v18.42: INSPIRASI DARI ALBUM. Tombol "Inspirasi" di tiap foto Album (kecuali Album Panah): foto masuk ke sisi KANAN layar Inspirasi (langkah Hasil), sisi kiri kosong, Nomor link bio = angka di nama album (tanpa angka: nama album apa adanya). Foto dimuat lewat fvAsli + fvLukis, cadangan thumbnail. */
- async pinsp(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const al=S.albums.find(x=>x.id===p.album),nm=((al&&al.name)||'').trim(),nd=mk('insp');nd.nomor=(nm.match(/\d+/)||[nm])[0];S.d=nd;S.saved=false;S.tab='ip';S.step=1;S.iks='';enter3();go('make');inspCari(nd,1);const buka=async b=>{const c=document.createElement('canvas');await fvLukis(c,b,()=>true);return{b,c}};let r=null,kecil=false;try{r=await buka(await fvAsli(p))}catch(x1){try{if(p.thumb){r=await buka(p.thumb);kecil=true}}catch(x2){}}if(S.d!==nd)return;if(!r)return toast('Foto album gagal dibuka. Ketuk sisi kanan untuk pilih foto.');nd.photo=URL.createObjectURL(r.b);nd.photoC=r.c;enter3();render();if(kecil)toast('Foto asli gagal dibuka, dipakai versi kecil')},
+ async pinsp(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const al=S.albums.find(x=>x.id===p.album),nm=((al&&al.name)||'').trim(),nd=mk('insp');nd.nomor=(nm.match(/\d+/)||[nm])[0];S.d=nd;S.saved=false;S.tab='ip';S.step=1;S.iks='';enter3();go('make');
+  /* v18.47: foto dimuat DULU (sebelum pencarian jaringan berjalan, supaya memori HP tidak rebutan), dengan 3 cara: penampil album, pemuat foto biasa (sama dengan pilih foto manual), lalu thumbnail */
+  const buka=async b=>{const c=document.createElement('canvas');await fvLukis(c,b,()=>true);return{b,c}};
+  const biasa=b=>new Promise((ok,no)=>{const t=setTimeout(()=>no(new Error('waktu-habis')),20000);OI.ld(b,c=>{clearTimeout(t);ok({b,c})})});
+  const coba=async b=>{if(!b)throw new Error('kosong');try{return await buka(b)}catch(x){return await biasa(b)}};
+  let r=null,kecil=false;
+  try{r=await coba(await fvAsli(p))}catch(x1){}
+  if(!r&&p.blob){try{r=await coba(p.blob)}catch(x2){}}
+  if(!r&&p.thumb){try{r=await coba(p.thumb);kecil=!!r}catch(x3){}}
+  if(S.d!==nd)return;
+  if(!r){toast('Foto album gagal dibuka. Ketuk sisi kanan untuk pilih foto.');inspCari(nd,1);return}
+  nd.photo=URL.createObjectURL(r.b);nd.photoC=r.c;enter3();render();if(kecil)toast('Foto asli gagal dibuka, dipakai versi kecil');
+  inspCari(nd,1)},
  /* v18.44: GANTI MODEL DARI ALBUM. Tombol "Ganti model" di tiap foto Album (kecuali Album Panah): foto masuk ke Template teks & ganti model (Kolase > Foto) sebagai foto model, latar dihapus otomatis. Foto dibaca lewat fvAsli, cadangan thumbnail. */
  /* v18.46: layar tunggu menyala begitu tombol ditekan (membaca foto asli bisa beberapa detik) dan dilepas setelah KL.templat memegangnya sendiri */
  async ptpl(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const g=KL.busyOn('Membuka foto…');try{let b=null;try{b=await fvAsli(p)}catch(x){}KL.templat(b||p.blob,p.thumb)}finally{KL.busyOff(g)}},
@@ -1795,7 +1807,7 @@ const SRQ='query StorefrontProductListQuery($urlSuffix: String, $keyword: String
    MENGINGAT yang berhasil, lalu memakainya untuk (1) mencari nomor album di kolom pencarian server, (2) kalau perlu membaca SELURUH koleksi (ribuan foto) dan menyaring sendiri. Tanpa AI.
    Kalau tetap gagal, laporan teknis lengkap disiapkan otomatis (kotak hitam) supaya tinggal dikirim. */
 const SRQG='query StorefrontGroupProductListQuery($urlSuffix: String, $keyword: String, $sortType: SortType, $groupId: Long, $linkId: Long, $page: LinktreelandingpagePaginationInput, $listType: MyCollectionListType, $affiliateMeta: AffiliateMetaInput, $buyerId: Long, $uuId: String, $deviceId: String, $cid: String, $language: String) { storefrontGroupProductList( urlSuffix: $urlSuffix keyword: $keyword sortType: $sortType groupId: $groupId linkId: $linkId page: $page listType: $listType affiliateMeta: $affiliateMeta buyerId: $buyerId uuId: $uuId deviceId: $deviceId cid: $cid language: $language ) { itemList { linkId link linkName image linkType itemId isPined h5Link itemCard } groupList { groupId groupName groupType isPined groupStatus itemList { linkId link linkName image linkType itemId isPined h5Link } totalCount } pagination { offset limit hasMore totalCount } } }';
-const SRAPI='https://collshp.com/api/v3/gql/graphql',srLog=[];let srBest='',srFail=0,srH=null;
+const SRAPI='https://collshp.com/api/v3/gql/graphql',srLog=[];let srBest='',srFail=0,srH=null,srForceFull=0;
 const srSlug=u=>{try{return new URL(u).pathname.split('/').filter(Boolean)[0]||''}catch(e){return ''}};
 const SROP={P:{n:'StorefrontProductListQuery',q:SRQ,f:'storefrontProductList'},G:{n:'StorefrontGroupProductListQuery',q:SRQG,f:'storefrontGroupProductList'}};
 const SRLK='os_sr_rc_v2',SRUK='os_sr_uu_v1',SRHK='os_sr_h_v1';
@@ -1921,7 +1933,7 @@ async function srApi(u,n,say){srLog.length=0;srFail=0;const slug=srSlug(u),none=
  if(Q1.c.length&&!rc.kv){rc.kv=1;srRcSet(slug,rc)}
  if(hit.length)return{ok:1,all:Q1.c,hit,nc:Q1.c.length};
  /* hasil kosong dari kolom pencarian server dipercaya hanya kalau kolom itu pernah terbukti bekerja; kalau belum, seluruh koleksi dibaca dan disaring di sini */
- if(!Q1.c.length&&rc.kv)return{ok:1,all:[],hit:[],nc:0,partial:false,tc:Q1.R.tc,got:0,confirmed:1};
+ if(!Q1.c.length&&rc.kv&&!srForceFull)return{ok:1,all:[],hit:[],nc:0,partial:false,tc:Q1.R.tc,got:0,confirmed:1};
  /* kolom pencarian server tidak memberi nomor persis (mis. pencarian tidak menyaring): baca SELURUH koleksi lewat server dan saring di sini */
  if(say)say('Membaca seluruh koleksi lewat server');
  const F=await run('',600,'Membaca koleksi');srLog.push('baca semua: '+F.c.length+' item, total '+F.R.tc+(F.R.err?' | berhenti karena galat':'')+', cocok '+mine(F.c).length);
@@ -2158,7 +2170,11 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
   let c=o.card;if(typeof c==='string'){try{c=JSON.parse(c)}catch(e){c=null}}let b='';
   (function w(x,k,d){if(b||d>6||x==null)return;if(typeof x==='string'){if(x.length>2&&/(^|\.)(name|title|itemName|item_name|productName|product_name)$/.test(k)&&!/shop|seller|store|brand|user|cat|unit|attr|model|tier|var/i.test(k))b=x;return}if(typeof x==='object')for(const q of Object.keys(x))w(x[q],k?k+'.'+q:q,d+1)})(c,'',0);return b.trim()}
  const INSYS='Kamu mengenali jenis produk fashion dari foto. Balas HANYA dengan satu objek JSON, tanpa teks lain.',INASK='Tiap kandidat adalah foto SATU produk toko. Untuk SETIAP kandidat (urut) isi "category" = jenis produknya dalam bahasa Indonesia, 1-2 kata huruf kecil (mis. hijab, atasan, gamis, rok, celana, tas, sepatu, sandal, jam tangan, kalung, gelang). Format: {"items":[{"c":1,"category":"tas"}]}';
- async function inspItems(u,want,say){const R=await srFind(u,want,say);
+ async function inspItems(u,want,say){let R=await srFind(u,want,say);
+  /* v18.47: pencarian server yang kosong tidak lagi dipercaya begitu saja: baca seluruh koleksi lalu saring di sini */
+  if(!R.hit.length&&!R.fail&&!R.net&&!R.empty&&!R.partial){say('Nomor '+want+' belum ketemu lewat pencarian. Membaca seluruh koleksi…');srForceFull=1;try{const R2=await srFind(u,want,say);if(!R2.fail&&!R2.net&&!R2.empty)R=R2}catch(e){}finally{srForceFull=0}}
+  /* v18.47: keterangan produk yang tidak diawali angka (mis. "LINK BIO NO. 031 ...", "Bio 031") tetap dikenali */
+  if(!R.hit.length&&R.all&&R.all.length){const kk=parseInt(String(want).replace(/\D/g,''),10);if(isFinite(kk)){const re=new RegExp('^\\s*(?:(?:link\\s*bio|bio|no\\.?|nomor|#|-|:)\\s*)*0*'+kk+'(?![0-9]|[.,][0-9])','i'),lo=R.all.filter(o=>re.test(String(o.cap||'').replace(/^[^\w#]+/,'').slice(0,40)));if(lo.length)R={...R,hit:lo,how:R.how||'keterangan produk'}}}
   if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi. Cek nomor album dan link.'};
   const H=R.hit.slice(0,12),tx=H.map(inNm),nm=tx.map(inCat),need=nm.map((c,i)=>c?-1:i).filter(i=>i>=0);
   if(need.length&&window.parent&&parent.osAiVision){try{say('Mengenali '+need.length+' produk dari foto');const pics=await lnPool(need.map(i=>H[i]),4),parts=[{text:INASK}];
