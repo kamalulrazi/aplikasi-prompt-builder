@@ -37,6 +37,7 @@ Satu fitur sering menyentuh beberapa file: logika di `fitur/`, tampilan (tombol,
 | **Pilihan model AI** | `ai-model-dan-koneksi.js` | — |
 | **Login** | `akun-login-firebase.js` atau `akun-login-google.js` | — |
 | **Outfit Studio** | `outfit-studio.html` (±900 KB) | `outfit-studio-pembuka.js` |
+| **Tombol di foto Album Outfit Studio** (Unduh, Panah & harga, Inspirasi) | `outfit-studio.html` (`album()` untuk tombol, `ACT2.pnh` dan `ACT2.pinsp` untuk aksinya; item otomatis dari link koleksi: `inspCari`, `inspLink`, dan `inspItems` di modul `KL`) | — |
 | **Album Outfit Studio tidak sinkron antar perangkat (Google Drive)** | `outfit-studio-album-drive.js` (Client ID kini dicari otomatis dari `akun-login-google.js`; kalau gagal, isi `CLIENT_ID_MANUAL` di baris atas) | `outfit-studio.html` (blok `v18.40`, pesan status), `akun-login-google.js` (sumber Client ID) |
 | **Tur panduan pertama kali** | `panduan-tur-pertama-kali.js` | — |
 | **Warna, ukuran, gaya** | `app.css` | `index.html` |
@@ -74,6 +75,8 @@ Sudah diperiksa lokasinya. Pakai ini kalau kamu tahu nama kodenya tapi tidak tah
 | `PB_AI_MODELS` | `ai-model-dan-koneksi.js` |
 | `osOpen` | `outfit-studio-pembuka.js` |
 | `fvTampil`, `fvLukis`, `fvAsli`, `fvGambar`, `fvAda` (penampil foto album yang diperbesar, di layar Album dan laci Album) | `outfit-studio.html` |
+| `pinsp` (tombol "Inspirasi" di tiap foto album: foto masuk sisi kanan, sisi kiri kosong, Nomor link bio = angka di nama album; memuat foto lewat `fvAsli` + `fvLukis` dengan cadangan thumbnail, jadi ikut berubah kalau keduanya diubah) | `outfit-studio.html` (`ACT2`) |
+| `inspCari`, `inspLink`, `ACT2.ikgo` (kolom Link koleksi + tombol "Cari item" di tab Item & Prompt Inspirasi; dijalankan otomatis oleh `pinsp`), `inspItems` (diekspor sebagai `window.osInspCari`), `INCAT`, `inNm`, `inCat` (mencari produk bernomor album lewat `srFind`, nama produk jadi jenis item, sisanya dikenali AI dari foto) | `outfit-studio.html` (`inspCari`/`inspLink` di skrip utama sebelum `ACT2`, `inspItems` di dalam modul `KL`) |
 | `osCloud` (`uid/ready/list/put/get/del/connect`), `CLIENT_ID_MANUAL`, `detectCid` | `outfit-studio-album-drive.js` (dipanggil `outfit-studio.html` lewat `parent.osCloud`) |
 | `switchPage` | `umum-alat-bantu.js` (juga ditimpa di 3 file lain) |
 | `pbReplayTour` | `panduan-tur-pertama-kali.js` |
@@ -255,3 +258,5 @@ Kalau user bilang "peta belum diperbarui", kerjakan langkah di atas lebih dulu s
 - **26 Nov 2026 (siang)** — Tambah 21 contoh skrip referensi 16 detik (Opsi 13-33, 5 di antaranya berkurung) di `video-contoh-skrip-referensi.js`. Kata khas produk baru (storage box, bad cover, piyama, jam tangan, rotan, ransel) ditambahkan ke `VB_FOREIGN_SAMPLE_WORDS_16` di `video-prompt-sistem-dan-perbaikan-skrip.js`. CAMERA CUE: kurung yang tidak menyebut produk (mis. gerakan tangan) disalin apa adanya.
 - **26 Nov 2026 (sore)** — Panduan logat Medan (`VB_LOGAT_SCRIPT_GUIDE` di `video-builder-inti.js`) ditambah: `alah`, `pala bapak kau` (maks sekali per skrip), `cemana pulak` (= bagaimana), `kalen` dipertegas; tiap kalimat wajib punya minimal satu penanda Medan. Petunjuk nada toxic x Medan (`VB_NADA_AKSEN_HINT`) ikut diperbarui, dan `VB_FIX_WORDS_BY_LOGAT` (Medan, `video-sapaan-dan-perapian-teks.js`) ditambah `alah` dan `cemana pulak` (daftar ini hanya dipakai untuk batch campuran aksen; batch biasa hanya memakai bagian NEVER-nya lewat `_vbFixSystemFor`).
 - **26 Nov 2026** — Outfit Studio v18.41: perbaikan foto album yang hitam saat diperbesar. Layar Album dan laci Album kini menggambar ke canvas (thumbnail dulu, lalu foto asli yang dibaca ulang dan diperkecil maks. 2048 px); kalau foto asli gagal, thumbnail tetap tampil + kode penyebab. Perbarui bagian 2.
+- **26 Nov 2026** — Outfit Studio v18.42: tombol "Inspirasi" di tiap foto Album (`pinsp` di `ACT2`, tombol di `album()`). Foto album masuk ke sisi kanan layar Inspirasi, sisi kiri kosong, Nomor link bio terisi angka dari nama album (kalau nama album tanpa angka, nama dipakai apa adanya). Tidak tampil di Album Panah. Perbarui bagian 1 dan 2.
+- **26 Nov 2026 (malam)** — Outfit Studio v18.43: Inspirasi dari Album kini mencari item otomatis. Kolom "Link koleksi" + tombol "Cari item" di tab Item & Prompt (link memakai simpanan yang sama dengan Panah & harga). Nomor album dicari lewat `srFind` (ribuan produk tetap terbaca), nama tiap produk jadi Item outfit (Tas, Hijab, dst; jenis yang belum terbaca dikenali AI dari foto), prompt ikut terisi. Perbarui bagian 1 dan 2.
