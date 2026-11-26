@@ -1059,9 +1059,44 @@ const VB_FE10_SLOT=[null,
   {t:'Tengah 2',r:'5–7,5 dtk',q:'Pose apa di bingkai ketiga?',o:[{k:'c1',l:'Samping',text:'Detik 5-7,5: Karakter memutar badan ke samping dan bersandar sedikit ke dinding, memperlihatkan outfit dari samping, hp tetap menutupi wajah.'}]},
   {t:'Akhir',r:'7,5–10 dtk',q:'Bagaimana video ditutup?',o:[{k:'d1',l:'Penutup',text:'Detik 7,5-10: Karakter berbalik menghadap cermin lagi, tangan bebas mengayun pelan lalu turun dan diam.'}]}
 ];
+// ── Versi FACELESS (26 Nov 2026) ──────────────────────────────────────────────
+// Dua versi di durasi 10 detik: 'mirror' (HEAD/TAIL/SLOT di atas, tidak diubah) dan 'faceless' (di bawah, teks dari user ditempel APA ADANYA).
+// Versi faceless: tanpa hp / cermin, framing dari bawah dagu sampai sekitar paha, kamera diam. Pilih versi lewat chip di atas storyboard (vbFe10PickVer).
+const VB_FE10_FL_HEAD=[
+  'Video rekaman natural biasa, bukan rekaman shooting profesional studio. Bikin dengan natural aja.',
+  '',
+  'Ini video memperlihatkan outfit. Framing dipotong dari bawah dagu sampai sekitar paha, jadi wajah karakter tidak pernah masuk frame dari detik pertama sampai video selesai.'
+].join('\n');
+const VB_FE10_FL_TAIL=[
+  'Kamera: diam di satu posisi, tidak bergerak.',
+  'Tidak ada kamera fisik, hp, atau cermin yang terlihat di dalam frame.',
+  'Tidak ada musik. Karakter tidak berbicara dan tidak mengeluarkan suara apapun.'
+].join('\n');
+const VB_FE10_FL_SLOT=[null,
+  {t:'Awal',r:'0–2,5 dtk',q:'Bagaimana video dibuka?',o:[{k:'fa1',l:'Pembukaan',text:'Detik 0-2,5: Karakter berdiri kedua tangan di samping dan sedikit di depan bawahan outfit. Badan bergoyang pelan sambil memperlihatkan outfit dari depan.'}]},
+  {t:'Tengah 1',r:'2,5–5 dtk',q:'Pose apa di bingkai kedua?',o:[{k:'fb1',l:'Pose',text:'Detik 2,5-5: Kedua tangan naik menyentuh bahu atasan, lalu turun. Tangan mengayun pelan dan menyentuh outfit bawah, badan sedikit miring.'}]},
+  {t:'Tengah 2',r:'5–7,5 dtk',q:'Pose apa di bingkai ketiga?',o:[{k:'fc1',l:'Samping',text:'Detik 5-7,5: Karakter mulai berputar perlahan ke samping kanan dan memperlihatkan outfit dari samping, satu tangan di belakang menyentuh bawahan outfit.'}]},
+  {t:'Akhir',r:'7,5–10 dtk',q:'Bagaimana video ditutup?',o:[{k:'fd1',l:'Penutup',text:'Detik 7,5-10: Karakter tetap menyamping sebentar, lalu berbalik menghadap kamera lagi dan kedua tangan turun di samping.'}]}
+];
+let VB_FE10_VER='mirror'; // 'mirror' | 'faceless'
+function vbFe10Slot(){return VB_FE10_VER==='faceless'?VB_FE10_FL_SLOT:VB_FE10_SLOT;}
+function vbFe10Head(){return VB_FE10_VER==='faceless'?VB_FE10_FL_HEAD:VB_FE10_HEAD;}
+function vbFe10Tail(){return VB_FE10_VER==='faceless'?VB_FE10_FL_TAIL:VB_FE10_TAIL;}
+function vbFe10SyncVerChips(){
+  ['mirror','faceless'].forEach(function(v){let c=document.getElementById('vb-fe10-ver-'+v);if(c)c.classList.toggle('sel',v===VB_FE10_VER);});
+}
+// Ganti versi: pilihan bingkai dikosongkan (opsi tiap versi berbeda), storyboard digambar ulang.
+function vbFe10PickVer(v){
+  if(v!=='mirror'&&v!=='faceless')return;
+  if(v===VB_FE10_VER)return;
+  VB_FE10_VER=v;
+  VB_FE10_SEL={1:null,2:null,3:null,4:null};
+  vbFe10SyncVerChips();
+  vbFe10Render();
+}
 let VB_FE10_SEL={1:null,2:null,3:null,4:null}; // kunci opsi terpilih per bingkai (null = belum)
 let VB_FE10_TOKEN=0;
-function vbFe10Opt(n,k){return VB_FE10_SLOT[n].o.filter(function(x){return x.k===k;})[0]||null;}
+function vbFe10Opt(n,k){return vbFe10Slot()[n].o.filter(function(x){return x.k===k;})[0]||null;}
 function vbFe10AllPicked(){return [1,2,3,4].every(function(n){return !!VB_FE10_SEL[n];});}
 function vbFe10Open(){
   let st=document.getElementById('vb-fe-step-durasi'),box=document.getElementById('vb-fe10-steps');
@@ -1076,7 +1111,7 @@ function vbFe10Render(){
   if(!strip)return;
   if(!strip.children.length){
     strip.innerHTML=[1,2,3,4].map(function(n){
-      let t=VB_FE10_SLOT[n];
+      let t=vbFe10Slot()[n];
       return '<button type="button" class="vb-fe-fr" id="vb-fe10-fr-'+n+'" aria-haspopup="dialog" onclick="vbFe10OpenSheet('+n+')">'+
         '<small>'+t.r+'</small><span class="vb-fe-fr-ic" aria-hidden="true">+</span><b>Pilih</b></button>';
     }).join('');
@@ -1087,7 +1122,7 @@ function vbFe10Render(){
 function vbFe10Update(n){
   let fr=document.getElementById('vb-fe10-fr-'+n);
   if(!fr)return;
-  let t=VB_FE10_SLOT[n],k=VB_FE10_SEL[n];
+  let t=vbFe10Slot()[n],k=VB_FE10_SEL[n];
   let ic=fr.querySelector('.vb-fe-fr-ic'),lb=fr.querySelector('b');
   fr.classList.toggle('on',!!k);
   if(!k){
@@ -1108,9 +1143,9 @@ function vbFe10UpdateSeq(){
 }
 // Bottom sheet memakai elemen #vb-fe-sheet yang sama dengan durasi 8 detik.
 function vbFe10OpenSheet(n){
-  if(!VB_FE10_SLOT[n])return;
+  if(!vbFe10Slot()[n])return;
   vbFeEnsureSheet();
-  let t=VB_FE10_SLOT[n],bk=document.getElementById('vb-fe-bk'),sh=document.getElementById('vb-fe-sheet');
+  let t=vbFe10Slot()[n],bk=document.getElementById('vb-fe-bk'),sh=document.getElementById('vb-fe-sheet');
   VB_FE_SHEET_N=n;VB_FE_SHEET_OPENER=document.getElementById('vb-fe10-fr-'+n);VB_FE_EDIT=null;VB_FE_NAMING=null;
   sh.setAttribute('aria-label',t.q);
   sh.innerHTML='<h3>'+t.t+' · '+t.r+'</h3>'+t.o.map(function(o){
@@ -1129,7 +1164,7 @@ function vbFe10Pick(n,k){
 }
 function vbFe10BuildPrompt(){
   let lines=[1,2,3,4].map(function(n){let o=vbFe10Opt(n,VB_FE10_SEL[n]);return o?o.text.trim():'';});
-  return VB_FE10_HEAD+'\n\n'+lines.join('\n')+'\n\n'+VB_FE10_TAIL;
+  return vbFe10Head()+'\n\n'+lines.join('\n')+'\n\n'+vbFe10Tail();
 }
 function vbFe10Generate(){
   if(VB_FASHION_DURASI!==10||!vbFe10AllPicked())return;
@@ -1159,6 +1194,8 @@ function vbFe10Copy(){
 // Dipanggil dari vbFeResetFlow(): kembali ke keadaan awal (semua bingkai kosong, area 10 detik tersembunyi).
 function vbFe10Reset(){
   VB_FE10_TOKEN++;
+  VB_FE10_VER='mirror'; // kembali ke versi bawaan (Mirror Selfie)
+  vbFe10SyncVerChips();
   VB_FE10_SEL={1:null,2:null,3:null,4:null};
   ['vb-fe10-steps','vb-fe10-loading','vb-fe10-result'].forEach(function(id){let el=document.getElementById(id);if(el)el.classList.add('hidden');});
   let b=document.getElementById('vb-fe10-board');if(b)b.classList.remove('hidden');
