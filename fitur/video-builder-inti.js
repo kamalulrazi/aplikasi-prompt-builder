@@ -2922,7 +2922,7 @@ var VB_LOGAT_SCRIPT_GUIDE={
   'casual Jakarta accent':'gue/lo, banget, nih, sih, dong (skip gue/lo if it clashes with the Greeting)',
   'light Javanese accent':'light Javanese words (wis, ora, tenan), understandable to everyone',
   'light Sundanese accent':'Sundanese-flavored everyday Indonesian that most Indonesians still understand, written so EVERY sentence feels Sundanese on the page even in Indonesian spelling: use particles teh, atuh, mah, pisan, wae, da, meni, and swap everyday words for the Sundanese ones (teu instead of gak or tidak, aya instead of ada, naon instead of apa, kumaha instead of gimana, nu instead of yang, hayu instead of ayo, ieu instead of ini); keep it light, never deep Sundanese, never rude words (no maneh), at most 2 Sundanese words in a row, and the tone stays direct and lively, never soft or sweet',
-  'light Medan accent':'real everyday Medan speech like a native from Medan, written so EVERY sentence feels Medan on the page: kali as the intensifier instead of banget (enak kali, murah kali), lah and pulak at phrase ends, tengok instead of lihat, cemana instead of gimana, kek instead of kayak, dah instead of udah, kau instead of kamu or lo, kalen instead of kalian; NEVER write the word bah, not at the start and not anywhere in the text; everyday Medan Indonesian only, no regional-language words (no lae, amang, inang, ito, horas)',
+  'light Medan accent':'real everyday Medan speech like a native from Medan, written so EVERY sentence has at least one clear Medan marker and the whole text feels Medan on the page: kali as the intensifier instead of banget (enak kali, murah kali), lah and pulak at phrase ends, tengok instead of lihat, cemana instead of gimana, cemana pulak as a rhetorical how come or how on earth question (it means bagaimana), kek instead of kayak, dah instead of udah, kau instead of kamu or lo, kalen instead of kalian, alah at the start of a sentence as a dismissive or disbelieving reaction, pala bapak kau as a blunt exclamation of disbelief or annoyance (at most once per script, only where the tone is blunt); NEVER write the word bah, not at the start and not anywhere in the text; everyday Medan Indonesian only, no regional-language words (no lae, amang, inang, ito, horas)',
   'light Malaysian accent':'light Malay words (tak, dah, je, lah, nak, jom, kat, sikit, weh, awak instead of kamu or lo, saya instead of aku or gue, korang for plural), understandable to Indonesians; avoid Malay false friends (no butuh, percuma, bisa, kereta, budak) and keep the phrase keranjang bawah as is'
 };
 function _vbAccentScriptText(val){
@@ -3418,7 +3418,7 @@ var VB_AKSEN_STYLE={
 // Petunjuk kombinasi nada x aksen (1 baris, tanpa kalimat jadi). Netral/logat tulis-sendiri tidak punya.
 var VB_NADA_AKSEN_HINT={
   toxic:{
-    'light Medan accent':'toxic put-downs come as blunt, loud-mouthed teasing straight to the face, with kau, kali, lah and rhetorical cemana pulak questions.',
+    'light Medan accent':'toxic put-downs come as blunt, loud-mouthed teasing straight to the face, with kau, kalen, kali, lah, alah and rhetorical cemana pulak questions, and pala bapak kau as an exclamation at most once.',
     'light Malaysian accent':'toxic put-downs come as sharp sarcastic Malay scolds (apa ni weh, tolonglah), blunt but not shouting.',
     'light Javanese accent':'toxic put-downs come as shouting, snapping scolds in a Javanese flow.',
     'light Sundanese accent':'toxic put-downs come as shouting, snapping scolds in a Sundanese flow.',

@@ -204,7 +204,7 @@ var VB_FIX_WORDS_BY_LOGAT={
   'casual Jakarta accent':'Jakarta slang words (banget, sih, nih, dong, deh) and NEVER Javanese, Sundanese or Medan words (no atuh, pisan, euy, wis, tenan, bah)',
   'light Javanese accent':'light Javanese words (wis, ora, tenan) and NEVER Sundanese, Medan or Jakarta particles (no atuh, pisan, euy, bah, sih, nih, dong)',
   'light Sundanese accent':'light Sundanese words (teh, atuh, mah, pisan, teu, aya, naon, kumaha, nu) and NEVER Javanese, Medan or Jakarta particles (no wis, tenan, bah, sih, nih, dong)',
-  'light Medan accent':'light Medan words (kali, lah, pulak, tengok, cemana, kek, dah, kau, kalen) and NEVER the word bah and NEVER Javanese, Sundanese, Malay (awak) or Jakarta particles (no wis, tenan, atuh, pisan, sih, nih, dong, deh, banget); no regional-language words (no lae, amang, inang, ito)',
+  'light Medan accent':'light Medan words (kali, lah, pulak, tengok, cemana, cemana pulak, kek, dah, kau, kalen, alah) and NEVER the word bah and NEVER Javanese, Sundanese, Malay (awak) or Jakarta particles (no wis, tenan, atuh, pisan, sih, nih, dong, deh, banget); no regional-language words (no lae, amang, inang, ito)',
   'light Malaysian accent':'light Malay words (tak, dah, je, lah, nak, jom, awak) and NEVER Javanese, Sundanese, Medan or Jakarta particles (no wis, tenan, atuh, pisan, bah, sih, nih, dong); avoid Malay false friends (butuh, percuma, bisa, kereta, budak)',
   'neutral standard accent':'plain casual Indonesian (udah, jadi, tapi) and NO regional words'
 };
