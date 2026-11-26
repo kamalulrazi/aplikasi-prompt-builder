@@ -80,6 +80,28 @@ function _fFacelessRuleText(){
   t += ' Avoid: visible lips, nose, chin, or skin of the face, empty wall above the shoulders, small distant subject, wide shot, mirror selfie, phone in frame, cropped shoes, cut-off feet, close-up, medium shot cropped at the thigh.';
   return t;
 }
+/* v18.42 (Nov 2026, permintaan user) — FACELESS HARUS SEPERTI "OUTFIT CHECK" TIKTOK (leher terpotong tepi atas, orang dekat kamera, full-length ke sepatu).
+   Masalah sebelumnya: komposisi cuma terselip di satu kalimat camera_angle, sehingga AI meniru framing FOTO OUTFIT (orang jauh, ada tembok kosong di atas bahu).
+   Sekarang (khusus mode faceless): (1) kalimat pembuka prompt = komposisi, (2) blok `composition` + `important` tersendiri di JSON,
+   (3) foto Outfit & Lokasi diberi perintah "abaikan framing/jarak/komposisi", (4) `negative_prompt` faceless, (5) teks kualitas kamera tidak lagi bilang "framing tidak rapi/wide". */
+var _F_FACELESS_INTRO = 'A photorealistic faceless \"outfit check\" fashion photo for TikTok, shot as a casual handheld phone photo, full-length from neck to shoes.';
+var _F_FACELESS_IMPORTANT = 'Do NOT copy the framing, distance, or composition of any reference photo. The reference photos are used only for the outfit and the location. The final composition is always the one described in the composition section.';
+var _F_FACELESS_REF_FRAMING = ' Also IGNORE this photo\u2019s framing, distance, camera height, and composition completely \u2014 the final framing is defined only in the composition section (person very close to the camera, top edge of the image cutting through the neck).';
+var _F_FACELESS_NEGATIVE = 'face, eyes, nose, lips, chin, head, facial features, empty wall above the shoulders, blank space above the neck, small distant subject, wide shot, full-body shot with the head visible, catalog pose, floating collar, empty neckline, headless mannequin, erased head, blurred or censored face, mirror selfie, phone in frame, different shoes from the outfit reference, cropped shoes, cut-off feet, close-up, medium shot, cartoon, illustration, 3D render, plastic skin, extra fingers, deformed hands, distorted body, wrong outfit color, changed outfit design, different location from the location reference, text, watermark, logo, low quality, oversharpened, harsh flash, studio backdrop';
+function _fFacelessComposition(){
+  var hij = false; try{ hij = !!(FS && FS.subjek==='hijab'); }catch(e){}
+  return {
+    frame: 'vertical 9:16 full-length photo. The person stands CLOSE to the camera and fills about 90% of the frame height.',
+    top_edge: 'The very top edge of the image cuts straight through the middle of the neck' + (hij ? ' or the hijab at the shoulders' : '') + '. The shoulders and neck touch or run off the top edge of the image. There is NO empty wall or empty space above the shoulders. The head is never in the picture because the frame itself ends there, exactly like a phone held at chest height with the person standing close.',
+    bottom_edge: 'The shoes are fully visible, with only a small strip of floor (about 5% of the frame height) below them.',
+    camera_position: 'handheld at chest-to-waist height, about 1.5 meters from the subject, straight ahead with a very slight upward tilt, smartphone main lens about 24mm equivalent, torso slightly larger and legs slightly foreshortened',
+    style: 'casual TikTok \"outfit check\", not a mirror selfie, no phone visible'
+  };
+}
+function _fFacelessCompositionText(){
+  var c=_fFacelessComposition();
+  return 'Composition: ' + c.frame + ' ' + c.top_edge + ' ' + c.bottom_edge + ' Camera: ' + c.camera_position + '; ' + c.style + '.';
+}
 function _fIdentityRuleText(charNo){
   return 'FACE & IDENTITY LOCK: The face, facial features, skin tone, and hair of the person in the final image come ONLY from reference photo ' + charNo + ' (character sheet). Any human face visible in any other reference photo (outfit, location, product, pose, accessories) must be completely ignored \u2014 never copy, blend, average, or let it influence the character\u2019s face in any way. If there is any conflict, photo ' + charNo + ' always wins for the face.';
 }
@@ -966,6 +988,7 @@ function _fBuildPromptJSON(ov){
     if(ignoreText && typeof fIsOutfitOnly==='function' && fIsOutfitOnly()){
       ignoreText = ignoreText.replace('wajah karakter HANYA dari foto Karakter Sheet','tidak ada wajah yang boleh muncul di hasil');
     }
+    if(ignoreText && typeof fIsOutfitOnly==='function' && fIsOutfitOnly() && (r.type==='outfit' || r.type==='lokasi')) ignoreText += _F_FACELESS_REF_FRAMING;
     if(ignoreText) obj.ignore_completely = ignoreText;
     _fApplyFaceRule(obj, r, realRefs);
     if(r.type==='lokasi'){
@@ -1087,6 +1110,8 @@ function _fBuildPromptJSON(ov){
     ['camera','lighting'].forEach(function(k){
       quality[k]=String(quality[k]||'').replace(/the subject(?:'|\u2019)s face/g,'the outfit').replace(/of the face/g,'of the outfit');
     });
+    // v18.42: framing faceless ditentukan blok composition, bukan "tidak rapi / subtle wide lens".
+    quality.camera=String(quality.camera||'').replace(/The framing is slightly imperfect, not perfectly centered, with a subtle wide lens feel and natural perspective distortion\./,'The framing follows the composition section exactly.');
   }
   if(_lokRef){
     quality.lighting = 'Follow the lighting of reference photo ' + _lokNo + ' exactly and keep it consistent across the whole frame, on the character, the outfit, and the background; do not add studio lighting or any light that contradicts the location.';
@@ -1105,7 +1130,9 @@ function _fBuildPromptJSON(ov){
     ? produkSajaIntroText
     : (hasProdukRef
         ? 'A photorealistic product image'+_fIntroStyle(effMood)+'. Subject: '+subjekDesc+'. '
-        : 'A photorealistic lifestyle fashion image'+_fIntroStyle(effMood)+'. Subject: '+subjekDesc+'. '))
+        : (_ooF
+            ? _F_FACELESS_INTRO + ' ' + _fFacelessCompositionText() + ' ' + _F_FACELESS_IMPORTANT + ' Subject: '+subjekDesc+'. '
+            : 'A photorealistic lifestyle fashion image'+_fIntroStyle(effMood)+'. Subject: '+subjekDesc+'. ')))
     + outfitRandomIntro
     + (produkBlock ? 'Hero product: ' + produkBlock.name + (produkBlock.placement ? ', ' + produkBlock.placement + '. ' : '. ') + produkBlock.instruction + ' ' : '')
     + _idIntro
@@ -1133,7 +1160,7 @@ function _fBuildPromptJSON(ov){
     } : {}),
     ...(conflictRule ? {conflict_priority: conflictRule} : {}),
     ...((_charNoA && !isProdukSaja && realRefs.length>1) ? {identity_rule: _fIdentityRuleText(_charNoA)} : {}),
-    ...(_ooF ? {faceless_rule: _fFacelessRuleText()} : {}),
+    ...(_ooF ? {important: _F_FACELESS_IMPORTANT, composition: _fFacelessComposition(), faceless_rule: _fFacelessRuleText()} : {}),
     ...(refPhotos.length > 0 ? {reference_photos: refPhotos} : {}),
     ...(generatedOutfits.length > 0 && !ov.forceProdukSaja ? {generated_outfit: generatedOutfits} : {}),
     ...(produkBlock ? {product: produkBlock} : {}),
@@ -1150,7 +1177,8 @@ function _fBuildPromptJSON(ov){
       lighting: effCahaya,
       mood_and_tone: effMood
     },
-    output_quality: quality
+    output_quality: quality,
+    ...(_ooF ? {negative_prompt: _F_FACELESS_NEGATIVE} : {})
   };
 
   let subjekLabel = ov.label || (FS.subjek==='hijab'?'Hijab':FS.subjek==='pria'?'Pria':'Produk');
