@@ -607,10 +607,16 @@ async function busyDl(el,job,fast){
 const FV_MAX=2048,FV_MIN=1280;let zTk=0,dvTk=0;
 function fvAda(src){/* cek 16px dulu; kalau kosong, cek lagi di 256px supaya PNG yang hampir transparan tidak dianggap gagal */
  return [16,256].some(n=>{const t=document.createElement('canvas');t.width=t.height=n;const g=t.getContext('2d',{willReadFrequently:true});g.imageSmoothingQuality='high';g.drawImage(src,0,0,n,n);return g.getImageData(0,0,n,n).data.some((v,i)=>i%4===3&&v>0)})}
+/* v18.51: gambar yang ter-decode HITAM/seragam (alpha penuh tapi tanpa isi) tidak dianggap berhasil. fvAda hanya mengecek alpha, jadi foto hitam dulu lolos dan dipakai. */
+function fvIsi(src){
+ try{const n=32,t=document.createElement('canvas');t.width=t.height=n;const g=t.getContext('2d',{willReadFrequently:true});g.drawImage(src,0,0,n,n);const d=g.getImageData(0,0,n,n).data;let a=0,b=0,m=0;
+  for(let i=0;i<d.length;i+=4){if(d[i+3]<8)continue;const l=d[i]*.299+d[i+1]*.587+d[i+2]*.114;a+=l;b+=l*l;m++}
+  if(!m)return false;const mu=a/m;return !(mu<8&&b/m-mu*mu<16)}catch(e){return true}}
 function fvGambar(c,src,w,h){
  if(!w||!h)throw new Error('ukuran-0');
  /* decode yang gagal diam-diam menghasilkan gambar kosong tanpa error */
  if(!fvAda(src))throw new Error('gambar-kosong');
+ if(!fvIsi(src))throw new Error('gambar-hitam');
  const s=Math.max(w,h),k=Math.min(FV_MAX,Math.max(FV_MIN,s))/s;
  c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,c.width,c.height);
@@ -621,7 +627,9 @@ async function fvLukis(c,b,masih){
   if(masih())fvGambar(c,im0,im0.naturalWidth,im0.naturalHeight);return}
  catch(e){salah=e}finally{URL.revokeObjectURL(u)}
  /* cara cadangan */
- try{const bm=await createImageBitmap(b);try{if(masih())fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()}}catch(e){throw salah}}
+ try{const bm=await createImageBitmap(b);try{if(masih())fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()};return}catch(e){}
+ /* v18.51: foto besar kadang ter-decode hitam di WebView HP; coba lagi dengan didecode langsung diperkecil */
+ try{const bm=await createImageBitmap(b,{resizeWidth:1600,resizeQuality:'high'});try{if(masih())fvGambar(c,bm,bm.width,bm.height)}finally{bm.close&&bm.close()}}catch(e){throw salah}}
 async function fvAsli(p){
  let b=p.blob;
  try{const r=await run('photos','readonly',t=>t.objectStore('photos').get(p.id));if(r&&r.blob)b=r.blob}catch(e){}
@@ -665,8 +673,12 @@ const ACT2={
  async pinsp(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const al=S.albums.find(x=>x.id===p.album),nm=((al&&al.name)||'').trim(),nd=mk('insp');nd.nomor=(nm.match(/\d+/)||[nm])[0];S.d=nd;S.saved=false;S.tab='ip';S.step=1;S.iks='';enter3();go('make');
   /* v18.47: foto dimuat DULU (sebelum pencarian jaringan berjalan, supaya memori HP tidak rebutan), dengan 3 cara: penampil album, pemuat foto biasa (sama dengan pilih foto manual), lalu thumbnail */
   const buka=async b=>{const c=document.createElement('canvas');await fvLukis(c,b,()=>true);return{b,c}};
-  const biasa=b=>new Promise((ok,no)=>{const t=setTimeout(()=>no(new Error('waktu-habis')),20000);OI.ld(b,c=>{clearTimeout(t);ok({b,c})})});
-  const coba=async b=>{if(!b)throw new Error('kosong');try{const q=await biasa(b);if(q&&q.c&&q.c.width>1&&fvAda(q.c))return q}catch(x){}return await buka(b)};
+  /* v18.51: pemuat biasa kini punya onerror (dulu menunggu 20 detik kalau gagal) dan hasil HITAM ditolak (fvIsi), jadi cadangan berikutnya benar-benar dipakai */
+  const biasa=b=>new Promise((ok,no)=>{const u=URL.createObjectURL(b),i=new Image(),t=setTimeout(()=>{URL.revokeObjectURL(u);no(new Error('waktu-habis'))},20000);
+   i.onload=()=>{clearTimeout(t);try{const k=Math.min(1,1800/Math.max(i.naturalWidth,i.naturalHeight)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(i.naturalWidth*k));c.height=Math.max(1,Math.round(i.naturalHeight*k));c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok({b,c})}catch(x){no(x)}finally{URL.revokeObjectURL(u)}};
+   i.onerror=()=>{clearTimeout(t);URL.revokeObjectURL(u);no(new Error('tidak-bisa-dibuka'))};i.src=u});
+  const layak=q=>q&&q.c&&q.c.width>1&&fvAda(q.c)&&fvIsi(q.c);
+  const coba=async b=>{if(!b)throw new Error('kosong');try{const q=await biasa(b);if(layak(q))return q}catch(x){}const q2=await buka(b);if(!layak(q2))throw new Error('gambar-hitam');return q2};
   let r=null,kecil=false;
   try{r=await coba(await fvAsli(p))}catch(x1){}
   if(!r&&p.blob){try{r=await coba(p.blob)}catch(x2){}}
@@ -1961,7 +1973,10 @@ async function srApi(u,n,say){srLog.length=0;srFail=0;const slug=srSlug(u),none=
  /* kolom pencarian server tidak memberi nomor persis (mis. pencarian tidak menyaring): baca SELURUH koleksi lewat server dan saring di sini */
  if(say)say('Membaca seluruh koleksi lewat server');
  const F=await run('',600,'Membaca koleksi');srLog.push('baca semua: '+F.c.length+' item, total '+F.R.tc+(F.R.err?' | berhenti karena galat':'')+', cocok '+mine(F.c).length);
- if(F.c.length){const partial=!!F.R.err||(F.R.tc>0&&F.R.raw.length<F.R.tc*.98)||!!F.R.more;return{ok:1,all:F.c,hit:mine(F.c),nc:F.c.length,partial,tc:F.R.tc,got:F.R.raw.length}}
+ if(F.c.length){const partial=!!F.R.err||(F.R.tc>0&&F.R.raw.length<F.R.tc*.98)||!!F.R.more;
+  /* v18.51: hasil pencarian server (Q1) ikut digabung: kalau pembacaan penuh hanya sebagian, produk yang tadi dikembalikan server untuk nomor ini tidak hilang */
+  const sn={},AL=[];F.c.concat(Q1.c).forEach(o=>{const k=String(o.lid||o.iid||o.u||'');if(k){if(sn[k])return;sn[k]=1}AL.push(o)});
+  return{ok:1,all:AL,hit:mine(AL),nc:AL.length,partial,tc:F.R.tc,got:F.R.raw.length}}
  return Q1.c.length?{ok:1,all:Q1.c,hit:[],nc:Q1.c.length,partial:1,tc:Q1.R.tc,got:Q1.R.raw.length}:{...none,fail:1}}
 /* laporan teknis otomatis (kotak hitam) kalau server tetap tidak bisa dibaca */
 function srRepText(){const h=srH;return'LAPORAN PENCARIAN KOLEKSI ('+new Date().toISOString().slice(0,19)+')\n'+srLog.join('\n')+(h?'\n\n## kode skrip collshp\n'+h.snips.join('\n')+'\n\n## rute\n'+JSON.stringify(h.routes)+'\n\n## nilai enum\n'+h.E.slice(0,120).join(',')+'\n\n## teks HURUF BESAR\n'+h.U.slice(0,200).join(','):'')}
@@ -2199,9 +2214,18 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
   if(!R.hit.length&&!R.fail&&!R.net&&!R.empty&&!R.partial){say('Nomor '+want+' belum ketemu lewat pencarian. Membaca seluruh koleksi…');srForceFull=1;try{const R2=await srFind(u,want,say);if(!R2.fail&&!R2.net&&!R2.empty)R=R2}catch(e){}finally{srForceFull=0}}
   /* v18.48: resep baca tersimpan bisa usang (hanya sebagian koleksi terbaca): hapus, belajar ulang, baca lagi */
   if(!R.hit.length&&!R.fail&&!R.net&&!R.empty&&!R.partial){say('Mengulang cara membaca koleksi…');srRcClear();srForceFull=1;try{const R3=await srFind(u,want,say);if(!R3.fail&&!R3.net&&!R3.empty&&((R3.hit&&R3.hit.length)||(R3.all||[]).length>=(R.all||[]).length))R=R3}catch(e){}finally{srForceFull=0}}
-  /* v18.47: keterangan produk yang tidak diawali angka (mis. "LINK BIO NO. 031 ...", "Bio 031") tetap dikenali */
-  if(!R.hit.length&&R.all&&R.all.length){const kk=parseInt(String(want).replace(/\D/g,''),10);if(isFinite(kk)){const re=new RegExp('^\\s*(?:(?:link\\s*bio|bio|no\\.?|nomor|#|-|:)\\s*)*0*'+kk+'(?![0-9]|[.,][0-9])','i'),lo=R.all.filter(o=>re.test(String(o.cap||'').replace(/^[^\w#]+/,'').slice(0,40)));if(lo.length)R={...R,hit:lo,how:R.how||'keterangan produk'}}}
-  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+(R.tc?' dari '+R.tc:'')+((R.all||[]).length?'; nomor tertinggi yang terbaca: '+(R.all.map(o=>pnCap(o.cap)).filter(Boolean).sort().pop()||'-'):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Server collshp belum memuat nomor itu (mungkin belum sinkron). Coba lagi nanti, atau tambah item manual.'};
+  /* v18.51: PENCOCOK NOMOR TOLERAN. Keterangan produk tidak harus diawali angka. Urutan: (1) diawali nomor (boleh didahului "link bio/bio/no/nomor/#/kode/outfit"), (2) ada penanda no/nomor/bio/kode/# di mana pun diikuti nomor, (3) nomor persis dengan nol di depan (mis. "031") berdiri sendiri di mana pun, bukan ukuran/harga. Teks yang dicek = keterangan + nama di itemCard. */
+  const inAllTx=o=>{let c=o.card;if(typeof c==='string'){try{c=JSON.parse(c)}catch(e){c=null}}const q=[];(function w(x,k,d){if(d>6||x==null)return;if(typeof x==='string'){if(x.length>2&&/(^|\.)(name|title|itemName|item_name|productName|product_name|desc|description|caption)$/.test(k)&&!/shop|seller|store|brand|user|cat|unit|attr|model|tier|var/i.test(k))q.push(x);return}if(typeof x==='object')for(const z of Object.keys(x))w(x[z],k?k+'.'+z:z,d+1)})(c,'',0);return [String(o.cap||'')].concat(q).map(t=>t.replace(/\s+/g,' ').trim()).filter(Boolean)};
+  const inCocok=(list,want)=>{const raw=String(want).replace(/\D/g,''),kk=parseInt(raw,10);if(!isFinite(kk))return{lo:[],tier:0};
+   const N='0*'+kk+'(?![0-9]|[.,][0-9])',
+    r1=new RegExp('^\\s*(?:(?:link\\s*bio|bio|no\\.?|nomor|kode|code|outfit|ootd|#|-|:)\\s*)*'+N,'i'),
+    r2=new RegExp('(?:^|[^a-z0-9])(?:link\\s*bio|bio|no\\.?|nomor|kode|code|#)\\s*'+N,'i'),
+    r3=raw.length>1&&raw.charAt(0)==='0'?new RegExp('(?:^|[^0-9.,])'+raw+'(?![0-9]|[.,]?[0-9])(?!\\s*(?:cm|kg|gr|gram|ml|rb|ribu|k\\b|%))','i'):null;
+   const tiers=[o=>inAllTx(o).some(t=>r1.test(t.replace(/^[^\w#]+/,''))),o=>inAllTx(o).some(t=>r2.test(t)),o=>!!r3&&inAllTx(o).some(t=>r3.test(t))];
+   for(let i=0;i<tiers.length;i++){const lo=list.filter(tiers[i]);if(lo.length)return{lo,tier:i+1}}return{lo:[],tier:0}};
+  if(!R.hit.length&&R.all&&R.all.length){const m=inCocok(R.all,want);if(m.lo.length)R={...R,hit:m.lo,how:R.how||'keterangan produk'}}
+  const smp=(R.all||[]).slice(0,3).map(o=>(inAllTx(o)[0]||'(kosong)').slice(0,30)).join(' | ');
+  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+(R.tc?' dari '+R.tc:'')+((R.all||[]).length?'; nomor tertinggi yang terbaca: '+(R.all.map(o=>pnCap(o.cap)).filter(Boolean).sort().pop()||'-'):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Contoh keterangan yang terbaca: '+(smp||'-')+'. Server collshp belum memuat nomor itu (mungkin belum sinkron) atau penulisan nomornya berbeda. Coba lagi nanti, atau tambah item manual.'};
   const H=R.hit.slice(0,12),tx=H.map(inNm),nm=tx.map(inCat),need=nm.map((c,i)=>c?-1:i).filter(i=>i>=0);
   if(need.length&&window.parent&&parent.osAiVision){try{say('Mengenali '+need.length+' produk dari foto');const pics=await lnPool(need.map(i=>H[i]),4),parts=[{text:INASK}];
    need.forEach((i,k)=>{if(pics[k]){parts.push({text:'Kandidat '+(k+1)+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:pics[k]}})}});
