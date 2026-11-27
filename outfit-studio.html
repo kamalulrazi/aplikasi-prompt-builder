@@ -2963,6 +2963,10 @@ const om2Ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k)||'';loca
    Key yang jatahnya habis / tokennya ditolak ditandai (os_cf_ex) sampai reset 00.00 UTC = 07.00 WIB, lalu otomatis dipakai lagi.
    os_cf_cur = id key yang sedang dipakai. */
 const OM2_MAXK=20;
+/* v18.76: di browser/laptop api.cloudflare.com menolak panggilan langsung (CORS), jadi lewat Worker perantara milik user (os_cf_proxy).
+   Di APK tetap langsung (CapacitorHttp). Satu Worker dipakai semua API key. */
+const om2Proxy=()=>{const v=om2Ls('os_cf_proxy').trim().replace(/\/+$/,'');return /^https:\/\/[^\s\/]+\.[^\s\/]+/i.test(v)?v:''};
+const OM2_WORKER="// Outfit Studio: perantara Cloudflare Workers AI supaya aplikasi bisa dipakai di browser/laptop.\n// Satu Worker untuk semua API key: token & Account ID dikirim aplikasi tiap permintaan,\n// jatah neuron terpakai di akun pemilik token, bukan akun tempat Worker ini dipasang.\n// Hanya meneruskan ke 2 alamat (GraphQL pemakaian & AI run), jadi tidak bisa dipakai untuk hal lain.\nconst API = 'https://api.cloudflare.com';\nconst BOLEH = [\n  /^\\/client\\/v4\\/graphql$/,\n  /^\\/client\\/v4\\/accounts\\/[0-9a-fA-F]{32}\\/ai\\/run\\/@cf\\/[\\w.\\-\\/@]+$/\n];\nconst CORS = {\n  'Access-Control-Allow-Origin': '*',\n  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',\n  'Access-Control-Allow-Headers': 'Authorization, Content-Type',\n  'Access-Control-Expose-Headers': 'cf-ai-neurons',\n  'Access-Control-Max-Age': '86400'\n};\nconst json = (o, st) => new Response(JSON.stringify(o), { status: st || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });\n\nexport default {\n  async fetch(req) {\n    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });\n    const u = new URL(req.url);\n    if (req.method === 'GET' && u.pathname === '/') return json({ ok: true, app: 'outfit-studio-cf-proxy' });\n    if (req.method !== 'POST' || !BOLEH.some(r => r.test(u.pathname)))\n      return json({ success: false, errors: [{ code: 404, message: 'Alamat tidak diizinkan' }] }, 404);\n    const auth = req.headers.get('Authorization') || '';\n    if (!/^Bearer\\s+\\S+/.test(auth)) return json({ success: false, errors: [{ code: 10000, message: 'Token kosong' }] }, 401);\n    let r;\n    try {\n      r = await fetch(API + u.pathname, {\n        method: 'POST',\n        headers: { 'Authorization': auth, 'Content-Type': req.headers.get('Content-Type') || 'application/json' },\n        body: await req.arrayBuffer()\n      });\n    } catch (e) {\n      return json({ success: false, errors: [{ code: 502, message: 'Worker gagal menghubungi Cloudflare API' }] }, 502);\n    }\n    const h = new Headers(r.headers);\n    for (const [k, v] of Object.entries(CORS)) h.set(k, v);\n    h.delete('set-cookie');\n    return new Response(r.body, { status: r.status, headers: h });\n  }\n};\n";
 const om2Norm=(acc,tok)=>{acc=String(acc||'').trim();tok=String(tok||'').trim().replace(/^Bearer\s+/i,'');return{acc,tok,id:acc+'|'+tok,ok:!!(acc&&tok)}};
 function om2Keys(){let x=[];try{x=JSON.parse(om2Ls('os_cf_keys')||'[]')}catch(e){}return(Array.isArray(x)?x:[]).slice(0,OM2_MAXK).map(k=>({acc:String(k&&k.acc||''),tok:String(k&&k.tok||'')}))}
 const om2KeysSet=a=>om2Ls('os_cf_keys',JSON.stringify(a.slice(0,OM2_MAXK)));
@@ -2982,14 +2986,14 @@ const om2Num=n=>Number(n).toLocaleString('id-ID',{maximumFractionDigits:1});
 const om2Jam=t=>new Date(t).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 /* Server Cloudflare tidak mengizinkan panggilan dari halaman web biasa, jadi di APK dipakai HTTP bawaan Android (CapacitorHttp).
    body: objek -> dikirim sebagai JSON; string base64 + type -> dikirim apa adanya sebagai byte (multipart). */
-async function om2Http(url,body,type,ms,cc){const c=cc||om2Cfg(),H=om2Native(),file=typeof body==='string',headers={Authorization:'Bearer '+c.tok,'Content-Type':file?type:'application/json'};let st,hd={},data;
+async function om2Http(url,body,type,ms,cc){const c=cc||om2Cfg(),H=om2Native(),P=H?'':om2Proxy(),file=typeof body==='string',headers={Authorization:'Bearer '+c.tok,'Content-Type':file?type:'application/json'};let st,hd={},data;
  try{
   if(H){const r=await om2To(H.request({url,method:'POST',headers,data:body,...(file?{dataType:'file'}:{}),connectTimeout:30000,readTimeout:ms}),ms+5000);st=r.status;data=r.data;Object.keys(r.headers||{}).forEach(k=>hd[k.toLowerCase()]=r.headers[k])}
-  else{const r=await om2To(fetch(url,{method:'POST',headers,cache:'no-store',body:file?Uint8Array.from(atob(body),x=>x.charCodeAt(0)):JSON.stringify(body)}),ms);st=r.status;r.headers.forEach((v,k)=>hd[k]=v);data=await r.text()}
- }catch(e){const m=String(e&&e.message||e);throw Object.assign(new Error(om2NetMsg(H,m)),{cf:'net'})}
+  else{const r=await om2To(fetch(P?P+url.replace(/^https:\/\/api\.cloudflare\.com/,''):url,{method:'POST',headers,cache:'no-store',body:file?Uint8Array.from(atob(body),x=>x.charCodeAt(0)):JSON.stringify(body)}),ms);st=r.status;r.headers.forEach((v,k)=>hd[k]=v);data=await r.text()}
+ }catch(e){const m=String(e&&e.message||e);throw Object.assign(new Error(P?'Worker tidak bisa dihubungi ('+m.slice(0,90)+'). Cek URL Worker dan internet.':om2NetMsg(H,m)),{cf:'net'})}
  if(typeof data==='string'){try{data=JSON.parse(data)}catch(_){}}
  return{st,hd,data}}
-const om2NetMsg=(H,m)=>H?'Cloudflare tidak bisa dihubungi ('+m.slice(0,90)+'). '+(m==='waktu habis'?'Cek internet, lalu tutup dan buka lagi aplikasinya.':'Cek internet.'):'Cloudflare tidak bisa dihubungi dari sini. Sambungan langsung butuh aplikasi versi APK.';
+const om2NetMsg=(H,m)=>H?'Cloudflare tidak bisa dihubungi ('+m.slice(0,90)+'). '+(m==='waktu habis'?'Cek internet, lalu tutup dan buka lagi aplikasinya.':'Cek internet.'):'Di browser, Cloudflare harus lewat Worker. Isi "URL Worker" di Pengaturan Cloudflare.';
 function om2CfErr(r){const e0=r.data&&r.data.errors&&r.data.errors[0],msg=String((e0&&e0.message)||(typeof r.data==='string'?r.data:'')||'').slice(0,160);
  if(/daily free allocation/i.test(msg)||(e0&&(e0.code===4006||e0.code===3036)))return Object.assign(new Error('Jatah gratis harian Cloudflare sudah habis'),{cf:'quota'});
  if(r.st===401||r.st===403||(e0&&e0.code===10000))return Object.assign(new Error('Token ditolak Cloudflare. Cek token (izin Workers AI Read & Edit) dan Account ID.'),{cf:'auth'});
@@ -3102,7 +3106,7 @@ function om2Prev(){const e=$('om2i');if(!e)return;try{e.src=om2Paint(.5).toDataU
 function om2Sched(){clearTimeout(OM2.tm);OM2.tm=setTimeout(om2Prev,140)}
 function om2Btn(){const o=$('om2');if(!o)return;o.querySelectorAll('[data-o="go"],[data-o="dl"],[data-o="save"]').forEach(b=>{b.disabled=!!OM2.busy})}
 function om2List(){const e=$('om2li');if(!e)return;e.innerHTML=OM2.items.length?OM2.items.map((it,i)=>`<div class="oit"><input class="inp" data-ok="nm" data-i="${i}" value="${esc(it.name)}" maxlength="22" aria-label="Nama item"><input class="inp" data-ok="pr" data-i="${i}" inputmode="numeric" value="${it.pr||''}" placeholder="Harga" aria-label="Harga"><button type="button" class="btn ghost sm fit" data-o="del" data-i="${i}" aria-label="Hapus item">✕</button></div>`).join(''):'<p class="hint" style="text-align:left">Belum ada item.</p>'}
-function om2Fill(){const set=(id,v)=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v};let u='';try{u=localStorage.getItem('pb_kol_link_v1')||''}catch(x){}set('om2l',u);set('om2n',OM2.no);set('om2a',OM2.akun);set('om2c',OM2.tc||OM2.auto);const t=$('om2t');if(t)t.textContent='Inspirasi Otomatis'+(OM2.no?' · '+OM2.no:'');om2List();set('om2ca',om2Ls('os_cf_acc'));set('om2ct',om2Ls('os_cf_tok'));om2KList();set('om2m',om2Model());const au=$('om2au');if(au)au.checked=om2Ls('os_cf_auto')!=='0';om2QPaint();om2PFill();om2AiBtn()}
+function om2Fill(){const set=(id,v)=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v};let u='';try{u=localStorage.getItem('pb_kol_link_v1')||''}catch(x){}set('om2l',u);set('om2n',OM2.no);set('om2a',OM2.akun);set('om2c',OM2.tc||OM2.auto);const t=$('om2t');if(t)t.textContent='Inspirasi Otomatis'+(OM2.no?' · '+OM2.no:'');om2List();set('om2ca',om2Ls('os_cf_acc'));set('om2ct',om2Ls('os_cf_tok'));set('om2cw',om2Ls('os_cf_proxy'));om2KList();set('om2m',om2Model());const au=$('om2au');if(au)au.checked=om2Ls('os_cf_auto')!=='0';om2QPaint();om2PFill();om2AiBtn()}
 /* daftar API key cadangan (dirender ulang hanya saat tambah/hapus, supaya ketikan tidak hilang) */
 function om2KList(){const e=$('om2kl');if(!e)return;const a=om2Keys();
  e.innerHTML=a.map((k,i)=>`<div class="okr"><div class="okh"><b>API key ${i+2}</b><span class="oks" data-ks="${i+1}"></span></div><input class="inp" data-ok="ka" data-i="${i}" value="${esc(k.acc)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Account ID"><div class="or" style="margin-top:8px"><input class="inp" data-ok="kt" data-i="${i}" type="password" value="${esc(k.tok)}" autocomplete="off" placeholder="API Token" style="margin-top:0;flex:1"><button type="button" class="btn ghost sm fit" data-o="kdel" data-i="${i}" aria-label="Hapus API key">✕</button></div></div>`).join('');
@@ -3139,7 +3143,12 @@ function om2Ui(){let o=$('om2');if(o)o.remove();o=document.createElement('div');
 <div id="om2kl"></div><button type="button" class="btn ghost sm ow" data-o="kadd">+ Tambah API key cadangan</button>
 <p class="hint" style="text-align:left;margin-top:8px">Kalau jatah gratis satu API key habis, aplikasi otomatis pindah ke key berikutnya. Pakai <b>akun Cloudflare yang berbeda</b> untuk tiap key, karena jatah gratis dihitung per akun (beberapa token dari akun yang sama berbagi jatah yang sama).</p>
 <button type="button" class="btn sm ow" data-o="ktest">Tes sambungan (semua key)</button>
-<p class="hint" style="text-align:left">${om2Native()?'Aplikasi APK terdeteksi: bisa tersambung langsung.':'Versi APK tidak terdeteksi: sambungan langsung kemungkinan ditolak.'}</p>
+<p class="hint" style="text-align:left">${om2Native()?'Aplikasi APK terdeteksi: tersambung langsung (URL Worker tidak dipakai).':'Dibuka di browser: sambungan lewat Worker, isi URL Worker di bawah.'}</p>
+<div class="okh"><b>URL Worker (untuk laptop / browser)</b></div>
+<input class="inp" id="om2cw" data-ok="cfw" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://nama.akunmu.workers.dev">
+<details><summary>Cara pasang Worker (sekali saja, cukup 1 untuk semua key)</summary>
+<ol class="ost"><li>Tekan <b>Salin kode Worker</b> di bawah.</li><li>Di dash.cloudflare.com (akun mana saja), buka <b>Workers &amp; Pages</b> &gt; <b>Create</b> &gt; <b>Start with Hello World</b>, beri nama, tekan <b>Deploy</b>.</li><li>Tekan <b>Edit code</b>, hapus semua isinya, tempel kode tadi, tekan <b>Deploy</b>.</li><li>Salin alamatnya (berakhiran <b>.workers.dev</b>), tempel di kolom URL Worker, lalu tekan <b>Tes sambungan</b>.</li></ol>
+<button type="button" class="btn ghost sm ow" data-o="wcopy">Salin kode Worker</button></details>
 <ol class="ost"><li>Masuk di dash.cloudflare.com, pakai paket <b>Free</b>.</li><li>Buka <b>Workers AI</b> &gt; <b>Use REST API</b>, salin <b>Account ID</b>.</li><li>Buka profil &gt; <b>API Tokens</b> &gt; <b>Create Token</b> &gt; Custom. Izin (Account): <b>Workers AI Read</b>, <b>Workers AI Edit</b>, <b>Account Analytics Read</b>. Salin tokennya.</li><li>Tempel keduanya di atas, tekan <b>Tes sambungan</b>.</li></ol>
 <p class="hint" style="text-align:left">Token disimpan di HP ini saja. Jangan dibagikan ke siapa pun.</p></details>
 <details><summary>Lihat / ubah prompt</summary><textarea class="inp" id="om2p" data-ok="pm" rows="8" style="height:auto;min-height:170px;line-height:1.4;padding-top:10px;padding-bottom:10px"></textarea><button type="button" class="btn ghost sm ow" data-o="preset">Kembalikan prompt otomatis</button></details>
@@ -3159,6 +3168,7 @@ function om2Input(e){const t=e.target,k=t.dataset&&t.dataset.ok;if(!k||k==='file
  else if(k==='akun'){OM2.akun=t.value;try{localStorage.setItem('os_m2_akun',t.value.trim())}catch(x){}}
  else if(k==='tc')OM2.tc=t.value;
  else if(k==='cfa'||k==='cft'){om2Ls(k==='cfa'?'os_cf_acc':'os_cf_tok',t.value.trim());OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
+ else if(k==='cfw'){om2Ls('os_cf_proxy',t.value.trim());OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
  else if(k==='ka'||k==='kt'){const a=om2Keys();if(!a[i])return;a[i][k==='ka'?'acc':'tok']=t.value.trim();om2KeysSet(a);OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
  else if(k==='mdl'){om2Ls('os_cf_model',t.value);om2QPaint();return}
  else if(k==='auto'){om2Ls('os_cf_auto',t.checked?'1':'0');return}
@@ -3177,6 +3187,7 @@ function om2Click(e){const b=e.target.closest('[data-o]');if(!b)return;const k=b
  else if(k==='kadd'){const a=om2Keys();if(a.length>=OM2_MAXK)return toast('Maksimal '+OM2_MAXK+' API key cadangan');a.push({acc:'',tok:''});om2KeysSet(a);om2KList();const f=document.querySelector('#om2kl [data-ok="ka"][data-i="'+(a.length-1)+'"]');if(f)f.focus()}
  else if(k==='kdel'){const a=om2Keys();if(!a[i])return;const go=()=>{a.splice(i,1);om2KeysSet(a);OM2.q=null;om2KList();om2Quota()};if(a[i].acc||a[i].tok)ask('Hapus API key '+(i+2)+'?',go);else go()}
  else if(k==='ktest')om2KTest(b);
+ else if(k==='wcopy')copyTxt(OM2_WORKER);
  else if(k==='quota'){if(!om2Cfg().ok)return toast('Isi Account ID dan token dulu');om2Quota().then(q=>toast(q?'Angka diperbarui dari Cloudflare':'Gagal membaca, lihat keterangannya'))}
  else if(k==='aicp'){if(om2Cek())copyTxt(om2Prompt())}
  else if(k==='preset'){OM2.pEdit=0;OM2.pm='';om2PFill()}
