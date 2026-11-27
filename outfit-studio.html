@@ -2924,10 +2924,11 @@ function om2Paint(sc){const im=OM2.photo,H=1440,a=im?im.width/im.height:.75,pw=M
   if(cols===1)L0.forEach((it,i)=>CA[0].push({it,w:wt[i]}));
   else{const tot=wt.reduce((p,q)=>p+q,0);let acc=0;L0.forEach((it,i)=>{const k=acc+wt[i]/2<=tot/2?0:1;CA[k].push({it,w:wt[i]});acc+=wt[i]});if(!CA[1].length)CA[1].push(CA[0].pop())}
   CA.forEach((col,ci)=>{if(!col.length)return;const cx=mx+ci*(cw+gap),sum=col.reduce((p,q)=>p+q.w,0),TH=iy1-iy0-(col.length-1)*gap;let cy=iy0;
-   col.forEach(o=>{const h=TH*o.w/sum,it=o.it,src=(it.use&&it.cut)?it.cut:it.raw;
+   col.forEach(o=>{const h=TH*o.w/sum,it=o.it,gn=(OM2.aiOn&&it.gen)?it.gen:null,src=gn||((it.use&&it.cut)?it.cut:it.raw);
     if(!src){x.fillStyle=P.light;om2Rr(x,cx,cy,cw,h,24);x.fill();x.fillStyle=P.dark;x.font='600 30px '+F;x.fillText(it.name,cx+cw/2,cy+h/2)}
     else{const pd=10,k=Math.min((cw-pd*2)/src.width,(h-pd*2)/src.height),w=src.width*k,hg=src.height*k,dx=cx+(cw-w)/2,dy=cy+(h-hg)/2;
-     if(it.use&&it.cut){x.save();x.shadowColor='rgba(0,0,0,.18)';x.shadowBlur=22*sc;x.shadowOffsetY=8*sc;x.drawImage(src,dx,dy,w,hg);x.restore()}
+     if(gn){x.save();x.globalCompositeOperation='multiply';x.drawImage(src,dx,dy,w,hg);x.restore()}
+     else if(it.use&&it.cut){x.save();x.shadowColor='rgba(0,0,0,.18)';x.shadowBlur=22*sc;x.shadowOffsetY=8*sc;x.drawImage(src,dx,dy,w,hg);x.restore()}
      else{x.save();om2Rr(x,dx,dy,w,hg,22);x.clip();x.drawImage(src,dx,dy,w,hg);x.restore();om2Rr(x,dx,dy,w,hg,22);x.strokeStyle=P.line;x.lineWidth=3;x.stroke()}}
     cy+=h+gap})})}
  return c}
@@ -2935,10 +2936,14 @@ const om2Blob=()=>new Promise((ok,no)=>{try{om2Paint(1).toBlob(b=>b?ok(b):no(new
 const om2Name=()=>'inspirasi-'+(String(OM2.no||'').replace(/[^\w-]+/g,'')||'outfit')+'.png';
 const om2Ready=()=>!!OM2.photo&&!OM2.busy;
 
-/* ===== Mode 2: gambar sisi kiri dibuat AI (Pollinations, kunci sama dengan Mode 1) ===== */
-const om2Pn=()=>OM2.items.map(i=>String(i.name||'').trim()).filter(Boolean);
-function om2Prompt(){const L=OM2.items.map(it=>({n:String(it.name||'').trim(),d:String(it.desc||'').trim()})).filter(o=>o.n),n=L.length;if(!n)return '';
- return 'Look carefully at the reference photo: the person is wearing an outfit. Create a clean e-commerce outfit flat-lay image that reproduces EXACTLY the clothes and items this person is wearing in the photo: same colors, fabric, pattern, cut, length and details. Do NOT invent, replace or recolor anything, and do NOT use garments that are not in the photo. Items to extract ('+n+'): '+L.map((o,k)=>(k+1)+'. '+o.n+(o.d?' = '+o.d:'')).join('; ')+'. The image must contain exactly '+n+' product'+(n>1?'s, one for each listed item':'')+', and nothing else: no extra items, no duplicates, no back view, and no hijab/scarf, shoes or accessories unless they are in the list. Arrange them neatly in ONE tidy vertical layout like a fashion shop outfit card: tops and outerwear at the top (an outer layer may be shown layered over the inner top as worn in the photo), bottoms below, a bag small next to or below them; each item front view, complete and not cropped, realistic relative scale, clean spacing. Ghost-mannequin / flat-lay product shots, no hanger. Pure white (#FFFFFF) background, soft natural shadow only. Remove the person completely: no face, no head, no hands, no arms, no legs, no body, no mannequin, no background objects. Absolutely NO text, letters, numbers, labels, captions, logos or price tags anywhere in the image.'}
+/* ===== Mode 2: gambar sisi kiri dibuat AI, SATU item per permintaan (Pollinations, kunci sama dengan Mode 1) ===== */
+function om2ItemPrompt(it){const n=String(it.name||'item').trim(),d=String(it.desc||'').trim();
+ return 'Extract ONLY the '+n+(d?' ('+d+')':'')+' that the person is wearing or carrying in this photo, and nothing else. Show it as ONE single clean e-commerce product shot (ghost-mannequin or neat flat-lay, front view), centered, complete and not cropped. Pure white (#FFFFFF) background with only a soft natural shadow. Remove the person completely: no face, no head, no hands, no arms, no legs, no body, no mannequin, no other clothing or accessories, no background objects. Keep the fabric, exact color, pattern, cut and every detail exactly as in the photo; do not invent or change anything. Absolutely NO text, letters, numbers, labels, logos or watermarks.'}
+function om2Prompt(){return OM2.items.map((it,k)=>(k+1)+'. '+String(it.name||'Item').trim()+' = '+String(it.desc||'').trim()).join('\n')}
+function om2PFill(){const e=$('om2p');if(e&&!OM2.pEdit&&document.activeElement!==e)e.value=om2Prompt()}
+function om2ParseP(){const e=$('om2p');if(!e||!OM2.pEdit)return;e.value.split('\n').forEach(l=>{const m=l.match(/^\s*(\d+)\s*[.):-]\s*(.*)$/);if(!m)return;const k=+m[1]-1;if(!(k>=0&&k<OM2.items.length))return;const r=m[2],q=r.indexOf('=');OM2.items[k].desc=(q>=0?r.slice(q+1):r).trim()})}
+function om2AiSay(m){const e=$('om2as');if(e)e.textContent=m}
+function om2AiBtn(){const o=$('om2');if(!o)return;const b=o.querySelector('[data-o="ai"]');if(b)b.disabled=!!OM2.aiBusy;const t=o.querySelector('[data-o="aitg"]'),has=OM2.items.some(i=>i.gen);if(t){t.style.display=has?'':'none';t.textContent=OM2.aiOn?'Pakai potongan produk asli':'Pakai gambar AI'}}
 async function om2Desc(tk){
  const need=OM2.items.some(it=>!it.desc);if(!need||!OM2.photo)return;
  if(!(window.parent&&parent.osAiVision))return;
@@ -2950,9 +2955,21 @@ async function om2Desc(tk){
   if(tk!==OM2.tk)return;
   (Array.isArray(r.items)?r.items:[]).forEach(o=>{const k=parseInt(o&&o.c,10)-1,d=String(o&&o.d||'').replace(/["\n]+/g,' ').trim();if(k>=0&&k<OM2.items.length&&d)OM2.items[k].desc=d})
  }catch(e){}}
-function om2PFill(){const e=$('om2p');if(e&&!OM2.pEdit&&document.activeElement!==e)e.value=om2Prompt()}
-function om2AiSay(m){const e=$('om2as');if(e)e.textContent=m}
-function om2AiBtn(){const o=$('om2');if(!o)return;const b=o.querySelector('[data-o="ai"]');if(b)b.disabled=!!OM2.aiBusy;const t=o.querySelector('[data-o="aitg"]');if(t){t.style.display=OM2.ai?'':'none';t.textContent=OM2.aiOn?'Pakai potongan produk':'Pakai gambar AI'}}
+async function om2Gen1(key,blob,prompt,models,tk){
+ let err='';
+ for(const model of models){
+  if(tk!==OM2.tk)return{err:'batal'};
+  try{
+   const fd=new FormData();fd.append('model',model);fd.append('prompt',prompt);fd.append('image',blob,'foto.jpg');fd.append('n','1');
+   const r=await fetch('https://gen.pollinations.ai/v1/images/edits?key='+encodeURIComponent(key),{method:'POST',body:fd});
+   if(!r.ok){let bd='';try{bd=(await r.text()).slice(0,120)}catch(_){}err='Server '+r.status+' ('+model+') '+bd;if(r.status===401)return{err:'Kunci Pollinations ditolak (401). Cek kuncinya.',stop:1};continue}
+   const j=await r.json(),it=j&&j.data&&j.data[0];
+   if(it&&it.b64_json){const bin=atob(it.b64_json),u8=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u8[k]=bin.charCodeAt(k);return{blob:new Blob([u8],{type:'image/png'}),model}}
+   if(it&&it.url){const ir=await fetch(it.url);if(ir.ok)return{blob:await ir.blob(),model}}
+   err='Hasil kosong ('+model+')'
+  }catch(x){err='Gagal terhubung ['+(x&&x.message||x)+']'}
+ }
+ return{err:err||'tidak diketahui'}}
 async function om2Ai(auto){
  const tk=OM2.tk;if(OM2.aiBusy)return;
  const ke=$('om2k'),key=((ke&&ke.value)||pk()).trim(),say=om2AiSay;
@@ -2962,30 +2979,26 @@ async function om2Ai(auto){
  if(!OM2.items.length){say('Belum ada item. Cari item dulu.');return}
  OM2.aiBusy=1;om2AiBtn();
  try{
-  if(!OM2.pEdit){say('AI membaca outfit di foto kanan…');await om2Desc(tk);if(tk!==OM2.tk)return;om2PFill()}
-  const pe=$('om2p'),prompt=((OM2.pEdit&&pe&&pe.value.trim())||om2Prompt()).trim();
-  if(!prompt){say('Belum ada item. Cari item dulu.');return}
+  if(OM2.pEdit)om2ParseP();
+  else{say('AI membaca outfit di foto kanan…');await om2Desc(tk);if(tk!==OM2.tk)return;om2PFill()}
+  const nd=OM2.items.filter(i=>i.desc).length;
   const src=OM2.photo,sc=Math.min(1,1024/Math.max(src.width,src.height)),c=document.createElement('canvas');
   c.width=Math.round(src.width*sc);c.height=Math.round(src.height*sc);c.getContext('2d').drawImage(src,0,0,c.width,c.height);
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.88));
-  let out=null,err='';
-  for(const model of ['nanobanana','kontext','klein']){
+  let models=['nanobanana','kontext','klein'],ok=0,fail=[],lastErr='';
+  const N=OM2.items.length;
+  for(let k=0;k<N;k++){
+   if(tk!==OM2.tk)return;const it=OM2.items[k];
+   say('AI membuat item '+(k+1)+' dari '+N+' ('+(it.name||'Item')+')… bisa 20–60 detik'+(nd<N?' · deskripsi terbaca '+nd+'/'+N:''));
+   const R=await om2Gen1(key,blob,om2ItemPrompt(it),models,tk);
    if(tk!==OM2.tk)return;
-   say('AI membuat gambar kiri… (model '+model+') bisa 20–60 detik');
-   try{
-    const fd=new FormData();fd.append('model',model);fd.append('prompt',prompt);fd.append('image',blob,'foto.jpg');fd.append('n','1');
-    const r=await fetch('https://gen.pollinations.ai/v1/images/edits?key='+encodeURIComponent(key),{method:'POST',body:fd});
-    if(!r.ok){let bd='';try{bd=(await r.text()).slice(0,140)}catch(_){}err='Server '+r.status+' ('+model+') '+bd;if(r.status===401){err='Kunci Pollinations ditolak (401). Cek kuncinya.';break}continue}
-    const j=await r.json(),it=j&&j.data&&j.data[0];
-    if(it&&it.b64_json){const bin=atob(it.b64_json),u8=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u8[k]=bin.charCodeAt(k);out=new Blob([u8],{type:'image/png'});break}
-    if(it&&it.url){const ir=await fetch(it.url);if(ir.ok){out=await ir.blob();break}}
-    err='Hasil kosong'
-   }catch(x){err='Gagal terhubung ['+(x&&x.message||x)+']'}
-  }
-  if(tk!==OM2.tk)return;
-  if(!out){say('Gagal: '+(err||'tidak diketahui')+'. Coba lagi, atau pakai potongan produk (tombol di atas).');return}
-  const bm=await createImageBitmap(out),cv=document.createElement('canvas');cv.width=bm.width;cv.height=bm.height;const g=cv.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,cv.width,cv.height);g.drawImage(bm,0,0);
-  const t=om2Trim(cv);OM2.ai=t||cv;OM2.aiOn=1;say('Gambar kiri dibuat AI ✓ Kalau kurang pas, ubah prompt lalu tekan Buat gambar AI lagi.');om2Prev();toast('Gambar kiri dibuat AI ✓')
+   if(R.blob){try{const bm=await createImageBitmap(R.blob),cv=document.createElement('canvas');cv.width=bm.width;cv.height=bm.height;const g=cv.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,cv.width,cv.height);g.drawImage(bm,0,0);it.gen=om2Trim(cv)||cv;ok++;if(R.model&&models[0]!==R.model)models=[R.model].concat(models.filter(m=>m!==R.model));om2Prev();continue}catch(x){R.err='Gambar rusak'}}
+   lastErr=R.err;fail.push(it.name||'Item');if(R.stop)break}
+  OM2.aiOn=1;om2AiBtn();om2Prev();
+  if(ok===N)say('Semua '+N+' item dibuat AI ✓ Kalau ada yang kurang pas, ubah deskripsinya lalu tekan Buat gambar AI lagi.');
+  else if(ok)say(ok+' dari '+N+' item berhasil. Gagal: '+fail.join(', ')+' ('+lastErr+'). Item gagal memakai foto produk asli.');
+  else say('Gagal: '+lastErr+'. Coba lagi nanti, atau pakai foto produk asli.');
+  if(ok)toast('Gambar kiri dibuat AI ✓')
  }catch(x){if(tk===OM2.tk)say('Gagal: '+(x&&x.message?x.message:x))}
  finally{if(tk===OM2.tk){OM2.aiBusy=0;om2AiBtn()}}}
 function om2Say(m){const e=$('om2s');if(e)e.textContent=m}
@@ -3002,11 +3015,11 @@ function om2Ui(){let o=$('om2');if(o)o.remove();o=document.createElement('div');
 <div class="f2"><label>Nomor<input class="inp" id="om2n" data-ok="no" autocomplete="off"></label><label>Akun (tampil di bawah)<input class="inp" id="om2a" data-ok="akun" autocomplete="off" placeholder="@namaakun"></label></div>
 <div class="lb" style="margin-top:12px">Warna tema</div><div class="oc"><input type="color" id="om2c" data-ok="tc"><button type="button" class="btn ghost sm fit" data-o="auto">Otomatis dari outfit</button></div>
 <div class="lb" style="margin-top:14px">Item (nama &amp; harga bisa diubah)</div><div id="om2li"></div>
-<div class="card" style="margin-top:14px"><div class="lb">Gambar kiri dibuat AI</div><p class="hint" style="text-align:left;margin:0 0 8px">Item di atas dimasukkan ke prompt, lalu AI membuat gambar sisi kiri dari outfit di foto kanan.</p>
+<div class="card" style="margin-top:14px"><div class="lb">Gambar kiri dibuat AI</div><p class="hint" style="text-align:left;margin:0 0 8px">Tiap item dibaca dari outfit model di foto kanan, lalu AI membuat satu gambar produk per item dan disusun di sisi kiri.</p>
 <input class="inp" id="om2k" data-ok="pk" type="password" autocomplete="off" placeholder="Tempel kunci dari enter.pollinations.ai">
-<div class="lb" style="margin-top:10px">Prompt (otomatis dari item, boleh diubah)</div><textarea class="inp" id="om2p" data-ok="pm" rows="6" style="height:auto;min-height:120px;line-height:1.4"></textarea>
+<div class="lb" style="margin-top:10px">Deskripsi tiap item (dari foto kanan, boleh diubah)</div><textarea class="inp" id="om2p" data-ok="pm" rows="5" style="height:auto;min-height:120px;line-height:1.4"></textarea>
 <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1" data-o="ai">Buat gambar AI</button><button type="button" class="btn ghost" style="flex:none" data-o="aicp">Salin prompt</button></div>
-<button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;display:none" data-o="aitg">Pakai potongan produk</button>
+<button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;display:none" data-o="aitg">Pakai potongan produk asli</button>
 <p class="hint" id="om2as" style="text-align:left"></p></div></div>
 <div class="of"><button type="button" class="btn ghost" data-o="dl">${ic('dl',16)}Unduh</button><button type="button" class="btn" data-o="save">${ic('album',16)}Simpan ke album</button></div>`;
  (document.querySelector('.app')||document.body).appendChild(o);
@@ -3025,7 +3038,7 @@ function om2Click(e){const b=e.target.closest('[data-o]');if(!b)return;const k=b
  else if(k==='go')om2Run();
  else if(k==='auto'){OM2.tc='';om2Fill();om2Prev()}
  else if(k==='ai')om2Ai(0)
- else if(k==='aicp'){const pe=$('om2p');copyTxt((pe&&pe.value)||om2Prompt())}
+ else if(k==='aicp'){if(OM2.pEdit)om2ParseP();copyTxt(OM2.items.map(it=>om2ItemPrompt(it)).join('\n\n'))}
  else if(k==='aitg'){OM2.aiOn=OM2.aiOn?0:1;om2AiBtn();om2Prev()}
  else if(k==='cut'){const it=OM2.items[i];if(it&&it.cut){it.use=it.use?0:1;om2List();om2Prev()}}
  else if(k==='del'){OM2.items.splice(i,1);om2List();om2PFill();om2Prev()}
