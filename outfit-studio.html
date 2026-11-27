@@ -799,14 +799,14 @@ const ACT2={
     say('AI membuat item… (model '+model+')');
     try{
      const fd=new FormData();fd.append('model',model);fd.append('prompt',prompt);fd.append('image',blob,'foto.jpg');fd.append('n','1');
-     const r=await fetch('https://gen.pollinations.ai/v1/images/edits',{method:'POST',headers:{Authorization:'Bearer '+key},body:fd});
+     const r=await fetch('https://gen.pollinations.ai/v1/images/edits?key='+encodeURIComponent(key),{method:'POST',body:fd});
      if(r.status===401||r.status===403){err='Kunci salah / belum aktif';break}
      if(!r.ok){err='Server '+r.status;continue}
      const j=await r.json(),it=j&&j.data&&j.data[0];
      if(it&&it.b64_json){const bin=atob(it.b64_json),u8=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u8[k]=bin.charCodeAt(k);out=new Blob([u8],{type:'image/png'});break}
      if(it&&it.url){const ir=await fetch(it.url);if(ir.ok){out=await ir.blob();break}}
      err='Hasil kosong'
-    }catch(x){err='Gagal terhubung (cek internet)'}
+    }catch(x){let up='';try{const pr=await fetch('https://gen.pollinations.ai/v1/models');up=pr.ok?'server bisa dijangkau, tapi kiriman foto diblokir browser (CORS)':'server balas '+pr.status}catch(y){up='server tidak terjangkau dari aplikasi'}err='Gagal terhubung: '+up+' ['+(x&&x.message||x)+']'}
    }
    if(!out){say('Gagal: '+(err||'tidak diketahui')+'. Coba lagi nanti, atau pakai Salin prompt ke Gemini.');el.disabled=false;return}
    setImg('gem',new File([out],'ai.png',{type:out.type||'image/png'}));toast('Item dibuat AI ✓');
