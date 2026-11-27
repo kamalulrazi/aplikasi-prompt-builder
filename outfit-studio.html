@@ -4,7 +4,7 @@
 <title>Outfit Studio — preview</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300..800&family=Newsreader:wght@300..700&family=Caveat:wght@600&family=Anton&family=Playfair+Display:ital,wght@1,500;1,700&family=Cormorant+Garamond:ital,wght@1,500;1,700&family=Great+Vibes&family=Dancing+Script:wght@500;700&family=Special+Elite&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300..800&family=Newsreader:wght@300..700&family=Caveat:wght@600&family=Anton&family=Playfair+Display:ital,wght@1,500;1,700&family=Cormorant+Garamond:ital,wght@1,500;1,700&family=Great+Vibes&family=Dancing+Script:wght@500;700&family=Special+Elite&display=swap" onload="this.onload=null;this.rel='stylesheet'"><noscript><link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300..800&family=Newsreader:wght@300..700&family=Caveat:wght@600&family=Anton&family=Playfair+Display:ital,wght@1,500;1,700&family=Cormorant+Garamond:ital,wght@1,500;1,700&family=Great+Vibes&family=Dancing+Script:wght@500;700&family=Special+Elite&display=swap" rel="stylesheet"></noscript>
 <style>
 :root{--bg:#08080A;--surface:#121215;--surface2:#18181C;--surface3:#202024;--border:rgba(255,255,255,.07);--border-hi:rgba(255,255,255,.14);--text:#F2F0EC;--muted:#8B8892;--accent:#D9B876;--accent-2:#F0D9A0;--accent-dim:#B8965F;--accent-dim-bg:rgba(217,184,118,.12);--accent-text-on-dark:#E6CD97;--red:#F87171;--fs-xs:11.5px;--fs-xs2:12px;--fs-sm:12.5px;--fs-base:13.5px;--fs-md:14.5px;--fs-lg:17px;--fs-2xl:22px;--radius-md:8px;--radius-sm:10px;--radius:14px;--radius-lg:22px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -1597,7 +1597,7 @@ function zguide(I,p,w,h,r,eps){const N=w*h,Ip=new Float32Array(N),II=new Float32
  for(let i=0;i<N;i++){const v=cII[i]-mI[i]*mI[i],c=cIp[i]-mI[i]*mp[i],a=c/(v+eps);A[i]=a;B[i]=mp[i]-a*mI[i]}
  const mA=zbox(A,w,h,r),mB=zbox(B,w,h,r),q=new Float32Array(N);for(let i=0;i<N;i++){const v=mA[i]*I[i]+mB[i];q[i]=v<0?0:v>1?1:v}return q}
 /* tutup lubang kecil di dalam badan (mis. antara lengan & pinggang tidak ikut, hanya yg kecil) */
-function zfill(p,w,h){const N=w*h,s=new Uint8Array(N),Q=new Int32Array(N);let qh=0,qt=0;
+function zfill(p,w,h,col){const N=w*h,s=new Uint8Array(N),Q=new Int32Array(N);let qh=0,qt=0;
  const push=i=>{if(!s[i]&&p[i]<=.5){s[i]=1;Q[qt++]=i}};
  for(let x=0;x<w;x++){push(x);push((h-1)*w+x)}for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}
  while(qh<qt){const i=Q[qh++],x=i%w;if(x>0)push(i-1);if(x<w-1)push(i+1);if(i>=w)push(i-w);if(i<N-w)push(i+w)}
@@ -1605,17 +1605,25 @@ function zfill(p,w,h){const N=w*h,s=new Uint8Array(N),Q=new Int32Array(N);let qh
  for(let i=0;i<N;i++){if(s[i]||p[i]>.5)continue;let a=0,b=0;Z[b++]=i;s[i]=2;const L=[];
   while(a<b){const j=Z[a++];L.push(j);const x=j%w,n=[x>0?j-1:-1,x<w-1?j+1:-1,j>=w?j-w:-1,j<N-w?j+w:-1];
    for(const m of n)if(m>=0&&!s[m]&&p[m]<=.5){s[m]=2;Z[b++]=m}}
+  if(col&&L.length>=3){let R=0,G=0,B=0;for(const j of L){R+=col.D[j*4];G+=col.D[j*4+1];B+=col.D[j*4+2]}const n=L.length;if(Math.hypot(R/n-col.bg[0],G/n-col.bg[1],B/n-col.bg[2])<26)continue}
   let sp=0;for(const j of L)sp+=p[j];if(L.length<lim&&(L.length<N*.0008||sp/L.length>.12))for(const j of L)o[j]=.95}
  return o}
 function zgray(c){const w=c.width,h=c.height,d=c.getContext('2d').getImageData(0,0,w,h).data,g=new Float32Array(w*h);for(let i=0;i<w*h;i++)g[i]=(d[i*4]*.299+d[i*4+1]*.587+d[i*4+2]*.114)/255;return g}
-function zrefine(p,w,h,cv2){const r=Math.max(2,Math.round(Math.max(w,h)*.007)),g=zguide(zgray(cv2),zfill(p,w,h),w,h,r,1.2e-4),q=zbox(g,w,h,1),
- big=zbox(p,w,h,Math.max(3,r*2));for(let i=0;i<w*h;i++){if(big[i]<.015)q[i]=0}return q}
+/* 27 Nov 2026: PENGUATAN SISI APLIKASI. (1) zbgref: warna latar ditaksir dari bingkai tepi foto (hanya dipercaya kalau bingkainya rata). (2) Lubang tertutup di dalam badan (sela lengan-pinggang, dll) TIDAK lagi otomatis ditutup kalau warnanya sama dengan latar: itu sisa latar sungguhan, bukan lubang salah deteksi. (3) zdefr: piksel tepi setengah transparan yang warnanya masih warna latar (halo/pinggiran putih) dikurangi opasitasnya. Latar rumit -> bagian ini mati otomatis dan cara lama dipakai. */
+function zbgref(D,w,h){const b=Math.max(2,Math.round(Math.min(w,h)*.03)),R=[],G=[],B=[];let c=0;
+ for(let y=0;y<h;y++){const edge=y<b||y>=h-b;for(let x=0;x<w;x++){if(!(edge||x<b||x>=w-b))continue;if(++c%3)continue;const i=(y*w+x)*4;R.push(D[i]);G.push(D[i+1]);B.push(D[i+2])}}
+ if(R.length<30)return{ok:false};const md=a=>{const t=a.slice().sort((x,y)=>x-y);return t[t.length>>1]},m=[md(R),md(G),md(B)];
+ let dv=0;for(let i=0;i<R.length;i++)dv+=(Math.abs(R[i]-m[0])+Math.abs(G[i]-m[1])+Math.abs(B[i]-m[2]))/3;dv/=R.length;return{ok:dv<20,rgb:m,dev:dv}}
+function zdefr(q,D,w,h,bg){const T=26;for(let i=0;i<w*h;i++){const a=q[i];if(a<=.02||a>=.98)continue;const d=Math.hypot(D[i*4]-bg[0],D[i*4+1]-bg[1],D[i*4+2]-bg[2]);if(d<T)q[i]=a*(.35+.65*(d/T))}}
+function zrefine(p,w,h,cv2){const r=Math.max(2,Math.round(Math.max(w,h)*.007));let D=null,bg=null;try{D=cv2.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;bg=zbgref(D,w,h)}catch(e){D=null;bg=null}
+ const col=bg&&bg.ok?{D,bg:bg.rgb}:null,g=zguide(zgray(cv2),zfill(p,w,h,col),w,h,r,1.2e-4),q=zbox(g,w,h,1),big=zbox(p,w,h,Math.max(3,r*2));for(let i=0;i<w*h;i++){if(big[i]<.015)q[i]=0}
+ if(col){try{zdefr(q,D,w,h,col.bg)}catch(e){}}return q}
 const zscale=(src,k)=>{const c=document.createElement('canvas');c.width=Math.max(1,Math.round(src.width*k));c.height=Math.max(1,Math.round(src.height*k));const g=c.getContext('2d');g.imageSmoothingQuality='high';g.drawImage(src,0,0,c.width,c.height);return c};
 async function zrun(c){const sg=await zseg(),r=sg.segment(c),ms=r.confidenceMasks,m=ms[ms.length>1?1:0],o={p:new Float32Array(m.getAsFloat32Array()),w:m.width,h:m.height};try{ms.forEach(q=>q.close&&q.close())}catch(_){}return o}
-function zbuild(){if(!zp||!zimg)return;const{p,w,h,rx,ry,rw,rh}=zp,th=.3+z.ed*.006,N=w*h,mc=document.createElement('canvas');mc.width=w;mc.height=h;const g=mc.getContext('2d'),im=g.createImageData(w,h),d=im.data;let x0=w,y0=h,x1=-1,y1=-1;
+function zbuild(){if(!zp||!zimg)return;const{p,w,h,rx,ry,rw,rh}=zp,th=Math.max(.1,Math.min(.8,.3+z.ed*.006+(typeof zthx==='number'?zthx:0))),N=w*h,mc=document.createElement('canvas');mc.width=w;mc.height=h;const g=mc.getContext('2d'),im=g.createImageData(w,h),d=im.data;let x0=w,y0=h,x1=-1,y1=-1;
  for(let i=0;i<N;i++){const t=Math.max(0,Math.min(1,(p[i]-th)/.2+.5));d[i*4+3]=Math.round(t*255);if(t>.3){const xx=i%w,yy=(i-xx)/w;if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(yy<y0)y0=yy;if(yy>y1)y1=yy}}
  if(x1<0)throw new Error('none');g.putImageData(im,0,0);
- const c=document.createElement('canvas');c.width=rw;c.height=rh;const q=c.getContext('2d');q.drawImage(zimg,rx,ry,rw,rh,0,0,rw,rh);q.globalCompositeOperation='destination-in';q.imageSmoothingQuality='high';q.drawImage(mc,0,0,rw,rh);
+ const c=document.createElement('canvas');c.width=rw;c.height=rh;const q=c.getContext('2d');zdfDraw(q,rx,ry,rw,rh,p,w,h);q.globalCompositeOperation='destination-in';q.imageSmoothingQuality='high';q.drawImage(mc,0,0,rw,rh);
  const sx=rw/w,sy=rh/h,bx=Math.max(0,Math.floor(x0*sx)-2),by=Math.max(0,Math.floor(y0*sy)-2);
  zcut={c,b:{x:bx,y:by,w:Math.min(rw,Math.ceil((x1+1)*sx)+2)-bx,h:Math.min(rh,Math.ceil((y1+1)*sy)+2)-by}};sched()}
 /* v17.9: HAPUS LATAR PASTI — mesin utama ISNet (@imgly/background-removal 1.7.0). Kodenya DIBUNDEL di dalam file ini (tanpa CDN); hanya model ±80 MB diunduh sekali dari staticimgly.com lalu disimpan cache browser. Jauh lebih akurat dari model selfie untuk foto badan penuh, rambut, tas di tangan. Gagal/offline -> otomatis mesin MediaPipe lama (zcutoutMP). */
@@ -1626,23 +1634,135 @@ function zkeep(p,w,h){const N=w*h,B=new Uint8Array(N);for(let i=0;i<N;i++)B[i]=p
  for(let i=1;i<=C.n;i++)if(i===bi||C.bb[i].a>=mx*.15)kp[i]=1;for(let i=0;i<N;i++){const l=C.lab[i];if(l&&!kp[l]&&Dm[i]>1e-6&&C.bb[l].a>=N*.0008)kp[l]=1}
  const K=new Float32Array(N);for(let i=0;i<N;i++){const l=C.lab[i];if(l&&kp[l])K[i]=1}
  const D=zbox(K,w,h,Math.max(3,Math.round(Math.max(w,h)*.006))),o=new Float32Array(N);for(let i=0;i<N;i++)if(D[i]>.001)o[i]=p[i];return o}
-async function zisnet(){if(!zim)zim=await import(URL.createObjectURL(new Blob([atob(ZLIB)],{type:'text/javascript'})));
- const IW=zimg.width,IH=zimg.height,src=await new Promise((ok,no)=>zimg.toBlob(b=>b?ok(b):no(new Error('blob')),'image/jpeg',.95));
+async function zisnet(){if(zwarmP){try{await zwarmP}catch(e){}}if(!zim)zim=await import(URL.createObjectURL(new Blob([atob(ZLIB)],{type:'text/javascript'})));
+ const IW=zimg.width,IH=zimg.height,k0=Math.min(1,1024/Math.max(IW,IH)),sc0=k0<1?zscale(zimg,k0):zimg,src=await new Promise((ok,no)=>sc0.toBlob(b=>b?ok(b):no(new Error('blob')),'image/jpeg',.92));
  zcache();let wt=0,wj;const wd=new Promise((_,no)=>{wj=no}),arm=ms=>{clearTimeout(wt);wt=setTimeout(()=>wj(new Error('timeout')),ms)};arm(240000);
   let out;try{out=await Promise.race([zim.removeBackground(src,{model:'isnet_fp16',device:'cpu',output:{format:'image/png'},progress:(k,a,b)=>{if(/^fetch/.test(k)&&b>1e6){arm(240000);zst('Mengunduh model '+Math.round(a*100/b)+'% (sekali saja, lalu tersimpan permanen)')}else if(/^compute/.test(k)){arm(360000);zst('Memotong latar…')}}}),wd])}finally{clearTimeout(wt)}
  const k=Math.min(1,1024/Math.max(IW,IH)),a=zscale(zimg,k),w=a.width,h=a.height,cc=document.createElement('canvas');cc.width=w;cc.height=h;
  const g=cc.getContext('2d',{willReadFrequently:true});g.imageSmoothingQuality='high';g.drawImage(await createImageBitmap(out),0,0,w,h);
  const d=g.getImageData(0,0,w,h).data,p=new Float32Array(w*h);for(let i=0;i<p.length;i++)p[i]=d[i*4+3]/255;
  return{p:zrefine(zkeep(p,w,h),w,h,a),w,h,rx:0,ry:0,rw:IW,rh:IH}}
+/* 27 Nov 2026: PEMANASAN MODEL. Sesi model ISNet disimpan di memori setelah dipakai sekali, jadi foto pertama paling lama. Begitu kamu menekan tombol pilih foto model (dan Hapus latar aktif), model dimuat di belakang layar selagi kamu memilih foto. Tanpa unduhan baru kalau modelnya sudah tersimpan. */
+var zwarmP=null;
+function zwarm(){if(zwarmP||!z.cut)return;zwarmP=(async()=>{try{if(!zim)zim=await import(URL.createObjectURL(new Blob([atob(ZLIB)],{type:'text/javascript'})));zcache();const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');g.fillStyle='#888';g.fillRect(0,0,64,64);const b=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));await zim.removeBackground(b,{model:'isnet_fp16',device:'cpu',output:{format:'image/png'}});try{localStorage.setItem('pb-isnet-ok','1')}catch(_){}}catch(e){console.warn('Pemanasan model gagal',e)}finally{zwarmP=null}})()}
+kl.addEventListener('click',e=>{const t=e.target;if(t&&t.matches&&t.matches('input[data-zf]'))zwarm()},true);
+/* 27 Nov 2026: pemanasan otomatis saat aplikasi menganggur, hanya kalau model sudah pernah diunduh (tidak memakai kuota) */
+try{if((navigator.deviceMemory||4)>=3&&(localStorage.getItem('pb-isnet-ok')==='1'||/wifi|ethernet/.test((navigator.connection&&navigator.connection.type)||'')))(window.requestIdleCallback?f=>requestIdleCallback(f,{timeout:8000}):f=>setTimeout(f,4000))(()=>setTimeout(zwarm,1500))}catch(e){}
 /* v18.45: HAPUS LATAR MODEL LEBIH AMAN — (1) AI ISNet SELALU mesin utama & dicoba 2x (dulu potong warna dipakai duluan dan sering memakan baju/hijab yang warnanya mirip latar), (2) hasil AI yang tidak wajar ditolak, (3) potong warna hanya cadangan kalau AI gagal, (4) MediaPipe cadangan terakhir dan kini diberi peringatan, (5) bagian kecil dekat badan tidak dibuang (zkeep), tepi lebih halus (zrefine). */
 const zok=r=>{const n=r.p.length;let c=0;for(let i=0;i<n;i++)if(r.p[i]>.5)c++;return c/n>.02&&c/n<.97};
 /* v18.46: zcutout = pembungkus. Layar tunggu dinyalakan di sini dan DIJAMIN padam lagi (finally) apa pun hasilnya: berhasil, gagal, atau dibatalkan. Urutan mesin yang asli ada di zcutoutRun (jangan dipanggil langsung). */
 async function zcutout(force){if(!zimg)return;const g=zbOn('Memotong latar…');try{await zcutoutRun(force)}finally{zbOff(g)}}
-async function zcutoutRun(force){if(!zimg)return;const my=++ztk,ok=()=>my===ztk&&z.cut,bye=()=>{if(my===ztk)zst('')};zsoft=force&&zp?zp:null;zprev=!!zsoft;zst('Memotong latar dengan AI. Pertama kali mengunduh model ±80 MB (lalu tersimpan permanen)…');await new Promise(r=>setTimeout(r,40));
-  for(let t=0;t<2;t++){try{const r=await zisnet();if(!ok())return bye();if(!zok(r))throw new Error('hasil tidak wajar');zp=r;zbuild();zpos(true);zst('');sched();toast('Latar dihapus. Ada sisa? Tap “Rapikan latar (kuas)”');return}
-   catch(e){console.warn('ISNet gagal ('+(t+1)+'/2)',e);if(!ok())return bye();if(/timeout/.test(String(e&&e.message)))break;if(t<1){zst('Mencoba lagi…');await new Promise(r=>setTimeout(r,700));if(!ok())return bye()}}}
-  if(!force){try{const q=await zcol();if(!ok())return bye();if(q&&q.ok){zp=q.m;zbuild();zpos(true);zst('');sched();toast('AI gagal, latar polos dipotong lewat warna. Cek tepi model, rapikan dengan kuas bila perlu');return}if(q)zsoft=q.m}catch(e){console.warn('Potong warna gagal',e)}}
-  if(!ok())return bye();return zcutoutMP()}
+/* 27 Nov 2026: HAPUS LATAR DENGAN PEMERIKSAAN AI. Urutan: aplikasi menghapus latar dulu (ISNet -> potong warna -> mesin cadangan), lalu AI MELIHAT hasilnya (foto asli di kiri, hasil di atas hijau di kanan). Hanya kalau AI menilai rapi (skor 80+) hasilnya dinyatakan berhasil. Kalau belum rapi, mesin berikutnya dicoba; kalau semua belum rapi, dipakai hasil dengan skor tertinggi dan pesannya jujur menyebut masalahnya. AI tidak tersedia -> cara lama dipakai dan pesannya tidak mengklaim sudah dicek. */
+/* 27 Nov 2026: (1) PENYETELAN TEPI OTOMATIS: kalau AI bilang belum rapi karena sisa latar/halo, ambang tepi dikencangkan; kalau karena bagian model terpotong, dilonggarkan; lalu AI memeriksa lagi. Dicoba sekali per mesin supaya tidak lama. (2) INGATAN HASIL RAPI: foto yang sama (mis. Ganti model berulang dari Album) langsung memakai hasil rapi sebelumnya tanpa memotong dan memeriksa lagi. */
+var zthx=0;const ZRC=new Map();
+function zkey(){try{const c=zscale(zimg,Math.min(1,24/Math.max(zimg.width,zimg.height))),d=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data;let h=2166136261;for(let i=0;i<d.length;i++){h^=d[i];h=Math.imul(h,16777619)}return zimg.width+'x'+zimg.height+':'+(h>>>0)}catch(e){return ''}}
+function zdir(ms){const t=(ms||[]).join(' ').toLowerCase(),lo=/terpotong|hilang|terhapus|bolong|lubang|ikut terhapus/.test(t),hi=/sisa|halo|menempel|putih|kasar|bergerigi|tepi/.test(t);return lo&&!hi?-.08:hi&&!lo?.08:0}
+async function zcutoutRun(force){if(!zimg)return;const my=++ztk,ok=()=>my===ztk&&z.cut,bye=()=>{if(my===ztk)zst('')},AI=!!(window.parent&&parent.osAiVision);zsoft=force&&zp?zp:null;zprev=!!zsoft;zthx=0;
+ const key=force?'':zkey();
+ if(key&&ZRC.has(key)){const c=ZRC.get(key);try{zp={...c.r,p:new Float32Array(c.r.p)};zthx=c.thx||0;zbuild();zpos(true);zst('');sched();toast('Latar dihapus. Foto ini sudah pernah dicek AI: rapi ✓');return}catch(e){zthx=0}}
+ if(key&&!force){const hc=await zdbGet('v3|'+key);if(!ok())return bye();if(hc){try{zp={...hc.r,_df:1};zthx=hc.thx||0;zbuild();zpos(true);zst('');sched();toast('Latar dihapus. Foto ini sudah pernah dicek AI: rapi ✓ (tersimpan)');return}catch(e){zthx=0}}}
+  zst('Memotong latar dengan AI. Pertama kali mengunduh model ±80 MB (lalu tersimpan permanen)…');await new Promise(r=>setTimeout(r,40));
+ const cands0=[
+  {n:'AI ISNet',f:async()=>{for(let t=0;t<2;t++){try{return await zisnet()}catch(e){console.warn('ISNet gagal ('+(t+1)+'/2)',e);if(!ok())return null;if(/timeout/.test(String(e&&e.message)))return null;if(t<1){zst('Mencoba lagi…');await new Promise(r=>setTimeout(r,700));if(!ok())return null}}}return null}},
+  {n:'potong warna',f:async()=>{if(force)return null;const q=await zcol();return q&&q.ok?q.m:null}},
+  {n:'mesin cadangan',f:()=>zmpcalc(my)}],cands=AI&&!force?[cands0[1],cands0[0],cands0[2]]:cands0;
+ let best=null,fi=0;const T0=Date.now();
+ for(const c of cands){fi++;if(!ok())return bye();zthx=0;if(c.n==='mesin cadangan'&&best&&best.sc>=60)continue;
+  let r=null;try{r=await c.f()}catch(e){console.warn(c.n+' gagal',e)}
+  if(!ok())return bye();if(!r||!zok(r))continue;
+  try{zp=r;zp._df=1;zbuild()}catch(e){continue}
+  if(!AI){best={r,sc:0,n:c.n,qa:null,un:1,thx:0};break}
+  zst('AI memeriksa kerapian hasil ('+c.n+')…');let qa=await zqa();if(!ok())return bye();
+  if(!qa){if(!best)best={r,sc:-1,n:c.n,qa:null,un:1,thx:0};break}
+  let thx=0;
+  if(!qa.rapi&&qa.skor>=68){const d=zdir(qa.masalah);if(d){zthx=d;let q2=null;try{zbuild();zst('Menyetel tepi otomatis, AI memeriksa lagi…');q2=await zqa()}catch(e){q2=null}if(!ok())return bye();
+    if(q2&&q2.skor>qa.skor){qa=q2;thx=d}else{zthx=0;try{zbuild()}catch(e){}}}}
+  if(qa.rapi){best={r,sc:qa.skor,n:c.n,qa,thx};break}
+  if(!best||best.un||qa.skor>best.sc)best={r,sc:qa.skor,n:c.n,qa,thx};
+  if(fi<cands.length)zst('Belum rapi ('+(qa.masalah[0]||'skor '+qa.skor)+'). Mencoba mesin lain…')}
+ if(AI&&ok()&&(!best||(best.qa&&best.sc<75))){zst('Mesin aplikasi belum rapi. AI mengerjakan sendiri…');let A=null;try{A=await zai2()}catch(e){console.warn('AI penuh gagal',e)}
+  if(!ok())return bye();
+  if(A){const L=[()=>A.rm,async()=>{if(Date.now()-T0>70000||A.box.rw<64||A.box.rh<64)return null;zst('AI menandai posisi model, ISNet memotong ulang area itu…');return await zisnetC(A.box.rx,A.box.ry,A.box.rw,A.box.rh)}];
+   for(const gf of L){let ra=null;try{ra=await gf()}catch(e){console.warn('AI penuh gagal',e)}
+    if(!ok())return bye();if(!ra||!zok(ra))continue;
+    try{zp=ra;zp._df=1;zthx=0;zbuild();zst('AI memeriksa hasil kerja AI…');const qa=await zqa();if(!ok())return bye();
+     if(!best||best.un||(qa&&qa.skor>best.sc))best={r:ra,sc:qa?qa.skor:-1,n:'AI penuh',qa,thx:0,un:qa?0:1};
+     if(qa&&qa.rapi)break}catch(e){console.warn('Cek AI penuh gagal',e)}}}}
+ if(!best){if(!ok())return bye();return zlast()}
+ try{zp=best.r;zthx=best.thx||0;zbuild()}catch(e){zthx=0;return zlast()}
+ zpos(true);sched();
+ if(best.qa&&best.qa.rapi){zst('');toast('Latar dihapus dan sudah dicek AI: rapi ✓ (skor '+best.qa.skor+', '+best.n+')');if(key){try{ZRC.set(key,{r:{...best.r,p:new Float32Array(best.r.p)},thx:best.thx||0});while(ZRC.size>4)ZRC.delete(ZRC.keys().next().value);zdbPut('v3|'+key,best.r,best.thx)}catch(e){}}}
+ else if(best.qa){const m='Latar BELUM rapi (skor '+best.qa.skor+'): '+(best.qa.masalah.join('; ')||'masih ada kekurangan')+'. Rapikan dengan “Rapikan latar (kuas)”.';zst(m);toast(m)}
+ else if(AI){zst('');toast('Latar dihapus, tapi pemeriksaan AI gagal (cek internet). Periksa hasilnya sendiri ya')}
+ else{zst('');toast('Latar dihapus. Ada sisa? Tap “Rapikan latar (kuas)”')}}
+/* 27 Nov 2026 (3): AI MENGERJAKAN SENDIRI v2. Satu panggilan AI memberi (a) mask model dan/atau (b) kotak posisi model. Mask dirapikan mengikuti tepi foto; kotaknya dipakai memotong foto lalu ISNet dijalankan ulang di area itu (resolusi lebih tinggi, benda lain di luar kotak hilang). Model AI yang tidak bisa memberi mask tetap berguna lewat kotaknya. */
+async function zai2(){
+ const IW=zimg.width,IH=zimg.height,a=zscale(zimg,Math.min(1,1024/Math.max(IW,IH))),w=a.width,h=a.height,s=zscale(zimg,Math.min(1,768/Math.max(IW,IH))),
+ raw=String(await lnTo(parent.osAiVision([{text:'Give the segmentation mask of the main person in this photo. The mask MUST cover the whole body: head, hair or hijab, face, arms, hands, fingers, all clothing, skirt or pants, shoes, and any bag or item the person holds or wears. Exclude the background and any other people. Output a JSON list with ONE entry containing "box_2d" ([y0,x0,y1,x1] normalized 0-1000), "mask" (base64 PNG probability map) and "label". Output only the JSON.'},{inline_data:{mime_type:'image/jpeg',data:s.toDataURL('image/jpeg',.85).split(',')[1]}}],'You are an image segmentation engine. Reply ONLY with the JSON list, no other text.',8192),60000)||'');
+ let e0=null,bx=null;
+ try{const arr=JSON.parse((raw.match(/\[[\s\S]*\]/)||[''])[0]);let ba=0;for(const e of arr||[]){const b=e&&e.box_2d;if(!Array.isArray(b)||b.length<4)continue;const ar=Math.max(0,b[2]-b[0])*Math.max(0,b[3]-b[1]);if(ar>ba){ba=ar;e0=e}}if(e0)bx=e0.box_2d.map(Number)}catch(e){e0=null}
+ if(!bx){const m=raw.match(/"box_2d"\s*:\s*\[\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]/);if(m)bx=[+m[1],+m[2],+m[3],+m[4]]}
+ if(!bx||bx.length<4||bx.some(v=>!isFinite(v)))throw new Error('ai-none');
+ const X0=Math.max(0,bx[1]/1000),Y0=Math.max(0,bx[0]/1000),X1=Math.min(1,bx[3]/1000),Y1=Math.min(1,bx[2]/1000);
+ if(X1-X0<.05||Y1-Y0<.05)throw new Error('ai-box');
+ let rm=null;
+ try{if(e0&&typeof e0.mask==='string'){const im=new Image();im.src=e0.mask.indexOf('data:')===0?e0.mask:'data:image/png;base64,'+e0.mask;await im.decode();
+  const x0=Math.round(X0*w),y0=Math.round(Y0*h),x1=Math.round(X1*w),y1=Math.round(Y1*h),mc=document.createElement('canvas');mc.width=w;mc.height=h;const g=mc.getContext('2d',{willReadFrequently:true});g.fillStyle='#000';g.fillRect(0,0,w,h);g.imageSmoothingQuality='high';g.drawImage(im,x0,y0,x1-x0,y1-y0);
+  const d=g.getImageData(0,0,w,h).data,p=new Float32Array(w*h);for(let i=0;i<p.length;i++){const v=(d[i*4]+d[i*4+1]+d[i*4+2])/765;p[i]=v<.3?0:v>.7?1:(v-.3)/.4}
+  rm={p:zrefine(zkeep(p,w,h),w,h,a),w,h,rx:0,ry:0,rw:IW,rh:IH}}}catch(e){rm=null}
+ const mg=.06,rx=Math.max(0,Math.floor((X0-(X1-X0)*mg)*IW)),ry=Math.max(0,Math.floor((Y0-(Y1-Y0)*mg)*IH)),rx2=Math.min(IW,Math.ceil((X1+(X1-X0)*mg)*IW)),ry2=Math.min(IH,Math.ceil((Y1+(Y1-Y0)*mg)*IH));
+ return{rm,box:{rx,ry,rw:rx2-rx,rh:ry2-ry}}}
+async function zisnetC(rx,ry,rw,rh){
+ if(zwarmP){try{await zwarmP}catch(e){}}if(!zim)zim=await import(URL.createObjectURL(new Blob([atob(ZLIB)],{type:'text/javascript'})));zcache();
+ const cr=document.createElement('canvas');cr.width=rw;cr.height=rh;cr.getContext('2d').drawImage(zimg,rx,ry,rw,rh,0,0,rw,rh);
+ const a=zscale(cr,Math.min(1,1024/Math.max(rw,rh))),w=a.width,h=a.height,src=await new Promise((ok,no)=>a.toBlob(b=>b?ok(b):no(new Error('blob')),'image/jpeg',.92)),
+ out=await lnTo(zim.removeBackground(src,{model:'isnet_fp16',device:'cpu',output:{format:'image/png'}}),150000),
+ cc=document.createElement('canvas');cc.width=w;cc.height=h;const g=cc.getContext('2d',{willReadFrequently:true});g.drawImage(await createImageBitmap(out),0,0,w,h);
+ const d=g.getImageData(0,0,w,h).data,p=new Float32Array(w*h);for(let i=0;i<p.length;i++)p[i]=d[i*4+3]/255;
+ return{p:zrefine(zkeep(p,w,h),w,h,a),w,h,rx,ry,rw,rh}}
+/* 27 Nov 2026 (2): LEBIH RAPI + CEPAT. (1) zdfBuild/zdfDraw: pita tipis di tepi cutout (dekat latar) memakai warna badan terdekat, jadi tidak ada halo warna latar lama di atas background baru; bagian dalam badan tidak disentuh. (2) Cache PERMANEN hasil potong yang sudah dinilai rapi (IndexedDB, maks 40 foto): foto yang sama tidak diproses ulang, juga setelah aplikasi ditutup. */
+function zdfBuild(p,w,h,rx,ry,rw,rh){
+ const N=w*h,a=document.createElement('canvas');a.width=w;a.height=h;const ag=a.getContext('2d',{willReadFrequently:true});ag.drawImage(zimg,rx,ry,rw,rh,0,0,w,h);
+ const D=ag.getImageData(0,0,w,h).data,W=new Float32Array(N),Z=new Float32Array(N);
+ for(let i=0;i<N;i++){W[i]=p[i]>=.9?1:0;Z[i]=p[i]<.15?1:0}
+ const den=zbox(W,w,h,4),nb=zbox(Z,w,h,3),Bd=new Float32Array(N);
+ for(let i=0;i<N;i++)Bd[i]=nb[i]>.01&&p[i]<.9?1:0;
+ const band=zbox(Bd,w,h,1),bl=ag.createImageData(w,h),B=bl.data,ic=document.createElement('canvas');ic.width=w;ic.height=h;const ig=ic.getContext('2d'),im=ig.createImageData(w,h),M=im.data;
+ for(let c=0;c<3;c++){const s=new Float32Array(N);for(let i=0;i<N;i++)s[i]=D[i*4+c]*W[i];const m=zbox(s,w,h,4);for(let i=0;i<N;i++)B[i*4+c]=den[i]>.03?m[i]/den[i]:D[i*4+c]}
+ for(let i=0;i<N;i++){B[i*4+3]=255;M[i*4+3]=Math.round((1-band[i])*255)}
+ ag.putImageData(bl,0,0);ig.putImageData(im,0,0);return{bl:a,inn:ic}}
+function zdfDraw(q,rx,ry,rw,rh,p,w,h){
+ q.drawImage(zimg,rx,ry,rw,rh,0,0,rw,rh);
+ if(!zp||!zp._df)return;
+ try{const n=p.length;let s=0,s2=0;for(let i=0;i<n;i++){const v=p[i];s+=v;s2+=v*(i&255)}const fp=s+':'+s2;
+  let K=zp._dk;if(!K||K.f!==fp){K=zp._dk=zdfBuild(p,w,h,rx,ry,rw,rh);K.f=fp}
+  const t=document.createElement('canvas');t.width=rw;t.height=rh;const g=t.getContext('2d');g.imageSmoothingQuality='high';g.drawImage(K.bl,0,0,rw,rh);g.globalCompositeOperation='destination-out';g.drawImage(K.inn,0,0,rw,rh);
+  q.imageSmoothingQuality='high';q.drawImage(t,0,0)}catch(e){console.warn('Bersih tepi gagal',e)}}
+const ZDB=()=>new Promise((ok,no)=>{try{const r=indexedDB.open('pb-cut-v1',1);r.onupgradeneeded=()=>{r.result.createObjectStore('c').createIndex('t','t')};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}catch(e){no(e)}});
+async function zdbGet(k){try{const d=await ZDB(),v=await new Promise(ok=>{const q=d.transaction('c').objectStore('c').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ok(null)});d.close();if(!v||!v.u8)return null;const u=new Uint8Array(v.u8),p=new Float32Array(u.length);for(let i=0;i<u.length;i++)p[i]=u[i]/255;return{r:{p,w:v.w,h:v.h,rx:v.rx,ry:v.ry,rw:v.rw,rh:v.rh},thx:v.thx||0}}catch(e){return null}}
+async function zdbPut(k,r,thx){try{const n=r.p.length,u=new Uint8Array(n);for(let i=0;i<n;i++){const v=r.p[i];u[i]=v<=0?0:v>=1?255:Math.round(v*255)}const d=await ZDB();await new Promise(ok=>{const tx=d.transaction('c','readwrite'),s=tx.objectStore('c');s.put({u8:u.buffer,w:r.w,h:r.h,rx:r.rx,ry:r.ry,rw:r.rw,rh:r.rh,thx:thx||0,t:Date.now()},k);const c=s.count();c.onsuccess=()=>{let x=c.result-40;if(x>0){const q=s.index('t').openCursor();q.onsuccess=()=>{const e=q.result;if(e&&x-->0){e.delete();e.continue()}}}};tx.oncomplete=tx.onerror=tx.onabort=()=>ok()});d.close()}catch(e){}}
+async function zmpcalc(my){try{const IW=zimg.width,IH=zimg.height,a=zscale(zimg,Math.min(1,768/Math.max(IW,IH))),r1=await zrun(a);if(my!==ztk)return null;
+  const P1=zmain(r1.p,r1.w,r1.h);let x0=r1.w,y0=r1.h,x1=-1,y1=-1,c1=0;
+  for(let i=0;i<P1.length;i++)if(P1[i]>.5){c1++;const x=i%r1.w,y=(i-x)/r1.w;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+  if(x1<0)throw new Error('none');
+  const fx=IW/r1.w,fy=IH/r1.h,bw=(x1-x0+1)*fx,bh=(y1-y0+1)*fy,mg=Math.max(bw,bh)*.07,
+   rx=Math.max(0,Math.floor(x0*fx-mg)),ry=Math.max(0,Math.floor(y0*fy-mg)),rx2=Math.min(IW,Math.ceil((x1+1)*fx+mg)),ry2=Math.min(IH,Math.ceil((y1+1)*fy+mg)),rw=rx2-rx,rh=ry2-ry;
+  let res=null;
+  try{const k=Math.min(1,1024/Math.max(rw,rh)),cc=document.createElement('canvas');cc.width=Math.max(1,Math.round(rw*k));cc.height=Math.max(1,Math.round(rh*k));const g=cc.getContext('2d');g.imageSmoothingQuality='high';g.drawImage(zimg,rx,ry,rw,rh,0,0,cc.width,cc.height);
+   const r2=await zrun(cc);if(my!==ztk)return null;const P2=zmain(r2.p,r2.w,r2.h);let c2=0;for(let i=0;i<P2.length;i++)if(P2[i]>.5)c2++;
+   const f1=c1/(r1.w*r1.h)/(rw*rh/(IW*IH)),f2=c2/(r2.w*r2.h);
+   if(f2>f1*.6&&f2<f1*1.4)res={p:zrefine(P2,r2.w,r2.h,cc),w:r2.w,h:r2.h,rx,ry,rw,rh}}catch(e){res=null}
+  if(my!==ztk)return null;
+  if(!res)res={p:zrefine(P1,r1.w,r1.h,a),w:r1.w,h:r1.h,rx:0,ry:0,rw:IW,rh:IH};
+  return res}catch(e){console.warn('MediaPipe gagal',e);return null}}
+const ZQ='Gambar ini berisi DUA panel berdampingan. Panel KIRI = foto asli. Panel KANAN = hasil hapus latar buatan aplikasi, orangnya ditaruh di atas warna HIJAU polos (bagian hijau = sudah dianggap latar). Nilai kerapian hasil di panel kanan dengan membandingkannya ke foto asli. Periksa: (1) SISA LATAR: ada bagian latar asli yang masih menempel (di sela tangan dan badan, sekitar rambut dan hijab, bawah kaki, pinggir baju); (2) TERPOTONG: ada bagian model yang ikut terhapus atau hilang (kepala, hijab, tangan, jari, baju, rok, tas, sepatu); (3) TEPI KASAR: tepi bergerigi, kotak-kotak, halo putih atau garis terang di sekeliling badan; (4) BOLONG: lubang hijau di tengah badan atau baju. Balas HANYA satu objek JSON: {\"rapi\":true atau false,\"skor\":angka bulat 0 sampai 100,\"masalah\":[maksimal 3 kalimat pendek bahasa Indonesia tentang masalah terpenting, kosong kalau rapi]}. Beri rapi=true HANYA kalau skor 80 ke atas dan tidak ada masalah besar; kalau ragu, rapi=false.';
+async function zqa(){try{if(!(window.parent&&parent.osAiVision)||!zcut||!zp)return null;
+ const IW=zimg.width,IH=zimg.height,H=Math.min(560,IH),k=H/IH,W1=Math.max(1,Math.round(IW*k)),cv=document.createElement('canvas');cv.width=W1*2+8;cv.height=H;const g=cv.getContext('2d');g.fillStyle='#ffffff';g.fillRect(0,0,cv.width,H);g.imageSmoothingQuality='high';g.drawImage(zimg,0,0,W1,H);
+ g.fillStyle='#00b140';g.fillRect(W1+8,0,W1,H);g.drawImage(zcut.c,0,0,zcut.c.width,zcut.c.height,W1+8+(zp.rx||0)*k,(zp.ry||0)*k,zcut.c.width*k,zcut.c.height*k);
+ const r=lnJson(await lnTo(parent.osAiVision([{text:ZQ},{inline_data:{mime_type:'image/jpeg',data:cv.toDataURL('image/jpeg',.8).split(',')[1]}}],'Kamu pemeriksa kualitas hapus latar foto. Balas HANYA satu objek JSON, tanpa teks lain.',300),25000));
+ if(!r||(typeof r.rapi==='undefined'&&typeof r.skor==='undefined'))return null;
+ const rp=r.rapi===true||r.rapi==='true',sk=isFinite(+r.skor)&&r.skor!==''&&r.skor!==null?Math.max(0,Math.min(100,Math.round(+r.skor))):(rp?85:40);
+ return{rapi:rp&&sk>=80,skor:sk,masalah:(Array.isArray(r.masalah)?r.masalah:[]).map(x=>String(x)).filter(Boolean).slice(0,3)}}catch(e){console.warn('Pemeriksaan AI gagal',e);return null}}
 async function zcutoutMP(){if(!zimg)return;const my=++ztk;zst('Mesin cadangan: menghapus latar…');
  try{const IW=zimg.width,IH=zimg.height,a=zscale(zimg,Math.min(1,768/Math.max(IW,IH))),r1=await zrun(a);if(my!==ztk)return;
   const P1=zmain(r1.p,r1.w,r1.h);let x0=r1.w,y0=r1.h,x1=-1,y1=-1,c1=0;
@@ -1896,7 +2016,9 @@ async function pnOpen(u,t){if(!/^https?:\/\//i.test(u))return;
  bx.append(hd,hn,fr);w.appendChild(bx);w.addEventListener('click',e=>{if(e.target===w)cls()});document.body.appendChild(w)}
 const pnl=a=>{const e=$('kpnl');if(!e)return;e.innerHTML='';(a||[]).forEach(o=>{const l=document.createElement('a');l.href=o.h;l.rel='noopener';l.textContent=o.t;l.style.cssText='display:block;margin:6px 0;font-size:14px;color:var(--accent-2);text-decoration:underline;text-align:left;cursor:pointer';l.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();pnOpen(o.h,o.t)});e.appendChild(l)})};
 /* nomor dari teks keterangan di bawah foto (hanya kalau isinya memang angka/No angka) */
-const pnCap=t=>{const m=String(t||'').replace(/^[^\w#]+/,'').match(/^\s*(?:no\.?\s*|nomor\s*|#)?(\d{2,5})(?![\d]|[.,]\d)/i);return m?m[1]:''};
+/* 27 Nov 2026: penjual sering menulis nomor dengan font Unicode ('𝗡𝗼 𝟬𝟮𝟴', angka lebar penuh, karakter tak terlihat). NFKC mengubahnya jadi huruf & angka biasa sebelum dicocokkan. */
+const srNorm=t=>String(t==null?'':t).normalize('NFKC').replace(/[\u200b-\u200f\u2060\ufeff]/g,'');
+const pnCap=t=>{const m=srNorm(t).replace(/^[^\w#]+/,'').match(/^\s*(?:no\.?\s*|nomor\s*|#)?(\d{2,5})(?![\d]|[.,]\d)/i);return m?m[1]:''};
 function pnIds(t){const m=String(t||'').match(/\/product\/(\d{4,})\/(\d{4,})|-i\.(\d{4,})\.(\d{4,})/);return m?[m[1]||m[3],m[2]||m[4]]:null}
 /* harga dari data terstruktur (JSON-LD, meta, API Shopee) dulu; teks bebas hanya kalau loose=true */
 function pnPriceFrom(t,loose){t=String(t||'');
@@ -1978,6 +2100,7 @@ const SRQ='query StorefrontProductListQuery($urlSuffix: String, $keyword: String
    MENGINGAT yang berhasil, lalu memakainya untuk (1) mencari nomor album di kolom pencarian server, (2) kalau perlu membaca SELURUH koleksi (ribuan foto) dan menyaring sendiri. Tanpa AI.
    Kalau tetap gagal, laporan teknis lengkap disiapkan otomatis (kotak hitam) supaya tinggal dikirim. */
 const SRQG='query StorefrontGroupProductListQuery($urlSuffix: String, $keyword: String, $sortType: SortType, $groupId: Long, $linkId: Long, $page: LinktreelandingpagePaginationInput, $listType: MyCollectionListType, $affiliateMeta: AffiliateMetaInput, $buyerId: Long, $uuId: String, $deviceId: String, $cid: String, $language: String) { storefrontGroupProductList( urlSuffix: $urlSuffix keyword: $keyword sortType: $sortType groupId: $groupId linkId: $linkId page: $page listType: $listType affiliateMeta: $affiliateMeta buyerId: $buyerId uuId: $uuId deviceId: $deviceId cid: $cid language: $language ) { itemList { linkId link linkName image linkType itemId isPined h5Link itemCard } groupList { groupId groupName groupType isPined groupStatus itemList { linkId link linkName image linkType itemId isPined h5Link } totalCount } pagination { offset limit hasMore totalCount } } }';
+const srFC={};/* ingatan hasil baca koleksi LENGKAP per slug (sesi aplikasi): nomor berikutnya (mis. banyak foto di keranjang) dicari dari sini, tanpa membaca ribuan produk lagi */
 const SRAPI='https://collshp.com/api/v3/gql/graphql',srLog=[];let srBest='',srFail=0,srH=null,srForceFull=0;
 const srSlug=u=>{try{return new URL(u).pathname.split('/').filter(Boolean)[0]||''}catch(e){return ''}};
 const SROP={P:{n:'StorefrontProductListQuery',q:SRQ,f:'storefrontProductList'},G:{n:'StorefrontGroupProductListQuery',q:SRQG,f:'storefrontGroupProductList'}};
@@ -2077,8 +2200,11 @@ async function srPages(slug,uu,rc,kw,say,cap,lbl){
  const p0=r.L.pagination||{};tc=+p0.totalCount||0;add(r.L);if(kw===''||kw==null)srLog.push('baca halaman 1: '+r.L.itemList.length+' item; pagination='+JSON.stringify(p0).slice(0,200)+'; grup='+JSON.stringify(r.L.groupList==null?null:r.L.groupList).slice(0,400)+'; resep='+JSON.stringify({op:rc.op,pv:rc.pv,ex:rc.ex,tp:rc.tp}).slice(0,200));const n0=r.L.itemList.length;if(!n0)return{raw,tc,empty:1};
  let done=n0,g=0,more=true,endSaid=false;/* v18.52: hasMore & totalCount dari server TIDAK dipercaya mentah (pernah tertulis "58 produk dari 8" lalu membaca berhenti). Berhenti hanya kalau halaman benar-benar kosong, atau server bilang habis DAN jumlahnya masuk akal. */
  while(more&&g++<cap){
-  const offs=[0,1,2,3].map(i=>done+i*n0),rs=await Promise.all(offs.map(d=>get(d,n0)));let fresh=0,next=done+n0*4;
-  for(let i=0;i<rs.length;i++){const q=rs[i];if(!q.L){if(!endSaid)err=q;more=false;break}const L=q.L,p=L.pagination||{};tc=+p.totalCount||tc;fresh+=add(L);
+  const CC=6,offs=Array.from({length:CC},(_,i)=>done+i*n0),rs=await Promise.all(offs.map(d=>get(d,n0)));let fresh=0,next=done+n0*CC;
+  for(let i=0;i<rs.length;i++){let q=rs[i];
+   /* 27 Nov 2026: koleksi ribuan = ratusan permintaan; satu galat sesaat (sinyal HP, 429) dulu menghentikan SEMUA pembacaan (jadi 'terbaca sebagian'). Sekarang halaman yang gagal diulang sampai 4 kali dengan jeda. */
+   for(let t=1;t<=4&&!q.L;t++){if(CART&&CART.cx)break;if(say&&lbl)say(lbl+' ('+raw.length+(tc>=raw.length?' dari '+tc:'')+') ulang halaman…');await new Promise(r=>setTimeout(r,1200*t));q=await get(offs[i],n0)}
+   if(!q.L){if(!endSaid)err=q;more=false;break}const L=q.L,p=L.pagination||{};tc=+p.totalCount||tc;fresh+=add(L);
    if(!L.itemList.length){more=false;break}
    if(p.hasMore===false&&tc>n0&&raw.length>=tc){more=false;endSaid=true;break}
    if(L.itemList.length<n0){next=offs[i]+L.itemList.length;break}}
@@ -2090,7 +2216,7 @@ async function srPages(slug,uu,rc,kw,say,cap,lbl){
 async function srApi(u,n,say){srLog.length=0;srFail=0;const slug=srSlug(u),none={ok:0,all:[],hit:[],nc:0};if(!slug)return none;
  const uu=srUU(),k=srKey(n),img=x=>{x=String(x||'');return/^https?:/i.test(x)?x:x?'https://mms.img.susercontent.com/'+x:''},
   conv=raw=>raw.map(o=>({u:img(o.image),c:String(o.linkName||''),pr:0,link:o.h5Link||o.link||'',cap:String(o.linkName||''),card:o.itemCard,iid:o.itemId,lid:o.linkId})).filter(o=>o.u),
-  mine=c=>c.filter(o=>{const q=pnCap(o.cap);return q&&srKey(q)===k});
+  mine=c=>{const h=c.filter(o=>{const q=pnCap(o.cap);return q&&srKey(q)===k});return h.length?h:srTol(c,n).lo};
  let rc=srRcGet(slug),fresh=0;
  const learn=async()=>{const r=await srLearn(slug,uu,say);fresh=1;if(r&&r.net)return{net:1};if(r&&r.empty)return{empty:1};if(r&&r.op){rc=r;srRcSet(slug,r);srLog.push('RESEP BERHASIL: '+JSON.stringify(r));return r}return null};
  if(!rc){const r=await learn();if(!r)return{...none,fail:1};if(r.net)return{...none,net:1};if(r.empty)return{...none,empty:1}}
@@ -2104,6 +2230,9 @@ async function srApi(u,n,say){srLog.length=0;srFail=0;const slug=srSlug(u),none=
  /* nomor "024" di album bisa tertulis "24" di koleksi: cari juga tanpa nol di depan (hasilnya disaring persis di sini) */
  const alt=String(parseInt(String(n).replace(/\D/g,''),10));
  if(!hit.length&&alt&&alt!=='NaN'&&alt!==String(n)){const Q2=await run(alt,4,'Mencari nomor '+alt);srLog.push('cari "'+alt+'": '+Q2.c.length+' item, total '+Q2.R.tc+', cocok '+mine(Q2.c).length);if(Q2.c.length){Q1={R:Q2.R,c:Q1.c.concat(Q2.c)};hit=mine(Q1.c)}}
+ /* variasi kata kunci: server mencari teks, jadi "No 028", "no028", "No 28" bisa menemukan yang "028" tidak */
+ if(!hit.length){const seenK=new Set([String(n),alt]);for(const v of['No '+n,'No '+alt,'no'+n,'Nomor '+n]){if(seenK.has(v))continue;seenK.add(v);const Q3=await run(v,2,'Mencari \"'+v+'\"');srLog.push('cari \"'+v+'\": '+Q3.c.length+' item, cocok '+mine(Q3.c).length);
+   if(Q3.c.length){const sn=new Set(Q1.c.map(o=>String(o.lid||o.iid||o.u)));Q1={R:Q3.R,c:Q1.c.concat(Q3.c.filter(o=>!sn.has(String(o.lid||o.iid||o.u))))};hit=mine(Q1.c);if(hit.length)break}}}
  if(Q1.c.length&&!rc.kv){rc.kv=1;srRcSet(slug,rc)}
  if(hit.length)return{ok:1,all:Q1.c,hit,nc:Q1.c.length};
  /* hasil kosong dari kolom pencarian server dipercaya hanya kalau kolom itu pernah terbukti bekerja; kalau belum, seluruh koleksi dibaca dan disaring di sini */
@@ -2114,6 +2243,7 @@ async function srApi(u,n,say){srLog.length=0;srFail=0;const slug=srSlug(u),none=
  if(F.c.length){const partial=!!F.R.err||(F.R.tc>0&&F.R.raw.length<F.R.tc*.98)||!!F.R.more;
   /* v18.51: hasil pencarian server (Q1) ikut digabung: kalau pembacaan penuh hanya sebagian, produk yang tadi dikembalikan server untuk nomor ini tidak hilang */
   const sn={},AL=[];F.c.concat(Q1.c).forEach(o=>{const k=String(o.lid||o.iid||o.u||'');if(k){if(sn[k])return;sn[k]=1}AL.push(o)});
+  if(!partial&&AL.length)srFC[slug]={at:Date.now(),all:AL,tc:F.R.tc};
   return{ok:1,all:AL,hit:mine(AL),nc:AL.length,partial,tc:F.R.tc,got:F.R.raw.length}}
  return Q1.c.length?{ok:1,all:Q1.c,hit:[],nc:Q1.c.length,partial:1,tc:Q1.R.tc,got:Q1.R.raw.length}:{...none,fail:1}}
 /* laporan teknis otomatis (kotak hitam) kalau server tetap tidak bisa dibaca */
@@ -2148,29 +2278,77 @@ async function lnFind(el,auto,u,want,inp){lnBusy=1;if(el)el.disabled=true;inp.va
   const N=R.hit.length,c1=N===1?R.hit[0]:null;let pv=0;
   if(c1){lns('Nomor '+want+' ketemu. Membaca harga (tanpa AI)');prLog.length=0;try{pv=(await prGet(c1,prLog)).p}catch(e){}if(!pv)pv=c1.pr||0;if(!pv)prShow('klns')}
   set('pr',pv?lnRp(pv):'');
-  lns('Nomor '+want+' ketemu lewat '+R.how+': '+N+' produk'+(c1?(pv?', harga '+lnRp(pv)+' terisi.':'. Harga tidak terbaca, isi manual ya.'):'. Harga tidak diisi karena produknya lebih dari satu (pakai tab Panah untuk tautan tiap produk).'));toast(pv?'Nomor ketemu, harga terisi':'Nomor '+want+' ketemu')
+  lns('Nomor '+want+' ketemu lewat '+R.how+': '+N+' produk'+((()=>{const mxn=Math.max(0,...(R.all||[]).map(o=>+pnCap(o.cap)||0));return String(mxn)===srKey(want)?' (ini nomor terbaru; kalau produknya kurang, tunggu 1-2 menit lalu Cari lagi)':''})())+(c1?(pv?', harga '+lnRp(pv)+' terisi.':'. Harga tidak terbaca, isi manual ya.'):'. Harga tidak diisi karena produknya lebih dari satu (pakai tab Panah untuk tautan tiap produk).'));toast(pv?'Nomor ketemu, harga terisi':'Nomor '+want+' ketemu')
  }catch(e){lns('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{lnBusy=0;lnAuto=0;if(el)el.disabled=false}}
 /* AI hanya menaruh panah: foto yang sudah pasti bernomor sama, tanpa membaca nomor, jawaban pendek */
 const PNASK3='Gambar pertama: foto outfit lengkap. Setelah itu ada KANDIDAT foto produk (Kandidat 1, 2, dst) yang sudah dipastikan bernomor sama, jadi TIDAK perlu membaca nomor. Untuk SETIAP kandidat, urut, isi: "category" = jenis produk yang dijual (hijab, atasan, gamis, rok, celana, tas, sepatu, dll; kalau foto model memakai beberapa item, pilih item yang disebut teks atau banner di foto, atau yang paling menonjol), "name" = nama singkat produk, dan "box":[ymin,xmin,ymax,xmax] = posisi bagian dengan JENIS YANG SAMA di foto outfit pertama, 4 angka bulat 0 sampai 1000 (bukan piksel; 0,0 = pojok kiri atas foto, 1000,1000 = pojok kanan bawah). Warna dan model boleh berbeda dari kandidat: kalau produknya tas, beri kotak pada tas yang dipegang atau dipakai di foto outfit; kalau celana, pada celana; dst. Kalau jenis itu tidak terlihat di foto outfit, isi box null. Kalau dua kandidat sejenis, usahakan beri bagian yang berbeda di foto outfit. Balas JSON saja: {"items":[{"c":<nomor kandidat>,"category":"<jenis>","name":"<nama>","box":[<ymin>,<xmin>,<ymax>,<xmax>] atau null,"confidence":<0 sampai 1>}]}';
 /* 27 Nov 2026: NOMOR ADA DI KOLEKSI TAPI "TIDAK DITEMUKAN". Alur Panah & tab Nomor dulu percaya penuh pada pencarian server collshp: kalau server menjawab kosong, langsung divonis "tidak ada", dan nomor harus ditulis persis diawal keterangan. Alur Inspirasi sudah punya perbaikan (baca seluruh koleksi + pencocok toleran). Sekarang Panah & Nomor memakai cara yang sama lewat srFindX. */
-const srTx=o=>{let c=o.card;if(typeof c==='string'){try{c=JSON.parse(c)}catch(e){c=null}}const q=[];(function w(x,k,d){if(d>6||x==null)return;if(typeof x==='string'){if(x.length>2&&/(^|\.)(name|title|itemName|item_name|productName|product_name|desc|description|caption)$/.test(k)&&!/shop|seller|store|brand|user|cat|unit|attr|model|tier|var/i.test(k))q.push(x);return}if(typeof x==='object')for(const z of Object.keys(x))w(x[z],k?k+'.'+z:z,d+1)})(c,'',0);return [String(o.cap||'')].concat(q).map(t=>t.replace(/\s+/g,' ').trim()).filter(Boolean)};
-const srTol=(list,want)=>{const raw=String(want).replace(/\D/g,''),kk=parseInt(raw,10);if(!isFinite(kk))return{lo:[],tier:0};
- const N='0*'+kk+'(?![0-9]|[.,][0-9])',
-  r1=new RegExp('^\\s*(?:(?:link\\s*bio|bio|no\\.?|nomor|kode|code|outfit|ootd|#|-|:)\\s*)*'+N,'i'),
-  r2=new RegExp('(?:^|[^a-z0-9])(?:link\\s*bio|bio|no\\.?|nomor|kode|code|#)\\s*'+N,'i'),
+const srTx=o=>{let c=o.card;if(typeof c==='string'){try{c=JSON.parse(c)}catch(e){c=null}}const q=[];(function w(x,k,d){if(d>6||x==null)return;if(typeof x==='string'){if(x.length>2&&/(^|\.)(name|title|itemName|item_name|productName|product_name|desc|description|caption)$/.test(k)&&!/shop|seller|store|brand|user|cat|unit|attr|model|tier|var/i.test(k))q.push(x);return}if(typeof x==='object')for(const z of Object.keys(x))w(x[z],k?k+'.'+z:z,d+1)})(c,'',0);return [String(o.cap||'')].concat(q).map(t=>srNorm(t).replace(/\s+/g,' ').trim()).filter(Boolean)};
+/* tingkat 1-3 = penanda jelas (diawali nomor / "no 28" di mana pun / "028" persis). tingkat 4 (loose) = angka berdiri sendiri di keterangan, TIDAK dianggap kalau didahului ukuran/harga (size, uk, Rp, ld...) atau diikuti satuan (cm, kg, rb...). Tingkat 4 hanya dipakai sebagai jalan terakhir. */
+const SR_BP=/^(size|ukuran|uk|ld|lp|pb|pjg|panjang|lebar|lingkar|rp|idr|harga|diskon|disc|isi|pcs|berat|bb|tb|umur|usia|thn|tahun|bln|hanya|cuma|only|promo|gratis|free|jam|pukul|tgl|tanggal|bulan|jan|feb|mar|apr|mei|jun|jul|agu|agt|sep|okt|nov|des)$/i,SR_BN=/^(cm|kg|gr|gram|g|ml|rb|ribu|k|jt|juta|pcs|pc|inci|mm|thn|tahun|bln|bulan|hari|x|pcs|persen|wib)$/i;
+const srTol=(list,want,loose)=>{const raw=String(want).replace(/\D/g,''),kk=parseInt(raw,10);if(!isFinite(kk))return{lo:[],tier:0};
+ const N='0*'+kk+'(?![0-9]|[.,][0-9])',MK='(?:link\\s*bio|bio|no\\.?|nomor|kode|code|outfit|ootd|item|produk|product|look|ref|art|artikel|sku|#)',
+  r1=new RegExp('^\\s*(?:(?:'+MK+'|-|:)\\s*)*'+N,'i'),
+  r2=new RegExp('(?:^|[^a-z0-9])'+MK+'\\s*[-:.]?\\s*'+N,'i'),
   r3=raw.length>1&&raw.charAt(0)==='0'?new RegExp('(?:^|[^0-9.,])'+raw+'(?![0-9]|[.,]?[0-9])(?!\\s*(?:cm|kg|gr|gram|ml|rb|ribu|k\\b|%))','i'):null;
- const tiers=[o=>srTx(o).some(t=>r1.test(t.replace(/^[^\w#]+/,''))),o=>srTx(o).some(t=>r2.test(t)),o=>!!r3&&srTx(o).some(t=>r3.test(t))];
+ const tk=t=>{const a=t.match(/\d+(?:[.,]\d+)*|[A-Za-z]+/g)||[];return a.some((x,i)=>/^\d+$/.test(x)&&parseInt(x,10)===kk&&!(i>0&&SR_BP.test(a[i-1]))&&!(i+1<a.length&&SR_BN.test(a[i+1])))};
+ const CP=o=>{const c=srNorm(o.cap||'').replace(/\s+/g,' ').trim();return c?[c]:[]};
+ const tiers=[o=>CP(o).some(t=>r1.test(t.replace(/^[^\w#]+/,''))),o=>CP(o).some(t=>r2.test(t)),o=>!!r3&&CP(o).some(t=>r3.test(t))];
+ /* 27 Nov 2026: cocok longgar dimatikan (nomor ditulis sendiri oleh pemilik koleksi, jadi cukup caption; angka lain di nama produk bisa salah cocok) */
  for(let i=0;i<tiers.length;i++){const lo=list.filter(tiers[i]);if(lo.length)return{lo,tier:i+1}}return{lo:[],tier:0}};
-async function srFindX(u,want,say){say=say||(()=>{});let R=await srFind(u,want,say);
+const srConv=o=>{const x=v=>{v=String(v||'');return/^https?:/i.test(v)?v:v?'https://mms.img.susercontent.com/'+v:''};return{u:x(o.image),c:String(o.linkName||''),pr:0,link:o.h5Link||o.link||'',cap:String(o.linkName||''),card:o.itemCard,iid:o.itemId,lid:o.linkId}};
+const srMine=(L,want,loose)=>{const k=srKey(want),h=L.filter(o=>{const c=pnCap(o.cap);return c&&srKey(c)===k});return h.length?h:srTol(L,want,loose).lo};
+async function srFresh(u,want,say){const slug=srSlug(u),C=srFC[slug];
+ try{const rc=srRcGet(slug);if(rc){const R=await srPages(slug,srUU(),rc,'',null,2,''),add=R.raw.map(srConv).filter(o=>o.u);
+   if(C){const have=new Set(C.all.map(o=>String(o.lid||o.iid||o.u))),nw=add.filter(o=>!have.has(String(o.lid||o.iid||o.u)));if(nw.length){C.all=nw.concat(C.all);C.tc=(C.tc||0)+nw.length}C.chk=Date.now()}
+   const L=C?C.all:add,hit=srMine(L,want);if(hit.length)return{ok:1,all:L,hit,nc:L.length,cand:[],how:'pembaruan produk terbaru',tc:C&&C.tc}}}catch(e){}
+ try{const B=await srFindB(u,want,say);if(B&&B.hit&&B.hit.length)return{...B,cand:[],how:B.how||'halaman koleksi'}}catch(e){}
+ return null}
+async function srLate(u,want,say){const slug=srSlug(u),C=srFC[slug];
+ say('Memeriksa produk terbaru nomor '+want+'…');let r=await srFresh(u,want,say);if(r)return r;
+ const k=parseInt(String(want).replace(/\D/g,''),10),mx=C?Math.max(0,...C.all.map(o=>+pnCap(o.cap)||0)):0;
+ if(!C||!isFinite(k)||k<=mx)return null;
+ for(let i=1;i<=8;i++){if(CART&&CART.cx)return null;say('Nomor '+want+' lebih baru dari yang terbaca (terbaru: '+mx+'). Menunggu collshp sinkron ('+i+'/8, sekitar '+((8-i+1)*10)+' detik lagi)…');await new Promise(z=>setTimeout(z,10000));r=await srFresh(u,want,say);if(r)return r}
+ return null}
+/* 27 Nov 2026: CARI ULANG = BACA SEGAR. Kalau nomor yang sama baru saja tidak ketemu (dalam 5 menit) lalu dicari lagi, data koleksi tersimpan dibuang dan seluruh koleksi dibaca ulang. Ini menangkap caption foto lama yang baru kamu ubah di Shopee. */
+const srLastQ={};
+async function srFindX(u,want,say){say=say||(()=>{});const slug=srSlug(u),key=slug+'|'+srKey(want),prev=srLastQ[key];
+ if(prev&&prev.n===0&&Date.now()-prev.t<300000&&srFC[slug]){try{delete srFC[slug]}catch(e){}}
+ let R=await srFindX0(u,want,say);
+ /* 27 Nov 2026: koneksi putus-nyambung atau koleksi baru terbaca sebagian: ulangi otomatis sampai 2 kali (jeda 2,5 dan 5 detik) sebelum menyerah */
+ for(let i=1;i<=2&&R&&!(R.hit&&R.hit.length)&&(R.net||R.partial);i++){
+  if(typeof CART!=='undefined'&&CART&&CART.cx)break;
+  say('Koneksi atau pembacaan koleksi belum lengkap. Mengulang otomatis ('+i+'/2)…');await new Promise(z=>setTimeout(z,2500*i));
+  try{const R2=await srFindX0(u,want,say);if(R2&&((R2.hit&&R2.hit.length)||!(R2.net||R2.partial)||(R2.all||[]).length>(R.all||[]).length))R=R2}catch(e){}}
+ /* satu produk tidak boleh muncul dua kali */
+ if(R&&R.hit&&R.hit.length>1){const sn=new Set();R={...R,hit:R.hit.filter(o=>{const k=String(o.lid||o.iid||o.u||'');if(!k)return true;if(sn.has(k))return false;sn.add(k);return true})}}
+ srLastQ[key]={t:Date.now(),n:(R&&R.hit&&R.hit.length)||0};return R}
+async function srFindX0(u,want,say){say=say||(()=>{});
+ const slug=srSlug(u),C=srFC[slug];
+ if(C&&Date.now()-C.at<15*60000){const k=srKey(want);let hit=C.all.filter(o=>{const c=pnCap(o.cap);return c&&srKey(c)===k});if(!hit.length)hit=srTol(C.all,want).lo;
+  if(hit.length){
+   /* 27 Nov 2026: nomor TERBARU sering masih ditambah produk (satu outfit = beberapa produk). Cek ulang produk terbaru supaya yang baru ditambah ikut terbaca. */
+   try{const mxn=Math.max(0,...C.all.map(o=>+pnCap(o.cap)||0));if(String(mxn)===k){say('Nomor '+want+' adalah yang terbaru. Memeriksa produk yang baru ditambah…');const f=await srFresh(u,want,say);if(f&&f.hit&&f.hit.length>hit.length)return f}}catch(e){}
+   return{ok:1,all:C.all,hit,nc:C.all.length,cand:[],how:'koleksi tersimpan ('+C.all.length+' produk)',tc:C.tc}}
+  const L2=await srLate(u,want,say);if(L2)return L2;
+  const m4=srTol(C.all,want,1);if(m4.lo.length)return{ok:1,all:C.all,hit:m4.lo,nc:C.all.length,cand:[],how:'keterangan produk (cocok longgar, cek hasilnya)',tc:C.tc};
+  return{ok:1,all:C.all,hit:[],nc:C.all.length,cand:[],how:'',none:1,tc:C.tc}}
+ let R=await srFind(u,want,say);
  const bad=r=>!r.hit.length&&!r.fail&&!r.net&&!r.empty&&!r.partial;
  if(bad(R)){say('Nomor '+want+' belum ketemu lewat pencarian. Membaca seluruh koleksi…');srForceFull=1;try{const R2=await srFind(u,want,say);if(!R2.fail&&!R2.net&&!R2.empty)R=R2}catch(e){}finally{srForceFull=0}}
  if(bad(R)){say('Mengulang cara membaca koleksi…');srRcClear();srForceFull=1;try{const R3=await srFind(u,want,say);if(!R3.fail&&!R3.net&&!R3.empty&&((R3.hit&&R3.hit.length)||(R3.all||[]).length>=(R.all||[]).length))R=R3}catch(e){}finally{srForceFull=0}}
+ if(!R.hit.length&&R.partial&&!R.fail&&!R.net&&!R.empty){say('Koleksi baru terbaca sebagian, mengulang membaca…');srForceFull=1;try{const R4=await srFind(u,want,say);if(!R4.fail&&!R4.net&&!R4.empty)R=R4}catch(e){}finally{srForceFull=0}}
  if(!R.hit.length&&R.all&&R.all.length){const m=srTol(R.all,want);if(m.lo.length)R={...R,hit:m.lo,how:R.how||'keterangan produk'}}
+ if(!R.hit.length&&srFC[slug]&&!R.fail&&!R.net&&!R.empty){const L3=await srLate(u,want,say);if(L3)R=L3}
+ if(!R.hit.length&&R.all&&R.all.length&&!R.fail&&!R.net&&!R.empty){const m4=srTol(R.all,want,1);
+  if(m4.lo.length)R={...R,hit:m4.lo,how:'keterangan produk (cocok longgar, cek hasilnya)'};
+  else if(!R.all.some(o=>srTx(o).some(t=>/\d{2,5}/.test(t))))R={...R,cand:srTop(R.all)}}
  return R}
+const srNum1=o=>{const c=pnCap(o.cap);if(c)return +c;const m=srTx(o).join(' ').match(/(?:no\.?|nomor|kode|#)\s*(\d{2,5})/i);return m?+m[1]:0};
 const srNone=(R,want)=>{const a=R.all||[];if(!a.length)return'Nomor '+want+' tidak ada di koleksi (server collshp tidak mengembalikan produk apa pun). Cek nomor album.';
  const smp=a.slice(0,3).map(o=>(srTx(o)[0]||'(kosong)').slice(0,30)).join(' | ');
- return'Nomor '+want+' tidak ditemukan di koleksi ('+a.length+' produk terbaca'+((R.tc||0)>=a.length&&R.tc?' dari '+R.tc:'')+'; nomor tertinggi yang terbaca: '+(a.map(o=>pnCap(o.cap)).filter(Boolean).sort().pop()||'-')+'). Contoh keterangan: '+smp+'. Cek isi kolom Nomor, atau nomor itu belum sinkron di server collshp.'};
+ return'Nomor '+want+' tidak ditemukan di koleksi ('+a.length+' produk terbaca'+((R.tc||0)>=a.length&&R.tc?' dari '+R.tc:'')+'; nomor tertinggi yang terbaca: '+(Math.max(0,...a.map(o=>+pnCap(o.cap)||0))||'-')+'). Contoh keterangan: '+smp+'.'+(()=>{const k=parseInt(String(want).replace(/\D/g,''),10),nb=a.filter(o=>{const x=srNum1(o);return x&&Math.abs(x-k)<=2}).slice(0,4).map(o=>(srTx(o)[0]||'').slice(0,28));return nb.length?' Yang terbaca di dekat nomor itu: '+nb.join(' | ')+'.':''})()+(()=>{const k=parseInt(String(want).replace(/\D/g,''),10),ns=[...new Set(a.map(o=>+pnCap(o.cap)||0).filter(Boolean))].sort((x,y)=>x-y),near=ns.filter(x=>Math.abs(x-k)<=3).map(x=>String(x).padStart(3,'0')),nn=a.filter(o=>!pnCap(o.cap)).length;return(near.length?' Nomor di sekitarnya yang terbaca: '+near.join(', ')+'.':'')+(nn?' '+nn+' produk di koleksi tidak punya nomor di caption.':'')})()+' Sudah dicek ulang produk terbaru. Kalau ini produk yang baru kamu tambah, tunggu 1-2 menit lalu coba lagi (server collshp belum sinkron); kalau bukan, cek isi kolom Nomor.'};
 async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'').trim();if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
  if(!/^https?:\/\/[^\s.\/]+\.[^\s]+/i.test(u)){toast('Tempel link koleksinya dulu');return}
  if(!pimg){toast('Pilih foto outfit dulu');return}
@@ -2385,7 +2563,7 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
    for(let i=0;i<tiers.length;i++){const lo=list.filter(tiers[i]);if(lo.length)return{lo,tier:i+1}}return{lo:[],tier:0}};
   if(!R.hit.length&&R.all&&R.all.length){const m=inCocok(R.all,want);if(m.lo.length)R={...R,hit:m.lo,how:R.how||'keterangan produk'}}
   const smp=(R.all||[]).slice(0,3).map(o=>(inAllTx(o)[0]||'(kosong)').slice(0,30)).join(' | ');
-  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+((R.tc||0)>=(R.all||[]).length&&R.tc?' dari '+R.tc:'')+((R.all||[]).length?'; nomor tertinggi yang terbaca: '+(R.all.map(o=>pnCap(o.cap)).filter(Boolean).sort().pop()||'-'):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Contoh keterangan yang terbaca: '+(smp||'-')+'. Server collshp belum memuat nomor itu (mungkin belum sinkron) atau penulisan nomornya berbeda. Coba lagi nanti, atau tambah item manual.'};
+  if(!R.hit.length)return{items:[],msg:R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'iks'):R.partial?srPart(R,want):'Nomor '+want+' tidak ada di koleksi ('+((R.all||[]).length)+' produk terbaca'+((R.tc||0)>=(R.all||[]).length&&R.tc?' dari '+R.tc:'')+((R.all||[]).length?'; nomor tertinggi yang terbaca: '+(Math.max(0,...R.all.map(o=>+pnCap(o.cap)||0))||'-'):'; log: '+srLog.slice(-3).join(' / ').slice(0,260))+'). Contoh keterangan yang terbaca: '+(smp||'-')+'. Server collshp belum memuat nomor itu (mungkin belum sinkron) atau penulisan nomornya berbeda. Coba lagi nanti, atau tambah item manual.'};
   const H=R.hit.slice(0,12),tx=H.map(inNm),nm=tx.map(inCat),need=nm.map((c,i)=>c?-1:i).filter(i=>i>=0);
   if(need.length&&window.parent&&parent.osAiVision){try{say('Mengenali '+need.length+' produk dari foto');const pics=await lnPool(need.map(i=>H[i]),4),parts=[{text:INASK}];
    need.forEach((i,k)=>{if(pics[k]){parts.push({text:'Kandidat '+(k+1)+':'});parts.push({inline_data:{mime_type:'image/jpeg',data:pics[k]}})}});
