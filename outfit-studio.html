@@ -47,7 +47,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin-top:8px}input[typ
 .pr{margin:0 0 12px;font-size:var(--fs-sm);line-height:1.65;max-height:7.4em;overflow:auto;user-select:text}.row{display:flex;gap:8px}.hint{margin:10px 0 0;color:var(--muted);font-size:var(--fs-xs2)}
 .empty{text-align:center;color:var(--muted);font-size:var(--fs-sm);line-height:1.65;padding:32px 12px}
 .pvw{position:sticky;top:-17px;z-index:2;display:flex;justify-content:center;padding:6px 0 10px;margin:-6px 0 0;background:linear-gradient(var(--bg) 85%,transparent)}.pvw>div{width:min(54%,230px);box-shadow:0 8px 28px rgba(0,0,0,.5);border-radius:var(--radius-sm)}
-.zr{touch-action:pan-y}#pvchip{position:absolute;right:8px;bottom:8px;z-index:3;pointer-events:none}.pchip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border-radius:99px;background:rgba(8,8,10,.82);border:1px solid var(--border-hi);color:var(--text);font-size:var(--fs-xs2);font-weight:500;pointer-events:auto;cursor:pointer}.pchip.pc-h{pointer-events:none;color:var(--muted);cursor:default}
+.zr,.zl{touch-action:none}#pvchip{position:absolute;right:8px;bottom:8px;z-index:3;pointer-events:none}.pchip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border-radius:99px;background:rgba(8,8,10,.82);border:1px solid var(--border-hi);color:var(--text);font-size:var(--fs-xs2);font-weight:500;pointer-events:auto;cursor:pointer}.pchip.pc-h{pointer-events:none;color:var(--muted);cursor:default}
 .spin{width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;flex:none}@keyframes sp{to{transform:rotate(360deg)}}.btn.busy:disabled{opacity:.9}
 .tabs{display:flex;gap:4px;padding:4px;margin:4px 0 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}.tab{flex:1;height:42px;border-radius:10px;border:0;background:transparent;color:var(--muted);font-weight:600;font-size:var(--fs-sm);cursor:pointer}.tab.on{background:var(--accent-dim-bg);color:var(--accent-2);box-shadow:inset 0 0 0 1px rgba(217,184,118,.4)}
 .lh{display:flex;align-items:baseline;justify-content:space-between}.lh .lb{margin-bottom:8px}.live{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs2);color:#8FD1A1;margin-bottom:10px}.live i{width:7px;height:7px;border-radius:50%;background:#8FD1A1;flex:none}
@@ -230,6 +230,10 @@ const mk0=t=>({type:t,items:t==='rek'?['Atasan','Celana panjang','Tas','Sepatu']
 const smp=(t,items)=>({...mk0(t),photo:'sample',gem:'sample',by:'By : @dina',...(items?{items}:{}),...(t==='rek'?{mid:1,prices:['Rp 89.000','Rp 120.000','Rp 75.000','Rp 150.000']}:{})});
 const S={v:'home',d:null,step:0,q:'',aid:null,na:false,saved:false,cb:null,albums:[],pics:[],u:[],cu:[],tk:0,zu:null,zid:null};
 const alb=()=>S.albums.find(a=>a.id===S.aid)||{name:'Album',n:0};
+/* v18.52: INGAT ALBUM TERAKHIR & POSISI GULIR. markLast = album yang terakhir dibuka/diedit (ditandai di daftar). S.hy = posisi gulir daftar album, S.rs = posisi yang dipulihkan saat Kembali, S.ret = layar asal (album) sebelum membuka Inspirasi dari album. */
+const LASTK='os_last_alb_v1',markLast=id=>{try{if(id)localStorage.setItem(LASTK,id)}catch(e){}},lastAlb=()=>{try{return localStorage.getItem(LASTK)||''}catch(e){return ''}};
+function goBack(){if(S.v==='batch'){const B=S.bj;if(B&&B.running){ask('Pencarian masih berjalan. Berhenti dan keluar?',()=>{B.stop=true;S.rs=S.hy||0;go('home')},'Ya, keluar');return}S.rs=S.hy||0;go('home');return}
+ if(S.v==='make'&&S.ret&&S.ret.v==='album'){S.aid=S.ret.aid;S.rs=S.ret.y;S.ret=null;go('album')}else{S.ret=null;S.rs=S.hy||0;go('home')}}
 function compose(d){const ts=`style="--ts:${d.ts||1}"`;
  if(d.type==='rek')return `<div class="res" ${ts}><div class="ri"><div class="rh"><b>${esc(d.t1)}</b><em>${esc(d.t2)}</em></div><div class="rg">${real(d.gem)?`<img class="full" src="${d.gem}" alt="">`:d.items.map((n,i)=>`<div class="${d.mid===i?'big':''}">${ph(HUE[i%8])}</div>`).join('')}</div><div class="rt2">${d.items.map((n,i)=>`<span>${esc(n)}: ${esc(d.pf)} ${esc(d.prices[i]||'Rp —')}</span>`).join('')}${d.sk?`<u style="background:${d.pc}">${esc(d.kf)} ${esc(d.ka)}</u>`:''}</div></div></div>`;
  return `<div class="res insp" ${ts}><div class="rl"><div class="rt">${esc(d.judul)}</div><div class="rs">${real(d.gem)?`<div class="gm"><img src="${d.gem}" alt=""></div>`:d.items.slice(0,4).map((n,i)=>`<div>${ph(HUE[i%8])}<small>${esc(n)}</small></div>`).join('')}</div></div><div class="rp">${im(d.photo,28)}</div><div class="rf"><span>${esc(d.by)}</span><b>LINK BIO NO. ${esc(d.nomor)}</b></div></div>`}
@@ -268,9 +272,9 @@ return `<label class="f" style="margin-top:0">Judul<input class="inp" data-k="ju
 function tabTP(){const d=S.d;return `<label class="f" style="margin-top:0">Ukuran tulisan<input type="range" min="60" max="150" value="${Math.round(d.ts*100)}" data-k="ts"></label><label class="f">Warna label kode<input type="color" data-k="pc" value="${d.pc}"></label><div class="sw"><span>Mode geser<small>Tahan dan seret tulisan ke posisi yang pas</small></span><button type="button" class="tg${d.mv?' on':''}" data-a="mv" role="switch" aria-checked="${!!d.mv}" aria-label="Mode geser"></button></div>`}
 function sB(){const d=S.d,r=d.type==='rek',T=TABS[d.type],t=T.some(x=>x[0]===S.tab)?S.tab:'ip';return (r?(d.gem?`<div class="pvw"><div id="pv" style="width:min(48%,200px)"></div></div>`:`<div class="pvw"><label class="dz" style="width:min(100%,360px);min-height:120px;background:var(--bg)"><input type="file" accept="image/*" hidden data-f="gem">${ic('img',24)}<b>Tambah hasil Gemini</b><small>Pratinjau muncul setelah gambar ditambahkan</small></label></div>`):`<div class="pvw"><div id="pvb" style="position:relative;width:min(72%,270px)"><div id="pv"></div><label class="zn zl" aria-label="Tambah hasil Gemini"><input type="file" accept="image/*" hidden data-f="gem"></label><label class="zn zr" aria-label="Tambah foto asli"><input type="file" accept="image/*" hidden data-f="photo"></label><div id="pvchip"></div></div></div>`)+`
 <div class="tabs" role="tablist" aria-label="Bagian">${T.map(([k,n])=>`<button type="button" role="tab" aria-selected="${t===k}" class="tab${t===k?' on':''}" data-a="tab" data-t="${k}">${n}</button>`).join('')}</div>${{ip:tabIP,tx:tabTX,tp:tabTP}[t]()}`}
-function gl(){const q=S.q.trim().toLowerCase(),L=S.albums.filter(a=>a.name.toLowerCase().includes(q));return L.length?`<div class="grid">${L.map(a=>`<button type="button" class="al" data-a="open" data-id="${a.id}"><div class="cv">${a.cu?`<img src="${a.cu}" alt="" style="width:100%;height:100%;object-fit:cover">`:ic('album',26)}</div><b>${esc(a.name)}</b><small>${a.n||0} gambar</small></button>`).join('')}</div>`:`<div class="empty">${S.q?'Tidak ada album dengan nama itu.':'Belum ada album. Hasil yang kamu simpan akan muncul di sini.'}</div>`}
+function gl(){const q=S.q.trim().toLowerCase(),L=S.albums.filter(a=>a.name.toLowerCase().includes(q)),LA=lastAlb(),la=!q&&!S.selOn&&S.albums.find(a=>a.id===LA),bv=!q&&!S.selOn&&S.bj&&S.bj.jobs&&S.bj.jobs.length?`<button type="button" class="btn sm ghost wide" data-a="bview" style="margin:0 0 12px">Lihat hasil cari massal (${S.bj.jobs.length} album)</button>`:'';return bv+(la?`<button type="button" class="btn sm ghost wide" data-a="open" data-id="${la.id}" style="margin:0 0 12px">Terakhir diedit: ${esc(la.name)} · Buka</button>`:'')+(L.length?`<div class="grid">${L.map(a=>`<button type="button" class="al" data-a="${S.selOn?'sel':'open'}" data-id="${a.id}"${S.selOn&&S.selSet&&S.selSet.has(a.id)?' style="outline:2px solid var(--accent-2);outline-offset:-2px"':''}><div class="cv">${a.cu?`<img src="${a.cu}" alt="" style="width:100%;height:100%;object-fit:cover">`:ic('album',26)}</div><b>${S.selOn&&S.selSet&&S.selSet.has(a.id)?'✓ ':''}${esc(a.name)}</b><small>${a.n||0} gambar${a.id===LA?' <em style="color:var(--accent-2);font-style:normal">· terakhir</em>':''}</small></button>`).join('')}</div>`:`<div class="empty">${S.q?'Tidak ada album dengan nama itu.':'Belum ada album. Hasil yang kamu simpan akan muncul di sini.'}</div>`)}
 function home(){return `<h2 class="h">Mau buat apa hari ini?</h2><div class="mks">${[['insp','Inspirasi','Foto asli + item outfit, lengkap nomor link bio'],['rek','Rekomendasi','Kolase item dengan harga dan kode'],['kol','Kolase Outfit','Gabung foto outfit + foto model. Tanpa prompt']].map(([t,n,s])=>`<button type="button" class="mk" data-a="${t==='kol'?'kolo':'new'}" data-t="${t}"><div class="mkt">${t==='kol'?KL.thumb():compose(smp(t))}</div><b>${n}</b><small>${s}</small></button>`).join('')}</div>
-<div class="hd"><h3 class="h2">Album</h3><button type="button" class="btn sm ghost fit" data-a="newalb">${ic('plus',15)}Album baru</button></div>
+<div class="hd"><h3 class="h2">Album</h3><div style="display:flex;gap:8px"><button type="button" class="btn sm ghost fit" data-a="selon">${S.selOn?'Selesai pilih':'Pilih banyak'}</button><button type="button" class="btn sm ghost fit" data-a="newalb">${ic('plus',15)}Album baru</button></div></div>
 ${S.na?`<div class="add" style="margin:0 0 12px"><input class="inp" id="nn" maxlength="40" placeholder="Nama album baru"><button type="button" class="btn sm fit" data-a="mkalb">Buat</button></div>`:''}
 <p class="hint" id="cst" style="margin:0 0 10px">${window.csStatusHTML?window.csStatusHTML():esc(window.csStatus?window.csStatus():'')}</p><div class="srch">${ic('search',16)}<input class="inp" id="q" type="search" placeholder="Cari nama album" value="${esc(S.q)}" aria-label="Cari album"></div><div id="gl">${gl()}</div>`}
 function album(){const a=alb();return `<div class="add" style="margin:0"><input class="inp" id="rn" maxlength="40" value="${esc(a.name)}" aria-label="Nama album"><button type="button" class="btn sm ghost fit" data-a="rn">Simpan nama</button></div>
@@ -278,22 +282,23 @@ function album(){const a=alb();return `<div class="add" style="margin:0"><input 
 ${S.pics.length?`<p class="hint" style="margin:0 0 10px">Ketuk gambar untuk memperbesar. Tombol hapus ada di layar pembesaran.</p><div class="grid">${S.pics.map(p=>`<div class="pic"><button type="button" class="tile" data-a="zoom" data-id="${p.id}" aria-label="Lihat gambar">${tile(p)}</button><div class="acts"><button type="button" class="btn ghost" data-a="dlp" data-id="${p.id}">Unduh</button>${a.id!=='a_panah'?`<button type="button" class="btn ghost" data-a="pnh" data-id="${p.id}">Panah &amp; harga</button>`:''}</div>${a.id!=='a_panah'?`<div class="acts" style="padding-top:0"><button type="button" class="btn ghost" data-a="pinsp" data-id="${p.id}">Inspirasi</button><button type="button" class="btn ghost" data-a="ptpl" data-id="${p.id}" title="Template teks &amp; ganti model">Ganti model</button></div>`:''}</div>`).join('')}</div>`:`<div class="empty">Album ini masih kosong. Simpan hasil dari Inspirasi atau Rekomendasi, atau tambah gambar sendiri.</div>`}
 <button type="button" class="btn ghost dng wide" data-a="dela">Hapus album</button>`}
 function render(top){const d=S.d;let h,ft='';
- if(S.v==='home'){$('bt').textContent='Outfit Studio';h=home()}
+ if(S.v==='home'){$('bt').textContent=S.selOn?'Pilih album':'Outfit Studio';h=home();if(S.selOn)ft=selFt()}
  else if(S.v==='album'){$('bt').textContent=alb().name;h=album()}
- else{$('bt').textContent=d.type==='rek'?'Rekomendasi':'Inspirasi';savePref();h=sB();
+ else if(S.v==='batch'&&S.bj){$('bt').textContent='Cari item banyak album';h=batch();ft=bft()}
+ else{$('bt').textContent=d.type==='rek'?'Rekomendasi':'Inspirasi'+(d.nomor?' · '+d.nomor:'');savePref();h=sB();
   const msg=S.step===0?(d.items.length<(d.type==='rek'?2:1)?'Tambah minimal '+(d.type==='rek'?2:1)+' item untuk lanjut':(d.type==='rek'&&!d.gem)?'Unggah hasil Gemini untuk lanjut':''):'';
   ft=S.step<1?`${msg?`<p class="hint">${msg}</p>`:''}${S.step?'<button type="button" class="btn ghost" data-a="prev">Kembali</button>':''}<button type="button" class="btn" data-a="next" ${msg?'disabled':''}>Lanjut</button>`
    :`<button type="button" class="btn ghost" data-a="dl">${ic('dl',16)}Unduh</button><button type="button" class="btn" data-a="save">${S.saved?ic('check',16)+'Tersimpan':ic('album',16)+'Simpan ke album'}</button>`}
- $('tools').hidden=S.v!=='make';$('bd').innerHTML=h;$('ft').innerHTML=ft;$('ft').hidden=!ft;if(top)$('bd').scrollTop=0;mountPv()}
-const go=v=>{S.v=v;S.q='';S.na=false;render(1);loadView()},closeSheet=()=>$('sheet').classList.remove('show');
+ $('tools').hidden=S.v!=='make';$('bd').innerHTML=h;$('ft').innerHTML=ft;$('ft').hidden=!ft;if(S.rs!=null&&(S.v==='home'||S.v==='album'))$('bd').scrollTop=S.rs;else if(top)$('bd').scrollTop=0;mountPv()}
+const go=v=>{if(S.v==='home'){const b=$('bd');if(b)S.hy=b.scrollTop}S.v=v;S.q='';S.na=false;render(1);loadView()},closeSheet=()=>$('sheet').classList.remove('show');
 let tm;function toast(m){const t=$('ts');t.textContent=m;t.classList.add('on');clearTimeout(tm);tm=setTimeout(()=>t.classList.remove('on'),2200)}
 function ask(t,cb,l){S.cb=cb;$('sheet').innerHTML=`<div class="sheet"><h3>${t}</h3><div class="row"><button type="button" class="btn ghost" data-a="sx2">Batal</button><button type="button" class="btn dng" data-a="yes">${l||'Ya, lanjut'}</button></div></div>`;$('sheet').classList.add('show')}
 function addItem(v){v=(v||'').trim();const it=S.d.items;if(!v)return;if(it.length>=12)return toast('Maksimal 12 item');if(it.some(x=>x.toLowerCase()===v.toLowerCase()))return toast('Item itu sudah ada');it.push(v);render();const n=$('ni');n&&n.focus()}
 async function sheetSave(){try{await loadAlb()}catch(e){}$('sheet').innerHTML=`<div class="sheet"><h3>Simpan ke album</h3>${S.albums.map(a=>`<button type="button" class="li" data-a="saveto" data-id="${a.id}"><span class="mt">${a.cu?`<img src="${a.cu}" alt="" style="width:100%;height:100%;object-fit:cover">`:ic('album',18)}</span><span><b>${esc(a.name)}</b><small>${a.n||0} gambar</small></span>${ic('chev',16)}</button>`).join('')}<div class="add"><input class="inp" id="na" maxlength="40" placeholder="Atau buat album baru"><button type="button" class="btn sm fit" data-a="newsave">Buat &amp; simpan</button></div></div>`;$('sheet').classList.add('show')}
 function act(a,el,e){const d=S.d,id=el.dataset.id,i=+el.dataset.i;if(ACT2[a])return ACT2[a](el,e,d,id,i);switch(a){
 case'osopen':$('os').classList.add('show');go('home');break;
-case'back':if(S.v==='home')parent.osClose&&parent.osClose();else if(S.v==='make'&&S.step>0&&!S.saved&&(d.gem||d.photo))ask('Keluar dari sini? Hasil yang belum disimpan akan hilang.',()=>go('home'));else go('home');break;
-case'new':S.d=mk(el.dataset.t);S.saved=false;S.tab='ip';S.step=1;enter3();go('make');break;
+case'back':if(S.v==='home'){if(S.selOn){S.selOn=false;S.selSet=null;render()}else parent.osClose&&parent.osClose()}else if(S.v==='make'&&S.step>0&&!S.saved&&(d.gem||d.photo))ask('Keluar dari sini? Hasil yang belum disimpan akan hilang.',()=>goBack());else goBack();break;
+case'new':S.ret=null;S.d=mk(el.dataset.t);S.saved=false;S.tab='ip';S.step=1;enter3();go('make');break;
 case'tab':S.tab=el.dataset.t;render();break;
 case'step':if(i<=S.step){S.step=i;render(1)}break;
 case'next':savePref();S.step++;if(S.step===1)enter3();render(1);break;
@@ -313,7 +318,7 @@ case'newsave':{const x=mkAlb($('na').value);x&&saveTo(x);break}
 case'sx':if(e.target===el)closeSheet();break;
 case'sx2':closeSheet();break;
 case'yes':closeSheet();S.cb&&S.cb();break;
-case'open':S.aid=id;go('album');break;
+case'open':S.aid=id;markLast(id);go('album');break;
 case'newalb':S.na=!S.na;render();setTimeout(()=>{const n=$('nn');n&&n.focus()},0);break;
 case'mkalb':{const x=mkAlb($('nn').value);if(x){S.na=false;render();toast('Album dibuat')}break}
 case'rn':{const v=$('rn').value.trim();if(!v){toast('Nama album tidak boleh kosong');break}alb().name=v;$('bt').textContent=v;toast('Nama album disimpan');break}
@@ -336,7 +341,33 @@ const REG={t1:V(()=>S.d.t1),t2:V(()=>S.d.t2),pf:V(()=>S.d.pf),pc:V(()=>S.d.pc),k
  sk:{get checked(){return !!S.d.sk}},mv:{get checked(){return !!S.d.mv}},fl:{checked:true},
  out:{set value(v){S.d.prompt=v},set src(v){S.d.url=v;paintOI()}},cv:RC};
 const AD=id=>REG[id]||NOP;
-const OI=(()=>{const $=AD;let img=null,outf=null,tm,cv=null,fr=.46,ox=.5,sl=0,cw=1,lwv=0;
+const OI=(()=>{const $=AD;let img=null,outf=null,tm,cv=null,fr=.46,ox=.5,sl=0,cw=1,lwv=0,offs={},order=[],sprs=null,hits=[],srcO=null;
+const fsz=x=>{const m=/(\d+(?:\.\d+)?)px/.exec(x.font);return m?parseFloat(m[1]):48};
+function dil(m,W,H,r){const t=new Uint8Array(W*H),o=new Uint8Array(W*H),ps=new Int32Array(Math.max(W,H)+1);
+ for(let y=0;y<H;y++){const q=y*W;ps[0]=0;for(let x=0;x<W;x++)ps[x+1]=ps[x]+m[q+x];for(let x=0;x<W;x++){const a=Math.max(0,x-r),b=Math.min(W,x+r+1);t[q+x]=ps[b]-ps[a]>0?1:0}}
+ for(let x=0;x<W;x++){ps[0]=0;for(let y=0;y<H;y++)ps[y+1]=ps[y]+t[y*W+x];for(let y=0;y<H;y++){const a=Math.max(0,y-r),b=Math.min(H,y+r+1);o[y*W+x]=ps[b]-ps[a]>0?1:0}}return o}
+/* v18.51: pisahkan tiap item di gambar hasil Gemini (latar polos dibuang dari tepi, sisanya dikelompokkan per benda) supaya tiap item bisa digeser sendiri. Gagal / hanya 1 benda -> null (gambar dipakai utuh). */
+function split(o){const W=o.width,H=o.height,N=W*H,d=o.getContext('2d',{willReadFrequently:true}).getImageData(0,0,W,H).data;
+ let br=0,bg=0,bb=0,cn=0;[[0,0],[W-6,0],[0,H-6],[W-6,H-6]].forEach(p=>{for(let yy=0;yy<6;yy++)for(let xx=0;xx<6;xx++){const i=((p[1]+yy)*W+p[0]+xx)*4;br+=d[i];bg+=d[i+1];bb+=d[i+2];cn++}});br/=cn;bg/=cn;bb/=cn;
+ const T=14,isb=i=>{const j=i*4;return Math.abs(d[j]-br)<=T&&Math.abs(d[j+1]-bg)<=T&&Math.abs(d[j+2]-bb)<=T};
+ const bgm=new Uint8Array(N),st=new Int32Array(N);let sp=0;const seed=i=>{if(!bgm[i]&&isb(i)){bgm[i]=1;st[sp++]=i}};
+ for(let x=0;x<W;x++){seed(x);seed((H-1)*W+x)}for(let y=0;y<H;y++){seed(y*W);seed(y*W+W-1)}
+ while(sp){const i=st[--sp],x=i%W;if(x>0)seed(i-1);if(x<W-1)seed(i+1);if(i>=W)seed(i-W);if(i<N-W)seed(i+W)}
+ const fg=new Uint8Array(N);for(let i=0;i<N;i++)fg[i]=bgm[i]?0:1;
+ const D=dil(fg,W,H,Math.max(4,Math.round(Math.max(W,H)*.012))),lab=new Int16Array(N);let K=0;
+ for(let s0=0;s0<N;s0++){if(!D[s0]||lab[s0])continue;K++;if(K>200)break;lab[s0]=K;sp=0;st[sp++]=s0;
+  while(sp){const i=st[--sp],x=i%W,y=(i-x)/W;for(let dy=-1;dy<=1;dy++){const ny=y+dy;if(ny<0||ny>=H)continue;for(let dx=-1;dx<=1;dx++){const nx=x+dx;if(nx<0||nx>=W)continue;const j=ny*W+nx;if(D[j]&&!lab[j]){lab[j]=K;st[sp++]=j}}}}}
+ const bx=[];for(let k=0;k<=K;k++)bx.push([1e9,1e9,-1,-1,0]);
+ for(let i=0;i<N;i++){if(!fg[i])continue;const k=lab[i];if(!k)continue;const x=i%W,y=(i-x)/W,r=bx[k];if(x<r[0])r[0]=x;if(y<r[1])r[1]=y;if(x>r[2])r[2]=x;if(y>r[3])r[3]=y;r[4]++}
+ const ids=[];for(let k=1;k<=K;k++)if(bx[k][2]>=0&&bx[k][4]>=Math.max(150,N*.0005))ids.push(k);
+ if(!ids.length||ids.length>12)return null;
+ ids.sort((a,b)=>(bx[a][1]-bx[b][1])||(bx[a][0]-bx[b][0]));
+ return ids.map(k=>{const r=bx[k],w=r[2]-r[0]+1,h=r[3]-r[1]+1,c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d'),im=g.createImageData(w,h),a=new Uint8Array(w*h);
+  for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){const i=(r[1]+yy)*W+r[0]+xx;if(!fg[i]||lab[i]!==k)continue;const j=i*4,q=(yy*w+xx)*4;im.data[q]=d[j];im.data[q+1]=d[j+1];im.data[q+2]=d[j+2];im.data[q+3]=255;a[yy*w+xx]=1}
+  g.putImageData(im,0,0);return{c,x:r[0],y:r[1],w,h,a}})}
+function hit(ux,uy,pad){let best=null;for(let q=hits.length-1;q>=0;q--){const h=hits[q];if(ux<h.x-pad||ux>h.x+h.w+pad||uy<h.y-pad||uy>h.y+h.h+pad)continue;
+ if(h.s){const lx=Math.floor((ux-h.x)/h.w*h.s.w),ly=Math.floor((uy-h.y)/h.h*h.s.h);if(lx>=0&&ly>=0&&lx<h.s.w&&ly<h.s.h&&h.s.a[ly*h.s.w+lx])return h.k;if(!best)best=h;continue}
+ return h.k}return best?best.k:null}
 function ph0(){const c=document.createElement('canvas');c.width=1080;c.height=1350;const x=c.getContext('2d');x.fillStyle='#ebe7e1';x.fillRect(0,0,1080,1350);return c}
 function ld(f,cb){const o=new Image();o.onload=()=>{const s=Math.min(1,1800/Math.max(o.naturalWidth,o.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(o.naturalWidth*s);c.height=Math.round(o.naturalHeight*s);c.getContext('2d').drawImage(o,0,0,c.width,c.height);cb(c)};o.src=URL.createObjectURL(f)}
 function crop(c){const x=c.getContext('2d'),d=x.getImageData(0,0,c.width,c.height).data;let a=c.width,b=c.height,r=0,t=0;
@@ -348,11 +379,15 @@ const H=1440,a=im.width/im.height,pw=Math.round(H*Math.min(a,.8)),dw=Math.round(
 const x=c.getContext('2d'),col='#6b4a3a';x.scale(sc,sc);
 x.fillStyle='#fff';x.fillRect(0,0,lw,H);x.save();x.beginPath();x.rect(lw,0,pw,H);x.clip();x.fillStyle='#ebe7e1';x.fillRect(lw,0,pw,H);x.drawImage(im,lw-(dw-pw)*ox,0,dw,H);x.restore();
 x.fillStyle=col;x.strokeStyle=col;x.textAlign='center';
-const jd=$('judul').value;ft(x,jd,lw*.9,64,'900');x.fillText(jd,lw/2,110);
-const by=$('by').value;if(by.trim()){ft(x,by,lw*.7,30,'600');const w=x.measureText(by).width+44;x.lineWidth=3;x.beginPath();(x.roundRect||x.rect).call(x,(lw-w)/2,135,w,56,28);x.stroke();x.fillText(by,lw/2,173)}
+hits=[];const oJ=offs.j||[0,0],oB=offs.b||[0,0],oL=offs.l||[0,0];
+const jd=$('judul').value;ft(x,jd,lw*.9,64,'900');x.fillText(jd,lw/2+oJ[0],110+oJ[1]);{const fs=fsz(x),w=x.measureText(jd).width;hits.push({k:'j',x:lw/2+oJ[0]-w/2,y:110+oJ[1]-fs*.85,w,h:fs*1.1})}
+const by=$('by').value;if(by.trim()){ft(x,by,lw*.7,30,'600');const w=x.measureText(by).width+44;x.lineWidth=3;x.beginPath();(x.roundRect||x.rect).call(x,(lw-w)/2+oB[0],135+oB[1],w,56,28);x.stroke();x.fillText(by,lw/2+oB[0],173+oB[1]);hits.push({k:'b',x:(lw-w)/2+oB[0],y:135+oB[1],w,h:56})}
 let y=235;
-if(outf){const k=Math.min(lw*.8/outf.width,H*.64/outf.height),w=outf.width*k,h=outf.height*k;x.drawImage(outf,(lw-w)/2,y,w,h);y+=h}
-const tx='📌LINK BIO NO. '+$('nomor').value;ft(x,tx,lw*.92,48,'900');x.fillText(tx,lw/2,(outf?y:H*.5)+75);
+if(outf){const k=Math.min(lw*.8/outf.width,H*.64/outf.height),w=outf.width*k,h=outf.height*k,x0=(lw-w)/2;
+ if(sprs&&sprs.length){order.forEach(i=>{const s=sprs[i];if(!s)return;const o=offs['i'+i]||[0,0],dx=x0+s.x*k+o[0],dy=y+s.y*k+o[1];x.drawImage(s.c,dx,dy,s.w*k,s.h*k);hits.push({k:'i'+i,x:dx,y:dy,w:s.w*k,h:s.h*k,s})})}
+ else{const o=offs.i0||[0,0];x.drawImage(outf,x0+o[0],y+o[1],w,h);hits.push({k:'i0',x:x0+o[0],y:y+o[1],w,h})}
+ y+=h}
+const tx='📌LINK BIO NO. '+$('nomor').value;ft(x,tx,lw*.92,48,'900');{const lx=lw/2+oL[0],ly=(outf?y:H*.5)+75+oL[1];x.fillText(tx,lx,ly);const w=x.measureText(tx).width,fs=fsz(x);hits.push({k:'l',x:lx-w/2,y:ly-fs*.85,w,h:fs*1.1})}
 x.fillStyle='#8b8078';
 if(!img){ft(x,'untuk tambah foto asli',pw*.8,56,'500');x.fillText('Ketuk sisi ini',lw+pw/2,H*.46-30);x.fillText('untuk tambah foto asli',lw+pw/2,H*.46+34)}
 if(!outf){ft(x,'untuk tambah hasil Gemini',lw*.85,56,'500');x.fillText('Ketuk sisi ini',lw/2,H*.36-30);x.fillText('untuk tambah hasil Gemini',lw/2,H*.36+34)}
@@ -360,7 +395,10 @@ sl=dw-pw;cw=W;lwv=lw;return c}
 function render(){const c=paint(1);cv=c;fr=lwv/c.width;$('out').src=c.toDataURL('image/png');$('hint').textContent='Tekan Unduh untuk menyimpan gambar.'}
 function quick(){const c=paint(.4);$('out').src=c.toDataURL('image/jpeg',.82)}
 
-return{ld,render,setImg:c=>{if(c!==img)ox=.5;img=c},get can(){return !!img&&sl>2},get ox(){return ox},get moved(){return Math.abs(ox-.5)>.005},panBy(o,dx,w){ox=Math.max(0,Math.min(1,o-(dx*(cw/w))/Math.max(sl,1)));quick()},reset(){ox=.5;render()},setOut:c=>{outf=c?crop(c):null},get cv(){return cv},get frac(){return fr}}})();
+return{ld,render,setImg:c=>{if(c!==img)ox=.5;img=c},get can(){return !!img&&sl>2},get ox(){return ox},get moved(){return Math.abs(ox-.5)>.005||Object.keys(offs).length>0},panBy(o,dx,w){ox=Math.max(0,Math.min(1,o-(dx*(cw/w))/Math.max(sl,1)));quick()},reset(){ox=.5;offs={};order=sprs?sprs.map((_,i)=>i):[];render()},setOut:c=>{if(c!==srcO){srcO=c;offs={};outf=c?crop(c):null;sprs=null;if(outf){try{sprs=split(outf)}catch(e){sprs=null}}order=sprs?sprs.map((_,i)=>i):[]}},
+hitAt(ux,uy,pad){return hit(ux,uy,pad)},offOf(k){const o=offs[k]||[0,0];return[o[0],o[1]]},
+moveTo(k,o0,dx,dy){if(k[0]==='i'&&k.length>1){const n=+k.slice(1),p=order.indexOf(n);if(p>=0&&p<order.length-1){order.splice(p,1);order.push(n)}}offs[k]=[o0[0]+dx,o0[1]+dy];quick()},
+get W(){return cw},get canMove(){return !!img||!!outf},get cv(){return cv},get frac(){return fr}}})();
 const RI=(()=>{const $=AD;
 let data=[],img=null,rects=[],off={},tm,poff={},seg=null,zo=[];function save(){}
 // tata letak: dipakai bersama oleh prompt dan penempatan tulisan
@@ -510,14 +548,20 @@ function paintOI(){const pv=$('pv'),bx=$('pvb');if(bx)bx.style.setProperty('--sp
 function refreshPv(){const d=S.d,pv=$('pv');if(!pv||!d)return;if(d.type==='rek'){syncRI();if(RC.parentNode!==pv)pv.appendChild(RC);RI.render()}else{OI.render();upChip()}}
 let rt;const refreshPvD=()=>{clearTimeout(rt);rt=setTimeout(refreshPv,120)};
 const mountPv=()=>{if(S.v==='make'&&S.step===1)refreshPv()};
-function pvChip(){if(S.v!=='make'||!S.d||S.d.type!=='insp'||!OI.can)return '';return OI.moved?`<button type="button" class="pchip" data-a="panreset"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>Reset posisi</button>`:`<span class="pchip pc-h">↔ Geser foto</span>`}
+function pvChip(){if(S.v!=='make'||!S.d||S.d.type!=='insp'||!(OI.can||OI.canMove))return '';return OI.moved?`<button type="button" class="pchip" data-a="panreset"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>Reset posisi</button>`:`<span class="pchip pc-h">↔ Geser foto, item &amp; tulisan</span>`}
 function upChip(){const e=$('pvchip');if(e)e.innerHTML=pvChip()}
 let pn=null,zsup=0;
 app.addEventListener('pointerdown',e=>{const z=e.target.closest('.zr');if(!z||!S.d||S.d.type!=='insp'||!OI.can)return;pn={id:e.pointerId,x:e.clientX,o:OI.ox,w:z.parentNode.getBoundingClientRect().width,moved:false,z}});
 app.addEventListener('pointermove',e=>{if(!pn||e.pointerId!==pn.id)return;const dx=e.clientX-pn.x;if(!pn.moved){if(Math.abs(dx)<6)return;pn.moved=true;try{pn.z.setPointerCapture(e.pointerId)}catch(_){}}OI.panBy(pn.o,dx,pn.w)});
 const pend=e=>{if(!pn||e.pointerId!==pn.id)return;const m=pn.moved;pn=null;if(m){zsup=Date.now();OI.render();upChip()}};
 app.addEventListener('pointerup',pend);app.addEventListener('pointercancel',pend);
-app.addEventListener('click',e=>{if(Date.now()-zsup<500&&e.target.closest('.zr')){e.preventDefault();e.stopPropagation()}},true);
+/* v18.51: geser tiap item & tulisan (judul, By, LINK BIO) langsung di pratinjau Inspirasi. Sentuh benda/tulisannya lalu seret. Di luar benda, seret sisi kanan tetap menggeser foto. */
+let dg=null;
+app.addEventListener('pointerdown',e=>{const z=e.target.closest('.zl,.zr');if(!z||!S.d||S.d.type!=='insp')return;const pi=$('pv')&&$('pv').querySelector('img');if(!pi)return;const r=pi.getBoundingClientRect();if(!r.width)return;const u=OI.W/r.width,k=OI.hitAt((e.clientX-r.left)*u,(e.clientY-r.top)*u,10*u);if(!k)return;e.stopPropagation();dg={id:e.pointerId,x:e.clientX,y:e.clientY,u,k,o:OI.offOf(k),moved:false,z}},true);
+app.addEventListener('pointermove',e=>{if(!dg||e.pointerId!==dg.id)return;const dx=e.clientX-dg.x,dy=e.clientY-dg.y;if(!dg.moved){if(Math.abs(dx)+Math.abs(dy)<6)return;dg.moved=true;try{dg.z.setPointerCapture(e.pointerId)}catch(_){}}OI.moveTo(dg.k,dg.o,dx*dg.u,dy*dg.u)});
+const dend=e=>{if(!dg||e.pointerId!==dg.id)return;const m=dg.moved;dg=null;if(m){zsup=Date.now();OI.render();upChip()}};
+app.addEventListener('pointerup',dend);app.addEventListener('pointercancel',dend);
+app.addEventListener('click',e=>{if(Date.now()-zsup<500&&e.target.closest('.zr,.zl')){e.preventDefault();e.stopPropagation()}},true);
 function enter3(){const d=S.d;if(d.type==='rek')RI.setImg(d.gemC);else{OI.setImg(d.photoC);OI.setOut(d.gemC)}}
 /* pengingat judul/By/nomor/harga/kode (menerima juga nilai lama dari fitur terpisah) */
 let PF={};try{PF=JSON.parse(localStorage.getItem('os-prefs-v1')||'{}')||{}}catch(e){}
@@ -534,7 +578,7 @@ const byNew=(x,y)=>y.at-x.at||(x.o||0)-(y.o||0);
 const thumbOf=f=>(window.createImageBitmap?createImageBitmap(f):Promise.reject()).then(b=>{const k=Math.min(1,360/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(b.width*k));c.height=Math.max(1,Math.round(b.height*k));c.getContext('2d').drawImage(b,0,0,c.width,c.height);b.close&&b.close();return new Promise(ok=>c.toBlob(ok,'image/webp',.8))}).catch(()=>null);
 const sync=id=>Promise.all([run('albums','readonly',t=>t.objectStore('albums').get(id)),run('photos','readonly',t=>t.objectStore('photos').index('album').getAll(id))]).then(([a,p])=>{if(!a)return;p.sort(byNew);const c=p.find(x=>x.thumb);a.n=p.length;a.cover=c?c.thumb:null;return run('albums','readwrite',t=>t.objectStore('albums').put(a))});
 async function loadAlb(){const al=await run('albums','readonly',t=>t.objectStore('albums').getAll());al.sort((x,y)=>y.at-x.at);S.cu.forEach(u=>URL.revokeObjectURL(u));S.cu=[];S.albums=al.map(a=>{const u=a.cover?URL.createObjectURL(a.cover):null;if(u)S.cu.push(u);return{...a,cu:u}})}
-async function loadView(){const tk=++S.tk;try{await loadAlb();let P=[];if(S.v==='album'){P=await run('photos','readonly',t=>t.objectStore('photos').index('album').getAll(S.aid));P.sort(byNew)}if(tk!==S.tk)return;S.u.forEach(u=>URL.revokeObjectURL(u));S.u=P.length?[]:S.u;S.u=[];S.pics=P.map(p=>{const b=p.thumb||p.blob,u=URL.createObjectURL(b);S.u.push(u);return{...p,u}});if(S.v==='home'||S.v==='album')render();if(S.v==='album')setTimeout(repairPics,300)}catch(e){toast('Album belum bisa dibuka di perangkat ini')}}
+async function loadView(){const tk=++S.tk;try{await loadAlb();let P=[];if(S.v==='album'){P=await run('photos','readonly',t=>t.objectStore('photos').index('album').getAll(S.aid));P.sort(byNew)}if(tk!==S.tk)return;S.u.forEach(u=>URL.revokeObjectURL(u));S.u=P.length?[]:S.u;S.u=[];S.pics=P.map(p=>{const b=p.thumb||p.blob,u=URL.createObjectURL(b);S.u.push(u);return{...p,u}});if(S.v==='home'||S.v==='album'){render();S.rs=null}if(S.v==='album')setTimeout(repairPics,300)}catch(e){toast('Album belum bisa dibuka di perangkat ini')}}
 async function mkAlb(n){n=(n||'').replace(/\s+/g,' ').trim();if(!n){toast('Nama album tidak boleh kosong');return null}await loadAlb();if(S.albums.some(a=>a.name.toLowerCase()===n.toLowerCase())){toast('Nama album itu sudah dipakai');return null}const a={id:uid2('a'),name:n,at:Date.now(),n:0,cover:null};await run('albums','readwrite',t=>t.objectStore('albums').add(a));S.albums.unshift(a);return a}
 const resC=()=>S.d.type==='rek'?RC:OI.cv;
 const resName=()=>S.d.type==='rek'?'rekomendasi-outfit.png':'outfit-inspirasi.png';
@@ -560,7 +604,7 @@ async function dlBlob(b,n){
  if(isIOS()&&navigator.share&&navigator.canShare){try{const f=new File([b],n,{type:b.type||'image/png'});if(navigator.canShare({files:[f]})){await navigator.share({files:[f]});return 'share'}}catch(e){if(e&&e.name==='AbortError')return 'abort'}}
  if(isIOS()){showSaveView(b);return 'view'}
  try{const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=n;a.rel='noopener';a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);return 'dl'}catch(e){showSaveView(b);return 'view'}}
-async function saveTo(a){try{const b=await resBlob(),th=await thumbOf(b);await run('photos','readwrite',t=>t.objectStore('photos').add({id:uid2('p'),album:a.id,name:resName(),type:'image/png',size:b.size,at:Date.now(),o:0,blob:b,thumb:th}));await sync(a.id);if(a.id==='a_panah')KL.pkSync();try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(x){}S.saved=true;closeSheet();toast('Tersimpan di '+a.name);render()}catch(e){toast(e==='need'?needMsg():e&&e.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan, coba lagi')}}
+async function saveTo(a){markLast(a.id);try{const b=await resBlob(),th=await thumbOf(b);await run('photos','readwrite',t=>t.objectStore('photos').add({id:uid2('p'),album:a.id,name:resName(),type:'image/png',size:b.size,at:Date.now(),o:0,blob:b,thumb:th}));await sync(a.id);if(a.id==='a_panah')KL.pkSync();try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(x){}S.saved=true;closeSheet();toast('Tersimpan di '+a.name);render()}catch(e){toast(e==='need'?needMsg():e&&e.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan, coba lagi')}}
 async function flatPic(f){try{if(!window.createImageBitmap||!/^image\/(png|webp|gif)/.test(f.type||''))return f;const bm=await createImageBitmap(f),k=Math.min(1,3000/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bm.width*k));c.height=Math.max(1,Math.round(bm.height*k));const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(bm,0,0,c.width,c.height);const d=g.getImageData(0,0,c.width,c.height).data;let t=0;for(let i=3;i<d.length;i+=4*7)if(d[i]<250){t=1;break}if(!t){bm.close&&bm.close();return f}g.globalCompositeOperation='destination-over';g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);bm.close&&bm.close();const j=await new Promise(r=>c.toBlob(r,'image/jpeg',.93));if(!j)return f;const n=(f.name||'gambar').replace(/\.\w+$/,'')+'.jpg';return new File([j],n,{type:'image/jpeg'})}catch(e){return f}}
 /* v18.50: PEMULIHAN FOTO ALBUM. Foto yang thumbnail-nya hilang/rusak (tampil hitam) dibaca ulang dari penyimpanan: isi file disalin, dicoba dibuka dengan beberapa jenis format (kalau jenis file tersimpan salah), lalu thumbnail dibuat ulang dan disimpan. Jalan otomatis tiap album dibuka. Foto yang isinya memang sudah hilang dilaporkan, tidak diulang terus. */
 async function repairPics(){const aid=S.aid;if(!aid||S.rp)return;S.rp=1;S.lostIds=S.lostIds||{};let fixed=0,lost=0;
@@ -586,7 +630,7 @@ async function repairPics(){const aid=S.aid;if(!aid||S.rp)return;S.rp=1;S.lostId
 /* v18.49: FOTO HITAM DI ALBUM. File dari galeri HP kadang hanya "rujukan" ke file asli (bukan salinan), jadi bisa tersimpan tapi kosong/hitam saat dibuka lagi. Sekarang isi file disalin penuh ke memori, lalu dicek bisa dibuka sebelum disimpan. */
 const solidPic=async f=>{try{const buf=await f.arrayBuffer();if(!buf.byteLength)return null;const g=new File([buf],f.name||'gambar',{type:f.type||'image/jpeg'});let ok=false;try{if(window.createImageBitmap){const b=await createImageBitmap(g);ok=b.width>0&&b.height>0;b.close&&b.close()}}catch(e){}
  if(!ok)ok=await new Promise(r=>{const u=URL.createObjectURL(g),i=new Image();i.onload=()=>{URL.revokeObjectURL(u);r(i.naturalWidth>0)};i.onerror=()=>{URL.revokeObjectURL(u);r(false)};i.src=u});return ok?g:null}catch(e){return null}};
-async function addPics(fl){const al=S.aid,t0=Date.now();let bad=0;toast('Menyimpan '+fl.length+' gambar…');try{for(let i=0;i<fl.length;i++){let f=fl[i];f=await flatPic(f);f=await solidPic(f);if(!f){bad++;continue}const th=await thumbOf(f);await run('photos','readwrite',t=>t.objectStore('photos').add({id:uid2('p'),album:al,name:f.name||'gambar',type:f.type,size:f.size,at:t0,o:i,blob:f,thumb:th}))}await sync(al);if(al==='a_panah')KL.pkSync();await loadView();toast(bad&&bad>=fl.length?'Gambar tidak bisa dibaca. Coba pilih ulang dari galeri (format JPG/PNG).':(fl.length-bad)+' gambar tersimpan'+(bad?', '+bad+' gagal dibaca':''))}catch(e){toast(e&&e.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan gambar')}}
+async function addPics(fl){const al=S.aid,t0=Date.now();markLast(al);let bad=0;toast('Menyimpan '+fl.length+' gambar…');try{for(let i=0;i<fl.length;i++){let f=fl[i];f=await flatPic(f);f=await solidPic(f);if(!f){bad++;continue}const th=await thumbOf(f);await run('photos','readwrite',t=>t.objectStore('photos').add({id:uid2('p'),album:al,name:f.name||'gambar',type:f.type,size:f.size,at:t0,o:i,blob:f,thumb:th}))}await sync(al);if(al==='a_panah')KL.pkSync();await loadView();toast(bad&&bad>=fl.length?'Gambar tidak bisa dibaca. Coba pilih ulang dari galeri (format JPG/PNG).':(fl.length-bad)+' gambar tersimpan'+(bad?', '+bad+' gagal dibaca':''))}catch(e){toast(e&&e.name==='QuotaExceededError'?'Penyimpanan perangkat penuh':'Gagal menyimpan gambar')}}
 function setImg(k,f){const d=S.d,u=URL.createObjectURL(f);OI.ld(f,c=>{if(d[k])URL.revokeObjectURL(d[k]);d[k]=u;d[k+'C']=c;enter3();render()})}
 let dlBusy=false;
 async function busyDl(el,job,fast){
@@ -671,15 +715,60 @@ async function inspCari(nd,auto){if(!nd||nd.type!=='insp'||(S.ikb&&!auto))return
  catch(e){say('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
  finally{if(S.ikt===tk){S.ikb=0;const b2=document.querySelector('[data-a="ikgo"]');if(b2)b2.disabled=false}}}
 document.addEventListener('input',e=>{const t=e.target;if(t&&t.id==='ikl'){try{localStorage.setItem('pb_kol_link_v1',t.value.trim())}catch(x){}}});
+/* v18.53: CARI ITEM BANYAK ALBUM SEKALIGUS. "Pilih banyak" di daftar album -> tiap album dicari itemnya (nomor = angka di nama album, link koleksi yang sama dengan Inspirasi) lalu dibuatkan prompt Gemini sendiri-sendiri. Tiap kartu menampilkan foto pertama album + nomornya sebagai penanda. Dicari satu per satu (aman untuk koneksi). */
+const bDig=s=>String(s||'').replace(/\D/g,''),bLabel=j=>/^\d+$/.test(j.name)?'Album '+j.name:j.name;
+function selFt(){const n=S.selSet?S.selSet.size:0;return `<button type="button" class="btn ghost" data-a="seloff">Batal</button><button type="button" class="btn ghost" data-a="selall">Pilih semua</button><button type="button" class="btn" data-a="bgo" ${n?'':'disabled'}>Cari item &amp; prompt (${n})</button>`}
+function selRefresh(){const g=$('gl');if(g)g.innerHTML=gl();const f=$('ft');if(f){f.innerHTML=S.selOn?selFt():'';f.hidden=!S.selOn}}
+const bProg=()=>{const B=S.bj,ok=B.jobs.filter(j=>j.st==='ok').length,er=B.jobs.filter(j=>j.st==='err').length;return ok+' berhasil'+(er?', '+er+' gagal':'')+' dari '+B.jobs.length+' album'+(B.running?' · sedang mencari…':'')};
+function bft(){const B=S.bj,ok=B.jobs.some(j=>j.st==='ok');return B.running?`<button type="button" class="btn ghost" data-a="bstop">Berhenti</button>`:`<button type="button" class="btn ghost" data-a="bcopyall" ${ok?'':'disabled'}>Salin semua prompt</button><button type="button" class="btn" data-a="brun">${B.started?'Lanjutkan / ulang yang gagal':'Mulai cari'}</button>`}
+function jobIn(j){const st={wait:'Menunggu giliran…',run:j.msg||'Mencari…',ok:j.msg,err:j.msg};
+ return `<div style="display:flex;gap:12px;align-items:flex-start"><div style="width:84px;flex:none;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:var(--surface3)">${j.pu?`<img src="${j.pu}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`:''}</div><div style="min-width:0;flex:1"><b style="font-size:18px">${esc(bLabel(j))}</b><p class="hint" style="text-align:left;margin:4px 0 8px;${j.st==='err'?'color:#f08a8a':j.st==='ok'?'color:var(--accent-2)':''}">${esc(st[j.st]||'')}</p>${j.items&&j.items.length?`<div class="chips">${j.items.map(x=>`<span class="chip sel">${esc(x)}</span>`).join('')}</div>`:''}</div></div>${j.st==='ok'&&j.items.length?`<p class="pr" style="margin-top:12px">${esc(OIP(j.items))}</p><div class="row"><button type="button" class="btn sm" data-a="bcopy" data-id="${j.aid}">${ic('copy',16)}Salin prompt</button></div>`:''}${j.st==='err'?`<div class="row" style="margin-top:10px"><button type="button" class="btn sm ghost" data-a="bretry" data-id="${j.aid}">Coba lagi</button></div>`:''}`}
+function batch(){const B=S.bj;let link='';try{link=localStorage.getItem('pb_kol_link_v1')||''}catch(x){}
+ return `<h2 class="h">Cari item ${B.jobs.length} album</h2><div class="sec" style="margin-top:0"><div class="lb">Link koleksi</div><input class="inp" id="bkl" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu" value="${esc(link)}" ${B.running?'disabled':''}></div><p class="hint" id="bjp" style="text-align:left;color:var(--accent-2)">${bProg()}</p>${B.jobs.map(j=>`<div class="card" id="bj_${j.aid}" style="margin-top:12px">${jobIn(j)}</div>`).join('')}`}
+function bTop(){if(S.v!=='batch'||!S.bj)return;const p=$('bjp');if(p)p.textContent=bProg();const f=$('ft');if(f){f.innerHTML=bft();f.hidden=false}const i=$('bkl');if(i)i.disabled=!!S.bj.running}
+function bUpd(j){const e=$('bj_'+j.aid);if(e)e.innerHTML=jobIn(j);bTop()}
+async function bPrep(){for(const j of S.bj.jobs){try{const P=await run('photos','readonly',t=>t.objectStore('photos').index('album').getAll(j.aid));P.sort(byNew);const p=P[0];if(p){const b=p.thumb||p.blob;if(b){j.pu=URL.createObjectURL(b);S.bj.urls.push(j.pu)}}}catch(e){}bUpd(j)}}
+async function bOne(j,u){j.st='run';j.msg='Mencari…';bUpd(j);
+ try{if(!j.no)throw new Error('nama album tidak berisi nomor');
+  const r=await window.osInspCari(u,j.no,m=>{if(j.st==='run'){j.msg=m;bUpd(j)}});
+  if(!r.items.length){j.st='err';j.msg=r.msg||'Item tidak ketemu.'}
+  else{j.items=r.items;j.st='ok';j.msg='Ketemu '+r.total+' produk'+(r.total>12?' (dipakai 12 pertama)':'')+(r.skip?'; '+r.skip+' belum terbaca jenisnya':'')}}
+ catch(e){j.st='err';j.msg='Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')}
+ bUpd(j)}
+async function bRun(only){const B=S.bj;if(!B||B.running)return;let u='';try{u=((($('bkl')||{}).value)||localStorage.getItem('pb_kol_link_v1')||'').trim()}catch(x){}
+ if(!u){toast('Tempel link koleksinya dulu');return}if(!/^https?:\/\//i.test(u))u='https://'+u;try{localStorage.setItem('pb_kol_link_v1',u)}catch(x){}
+ if(!window.osInspCari){toast('Pencarian belum siap. Muat ulang aplikasi.');return}
+ B.running=true;B.stop=false;B.started=true;bTop();
+ try{if(!B.prepped){B.prepped=true;await bPrep()}
+  const L=only?[only]:B.jobs.filter(j=>j.st!=='ok');
+  for(const j of L){if(B.stop)break;await bOne(j,u)}}
+ finally{B.running=false;bTop()}
+ if(S.v==='batch')toast(B.stop?'Dihentikan':'Selesai')}
+async function bStart(){const ids=S.selSet?[...S.selSet]:[];if(!ids.length){toast('Pilih minimal 1 album');return}if(S.bj&&S.bj.running)return;
+ try{((S.bj&&S.bj.urls)||[]).forEach(u=>URL.revokeObjectURL(u))}catch(e){}
+ const jobs=S.albums.filter(a=>ids.includes(a.id)).map(a=>({aid:a.id,name:a.name,no:bDig(a.name),st:'wait',msg:'',items:[]}));
+ S.bj={jobs,urls:[],running:false,started:false,stop:false,prepped:false};S.selOn=false;S.selSet=null;go('batch');setTimeout(bRun,60)}
+async function copyTxt(s){let ok=true;try{await navigator.clipboard.writeText(s)}catch(e){try{const t=document.createElement('textarea');t.value=s;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove()}catch(e2){ok=false}}toast(ok?'Prompt tersalin':'Gagal menyalin')}
 const ACT2={
+ selon(){if(S.selOn){S.selOn=false;S.selSet=null}else{S.selOn=true;S.selSet=new Set()}render()},
+ sel(el,e,d,id){if(!S.selOn)return;if(id==='a_panah')return toast('Album Panah tidak ikut dicari');if(!S.selSet)S.selSet=new Set();if(S.selSet.has(id))S.selSet.delete(id);else S.selSet.add(id);selRefresh()},
+ selall(){S.selSet=new Set(S.albums.filter(a=>a.id!=='a_panah').map(a=>a.id));selRefresh()},
+ seloff(){S.selOn=false;S.selSet=null;render()},
+ bgo(){bStart()},
+ brun(){bRun()},
+ bstop(){if(S.bj){S.bj.stop=true;toast('Berhenti setelah album ini selesai')}},
+ bretry(el,e,d,id){const B=S.bj;if(!B||B.running)return;const j=B.jobs.find(x=>x.aid===id);if(j){j.st='wait';j.msg='';bUpd(j);bRun(j)}},
+ bcopy(el,e,d,id){const j=S.bj&&S.bj.jobs.find(x=>x.aid===id);if(j&&j.items&&j.items.length)copyTxt(OIP(j.items))},
+ bcopyall(){const L=(S.bj?S.bj.jobs:[]).filter(j=>j.st==='ok'&&j.items.length);if(!L.length)return;copyTxt(L.map(j=>bLabel(j)+'\n'+OIP(j.items)).join('\n\n'))},
+ bview(){if(S.bj)go('batch')},
  ikgo(el,e,d){inspCari(d,0)},
  panreset(){OI.reset();upChip()},
  gen(el,e,d){d.gen=true;render();const c=$('pcard');c&&c.scrollIntoView({behavior:'smooth',block:'nearest'})},
  mv(el,e,d){d.mv=!d.mv;el.classList.toggle('on',d.mv);el.setAttribute('aria-checked',d.mv);RC.style.touchAction=d.mv?'none':'auto';RC.style.cursor=d.mv?'grab':'';refreshPv()},
  dl(el){busyDl(el,async say=>{try{const b=await resBlob();say('Mengunduh…');const r=await dlBlob(b,resName());if(r==='dl')toast('Gambar diunduh');return r!=='abort'}catch(err){toast(err==='need'?needMsg():'Unduh gagal. Pastikan gambar hasil sudah tampil.');return false}})},
- pnh(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const al=S.albums.find(x=>x.id===p.album),num=((al&&al.name||'').match(/\d+/)||[''])[0];if(!num)return toast('Nama album harus berisi nomor, misalnya 024');KL.panah(p.blob,num,p.thumb)},
+ pnh(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;markLast(p.album);const al=S.albums.find(x=>x.id===p.album),num=((al&&al.name||'').match(/\d+/)||[''])[0];if(!num)return toast('Nama album harus berisi nomor, misalnya 024');KL.panah(p.blob,num,p.thumb)},
  /* v18.42: INSPIRASI DARI ALBUM. Tombol "Inspirasi" di tiap foto Album (kecuali Album Panah): foto masuk ke sisi KANAN layar Inspirasi (langkah Hasil), sisi kiri kosong, Nomor link bio = angka di nama album (tanpa angka: nama album apa adanya). Foto dimuat lewat fvAsli + fvLukis, cadangan thumbnail. */
- async pinsp(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const al=S.albums.find(x=>x.id===p.album),nm=((al&&al.name)||'').trim(),nd=mk('insp');nd.nomor=(nm.match(/\d+/)||[nm])[0];S.d=nd;S.saved=false;S.tab='ip';S.step=1;S.iks='';enter3();go('make');
+ async pinsp(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;markLast(p.album);S.ret={v:'album',aid:S.aid,y:($('bd')||{}).scrollTop||0};const al=S.albums.find(x=>x.id===p.album),nm=((al&&al.name)||'').trim(),nd=mk('insp');nd.nomor=(nm.match(/\d+/)||[nm])[0];S.d=nd;S.saved=false;S.tab='ip';S.step=1;S.iks='';enter3();go('make');
   /* v18.47: foto dimuat DULU (sebelum pencarian jaringan berjalan, supaya memori HP tidak rebutan), dengan 3 cara: penampil album, pemuat foto biasa (sama dengan pilih foto manual), lalu thumbnail */
   const buka=async b=>{const c=document.createElement('canvas');await fvLukis(c,b,()=>true);return{b,c}};
   /* v18.51: pemuat biasa kini punya onerror (dulu menunggu 20 detik kalau gagal) dan hasil HITAM ditolak (fvIsi), jadi cadangan berikutnya benar-benar dipakai */
@@ -698,7 +787,7 @@ const ACT2={
   inspCari(nd,1)},
  /* v18.44: GANTI MODEL DARI ALBUM. Tombol "Ganti model" di tiap foto Album (kecuali Album Panah): foto masuk ke Template teks & ganti model (Kolase > Foto) sebagai foto model, latar dihapus otomatis. Foto dibaca lewat fvAsli, cadangan thumbnail. */
  /* v18.46: layar tunggu menyala begitu tombol ditekan (membaca foto asli bisa beberapa detik) dan dilepas setelah KL.templat memegangnya sendiri */
- async ptpl(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;const g=KL.busyOn('Membuka foto…');try{let b=null;try{b=await fvAsli(p)}catch(x){}KL.templat(b||p.blob,p.thumb)}finally{KL.busyOff(g)}},
+ async ptpl(el,e,d,id){const p=S.pics.find(x=>x.id===id);if(!p)return;markLast(p.album);const g=KL.busyOn('Membuka foto…');try{let b=null;try{b=await fvAsli(p)}catch(x){}KL.templat(b||p.blob,p.thumb)}finally{KL.busyOff(g)}},
  dlp(el,e,d,id){const p=S.pics.find(x=>x.id===(id||S.zid));if(!p)return;const al=S.albums.find(x=>x.id===p.album),ty=p.type||'',ext=/jpe?g/i.test(ty)?'jpg':/webp/i.test(ty)?'webp':'png',bad=[92,34,60,62,47,58,42,63,124],an=al&&al.name?al.name.split('').map(c=>(bad.includes(c.charCodeAt(0))||c.charCodeAt(0)<32)?'-':c).join('').trim():'',fn=an?an+'.'+ext:(p.name||'gambar.png');busyDl(el,async say=>{say('Mengunduh…');const r=await dlBlob(p.blob,fn);if(r==='dl')toast('Gambar diunduh');return r!=='abort'})},
  saveto(el,e,d,id){const a=S.albums.find(x=>x.id===id);if(a)saveTo(a)},
  async newsave(){const x=await mkAlb($('na').value);if(x)saveTo(x)},
@@ -1336,6 +1425,11 @@ const LK='pb_kol_link_v1';let lnBusy=0;
 let lnAuto=0;const lns=m=>{const e=$('klns');if(e)e.textContent=m||'';if(lnAuto){const e2=$('kas2');if(e2)e2.textContent=m||''}};
 function lnInit(){try{const v=localStorage.getItem(LK);['kln','kpln'].forEach(i=>{const e=$(i);if(e&&v)e.value=v})}catch(x){}}
 const lnTo=(p,ms)=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new Error('timeout')),ms)})]).finally(()=>clearTimeout(t))};
+/* v18.52: LEWATI SALINAN LAMA PEMBACA HALAMAN. r.jina.ai menyimpan hasil bacaan beberapa waktu, jadi produk koleksi yang baru ditambah (mis. nomor 026) bisa belum terbaca padahal sudah ada. Semua permintaan ke r.jina.ai sekarang minta data segar (X-No-Cache). Kalau peramban menolak header itu, otomatis diulang tanpa header. */
+(function(){if(window.__jnc)return;window.__jnc=1;const of0=window.fetch.bind(window);
+ window.fetch=function(u,o){const s=typeof u==='string'?u:'';if(s.indexOf('https://r.jina.ai/')!==0)return of0(u,o);
+  let h;try{h=new Headers((o&&o.headers)||{});if(!h.has('X-No-Cache'))h.set('X-No-Cache','true')}catch(e){return of0(u,o)}
+  return of0(u,Object.assign({},o||{},{headers:h})).catch(()=>of0(u,o))}})();
 async function lnGet(u,ms){const r=await lnTo(fetch(u),ms);if(!r.ok)throw new Error('HTTP '+r.status);return r}
 function lnImgs(t){const out=[],seen=new Set(),re=/!\[[^\]]*\]\((https?:\/\/[^)\s]+)[^)]*\)|<img[^>]+?(?:data-src|src)=["'](https?:\/\/[^"']+)["']|(https?:\/\/[^\s"'<>)\]]+\.(?:jpe?g|png|webp)(?:\?[^\s"'<>)\]]*)?)/gi;let m;
  while((m=re.exec(t))){const u=(m[1]||m[2]||m[3]||'').replace(/&amp;/g,'&');if(!u||seen.has(u)||/\.(svg|gif)(\?|$)|logo|icon|avatar|favicon|sprite|emoji/i.test(u))continue;seen.add(u);
