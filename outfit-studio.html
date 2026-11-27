@@ -2495,8 +2495,8 @@ async function pksync0(){const c=pkcl();if(!c){pkSt='Sinkron antar perangkat bel
   if(uid){let last='';try{last=localStorage.getItem(PKU)||''}catch(e){}
    if(last&&last!==uid){for(const q of await pkall())if(q.sy)await pkq('readwrite',s=>s.delete(q.id));pkds([])}
    try{localStorage.setItem(PKU,uid)}catch(e){}}
-  let L=(await c.list()).filter(x=>!/^os[ap]-/.test(x.id)),dl=pkdl();
-  if(dl.length){for(const id of dl.slice()){if(L.some(x=>x.id===id))await c.del(id);dl=dl.filter(x=>x!==id);pkds(dl)}L=(await c.list()).filter(x=>!/^os[ap]-/.test(x.id))}
+  let L=(await c.list()).filter(x=>!/^os[apk]-/.test(x.id)),dl=pkdl();
+  if(dl.length){for(const id of dl.slice()){if(L.some(x=>x.id===id))await c.del(id);dl=dl.filter(x=>x!==id);pkds(dl)}L=(await c.list()).filter(x=>!/^os[apk]-/.test(x.id))}
   const ids=new Set(L.map(x=>x.id)),loc=await pkall(),lid=new Set(loc.map(p=>p.id));
   for(const p of loc){if(ids.has(p.id)){if(!p.sy)await pkq('readwrite',s=>s.put({...p,sy:1}))}
    else if(p.sy)await pkq('readwrite',s=>s.delete(p.id));
@@ -2966,6 +2966,40 @@ const OM2_MAXK=20;
 /* v18.76: di browser/laptop api.cloudflare.com menolak panggilan langsung (CORS), jadi lewat Worker perantara milik user (os_cf_proxy).
    Di APK tetap langsung (CapacitorHttp). Satu Worker dipakai semua API key. */
 const om2Proxy=()=>{const v=om2Ls('os_cf_proxy').trim().replace(/\/+$/,'');return /^https:\/\/[^\s\/]+\.[^\s\/]+/i.test(v)?v:''};
+/* v18.77: SINKRON API KEY KE AKUN GMAIL (parent.osCloud, sama dengan album). Satu berkas awan 'osk-cfkeys' berisi semua key + URL Worker.
+   Yang paling baru diubah yang menang (os_cf_keys_at = waktu ubah terakhir di perangkat ini). Sinkron pertama per akun Gmail: key dua perangkat digabung.
+   Tanda habis/ditolak (os_cf_ex) tidak disinkron. Modul Panah mengabaikan id 'osk-'. */
+const OM2K_ID='osk-cfkeys',OM2K={busy:null,again:0,last:0,st:'',tm:0};
+const om2KCl=()=>{try{return parent.osCloud||null}catch(e){return null}};
+const om2KLocal=()=>({keys:[{acc:om2Ls('os_cf_acc').trim(),tok:om2Ls('os_cf_tok').trim()},...om2Keys()],proxy:om2Ls('os_cf_proxy').trim()});
+const om2KHas=d=>d.keys.some(k=>k.acc||k.tok);
+function om2KApply(d){const k=(Array.isArray(d.keys)?d.keys:[]).map(x=>({acc:String(x&&x.acc||'').trim(),tok:String(x&&x.tok||'').trim()})).slice(0,OM2_MAXK+1);
+ const f=k[0]||{acc:'',tok:''};om2Ls('os_cf_acc',f.acc);om2Ls('os_cf_tok',f.tok);om2KeysSet(k.slice(1));if(typeof d.proxy==='string')om2Ls('os_cf_proxy',d.proxy);
+ OM2.q=null;OM2.qErr='';const set=(id,v)=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v};set('om2ca',f.acc);set('om2ct',f.tok);set('om2cw',om2Ls('os_cf_proxy'));
+ const kl=$('om2kl');if(kl&&!kl.contains(document.activeElement))om2KList();om2QPaint()}
+function om2KMerge(a,b){const out=[],seen=new Set();for(const k of[...a,...b]){const id=k.acc.trim()+'|'+k.tok.trim();if(!(k.acc||k.tok)||seen.has(id))continue;seen.add(id);out.push(k)}return out.slice(0,OM2_MAXK+1)}
+function om2KSay(t){OM2K.st=t;const e=$('om2ks');if(e&&e.textContent!==t)e.textContent=t}
+const om2KTouch=()=>{om2Ls('os_cf_keys_at',String(Date.now()));clearTimeout(OM2K.tm);OM2K.tm=setTimeout(()=>om2KSync(1),2500)};
+function om2KSync(force){if(OM2K.busy){if(force)OM2K.again=1;return OM2K.busy}
+ if(!force&&Date.now()-OM2K.last<20000)return Promise.resolve();
+ OM2K.busy=(async()=>{try{do{OM2K.again=0;await om2KSync0()}while(OM2K.again)}catch(e){om2KSay('Sinkron key gagal ('+String(e&&e.message||e).slice(0,60)+'), nanti dicoba lagi.')}finally{OM2K.busy=null;OM2K.last=Date.now()}})();return OM2K.busy}
+async function om2KSync0(){const c=om2KCl();if(!c){om2KSay('Sinkron key belum tersedia di versi aplikasi ini. Key tersimpan di perangkat ini saja.');return}
+ let ok=false;try{ok=await c.ready()}catch(e){}if(!ok){om2KSay('Masuk dengan Gmail dulu supaya key sama di HP dan laptop.');return}
+ om2KSay('Menyinkronkan key…');
+ let uid='';try{uid=c.uid?String(c.uid()||''):''}catch(e){}
+ const first=uid?om2Ls('os_cf_keys_uid')!==uid:!om2Ls('os_cf_keys_syncat');
+ const loc=om2KLocal(),lat=Number(om2Ls('os_cf_keys_at'))||(om2KHas(loc)?1:0);
+ const x=(await c.list()).find(i=>i.id===OM2K_ID);let rem=null;
+ if(x){const b=await c.get(OM2K_ID);if(b){try{rem=JSON.parse(await b.text())}catch(e){rem=null}}}
+ const up=async d=>{const at=Date.now(),body={v:1,at,keys:d.keys,proxy:d.proxy};await c.put(OM2K_ID,{at,name:'cf-keys'},new Blob([JSON.stringify(body)],{type:'application/json'}));om2Ls('os_cf_keys_at',String(at));om2Ls('os_cf_keys_syncat',String(at))};
+ const rat=rem&&Number(rem.at)||0;
+ if(!rem||!Array.isArray(rem.keys)){if(om2KHas(loc))await up(loc)}
+ else if(first){const m={keys:om2KMerge(rem.keys,loc.keys),proxy:rem.proxy||loc.proxy};om2KApply(m);if(m.keys.length!==rem.keys.length||m.proxy!==rem.proxy)await up(m);else{om2Ls('os_cf_keys_at',String(rat));om2Ls('os_cf_keys_syncat',String(rat))}}
+ else if(rat>lat){om2KApply(rem);om2Ls('os_cf_keys_at',String(rat));om2Ls('os_cf_keys_syncat',String(rat))}
+ else if(lat>rat)await up(loc);
+ if(uid)om2Ls('os_cf_keys_uid',uid);
+ const n=om2All().filter(k=>k.ok).length;om2KSay('Tersinkron dengan akun Gmail ('+n+' key) · '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}))}
+setTimeout(()=>om2KSync(1),4000);
 const OM2_WORKER="// Outfit Studio: perantara Cloudflare Workers AI supaya aplikasi bisa dipakai di browser/laptop.\n// Satu Worker untuk semua API key: token & Account ID dikirim aplikasi tiap permintaan,\n// jatah neuron terpakai di akun pemilik token, bukan akun tempat Worker ini dipasang.\n// Hanya meneruskan ke 2 alamat (GraphQL pemakaian & AI run), jadi tidak bisa dipakai untuk hal lain.\nconst API = 'https://api.cloudflare.com';\nconst BOLEH = [\n  /^\\/client\\/v4\\/graphql$/,\n  /^\\/client\\/v4\\/accounts\\/[0-9a-fA-F]{32}\\/ai\\/run\\/@cf\\/[\\w.\\-\\/@]+$/\n];\nconst CORS = {\n  'Access-Control-Allow-Origin': '*',\n  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',\n  'Access-Control-Allow-Headers': 'Authorization, Content-Type',\n  'Access-Control-Expose-Headers': 'cf-ai-neurons',\n  'Access-Control-Max-Age': '86400'\n};\nconst json = (o, st) => new Response(JSON.stringify(o), { status: st || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });\n\nexport default {\n  async fetch(req) {\n    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });\n    const u = new URL(req.url);\n    if (req.method === 'GET' && u.pathname === '/') return json({ ok: true, app: 'outfit-studio-cf-proxy' });\n    if (req.method !== 'POST' || !BOLEH.some(r => r.test(u.pathname)))\n      return json({ success: false, errors: [{ code: 404, message: 'Alamat tidak diizinkan' }] }, 404);\n    const auth = req.headers.get('Authorization') || '';\n    if (!/^Bearer\\s+\\S+/.test(auth)) return json({ success: false, errors: [{ code: 10000, message: 'Token kosong' }] }, 401);\n    let r;\n    try {\n      r = await fetch(API + u.pathname, {\n        method: 'POST',\n        headers: { 'Authorization': auth, 'Content-Type': req.headers.get('Content-Type') || 'application/json' },\n        body: await req.arrayBuffer()\n      });\n    } catch (e) {\n      return json({ success: false, errors: [{ code: 502, message: 'Worker gagal menghubungi Cloudflare API' }] }, 502);\n    }\n    const h = new Headers(r.headers);\n    for (const [k, v] of Object.entries(CORS)) h.set(k, v);\n    h.delete('set-cookie');\n    return new Response(r.body, { status: r.status, headers: h });\n  }\n};\n";
 const om2Norm=(acc,tok)=>{acc=String(acc||'').trim();tok=String(tok||'').trim().replace(/^Bearer\s+/i,'');return{acc,tok,id:acc+'|'+tok,ok:!!(acc&&tok)}};
 function om2Keys(){let x=[];try{x=JSON.parse(om2Ls('os_cf_keys')||'[]')}catch(e){}return(Array.isArray(x)?x:[]).slice(0,OM2_MAXK).map(k=>({acc:String(k&&k.acc||''),tok:String(k&&k.tok||'')}))}
@@ -3069,6 +3103,7 @@ async function om2Check(cv,names){
  }catch(e){return null}}
 async function om2Ai(auto){
  if(OM2.aiBusy)return;
+ if(!om2Cfg().ok&&om2KCl()){om2AiSay('Mengambil API key dari akun Gmail…');try{await om2KSync(1)}catch(e){}}
  if(!om2Cfg().ok){om2AiSay('Cloudflare belum diatur. Buka "Pengaturan Cloudflare" di bawah.');const d=$('om2cfd');if(d)d.open=true;return}
  if(!om2Cek())return;
  const tk=OM2.tk,g=++OM2.gtk,live=()=>tk===OM2.tk&&g===OM2.gtk,m=om2Model();
@@ -3106,7 +3141,7 @@ function om2Prev(){const e=$('om2i');if(!e)return;try{e.src=om2Paint(.5).toDataU
 function om2Sched(){clearTimeout(OM2.tm);OM2.tm=setTimeout(om2Prev,140)}
 function om2Btn(){const o=$('om2');if(!o)return;o.querySelectorAll('[data-o="go"],[data-o="dl"],[data-o="save"]').forEach(b=>{b.disabled=!!OM2.busy})}
 function om2List(){const e=$('om2li');if(!e)return;e.innerHTML=OM2.items.length?OM2.items.map((it,i)=>`<div class="oit"><input class="inp" data-ok="nm" data-i="${i}" value="${esc(it.name)}" maxlength="22" aria-label="Nama item"><input class="inp" data-ok="pr" data-i="${i}" inputmode="numeric" value="${it.pr||''}" placeholder="Harga" aria-label="Harga"><button type="button" class="btn ghost sm fit" data-o="del" data-i="${i}" aria-label="Hapus item">✕</button></div>`).join(''):'<p class="hint" style="text-align:left">Belum ada item.</p>'}
-function om2Fill(){const set=(id,v)=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v};let u='';try{u=localStorage.getItem('pb_kol_link_v1')||''}catch(x){}set('om2l',u);set('om2n',OM2.no);set('om2a',OM2.akun);set('om2c',OM2.tc||OM2.auto);const t=$('om2t');if(t)t.textContent='Inspirasi Otomatis'+(OM2.no?' · '+OM2.no:'');om2List();set('om2ca',om2Ls('os_cf_acc'));set('om2ct',om2Ls('os_cf_tok'));set('om2cw',om2Ls('os_cf_proxy'));om2KList();set('om2m',om2Model());const au=$('om2au');if(au)au.checked=om2Ls('os_cf_auto')!=='0';om2QPaint();om2PFill();om2AiBtn()}
+function om2Fill(){const set=(id,v)=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v};let u='';try{u=localStorage.getItem('pb_kol_link_v1')||''}catch(x){}set('om2l',u);set('om2n',OM2.no);set('om2a',OM2.akun);set('om2c',OM2.tc||OM2.auto);const t=$('om2t');if(t)t.textContent='Inspirasi Otomatis'+(OM2.no?' · '+OM2.no:'');om2List();set('om2ca',om2Ls('os_cf_acc'));set('om2ct',om2Ls('os_cf_tok'));set('om2cw',om2Ls('os_cf_proxy'));om2KList();om2KSay(OM2K.st);om2KSync();set('om2m',om2Model());const au=$('om2au');if(au)au.checked=om2Ls('os_cf_auto')!=='0';om2QPaint();om2PFill();om2AiBtn()}
 /* daftar API key cadangan (dirender ulang hanya saat tambah/hapus, supaya ketikan tidak hilang) */
 function om2KList(){const e=$('om2kl');if(!e)return;const a=om2Keys();
  e.innerHTML=a.map((k,i)=>`<div class="okr"><div class="okh"><b>API key ${i+2}</b><span class="oks" data-ks="${i+1}"></span></div><input class="inp" data-ok="ka" data-i="${i}" value="${esc(k.acc)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Account ID"><div class="or" style="margin-top:8px"><input class="inp" data-ok="kt" data-i="${i}" type="password" value="${esc(k.tok)}" autocomplete="off" placeholder="API Token" style="margin-top:0;flex:1"><button type="button" class="btn ghost sm fit" data-o="kdel" data-i="${i}" aria-label="Hapus API key">✕</button></div></div>`).join('');
@@ -3137,6 +3172,7 @@ function om2Ui(){let o=$('om2');if(o)o.remove();o=document.createElement('div');
 <button type="button" class="btn ghost sm ow" data-o="delflat" style="display:none">Hapus gambar item</button>
 <p class="hint" id="om2as" style="text-align:left"></p>
 <details id="om2cfd"><summary>Pengaturan Cloudflare</summary>
+<p class="hint" id="om2ks" style="text-align:left;margin:8px 0 0"></p>
 <div class="okh"><b>API key 1 (utama)</b><span class="oks" data-ks="0"></span></div>
 <input class="inp" id="om2ca" data-ok="cfa" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Account ID">
 <input class="inp" id="om2ct" data-ok="cft" type="password" autocomplete="off" placeholder="API Token" style="margin-top:8px">
@@ -3167,9 +3203,9 @@ function om2Input(e){const t=e.target,k=t.dataset&&t.dataset.ok;if(!k||k==='file
  if(k==='no'){OM2.no=t.value;const h=$('om2t');if(h)h.textContent='Inspirasi Otomatis'+(OM2.no?' · '+OM2.no:'')}
  else if(k==='akun'){OM2.akun=t.value;try{localStorage.setItem('os_m2_akun',t.value.trim())}catch(x){}}
  else if(k==='tc')OM2.tc=t.value;
- else if(k==='cfa'||k==='cft'){om2Ls(k==='cfa'?'os_cf_acc':'os_cf_tok',t.value.trim());OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
- else if(k==='cfw'){om2Ls('os_cf_proxy',t.value.trim());OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
- else if(k==='ka'||k==='kt'){const a=om2Keys();if(!a[i])return;a[i][k==='ka'?'acc':'tok']=t.value.trim();om2KeysSet(a);OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
+ else if(k==='cfa'||k==='cft'){om2Ls(k==='cfa'?'os_cf_acc':'os_cf_tok',t.value.trim());om2KTouch();OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
+ else if(k==='cfw'){om2Ls('os_cf_proxy',t.value.trim());om2KTouch();OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
+ else if(k==='ka'||k==='kt'){const a=om2Keys();if(!a[i])return;a[i][k==='ka'?'acc':'tok']=t.value.trim();om2KeysSet(a);om2KTouch();OM2.q=null;OM2.qErr='';OM2.qNext=Date.now()+4000;om2QPaint();return}
  else if(k==='mdl'){om2Ls('os_cf_model',t.value);om2QPaint();return}
  else if(k==='auto'){om2Ls('os_cf_auto',t.checked?'1':'0');return}
  else if(k==='pm'){OM2.pEdit=1;OM2.pm=t.value;return}
@@ -3185,7 +3221,7 @@ function om2Click(e){const b=e.target.closest('[data-o]');if(!b)return;const k=b
  else if(k==='foto')om2SaveFoto();
  else if(k==='ai')om2Ai(0);
  else if(k==='kadd'){const a=om2Keys();if(a.length>=OM2_MAXK)return toast('Maksimal '+OM2_MAXK+' API key cadangan');a.push({acc:'',tok:''});om2KeysSet(a);om2KList();const f=document.querySelector('#om2kl [data-ok="ka"][data-i="'+(a.length-1)+'"]');if(f)f.focus()}
- else if(k==='kdel'){const a=om2Keys();if(!a[i])return;const go=()=>{a.splice(i,1);om2KeysSet(a);OM2.q=null;om2KList();om2Quota()};if(a[i].acc||a[i].tok)ask('Hapus API key '+(i+2)+'?',go);else go()}
+ else if(k==='kdel'){const a=om2Keys();if(!a[i])return;const go=()=>{a.splice(i,1);om2KeysSet(a);om2KTouch();OM2.q=null;om2KList();om2Quota()};if(a[i].acc||a[i].tok)ask('Hapus API key '+(i+2)+'?',go);else go()}
  else if(k==='ktest')om2KTest(b);
  else if(k==='wcopy')copyTxt(OM2_WORKER);
  else if(k==='quota'){if(!om2Cfg().ok)return toast('Isi Account ID dan token dulu');om2Quota().then(q=>toast(q?'Angka diperbarui dari Cloudflare':'Gagal membaca, lihat keterangannya'))}
