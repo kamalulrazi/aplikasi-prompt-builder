@@ -2937,7 +2937,19 @@ const om2Ready=()=>!!OM2.photo&&!OM2.busy;
 
 /* ===== Mode 2: gambar sisi kiri dibuat AI (Pollinations, kunci sama dengan Mode 1) ===== */
 const om2Pn=()=>OM2.items.map(i=>String(i.name||'').trim()).filter(Boolean);
-function om2Prompt(){const L=om2Pn(),n=L.length;if(!n)return '';return 'Create a clean e-commerce outfit flat-lay product image using ONLY '+(n>1?'these '+n+' items':'this item')+' worn by the person in the reference photo: '+L.map(x=>'"'+x+'"').join(', ')+'. The image must contain exactly '+n+' product'+(n>1?'s, one for each listed item':'')+', and nothing else: no extra items, no duplicates, no back view, and no hijab/scarf, bag, shoes or accessories unless they are in the list. Arrange them neatly in ONE tidy vertical layout, like a fashion shop outfit card: tops and outerwear at the top (an outer layer may be shown layered over the inner top exactly as worn in the photo), bottoms below, each item front view, complete and not cropped, in realistic relative scale, with clean spacing so nothing is cut off. Each item as a ghost-mannequin / flat-lay product shot, no hanger. Pure white (#FFFFFF) background, soft natural shadow only. Remove the person completely: no face, no head, no hands, no arms, no legs, no body, no mannequin, no background objects, no text, no logo, no price tags. Keep fabric, color, texture, pattern and details exactly as in the photo.'}
+function om2Prompt(){const L=OM2.items.map(it=>({n:String(it.name||'').trim(),d:String(it.desc||'').trim()})).filter(o=>o.n),n=L.length;if(!n)return '';
+ return 'Look carefully at the reference photo: the person is wearing an outfit. Create a clean e-commerce outfit flat-lay image that reproduces EXACTLY the clothes and items this person is wearing in the photo: same colors, fabric, pattern, cut, length and details. Do NOT invent, replace or recolor anything, and do NOT use garments that are not in the photo. Items to extract ('+n+'): '+L.map((o,k)=>(k+1)+'. '+o.n+(o.d?' = '+o.d:'')).join('; ')+'. The image must contain exactly '+n+' product'+(n>1?'s, one for each listed item':'')+', and nothing else: no extra items, no duplicates, no back view, and no hijab/scarf, shoes or accessories unless they are in the list. Arrange them neatly in ONE tidy vertical layout like a fashion shop outfit card: tops and outerwear at the top (an outer layer may be shown layered over the inner top as worn in the photo), bottoms below, a bag small next to or below them; each item front view, complete and not cropped, realistic relative scale, clean spacing. Ghost-mannequin / flat-lay product shots, no hanger. Pure white (#FFFFFF) background, soft natural shadow only. Remove the person completely: no face, no head, no hands, no arms, no legs, no body, no mannequin, no background objects. Absolutely NO text, letters, numbers, labels, captions, logos or price tags anywhere in the image.'}
+async function om2Desc(tk){
+ const need=OM2.items.some(it=>!it.desc);if(!need||!OM2.photo)return;
+ if(!(window.parent&&parent.osAiVision))return;
+ try{
+  const src=OM2.photo,sc=Math.min(1,1024/Math.max(src.width,src.height)),c=document.createElement('canvas');c.width=Math.round(src.width*sc);c.height=Math.round(src.height*sc);c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+  const b64=c.toDataURL('image/jpeg',.85).split(',')[1],names=OM2.items.map((it,k)=>(k+1)+'. '+String(it.name||'Item'));
+  const ask='Foto ini menampilkan seorang model memakai outfit. Daftar item yang harus dibaca dari outfit model:\n'+names.join('\n')+'\nUntuk SETIAP item, tulis deskripsi bahasa Inggris (maksimal 28 kata) tentang barang yang DIPAKAI/DIBAWA model di foto ini: warna persis, bahan, motif atau pola, potongan, panjang, dan detail penting (kerah, kancing, kerutan, tali, dll). Jangan menebak barang yang tidak ada di foto; jika item tidak terlihat di foto, isi "". Format: {"items":[{"c":1,"d":"..."}]}';
+  const r=lnJson(await lnTo(parent.osAiVision([{text:ask},{inline_data:{mime_type:'image/jpeg',data:b64}}],'Kamu menganalisis foto outfit fashion. Balas HANYA satu objek JSON, tanpa teks lain.',900),60000));
+  if(tk!==OM2.tk)return;
+  (Array.isArray(r.items)?r.items:[]).forEach(o=>{const k=parseInt(o&&o.c,10)-1,d=String(o&&o.d||'').replace(/["\n]+/g,' ').trim();if(k>=0&&k<OM2.items.length&&d)OM2.items[k].desc=d})
+ }catch(e){}}
 function om2PFill(){const e=$('om2p');if(e&&!OM2.pEdit&&document.activeElement!==e)e.value=om2Prompt()}
 function om2AiSay(m){const e=$('om2as');if(e)e.textContent=m}
 function om2AiBtn(){const o=$('om2');if(!o)return;const b=o.querySelector('[data-o="ai"]');if(b)b.disabled=!!OM2.aiBusy;const t=o.querySelector('[data-o="aitg"]');if(t){t.style.display=OM2.ai?'':'none';t.textContent=OM2.aiOn?'Pakai potongan produk':'Pakai gambar AI'}}
@@ -2947,15 +2959,17 @@ async function om2Ai(auto){
  if(!key){say('Isi kunci Pollinations dulu, lalu tekan Buat gambar AI.');if(!auto)toast('Isi kunci Pollinations dulu');return}
  try{localStorage.setItem('pb_poll_key',key)}catch(_){}
  if(!OM2.photo){say('Foto belum siap.');return}
- const pe=$('om2p'),prompt=((OM2.pEdit&&pe&&pe.value.trim())||om2Prompt()).trim();
- if(!prompt){say('Belum ada item. Cari item dulu.');return}
+ if(!OM2.items.length){say('Belum ada item. Cari item dulu.');return}
  OM2.aiBusy=1;om2AiBtn();
  try{
+  if(!OM2.pEdit){say('AI membaca outfit di foto kanan…');await om2Desc(tk);if(tk!==OM2.tk)return;om2PFill()}
+  const pe=$('om2p'),prompt=((OM2.pEdit&&pe&&pe.value.trim())||om2Prompt()).trim();
+  if(!prompt){say('Belum ada item. Cari item dulu.');return}
   const src=OM2.photo,sc=Math.min(1,1024/Math.max(src.width,src.height)),c=document.createElement('canvas');
   c.width=Math.round(src.width*sc);c.height=Math.round(src.height*sc);c.getContext('2d').drawImage(src,0,0,c.width,c.height);
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.88));
   let out=null,err='';
-  for(const model of ['kontext','klein','nanobanana']){
+  for(const model of ['nanobanana','kontext','klein']){
    if(tk!==OM2.tk)return;
    say('AI membuat gambar kiri… (model '+model+') bisa 20–60 detik');
    try{
