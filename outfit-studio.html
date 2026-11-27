@@ -2142,9 +2142,9 @@ async function srFindB(u,n,say){const B=srBase(u),urls=srUrls(u,n),own=urls.leng
  return{...r0,hit:[],cand:r0.nc?[]:srTop(r0.all),how:'halaman koleksi'}}
 /* tab Nomor (tombol Cari & otomatis setelah foto dipisah): nomor di kolom Nomor dicari di koleksi, harga diisi kalau produknya satu. Tanpa AI. */
 async function lnFind(el,auto,u,want,inp){lnBusy=1;if(el)el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}
- try{const R=await srFind(u,want,lns);
+ try{const R=await srFindX(u,want,lns);
   if(!R.hit.length){if(auto)set('pr','');
-   lns(R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'klns'):R.partial?srPart(R,want):R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi harga manual ya.':R.nc?'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.':'Halaman koleksi tidak memuat teks nomor, jadi nomor '+want+' tidak bisa dicari tanpa AI. Kosongkan kolom Nomor lalu tekan Cari (AI pencocok foto), atau pakai tab Panah.');return}
+   lns(R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'klns'):R.partial?srPart(R,want):R.none?srNone(R,want):!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi harga manual ya.':R.nc?'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.':'Halaman koleksi tidak memuat teks nomor, jadi nomor '+want+' tidak bisa dicari tanpa AI. Kosongkan kolom Nomor lalu tekan Cari (AI pencocok foto), atau pakai tab Panah.');return}
   const N=R.hit.length,c1=N===1?R.hit[0]:null;let pv=0;
   if(c1){lns('Nomor '+want+' ketemu. Membaca harga (tanpa AI)');prLog.length=0;try{pv=(await prGet(c1,prLog)).p}catch(e){}if(!pv)pv=c1.pr||0;if(!pv)prShow('klns')}
   set('pr',pv?lnRp(pv):'');
@@ -2153,13 +2153,31 @@ async function lnFind(el,auto,u,want,inp){lnBusy=1;if(el)el.disabled=true;inp.va
  finally{lnBusy=0;lnAuto=0;if(el)el.disabled=false}}
 /* AI hanya menaruh panah: foto yang sudah pasti bernomor sama, tanpa membaca nomor, jawaban pendek */
 const PNASK3='Gambar pertama: foto outfit lengkap. Setelah itu ada KANDIDAT foto produk (Kandidat 1, 2, dst) yang sudah dipastikan bernomor sama, jadi TIDAK perlu membaca nomor. Untuk SETIAP kandidat, urut, isi: "category" = jenis produk yang dijual (hijab, atasan, gamis, rok, celana, tas, sepatu, dll; kalau foto model memakai beberapa item, pilih item yang disebut teks atau banner di foto, atau yang paling menonjol), "name" = nama singkat produk, dan "box":[ymin,xmin,ymax,xmax] = posisi bagian dengan JENIS YANG SAMA di foto outfit pertama, 4 angka bulat 0 sampai 1000 (bukan piksel; 0,0 = pojok kiri atas foto, 1000,1000 = pojok kanan bawah). Warna dan model boleh berbeda dari kandidat: kalau produknya tas, beri kotak pada tas yang dipegang atau dipakai di foto outfit; kalau celana, pada celana; dst. Kalau jenis itu tidak terlihat di foto outfit, isi box null. Kalau dua kandidat sejenis, usahakan beri bagian yang berbeda di foto outfit. Balas JSON saja: {"items":[{"c":<nomor kandidat>,"category":"<jenis>","name":"<nama>","box":[<ymin>,<xmin>,<ymax>,<xmax>] atau null,"confidence":<0 sampai 1>}]}';
+/* 27 Nov 2026: NOMOR ADA DI KOLEKSI TAPI "TIDAK DITEMUKAN". Alur Panah & tab Nomor dulu percaya penuh pada pencarian server collshp: kalau server menjawab kosong, langsung divonis "tidak ada", dan nomor harus ditulis persis diawal keterangan. Alur Inspirasi sudah punya perbaikan (baca seluruh koleksi + pencocok toleran). Sekarang Panah & Nomor memakai cara yang sama lewat srFindX. */
+const srTx=o=>{let c=o.card;if(typeof c==='string'){try{c=JSON.parse(c)}catch(e){c=null}}const q=[];(function w(x,k,d){if(d>6||x==null)return;if(typeof x==='string'){if(x.length>2&&/(^|\.)(name|title|itemName|item_name|productName|product_name|desc|description|caption)$/.test(k)&&!/shop|seller|store|brand|user|cat|unit|attr|model|tier|var/i.test(k))q.push(x);return}if(typeof x==='object')for(const z of Object.keys(x))w(x[z],k?k+'.'+z:z,d+1)})(c,'',0);return [String(o.cap||'')].concat(q).map(t=>t.replace(/\s+/g,' ').trim()).filter(Boolean)};
+const srTol=(list,want)=>{const raw=String(want).replace(/\D/g,''),kk=parseInt(raw,10);if(!isFinite(kk))return{lo:[],tier:0};
+ const N='0*'+kk+'(?![0-9]|[.,][0-9])',
+  r1=new RegExp('^\\s*(?:(?:link\\s*bio|bio|no\\.?|nomor|kode|code|outfit|ootd|#|-|:)\\s*)*'+N,'i'),
+  r2=new RegExp('(?:^|[^a-z0-9])(?:link\\s*bio|bio|no\\.?|nomor|kode|code|#)\\s*'+N,'i'),
+  r3=raw.length>1&&raw.charAt(0)==='0'?new RegExp('(?:^|[^0-9.,])'+raw+'(?![0-9]|[.,]?[0-9])(?!\\s*(?:cm|kg|gr|gram|ml|rb|ribu|k\\b|%))','i'):null;
+ const tiers=[o=>srTx(o).some(t=>r1.test(t.replace(/^[^\w#]+/,''))),o=>srTx(o).some(t=>r2.test(t)),o=>!!r3&&srTx(o).some(t=>r3.test(t))];
+ for(let i=0;i<tiers.length;i++){const lo=list.filter(tiers[i]);if(lo.length)return{lo,tier:i+1}}return{lo:[],tier:0}};
+async function srFindX(u,want,say){say=say||(()=>{});let R=await srFind(u,want,say);
+ const bad=r=>!r.hit.length&&!r.fail&&!r.net&&!r.empty&&!r.partial;
+ if(bad(R)){say('Nomor '+want+' belum ketemu lewat pencarian. Membaca seluruh koleksi…');srForceFull=1;try{const R2=await srFind(u,want,say);if(!R2.fail&&!R2.net&&!R2.empty)R=R2}catch(e){}finally{srForceFull=0}}
+ if(bad(R)){say('Mengulang cara membaca koleksi…');srRcClear();srForceFull=1;try{const R3=await srFind(u,want,say);if(!R3.fail&&!R3.net&&!R3.empty&&((R3.hit&&R3.hit.length)||(R3.all||[]).length>=(R.all||[]).length))R=R3}catch(e){}finally{srForceFull=0}}
+ if(!R.hit.length&&R.all&&R.all.length){const m=srTol(R.all,want);if(m.lo.length)R={...R,hit:m.lo,how:R.how||'keterangan produk'}}
+ return R}
+const srNone=(R,want)=>{const a=R.all||[];if(!a.length)return'Nomor '+want+' tidak ada di koleksi (server collshp tidak mengembalikan produk apa pun). Cek nomor album.';
+ const smp=a.slice(0,3).map(o=>(srTx(o)[0]||'(kosong)').slice(0,30)).join(' | ');
+ return'Nomor '+want+' tidak ditemukan di koleksi ('+a.length+' produk terbaca'+((R.tc||0)>=a.length&&R.tc?' dari '+R.tc:'')+'; nomor tertinggi yang terbaca: '+(a.map(o=>pnCap(o.cap)).filter(Boolean).sort().pop()||'-')+'). Contoh keterangan: '+smp+'. Cek isi kolom Nomor, atau nomor itu belum sinkron di server collshp.'};
 async function pnGo(el){if(lnBusy)return;const inp=$('kpln');let u=(inp.value||'').trim();if(u&&!/^https?:\/\//i.test(u))u='https://'+u;
  if(!/^https?:\/\/[^\s.\/]+\.[^\s]+/i.test(u)){toast('Tempel link koleksinya dulu');return}
  if(!pimg){toast('Pilih foto outfit dulu');return}
  const want=srNum();if(!want){toast('Isi kolom Nomor dulu (nomor album yang dicari)');return}
  lnBusy=1;el.disabled=true;inp.value=u;try{localStorage.setItem(LK,u)}catch(e){}pnl([]);
- try{pns('Mencari nomor '+want+' di koleksi');const R=await srFind(u,want,pns),byAI=!R.hit.length,all=(byAI?R.cand:R.hit).slice(0,8);
-  if(!all.length){pns(R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'kpns'):R.partial?srPart(R,want):R.none?'Nomor '+want+' tidak ada di koleksi (pencarian server collshp tidak menemukan apa pun). Cek nomor album.':!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.':'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.');return}
+ try{pns('Mencari nomor '+want+' di koleksi');const R=await srFindX(u,want,pns),byAI=!R.hit.length,all=(byAI?R.cand:R.hit).slice(0,8);
+  if(!all.length){pns(R.fail||((R.net||R.empty)&&!R.all.length)?srMsg(R,want,'kpns'):R.partial?srPart(R,want):R.none?srNone(R,want):!R.all.length?'Foto produk di link tidak bisa dibaca (halaman diblokir atau butuh login). Isi nomor manual ya.':'Nomor '+want+' tidak ditemukan di koleksi ('+R.all.length+' foto dicek di halaman & kolom pencarian). Cek isi kolom Nomor. Kalau nomor itu ada di collshp: cari di sana, salin alamat hasil pencarian, lalu tempel di kolom link.');return}
   pns('Mengunduh '+all.length+' foto');const pics=await lnPool(all,4),C=[];all.forEach((o,i)=>{if(pics[i])C.push({...o,b:pics[i]})});
   if(!C.length){pns('Foto produk tidak bisa diunduh. Coba lagi.');return}
   let hs=[],note='';
