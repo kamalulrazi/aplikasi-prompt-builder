@@ -2948,16 +2948,17 @@ function om2ParseP(){const e=$('om2p');if(!e||!OM2.pEdit)return;e.value.split('\
 function om2AiSay(m){const e=$('om2as');if(e)e.textContent=m}
 function om2AiBtn(){const o=$('om2');if(!o)return;const b=o.querySelector('[data-o="ai"]');if(b)b.disabled=!!OM2.aiBusy;const t=o.querySelector('[data-o="aitg"]'),has=OM2.items.some(i=>i.gen);if(t){t.style.display=has?'':'none';t.textContent=OM2.aiOn?'Pakai potongan produk asli':'Pakai gambar AI'}const rt=o.querySelector('[data-o="reftg"]');if(rt)rt.textContent='Referensi gaya: '+(OM2.ref?'aktif':'mati')}
 async function om2Desc(tk){
- const need=OM2.items.some(it=>!it.desc||!it.pbox);if(!need||!OM2.photo)return;
- if(!(window.parent&&parent.osAiVision))return;
+ OM2.dErr='';const need=OM2.items.some(it=>!it.desc||!it.pbox);if(!need||!OM2.photo)return;
+ if(!(window.parent&&parent.osAiVision)){OM2.dErr='AI bawaan tidak tersedia';return}
  try{
   const src=OM2.photo,sc=Math.min(1,1024/Math.max(src.width,src.height)),c=document.createElement('canvas');c.width=Math.round(src.width*sc);c.height=Math.round(src.height*sc);c.getContext('2d').drawImage(src,0,0,c.width,c.height);
   const b64=c.toDataURL('image/jpeg',.85).split(',')[1],names=OM2.items.map((it,k)=>(k+1)+'. '+String(it.name||'Item'));
   const ask='Foto ini menampilkan seorang model memakai outfit. Daftar item yang harus dibaca dari outfit model:\n'+names.join('\n')+'\nUntuk SETIAP item, tulis deskripsi bahasa Inggris (maksimal 28 kata) tentang barang yang DIPAKAI/DIBAWA model di foto ini: warna persis, bahan, motif atau pola, potongan, panjang, dan detail penting (kerah, kancing, kerutan, tali, dll). Jangan menebak barang yang tidak ada di foto; jika item tidak terlihat di foto, isi "". Juga isi "b" = [x0,y0,x1,y1] kotak yang membungkus rapat HANYA bagian item itu yang terlihat di foto (nilai 0 sampai 1 relatif terhadap lebar dan tinggi foto); jangan masukkan kepala atau wajah kecuali itemnya hijab. Format: {"items":[{"c":1,"d":"...","b":[0.1,0.2,0.9,0.6]}]}';
   const r=lnJson(await lnTo(parent.osAiVision([{text:ask},{inline_data:{mime_type:'image/jpeg',data:b64}}],'Kamu menganalisis foto outfit fashion. Balas HANYA satu objek JSON, tanpa teks lain.',900),60000));
   if(tk!==OM2.tk)return;
-  (Array.isArray(r.items)?r.items:[]).forEach(o=>{const k=parseInt(o&&o.c,10)-1,d=String(o&&o.d||'').replace(/["\n]+/g,' ').trim();if(!(k>=0&&k<OM2.items.length))return;if(d&&!OM2.items[k].desc)OM2.items[k].desc=d;const b=o&&o.b;if(Array.isArray(b)&&b.length===4){const v=b.map(Number);if(v.every(n=>isFinite(n)&&n>=-.01&&n<=1.01)&&v[2]-v[0]>.08&&v[3]-v[1]>.08)OM2.items[k].pbox=v.map(n=>Math.max(0,Math.min(1,n)))}})
- }catch(e){}}
+  (Array.isArray(r.items)?r.items:[]).forEach(o=>{const k=parseInt(o&&o.c,10)-1,d=String(o&&o.d||'').replace(/["\n]+/g,' ').trim();if(!(k>=0&&k<OM2.items.length))return;if(d&&!OM2.items[k].desc)OM2.items[k].desc=d;const b=o&&o.b;if(Array.isArray(b)&&b.length===4){let v=b.map(Number);if(v.every(n=>isFinite(n))){const mx=Math.max.apply(null,v);if(mx>1.01){const dv=mx>100?1000:100;v=v.map(n=>n/dv)}if(v.every(n=>n>=-.01&&n<=1.01)&&v[2]-v[0]>.08&&v[3]-v[1]>.08)OM2.items[k].pbox=v.map(n=>Math.max(0,Math.min(1,n)))}}});
+  if(!(Array.isArray(r.items)&&r.items.length))OM2.dErr='balasan AI tidak berisi item'
+ }catch(e){OM2.dErr=String(e&&e.message||e).slice(0,80)}}
 function om2Crop(it){const im=OM2.photo;if(!im)return null;const b=it.pbox;
  let sx=0,sy=0,sw=im.width,sh=im.height,cr=false;
  if(b){const bw=b[2]-b[0],bh=b[3]-b[1],px=bw*.08,py=bh*.06,x0=Math.max(0,b[0]-px),y0=Math.max(0,b[1]-py),x1=Math.min(1,b[2]+px),y1=Math.min(1,b[3]+py);sx=Math.round(x0*im.width);sy=Math.round(y0*im.height);sw=Math.max(32,Math.round((x1-x0)*im.width));sh=Math.max(32,Math.round((y1-y0)*im.height));cr=true}
@@ -2986,6 +2987,7 @@ async function om2Gen1(key,blob,mk,models,tk,refB,bad){
  }
  return{err:errs.join(' | ')||'tidak ada model yang bisa dipakai'}}
 /* periksa hasil AI: skor 0 = bagus; makin besar makin salah (ada orang / item lain / bukan itemnya). null = tidak bisa diperiksa */
+async function om2Bal(key){try{const r=await lnTo(fetch('https://gen.pollinations.ai/account/balance',{headers:{Authorization:'Bearer '+key}}),12000);if(!r.ok)return null;const j=await r.json(),b=Number(j&&(j.balance!==undefined?j.balance:j.pollen));return isFinite(b)?Math.round(b*100)/100:null}catch(e){return null}}
 async function om2Check(cv,name){
  if(!(window.parent&&parent.osAiVision))return null;
  try{
@@ -3005,11 +3007,12 @@ async function om2Ai(auto){
  OM2.aiBusy=1;om2AiBtn();
  try{
   if(OM2.pEdit)om2ParseP();
-  say('AI membaca outfit di foto kanan…');await om2Desc(tk);if(tk!==OM2.tk)return;if(!OM2.pEdit)om2PFill();
+  say('AI membaca outfit di foto kanan…');await om2Desc(tk);if(tk!==OM2.tk)return;if(OM2.items.some(i=>!i.pbox)){await om2Desc(tk);if(tk!==OM2.tk)return}if(!OM2.pEdit)om2PFill();
+  const bal=await om2Bal(key);
   const nd=OM2.items.filter(i=>i.desc).length,nb=OM2.items.filter(i=>i.pbox).length,N=OM2.items.length;
   const me=$('om2m'),pm=(me&&me.value)||'auto';
-  let models=pm==='auto'?['gptimage','nanobanana','kontext','klein-large','klein']:[pm];
-  const bad={},refB=OM2.ref?om2RefBlob():null;let ok=0,rej=0,fail=[],lastErr='';
+  let models=pm==='auto'?['gptimage','nanobanana','kontext','klein']:[pm];
+  const bad={},refB=OM2.ref?om2RefBlob():null;let ok=0,rej=0,fail=[],lastErr='',bk0='';
   for(let k=0;k<N;k++){
    if(tk!==OM2.tk)return;const it=OM2.items[k],nm=it.name||'Item';
    const CR=await om2Crop(it);if(tk!==OM2.tk)return;
@@ -3030,11 +3033,12 @@ async function om2Ai(auto){
     }catch(x){errs.push('gambar rusak')}
    }
    if(best&&best.score<=3){it.gen=best.cv;it.gm=best.model;it.gr=best.ref;ok++;if(pm==='auto')models=[best.model].concat(models.filter(m=>m!==best.model));om2Prev()}
-   else{it.gen=null;fail.push(nm);if(best)rej++;lastErr=best?'hasil AI tidak sesuai (ada orang atau item lain)':errs.filter(Boolean).join(' | ');if(errs.some(e=>/401/.test(e||'')))break}
+   else{it.gen=null;fail.push(nm);if(best)rej++;lastErr=best?'hasil AI tidak sesuai (ada orang atau item lain)':(bk0=errs.filter(Boolean).join(' | ')).slice(0,160);if(errs.some(e=>/401/.test(e||'')))break}
   }
   OM2.aiOn=1;om2AiBtn();om2Prev();
   const cnt={};let nr=0;OM2.items.forEach(i=>{if(i.gen&&i.gm){cnt[i.gm]=(cnt[i.gm]||0)+1;if(i.gr)nr++}});
-  const bk=Object.keys(bad),sm=(Object.keys(cnt).length?' Model dipakai: '+Object.keys(cnt).map(m=>m+' ×'+cnt[m]).join(', ')+(OM2.ref?(nr?' · referensi gaya terkirim '+nr+'×':' · referensi gaya tidak diterima'):'')+'.':'')+(bk.length?' Model tidak bisa: '+bk.map(m=>m+' ('+bad[m]+')').join(', ')+'.':'')+' Area foto terbaca '+nb+'/'+N+'.';
+  const bk=Object.keys(bad),sm=(Object.keys(cnt).length?' Model dipakai: '+Object.keys(cnt).map(m=>m+' ×'+cnt[m]).join(', ')+(OM2.ref?(nr?' · referensi gaya terkirim '+nr+'×':' · referensi gaya tidak diterima'):'')+'.':'')+(bk.length?' Model tidak bisa: '+bk.map(m=>m+' ('+bad[m]+')').join(', ')+'.':'')+' Area foto terbaca '+OM2.items.filter(i=>i.pbox).length+'/'+N+(OM2.dErr?' (baca outfit gagal: '+OM2.dErr+')':'')+'.'+(bal!==null?' Saldo Pollinations: '+bal+' pollen.':'');
+  if(!ok&&bk.length&&bk.every(m=>/saldo/.test(bad[m]))&&models.every(m=>bad[m])){say('Saldo Pollinations tidak cukup untuk model apa pun ('+bk.join(', ')+'). Isi saldo atau tunggu saldo harian terisi di enter.pollinations.ai, lalu coba lagi.'+sm);return}
   if(ok===N)say('Semua '+N+' item dibuat AI ✓'+sm+' Kalau ada yang kurang pas, ubah deskripsinya lalu tekan Buat gambar AI lagi.');
   else if(ok)say(ok+' dari '+N+' item berhasil. Gagal: '+fail.join(', ')+' ('+lastErr+'). Item gagal memakai foto produk asli.'+sm);
   else say('Gagal: '+lastErr+'.'+sm+' Item memakai foto produk asli.');
@@ -3057,7 +3061,7 @@ function om2Ui(){let o=$('om2');if(o)o.remove();o=document.createElement('div');
 <div class="lb" style="margin-top:14px">Item (nama &amp; harga bisa diubah)</div><div id="om2li"></div>
 <div class="card" style="margin-top:14px"><div class="lb">Gambar kiri dibuat AI</div><p class="hint" style="text-align:left;margin:0 0 8px">Tiap item dipotong dari foto model di kanan, lalu AI mengubahnya jadi satu foto produk per item dan disusun di sisi kiri.</p>
 <input class="inp" id="om2k" data-ok="pk" type="password" autocomplete="off" placeholder="Tempel kunci dari enter.pollinations.ai">
-<div class="lb" style="margin-top:10px">Model AI</div><select class="inp" id="om2m" data-ok="mdl"><option value="auto">Otomatis (coba berurutan, buang hasil yang salah)</option><option value="gptimage">gptimage</option><option value="nanobanana">nanobanana (berbayar)</option><option value="kontext">kontext</option><option value="klein-large">klein-large</option><option value="klein">klein</option></select>
+<div class="lb" style="margin-top:10px">Model AI</div><select class="inp" id="om2m" data-ok="mdl"><option value="auto">Otomatis (coba berurutan, buang hasil yang salah)</option><option value="gptimage">gptimage</option><option value="nanobanana">nanobanana (berbayar)</option><option value="kontext">kontext</option><option value="klein">klein</option></select>
 <div class="lb" style="margin-top:10px">Deskripsi tiap item (dari foto kanan, boleh diubah)</div><textarea class="inp" id="om2p" data-ok="pm" rows="5" style="height:auto;min-height:120px;line-height:1.4"></textarea>
 <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1" data-o="ai">Buat gambar AI</button><button type="button" class="btn ghost" style="flex:none" data-o="aicp">Salin prompt</button></div>
 <button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;display:none" data-o="aitg">Pakai potongan produk asli</button>
