@@ -277,6 +277,7 @@ ${r?`<div class="sec"><div class="lb">Item besar di tengah <small>(opsional)</sm
 <div class="sec"><div class="lb">Tema warna <small>(opsional)</small></div><input class="inp" data-k="tema" value="${esc(d.tema)}" placeholder="mis. coklat earth tone, hitam"></div>`:''}${s2()}`}
 function s2(){const d=S.d,r=d.type==='rek';return `<button type="button" class="btn wide" data-a="gen">${d.gen?'Perbarui prompt':'Generate prompt'}</button>
 ${d.gen?`<div class="card" id="pcard" style="margin-top:14px"><div class="lb">Prompt</div><p class="pr">${esc(pmt(d))}</p><div class="row"><button type="button" class="btn sm" data-a="copy">${ic('copy',16)}Salin prompt</button></div><p class="hint">${r?'Boleh ditempel bersama foto referensi.':'Tempel bersama foto asli yang sama. Hasil Gemini ditambahkan di langkah Hasil (ketuk sisi kiri pratinjau).'}</p></div>`:''}
+${r||!d.items.length?'':`<div class="card" style="margin-top:14px"><div class="lb">Buat otomatis (AI gratis)</div><input class="inp" id="pkey" type="password" autocomplete="off" placeholder="Tempel kunci dari enter.pollinations.ai" value="${esc(pk())}" oninput="try{localStorage.setItem('pb_poll_key',this.value.trim())}catch(e){}"><button type="button" class="btn" style="width:100%;flex:none;margin-top:10px" data-a="aigen">Buat item otomatis</button><p class="hint" id="aist" style="text-align:left"></p></div>`}
 ${r?`<div class="sec"><div class="lb">Hasil dari Gemini</div>${dz('gem','Unggah hasil Gemini','Gambar item tanpa tulisan')}</div>`:''}`}
 function s3(){const d=S.d,r=d.type==='rek';return `<div class="pvw">${r?'<div id="pv"></div>':'<div id="pvb" style="position:relative;width:min(100%,360px)"><div id="pv"></div><label class="zn zl" aria-label="Tambah hasil Gemini"><input type="file" accept="image/*" hidden data-f="gem"></label><label class="zn zr" aria-label="Tambah foto asli"><input type="file" accept="image/*" hidden data-f="photo"></label></div>'}</div>${r?'':'<p class="hint" style="text-align:center;margin:0 0 6px">Ketuk sisi kiri pratinjau untuk hasil Gemini, sisi kanan untuk foto asli.</p>'}
 ${r?`<div class="f2"><label>Judul baris 1<input class="inp" data-k="t1" value="${esc(d.t1)}"></label><label>Judul baris 2<input class="inp" data-k="t2" value="${esc(d.t2)}"></label></div>
@@ -290,7 +291,7 @@ const TABS={insp:[['ip','Item & Prompt'],['tx','Teks gambar']],rek:[['ip','Item 
 function itemsSec(){return itemsSec0()+inspLink()}
 function itemsSec0(){const d=S.d,n=d.items.length;return `<div><div class="lh"><div class="lb">Item outfit</div><span class="mu">${n} item</span></div><div class="chips">${d.items.map((x,i)=>`<span class="chip sel">${esc(x)}<button type="button" data-a="rm" data-i="${i}" aria-label="Hapus ${esc(x)}">${ic('x',13)}</button></span>`).join('')}</div>
 <div class="add"><input class="inp" id="ni" maxlength="30" placeholder="Tambah item, mis. gelang" enterkeyhint="done"><button type="button" class="btn sm fit" data-a="add">Tambah</button></div></div>`}
-function promptCard(){const d=S.d,r=d.type==='rek',min=r?2:1,n=d.items.length,ok=n>=min;return `<div class="card" id="pcard" style="margin-top:18px"><div class="lb">Prompt untuk Gemini</div>${ok?`<div class="live"><i></i>Otomatis ikut berubah saat ${r?'item atau tema':'item'} diubah</div><p class="pr">${esc(pmt(d))}</p>`:`<p class="pr" style="color:var(--muted)">Tambah minimal ${min} item supaya prompt bisa dibuat.</p>`}<button type="button" class="btn" style="width:100%;flex:none" data-a="copy" ${ok?'':'disabled'}>${ic('copy',16)}Salin prompt</button><p class="hint">${r?'Boleh ditempel bersama foto referensi. Lalu tambahkan hasil dari Gemini di bagian bawah.':'Tempel di Gemini bersama foto asli yang sama. Hasilnya ditambahkan lewat sisi kiri pratinjau di atas, foto asli lewat sisi kanan. Kalau fotonya lebar, seret foto di pratinjau untuk menggeser posisinya.'}</p></div>`}
+function promptCard(){const d=S.d,r=d.type==='rek',min=r?2:1,n=d.items.length,ok=n>=min;return `<div class="card" id="pcard" style="margin-top:18px"><div class="lb">Prompt untuk Gemini</div>${ok?`<div class="live"><i></i>Otomatis ikut berubah saat ${r?'item atau tema':'item'} diubah</div><p class="pr">${esc(pmt(d))}</p>`:`<p class="pr" style="color:var(--muted)">Tambah minimal ${min} item supaya prompt bisa dibuat.</p>`}<button type="button" class="btn" style="width:100%;flex:none" data-a="copy" ${ok?'':'disabled'}>${ic('copy',16)}Salin prompt</button><p class="hint">${r?'Boleh ditempel bersama foto referensi. Lalu tambahkan hasil dari Gemini di bagian bawah.':'Tempel di Gemini bersama foto asli yang sama. Hasilnya ditambahkan lewat sisi kiri pratinjau di atas, foto asli lewat sisi kanan. Kalau fotonya lebar, seret foto di pratinjau untuk menggeser posisinya.'}</p></div>`+aiCard()}
 function tabIP(){const d=S.d,r=d.type==='rek';return itemsSec()+(r?`<div class="sec"><div class="lb">Item besar di tengah <small>(opsional)</small></div><div class="chips">${['Tidak ada',...d.items].map((n,i)=>`<button type="button" class="chip${d.mid===i-1?' sel':''}" data-a="mid" data-i="${i-1}">${esc(n)}</button>`).join('')}</div></div>
 <div class="sec"><div class="lb">Tema warna <small>(opsional)</small></div><input class="inp" data-k="tema" value="${esc(d.tema)}" placeholder="mis. coklat earth tone, hitam"></div>`:'')+promptCard()+(r?`<div class="sec"><div class="lb">Hasil dari Gemini</div>${dz('gem','Unggah hasil Gemini','Gambar item tanpa tulisan')}</div>`:'')}
 function tabTX(){const d=S.d;if(d.type==='rek')return `<div class="f2" style="margin-top:0"><label>Judul baris 1<input class="inp" data-k="t1" value="${esc(d.t1)}"></label><label>Judul baris 2<input class="inp" data-k="t2" value="${esc(d.t2)}"></label></div>
@@ -779,7 +780,38 @@ async function bStart(){const ids=S.selSet?[...S.selSet]:[];if(!ids.length){toas
  const jobs=S.albums.filter(a=>ids.includes(a.id)).map(a=>({aid:a.id,name:a.name,no:bDig(a.name),st:'wait',msg:'',items:[]}));
  S.bj={jobs,urls:[],running:false,started:false,stop:false,prepped:false};S.selOn=false;S.selSet=null;go('batch');setTimeout(bRun,60)}
 async function copyTxt(s){let ok=true;try{await navigator.clipboard.writeText(s)}catch(e){try{const t=document.createElement('textarea');t.value=s;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove()}catch(e2){ok=false}}toast(ok?'Prompt tersalin':'Gagal menyalin')}
+function aiCard(){const d=S.d;if(!d||d.type==='rek'||!d.items.length)return '';return `<div class="card" style="margin-top:14px"><div class="lb">Buat otomatis (AI gratis)</div><input class="inp" id="pkey" type="password" autocomplete="off" placeholder="Tempel kunci dari enter.pollinations.ai" value="${esc(pk())}" oninput="try{localStorage.setItem('pb_poll_key',this.value.trim())}catch(e){}"><button type="button" class="btn" style="width:100%;flex:none;margin-top:10px" data-a="aigen">Buat item otomatis</button><p class="hint" id="aist" style="text-align:left">Foto asli harus sudah ditambahkan (sisi kanan pratinjau).</p></div>`}
+function pk(){try{return localStorage.getItem('pb_poll_key')||''}catch(e){return ''}}
 const ACT2={
+ async aigen(el,e,d){
+  const kEl=$('pkey'),key=((kEl&&kEl.value)||pk()).trim(),st=$('aist'),say=t=>{if(st)st.textContent=t};
+  if(!key)return toast('Isi kunci Pollinations dulu');
+  try{localStorage.setItem('pb_poll_key',key)}catch(_){}
+  if(!d.photoC)return toast('Tambah foto asli dulu');
+  if(!d.items.length)return toast('Tambah minimal 1 item');
+  el.disabled=true;say('AI membuat item… bisa 20–60 detik');
+  try{
+   const src=d.photoC,sc=Math.min(1,1024/Math.max(src.width,src.height)),c=document.createElement('canvas');
+   c.width=Math.round(src.width*sc);c.height=Math.round(src.height*sc);c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.88)),prompt=pmt(d);
+   let out=null,err='';
+   for(const model of ['nanobanana','kontext','klein']){
+    say('AI membuat item… (model '+model+')');
+    try{
+     const fd=new FormData();fd.append('model',model);fd.append('prompt',prompt);fd.append('image',blob,'foto.jpg');fd.append('n','1');
+     const r=await fetch('https://gen.pollinations.ai/v1/images/edits',{method:'POST',headers:{Authorization:'Bearer '+key},body:fd});
+     if(r.status===401||r.status===403){err='Kunci salah / belum aktif';break}
+     if(!r.ok){err='Server '+r.status;continue}
+     const j=await r.json(),it=j&&j.data&&j.data[0];
+     if(it&&it.b64_json){const bin=atob(it.b64_json),u8=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u8[k]=bin.charCodeAt(k);out=new Blob([u8],{type:'image/png'});break}
+     if(it&&it.url){const ir=await fetch(it.url);if(ir.ok){out=await ir.blob();break}}
+     err='Hasil kosong'
+    }catch(x){err='Gagal terhubung (cek internet)'}
+   }
+   if(!out){say('Gagal: '+(err||'tidak diketahui')+'. Coba lagi nanti, atau pakai Salin prompt ke Gemini.');el.disabled=false;return}
+   setImg('gem',new File([out],'ai.png',{type:out.type||'image/png'}));toast('Item dibuat AI ✓');
+  }catch(x){say('Gagal: '+(x&&x.message||x));el.disabled=false}
+ },
  selon(){if(S.selOn){S.selOn=false;S.selSet=null}else{S.selOn=true;S.selSet=new Set()}render()},
  sel(el,e,d,id){if(!S.selOn)return;if(id==='a_panah')return toast('Album Panah tidak ikut dicari');if(!S.selSet)S.selSet=new Set();if(S.selSet.has(id))S.selSet.delete(id);else S.selSet.add(id);selRefresh()},
  selall(){S.selSet=new Set(S.albums.filter(a=>a.id!=='a_panah').map(a=>a.id));selRefresh()},
