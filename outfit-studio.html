@@ -617,7 +617,9 @@ const needMsg=()=>S.d&&S.d.type==='rek'?'Tambah hasil Gemini dulu':'Tambah hasil
 const resBlob=()=>OM2.on?om2Blob():new Promise((ok,no)=>{if((S.d.type==='insp'&&!(S.d.photoC&&S.d.gemC))||(S.d.type==='rek'&&!S.d.gemC))return no('need');const c=resC();if(!c||!c.width)return no();c.toBlob(b=>b?ok(b):no(),'image/png')});
 const isIOS=()=>/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function showSaveView(b){if(S.zu)URL.revokeObjectURL(S.zu);S.zu=URL.createObjectURL(b);S.zid=null;$('vw').innerHTML=`<img src="${S.zu}" alt="" style="max-width:100%;max-height:calc(100dvh - 170px);object-fit:contain;border-radius:var(--radius-sm);-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto"><p class="hint" style="margin:0;text-align:center">Tekan lama gambar, lalu pilih “Simpan ke Foto” atau “Unduh gambar”.</p><div class="row" style="width:min(100%,360px)"><button type="button" class="btn ghost" data-a="vx">Tutup</button></div>`;$('vw').classList.add('show')}
-const capP=()=>{try{const C=window.Capacitor||parent.Capacitor;return C&&typeof C.isNativePlatform==='function'&&C.isNativePlatform()?C:null}catch(e){return null}};
+/* v18.74: Capacitor HARUS diambil dari jendela utama (top). Halaman ini berjalan di dalam iframe, dan Capacitor yang ikut tersuntik di iframe
+   tidak pernah menerima jawaban dari Android (plugin hanya dilayani di main frame), jadi panggilannya menggantung sampai "waktu habis". */
+const capP=()=>{const L=[];try{L.push(window.top.Capacitor)}catch(e){}try{L.push(window.parent.Capacitor)}catch(e){}L.push(window.Capacitor);for(const C of L){try{if(C&&typeof C.isNativePlatform==='function'&&C.isNativePlatform())return C}catch(e){}}return null};
 const b64=b=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=()=>no(r.error);r.readAsDataURL(b)});
 /* 23 Nov 2026: panggilan plugin native tanpa batas waktu bisa menggantung selamanya (tombol Unduh semua macet di 1/2). Beri batas waktu; gagal -> coba sekali lagi / jalur cadangan. */
 const svT=(p,ms)=>{let t;return Promise.race([p,new Promise((_,no)=>{t=setTimeout(()=>no(new Error('timeout')),ms)})]).finally(()=>clearTimeout(t))};
@@ -2033,7 +2035,7 @@ const PNASK2='Gambar pertama: foto outfit lengkap. Setelah itu ada KANDIDAT foto
 /* v18.26: layar mini produk Shopee di dalam aplikasi. Urutan: (1) plugin Browser Capacitor kalau ada di APK, (2) panel mini berisi iframe (sebagian halaman Shopee menolak ditampilkan di iframe, makanya ada tombol "Buka di browser"). Klik tautan TIDAK lagi menavigasi halaman aplikasi (dulu muncul dialog "Konfirmasi Navigasi"). */
 function pnWeb(u){try{window.open(u,'_blank','noopener,noreferrer')}catch(e){}}
 async function pnOpen(u,t){if(!/^https?:\/\//i.test(u))return;
- try{const C=window.Capacitor||(window.parent&&parent.Capacitor),B=C&&C.Plugins&&C.Plugins.Browser;if(C&&typeof C.isNativePlatform==='function'&&C.isNativePlatform()&&B&&typeof B.open==='function'){await B.open({url:u,presentationStyle:'popover'});return}}catch(e){}
+ try{const C=capP(),B=C&&C.Plugins&&C.Plugins.Browser;if(C&&B&&typeof B.open==='function'){await B.open({url:u,presentationStyle:'popover'});return}}catch(e){}
  const old=document.getElementById('pnmini');if(old)old.remove();
  const w=document.createElement('div');w.id='pnmini';w.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;flex-direction:column;justify-content:flex-end';
  const bx=document.createElement('div');bx.style.cssText='height:86%;background:var(--bg,#0b0b0d);color:var(--text,#fff);border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -8px 30px rgba(0,0,0,.5)';
@@ -2142,7 +2144,7 @@ const srRcSet=(s,rc)=>{try{localStorage.setItem(SRLK,JSON.stringify({slug:s,rc,a
 const srRcClear=()=>{try{localStorage.removeItem(SRLK)}catch(e){}};
 /* jalur kirim: langsung dari aplikasi, lewat pembaca halaman (GET), atau plugin native (kalau ada) */
 const SRT={
- native:async b=>{const C=window.Capacitor||(window.parent&&parent.Capacitor),H=C&&C.Plugins&&C.Plugins.CapacitorHttp;if(!H||!H.post)throw new Error('tidak ada');const r=await lnTo(H.post({url:SRAPI,headers:{'content-type':'application/json'},data:b}),8000);return{st:r.status,t:typeof r.data==='string'?r.data:JSON.stringify(r.data)}},
+ native:async b=>{const C=capP(),H=C&&C.Plugins&&C.Plugins.CapacitorHttp;if(!H||!H.post)throw new Error('tidak ada');const r=await lnTo(H.post({url:SRAPI,headers:{'content-type':'application/json'},data:b}),8000);return{st:r.status,t:typeof r.data==='string'?r.data:JSON.stringify(r.data)}},
  langsung:async b=>{const r=await lnTo(fetch(SRAPI,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}),20000);return{st:r.status,t:await r.text()}},
  'jina-get':async b=>{const q=SRAPI+'?operationName='+encodeURIComponent(b.operationName||'')+'&query='+encodeURIComponent(b.query)+'&variables='+encodeURIComponent(JSON.stringify(b.variables)),r=await lnTo(fetch('https://r.jina.ai/'+q,{headers:{'X-Return-Format':'text'}}),30000);return{st:r.status,t:await r.text()}}};
 const srJ=t=>{try{return JSON.parse(t)}catch(e){const m=String(t||'').match(/\{[\s\S]*\}/);if(m){try{return JSON.parse(m[0])}catch(e2){}}return null}};
@@ -2969,7 +2971,7 @@ async function om2Http(url,body,type,ms){const c=om2Cfg(),H=om2Native(),file=typ
  try{
   if(H){const r=await om2To(H.request({url,method:'POST',headers,data:body,...(file?{dataType:'file'}:{}),connectTimeout:30000,readTimeout:ms}),ms+5000);st=r.status;data=r.data;Object.keys(r.headers||{}).forEach(k=>hd[k.toLowerCase()]=r.headers[k])}
   else{const r=await om2To(fetch(url,{method:'POST',headers,cache:'no-store',body:file?Uint8Array.from(atob(body),x=>x.charCodeAt(0)):JSON.stringify(body)}),ms);st=r.status;r.headers.forEach((v,k)=>hd[k]=v);data=await r.text()}
- }catch(e){const m=String(e&&e.message||e);throw new Error(H?'Cloudflare tidak bisa dihubungi ('+m.slice(0,90)+'). Cek internet.':'Cloudflare tidak bisa dihubungi dari sini. Sambungan langsung butuh aplikasi versi APK.')}
+ }catch(e){const m=String(e&&e.message||e);throw new Error(H?'Cloudflare tidak bisa dihubungi ('+m.slice(0,90)+'). '+(m==='waktu habis'?'Cek internet, lalu tutup dan buka lagi aplikasinya.':'Cek internet.'):'Cloudflare tidak bisa dihubungi dari sini. Sambungan langsung butuh aplikasi versi APK.')}
  if(typeof data==='string'){try{data=JSON.parse(data)}catch(_){}}
  return{st,hd,data}}
 function om2CfErr(r){const e0=r.data&&r.data.errors&&r.data.errors[0],msg=String((e0&&e0.message)||(typeof r.data==='string'?r.data:'')||'').slice(0,160);
