@@ -611,9 +611,9 @@ async function loadAlb(){const al=await run('albums','readonly',t=>t.objectStore
 async function loadView(){const tk=++S.tk;try{await loadAlb();let P=[];if(S.v==='album'){P=await run('photos','readonly',t=>t.objectStore('photos').index('album').getAll(S.aid));P.sort(byNew)}if(tk!==S.tk)return;S.u.forEach(u=>URL.revokeObjectURL(u));S.u=P.length?[]:S.u;S.u=[];S.pics=P.map(p=>{const b=p.thumb||p.blob,u=URL.createObjectURL(b);S.u.push(u);return{...p,u}});if(S.v==='home'||S.v==='album'){render();S.rs=null}if(S.v==='album')setTimeout(repairPics,300)}catch(e){toast('Album belum bisa dibuka di perangkat ini')}}
 async function mkAlb(n){n=(n||'').replace(/\s+/g,' ').trim();if(!n){toast('Nama album tidak boleh kosong');return null}await loadAlb();if(S.albums.some(a=>a.name.toLowerCase()===n.toLowerCase())){toast('Nama album itu sudah dipakai');return null}const a={id:uid2('a'),name:n,at:Date.now(),n:0,cover:null};await run('albums','readwrite',t=>t.objectStore('albums').add(a));S.albums.unshift(a);return a}
 const resC=()=>S.d.type==='rek'?RC:OI.cv;
-const resName=()=>S.d.type==='rek'?'rekomendasi-outfit.png':'outfit-inspirasi.png';
+const resName=()=>OM2.on?om2Name():S.d.type==='rek'?'rekomendasi-outfit.png':'outfit-inspirasi.png';
 const needMsg=()=>S.d&&S.d.type==='rek'?'Tambah hasil Gemini dulu':'Tambah hasil Gemini & foto asli dulu';
-const resBlob=()=>new Promise((ok,no)=>{if((S.d.type==='insp'&&!(S.d.photoC&&S.d.gemC))||(S.d.type==='rek'&&!S.d.gemC))return no('need');const c=resC();if(!c||!c.width)return no();c.toBlob(b=>b?ok(b):no(),'image/png')});
+const resBlob=()=>OM2.on?om2Blob():new Promise((ok,no)=>{if((S.d.type==='insp'&&!(S.d.photoC&&S.d.gemC))||(S.d.type==='rek'&&!S.d.gemC))return no('need');const c=resC();if(!c||!c.width)return no();c.toBlob(b=>b?ok(b):no(),'image/png')});
 const isIOS=()=>/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function showSaveView(b){if(S.zu)URL.revokeObjectURL(S.zu);S.zu=URL.createObjectURL(b);S.zid=null;$('vw').innerHTML=`<img src="${S.zu}" alt="" style="max-width:100%;max-height:calc(100dvh - 170px);object-fit:contain;border-radius:var(--radius-sm);-webkit-touch-callout:default;-webkit-user-select:auto;user-select:auto"><p class="hint" style="margin:0;text-align:center">Tekan lama gambar, lalu pilih “Simpan ke Foto” atau “Unduh gambar”.</p><div class="row" style="width:min(100%,360px)"><button type="button" class="btn ghost" data-a="vx">Tutup</button></div>`;$('vw').classList.add('show')}
 const capP=()=>{try{const C=window.Capacitor||parent.Capacitor;return C&&typeof C.isNativePlatform==='function'&&C.isNativePlatform()?C:null}catch(e){return null}};
@@ -2570,8 +2570,28 @@ kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pkIn
    const r=lnJson(await lnTo(parent.osAiVision(parts,INSYS,700),90000));
    (Array.isArray(r.items)?r.items:[]).forEach(o=>{const k=parseInt(o&&o.c,10)-1,c=String(o&&o.category||'').trim();if(k>=0&&k<need.length&&c)nm[need[k]]=inCat(c)||cap1(c.slice(0,24))})}catch(e){}}
   const seen={},items=[];let skip=0;H.forEach((o,i)=>{const n=nm[i]||inShort(tx[i]);if(!n){skip++;return}const k=n.toLowerCase();seen[k]=(seen[k]||0)+1;items.push(seen[k]>1?n+' '+seen[k]:n)});
-  return{items,skip,total:R.hit.length,how:R.how,msg:items.length?'':'Produk nomor '+want+' ketemu ('+R.hit.length+') tapi jenisnya belum terbaca. Tambahkan item manual.'}}
+  return{items,skip,H,tx,nm,total:R.hit.length,how:R.how,msg:items.length?'':'Produk nomor '+want+' ketemu ('+R.hit.length+') tapi jenisnya belum terbaca. Tambahkan item manual.'}}
  window.osInspCari=inspItems;
+ /* v18.70: INSPIRASI MODE 2 (otomatis). Dipanggil lewat window.osInspProd dari modul Mode 2 di skrip utama. Urutan: (1) cari produk nomor album di link koleksi (inspItems, sama dengan Mode 1), (2) foto tiap produk diunduh (resolusi lebih besar dari Mode 1), (3) harga dibaca dari data koleksi / Shopee (prAll, tanpa AI), (4) SATU panggilan AI (osAiVision) menandai tiap foto: "flat" (produk saja) atau "worn" (dipakai orang) + kotak item utamanya. Pemotongan latar & penyusunan gambar dikerjakan di skrip utama. */
+ const INDISP=[['Cardigan',/cardigan|kardigan/i],['Kaos',/kaos|t-?shirt|\btee\b/i],['Kemeja',/kemeja|shirt/i],['Blouse',/blouse|blus/i],['Sweater',/sweater|knit|rajut/i],['Jaket',/jaket|jacket|bomber/i],['Blazer',/blazer/i],['Rompi',/rompi|vest/i],['Celana',/celana|jeans|kulot|cargo|palazzo|trouser/i],['Rok',/(?:^|[^a-z])rok(?![a-z])|skirt/i],['Dress',/dress|terusan/i],['Gamis',/gamis/i],['Abaya',/abaya/i],['Hijab',/hijab|jilbab|pashmina|pasmina|kerudung|khimar|bergo|segi ?empat|scarf|syal/i],['Tas',/(?:^|[^a-z])(?:tas|bag)(?![a-z])|sling|tote|selempang|ransel/i],['Sepatu',/sepatu|sneaker|heels|loafer/i],['Sandal',/sandal|selop|slipper/i],['Jam Tangan',/jam tangan|watch/i]];
+ const dispNm=(t,c)=>{t=String(t||'');for(const[k,re]of INDISP)if(re.test(t))return k;return c==='Atasan'?'Baju':(c||'')};
+ const b64blob=b=>{const s=atob(b),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return new Blob([a],{type:'image/jpeg'})};
+ async function lnB64H(u){for(const s of[u,'https://images.weserv.nl/?url='+encodeURIComponent(u.replace(/^https?:\/\//,''))+'&w=1000&output=jpg&q=88']){try{const bm=await createImageBitmap(await (await lnGet(s,20000)).blob());if(bm.width<120||bm.height<120)return null;const k=Math.min(1,1000/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(bm.width*k));c.height=Math.max(1,Math.round(bm.height*k));c.getContext('2d').drawImage(bm,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.9).split(',')[1]}catch(e){}}return null}
+ async function smallB(b){try{return lnShrink(await createImageBitmap(b64blob(b)),560)}catch(e){return b}}
+ const BOXSYS='Kamu menganalisis foto produk fashion toko online. Balas HANYA satu objek JSON, tanpa teks lain.',BOXASK='Tiap kandidat adalah foto SATU produk (nama produk ada di label). Untuk SETIAP kandidat (urut) isi: "kind" = "flat" jika produknya difoto sendirian tanpa orang (dilipat, digantung, di manekin, atau di atas latar polos), atau "worn" jika dipakai orang. "box" = [x0,y0,x1,y1] kotak yang membungkus rapat HANYA produk yang namanya disebut di label (bukan barang lain di foto), nilai 0 sampai 1 relatif terhadap lebar dan tinggi foto. Format: {"items":[{"c":1,"kind":"flat","box":[0.05,0.1,0.95,0.9]}]}';
+ async function inspProd(u,want,say){say=say||(()=>{});const R=await inspItems(u,want,say);
+  if(!R.H||!R.H.length)return{prods:[],msg:R.msg||'Item tidak ketemu.'};
+  const H=R.H.slice(0,8);say('Mengambil foto '+H.length+' produk…');
+  const pics=new Array(H.length);let qi=0;
+  await Promise.all(Array.from({length:Math.min(4,H.length)},async()=>{while(qi<H.length){const k=qi++;pics[k]=await lnB64H(H[k].u)}}));
+  let pr=[];try{pr=await prAll(H,m=>say(m),null,null)}catch(e){}
+  const prods=H.map((o,i)=>({name:dispNm(R.tx[i],R.nm[i])||inShort(R.tx[i])||'Item',price:(pr[i]&&pr[i].p)||0,img:pics[i]||null,kind:'',box:null}));
+  if(window.parent&&parent.osAiVision&&prods.some(p=>p.img)){try{say('AI memisahkan item dari foto produk…');const parts=[{text:BOXASK}];
+   for(let i=0;i<prods.length;i++){if(!prods[i].img)continue;parts.push({text:'Kandidat '+(i+1)+' ('+prods[i].name+'):'});parts.push({inline_data:{mime_type:'image/jpeg',data:await smallB(prods[i].img)}})}
+   const r=lnJson(await lnTo(parent.osAiVision(parts,BOXSYS,900),90000));
+   (Array.isArray(r.items)?r.items:[]).forEach(o=>{const k=parseInt(o&&o.c,10)-1;if(!(k>=0&&k<prods.length))return;const kd=String(o.kind||'').toLowerCase();prods[k].kind=kd==='worn'?'worn':kd==='flat'?'flat':'';const b=o.box;if(Array.isArray(b)&&b.length===4){const v=b.map(Number);if(v.every(n=>isFinite(n)&&n>=-.01&&n<=1.01)&&v[2]-v[0]>.08&&v[3]-v[1]>.08)prods[k].box=v.map(n=>Math.max(0,Math.min(1,n)))}})}catch(e){}}
+  return{prods,total:R.total,msg:''}}
+ window.osInspProd=inspProd;
 
 /* v18.60: KERANJANG (antrean Panah & harga + edit satu per satu + ZIP). Dipakai layar Keranjang (ct*). Mode 'auto': tiap foto keranjang dimuat ke Panah, nomor = angka di nama album asalnya, lalu pnGo mengisi panah & harga. Mode 'edit': satu foto per layar, tombol kiri/kanan. Ekspor: tiap foto digambar ulang dari panah yang tersimpan lalu digabung jadi ZIP. */
 const CQ={on:0,mode:'',L:[],i:0,cx:0,H:null,ld:0,msg:''};
@@ -2793,4 +2813,160 @@ async function ctClick(ev){const b=ev.target.closest('[data-ct]');if(!b)return;c
 ctLoad();
 
 render();loadView();
+
+/* ===== v18.70: INSPIRASI MODE 2 (otomatis) =====
+   Tombol "Inspirasi" di foto Album sekarang menawarkan dua mode.
+   Mode 1 = cara lama (prompt Gemini, hasil ditempel manual) -> ACT2.pinsp1 (kode asli tidak diubah).
+   Mode 2 = baru: nomor di nama album dicari di link koleksi, produknya diambil (foto, nama, harga), tiap item DIPISAH dari latarnya
+   lalu disusun di kolom kiri; foto album di kanan. Nomor di pil atas, nama + harga di pil bawah, warna kolom ikut warna dominan outfit.
+   Semua bisa diedit di layarnya (nama, harga, warna, nomor, akun). Unduh & Simpan ke album memakai alur yang sama dengan Mode 1 (resBlob/resName). */
+const OM2={on:0,tk:0,no:'',akun:'',tc:'',auto:'#8aa0c0',photo:null,items:[],busy:0,tm:0};
+const om2Rank=n=>{n=String(n).toLowerCase();if(/hijab|jilbab|pashmina|kerudung|scarf/.test(n))return 0;if(/cardigan|jaket|blazer|rompi|outer/.test(n))return 1;if(/celana|jeans|kulot|(^|\s)rok(\s|$)/.test(n))return 3;if(/(^|\s)tas(\s|$)|bag/.test(n))return 4;if(/sepatu|sandal/.test(n))return 5;if(/jam|gelang|kalung|anting|kacamata|cincin|topi/.test(n))return 6;return 2};
+const om2Wt=n=>{n=String(n).toLowerCase();if(/gamis|abaya|dress/.test(n))return 2.2;if(/celana|jeans|kulot|(^|\s)rok(\s|$)/.test(n))return 1.7;if(/cardigan|jaket|blazer|rompi|outer/.test(n))return 1.1;if(/hijab/.test(n))return .9;if(/(^|\s)tas(\s|$)|bag/.test(n))return .7;if(/sepatu|sandal/.test(n))return .6;if(/jam|gelang|kalung|anting|kacamata|cincin|topi/.test(n))return .4;return 1};
+const om2Rp=n=>'Rp. '+String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+function om2Rgb(hex){hex=String(hex||'').replace('#','');if(hex.length===3)hex=hex.replace(/./g,'$&$&');const n=parseInt(hex,16);return isNaN(n)?[138,160,192]:[n>>16&255,n>>8&255,n&255]}
+function om2Hsl(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2;let h=0,s=0;if(mx!==mn){const d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h*=60}return[h,s,l]}
+function om2Hex(h,s,l){s=Math.max(0,Math.min(1,s));l=Math.max(0,Math.min(1,l));const a=s*Math.min(l,1-l),f=n=>{const k=(n+h/30)%12,c=l-a*Math.max(-1,Math.min(k-3,9-k,1));return Math.round(255*c).toString(16).padStart(2,'0')};return '#'+f(0)+f(8)+f(4)}
+/* warna dominan pakaian: area tengah foto, abaikan putih/hitam/abu dan warna kulit, utamakan warna jenuh */
+function om2Auto(c){const w=64,h=Math.max(8,Math.round(64*c.height/c.width)),t=document.createElement('canvas');t.width=w;t.height=h;const g=t.getContext('2d');g.drawImage(c,0,0,w,h);let d;try{d=g.getImageData(0,0,w,h).data}catch(e){return{h:25,s:.2}}
+ const B=new Array(24).fill(0),S2=new Array(24).fill(0);
+ for(let y=Math.floor(h*.2);y<Math.floor(h*.9);y++)for(let x=Math.floor(w*.15);x<Math.floor(w*.85);x++){const i=(y*w+x)*4,q=om2Hsl(d[i],d[i+1],d[i+2]),hh=q[0],s=q[1],l=q[2];if(l>.9||l<.1||s<.12)continue;if(hh>=8&&hh<=42&&s>=.18&&s<=.7&&l>=.38&&l<=.85)continue;const wt=s*(1-Math.abs(l-.5)),k=Math.floor(hh/15)%24;B[k]+=wt;S2[k]+=wt*s}
+ const sc=k=>B[k]+.5*(B[(k+1)%24]+B[(k+23)%24]);let b=0;for(let k=1;k<24;k++)if(sc(k)>sc(b))b=k;
+ if(B[b]<4)return{h:25,s:.2};return{h:b*15+7.5,s:S2[b]/B[b]}}
+function om2Pal(){const hex=OM2.tc||OM2.auto,q=om2Rgb(hex),z=om2Hsl(q[0],q[1],q[2]),h=z[0];return{mid:hex,light:om2Hex(h,.45,.9),dark:om2Hex(h,.32,.22),bg:om2Hex(h,.4,.975),line:om2Hex(h,.3,.8)}}
+/* potong latar: latar polos (warna tepi seragam) dihapus lewat isi-banjir dari tepi. Hasil null kalau latarnya bukan polos / produk ikut terhapus. */
+function om2Bg(src){const w=src.width,h=src.height;if(w<30||h<30)return null;let id;try{id=src.getContext('2d').getImageData(0,0,w,h)}catch(e){return null}
+ const d=id.data,rs=[],gs=[],bs=[],add=(x,y)=>{const i=(y*w+x)*4;rs.push(d[i]);gs.push(d[i+1]);bs.push(d[i+2])};
+ for(let x=0;x<w;x+=2){add(x,0);add(x,h-1)}for(let y=0;y<h;y+=2){add(0,y);add(w-1,y)}
+ const md=a=>a.slice().sort((p,q)=>p-q)[a.length>>1],R=md(rs),G=md(gs),Bc=md(bs),T2=44*44;
+ const nr=i=>{const a=d[i]-R,b=d[i+1]-G,c=d[i+2]-Bc;return a*a+b*b+c*c<=T2};
+ let ok=0;for(let k=0;k<rs.length;k++){const a=rs[k]-R,b=gs[k]-G,c=bs[k]-Bc;if(a*a+b*b+c*c<=T2)ok++}if(ok/rs.length<.8)return null;
+ const m=new Uint8Array(w*h),st=new Int32Array(w*h);let sp=0,cnt=0;
+ const push=(x,y)=>{const p=y*w+x;if(m[p]||!nr(p*4))return;m[p]=1;cnt++;st[sp++]=p};
+ for(let x=0;x<w;x++){push(x,0);push(x,h-1)}for(let y=0;y<h;y++){push(0,y);push(w-1,y)}
+ while(sp){const p=st[--sp],x=p%w,y=(p-x)/w;if(x>0)push(x-1,y);if(x<w-1)push(x+1,y);if(y>0)push(x,y-1);if(y<h-1)push(x,y+1)}
+ const ratio=cnt/(w*h);if(ratio<.08||ratio>.93)return null;
+ let x0=w,y0=h,x1=-1,y1=-1;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const p=y*w+x,i=p*4;if(m[p]){d[i+3]=0;continue}const e=(x>0&&m[p-1])||(x<w-1&&m[p+1])||(y>0&&m[p-w])||(y<h-1&&m[p+w]);if(e)d[i+3]=170;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+ if(x1<0||(x1-x0)*(y1-y0)<w*h*.06)return null;
+ const o=document.createElement('canvas');o.width=w;o.height=h;o.getContext('2d').putImageData(id,0,0);
+ const pd=4,cx0=Math.max(0,x0-pd),cy0=Math.max(0,y0-pd),cw=Math.min(w,x1+pd+1)-cx0,ch=Math.min(h,y1+pd+1)-cy0,t=document.createElement('canvas');t.width=cw;t.height=ch;t.getContext('2d').drawImage(o,-cx0,-cy0);return t}
+/* produk putih di latar putih tidak bisa dipotong: cukup buang pinggiran kosongnya supaya item tampil lebih besar */
+function om2Trim(src){const w=src.width,h=src.height;let d;try{d=src.getContext('2d').getImageData(0,0,w,h).data}catch(e){return null}
+ const rs=[],gs=[],bs=[];for(let x=0;x<w;x+=3){for(const y of[0,h-1]){const i=(y*w+x)*4;rs.push(d[i]);gs.push(d[i+1]);bs.push(d[i+2])}}for(let y=0;y<h;y+=3){for(const x of[0,w-1]){const i=(y*w+x)*4;rs.push(d[i]);gs.push(d[i+1]);bs.push(d[i+2])}}
+ const md=a=>a.slice().sort((p,q)=>p-q)[a.length>>1],R=md(rs),G=md(gs),B=md(bs);let x0=w,y0=h,x1=-1,y1=-1;
+ for(let y=0;y<h;y+=2)for(let x=0;x<w;x+=2){const i=(y*w+x)*4,a=d[i]-R,b=d[i+1]-G,c=d[i+2]-B;if(a*a+b*b+c*c>26*26){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+ if(x1<0)return null;const pd=Math.round(Math.max(w,h)*.04);x0=Math.max(0,x0-pd);y0=Math.max(0,y0-pd);x1=Math.min(w-1,x1+pd);y1=Math.min(h-1,y1+pd);const cw=x1-x0+1,ch=y1-y0+1;
+ if(cw*ch>w*h*.9||cw<40||ch<40)return null;const t=document.createElement('canvas');t.width=cw;t.height=ch;t.getContext('2d').drawImage(src,-x0,-y0);return t}
+const om2Dec=b=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const c=document.createElement('canvas');c.width=i.naturalWidth;c.height=i.naturalHeight;c.getContext('2d').drawImage(i,0,0);ok(c)};i.onerror=()=>no(new Error('foto produk rusak'));i.src='data:image/jpeg;base64,'+b});
+async function om2Build(P){const L=[];for(const p of P){const it={name:p.name||'Item',pr:p.price|0,raw:null,cut:null,use:0,rk:om2Rank(p.name)};
+ if(p.img){try{let c=await om2Dec(p.img);const b=p.box;if(b&&(p.kind==='worn'||(b[2]-b[0])*(b[3]-b[1])<.9)){const x0=Math.round(b[0]*c.width),y0=Math.round(b[1]*c.height),w=Math.max(8,Math.round((b[2]-b[0])*c.width)),h=Math.max(8,Math.round((b[3]-b[1])*c.height)),t=document.createElement('canvas');t.width=w;t.height=h;t.getContext('2d').drawImage(c,-x0,-y0);c=t}
+  it.raw=c;if(p.kind!=='worn'){const k=om2Bg(c);if(k){it.cut=k;it.use=1}else{const t=om2Trim(c);if(t)it.raw=t}}}catch(e){}}
+ L.push(it)}return L}
+function om2Rr(x,px,py,w,h,r){r=Math.min(r,w/2,h/2);x.beginPath();x.moveTo(px+r,py);x.arcTo(px+w,py,px+w,py+h,r);x.arcTo(px+w,py+h,px,py+h,r);x.arcTo(px,py+h,px,py,r);x.arcTo(px,py,px+w,py,r);x.closePath()}
+function om2Heart(x,cx,cy,s,col,rot){x.save();x.translate(cx,cy);x.rotate(rot);x.strokeStyle=col;x.lineWidth=Math.max(3,s*.1);x.lineJoin='round';x.beginPath();x.moveTo(0,s*.45);x.bezierCurveTo(-s*.95,-s*.05,-s*.55,-s*.7,0,-s*.25);x.bezierCurveTo(s*.55,-s*.7,s*.95,-s*.05,0,s*.45);x.stroke();x.restore()}
+function om2Fit(x,t,mx,px,wt,F){let f=px;x.font=wt+' '+f+'px '+F;while(x.measureText(t).width>mx&&f>16){f-=2;x.font=wt+' '+f+'px '+F}return f}
+function om2Paint(sc){const im=OM2.photo,H=1440,a=im?im.width/im.height:.75,pw=Math.round(H*Math.min(a,.8)),dw=Math.round(H*a),lw=Math.round(pw*1.02),W=lw+pw,c=document.createElement('canvas');c.width=Math.round(W*sc);c.height=Math.round(H*sc);
+ const x=c.getContext('2d'),P=om2Pal(),F='"Hanken Grotesk",Arial,Helvetica,sans-serif',mx=44,gap=26;x.scale(sc,sc);
+ x.fillStyle=P.bg;x.fillRect(0,0,lw,H);
+ x.save();x.beginPath();x.rect(lw,0,pw,H);x.clip();x.fillStyle='#ebe7e1';x.fillRect(lw,0,pw,H);if(im)x.drawImage(im,lw-(dw-pw)*.5,0,dw,H);x.restore();
+ /* pil nomor + hiasan */
+ x.textAlign='center';x.textBaseline='middle';
+ const tx=String(OM2.no||'').trim()||'—';om2Fit(x,tx,lw*.5,66,'800',F);const tw=x.measureText(tx).width,nw=Math.min(lw*.72,tw+130),nh=104,nx=(lw-nw)/2,ny=54;
+ x.fillStyle=P.mid;om2Rr(x,nx,ny,nw,nh,nh/2);x.fill();x.fillStyle='#fff';x.fillText(tx,lw/2,ny+nh/2+3);
+ om2Heart(x,nx+nw+52,ny+6,46,P.mid,-.28);om2Heart(x,nx+nw+22,ny+74,34,P.mid,.22);
+ x.strokeStyle=P.mid;x.lineWidth=5;x.lineCap='round';[[-16,16,-50,0],[-14,46,-54,46],[-30,-10,-46,-34]].forEach(q=>{x.beginPath();x.moveTo(nx+q[0],ny+q[1]);x.lineTo(nx+q[2],ny+q[3]);x.stroke()});
+ /* bagian bawah: akun + pil nama/harga */
+ const L0=OM2.items.map((it,i)=>({it,i})).sort((p,q)=>p.it.rk-q.it.rk||p.i-q.i).map(o=>o.it),n=L0.length,per=n<=4?Math.max(1,n):Math.ceil(n/2),rows=n?Math.ceil(n/per):0,ph=96,pg=14,ak=String(OM2.akun||'').trim(),hh=74,hy=H-52-hh;
+ const pB=ak?hy-26:H-52,pT=pB-(rows?rows*ph+(rows-1)*pg:0),iy0=ny+nh+44,iy1=pT-30;
+ if(ak){x.font='700 34px '+F;om2Fit(x,ak,lw*.8-110,34,'700',F);const aw=Math.min(lw-2*mx,x.measureText(ak).width+110);x.fillStyle=P.mid;om2Rr(x,(lw-aw)/2,hy,aw,hh,hh/2);x.fill();x.fillStyle='#fff';x.fillText(ak,lw/2,hy+hh/2+2)}
+ for(let r=0;r<rows;r++){const row=L0.slice(r*per,r*per+per),k=row.length,w=(lw-2*mx-(k-1)*pg)/k,py=pT+r*(ph+pg);
+  row.forEach((it,j)=>{const px=mx+j*(w+pg);x.fillStyle=P.light;om2Rr(x,px,py,w,ph,28);x.fill();x.strokeStyle=P.line;x.lineWidth=2;x.stroke();x.fillStyle=P.dark;
+   if(it.pr>0){om2Fit(x,it.name,w-24,28,'700',F);x.fillText(it.name,px+w/2,py+ph*.34);om2Fit(x,om2Rp(it.pr),w-24,26,'600',F);x.fillText(om2Rp(it.pr),px+w/2,py+ph*.7)}
+   else{om2Fit(x,it.name,w-24,30,'700',F);x.fillText(it.name,px+w/2,py+ph/2)}})}
+ /* item di kolom kiri */
+ const cols=n>=4?2:1,cw=(lw-2*mx-(cols-1)*gap)/cols;
+ if(!n){x.fillStyle=P.dark;x.globalAlpha=.6;x.font='600 34px '+F;x.fillText(OM2.busy?'Mencari item…':'Item belum ada',lw/2,(iy0+iy1)/2);x.globalAlpha=1}
+ else{const wt=L0.map(it=>om2Wt(it.name)),CA=[[],[]];
+  if(cols===1)L0.forEach((it,i)=>CA[0].push({it,w:wt[i]}));
+  else{const tot=wt.reduce((p,q)=>p+q,0);let acc=0;L0.forEach((it,i)=>{const k=acc+wt[i]/2<=tot/2?0:1;CA[k].push({it,w:wt[i]});acc+=wt[i]});if(!CA[1].length)CA[1].push(CA[0].pop())}
+  CA.forEach((col,ci)=>{if(!col.length)return;const cx=mx+ci*(cw+gap),sum=col.reduce((p,q)=>p+q.w,0),TH=iy1-iy0-(col.length-1)*gap;let cy=iy0;
+   col.forEach(o=>{const h=TH*o.w/sum,it=o.it,src=(it.use&&it.cut)?it.cut:it.raw;
+    if(!src){x.fillStyle=P.light;om2Rr(x,cx,cy,cw,h,24);x.fill();x.fillStyle=P.dark;x.font='600 30px '+F;x.fillText(it.name,cx+cw/2,cy+h/2)}
+    else{const pd=10,k=Math.min((cw-pd*2)/src.width,(h-pd*2)/src.height),w=src.width*k,hg=src.height*k,dx=cx+(cw-w)/2,dy=cy+(h-hg)/2;
+     if(it.use&&it.cut){x.save();x.shadowColor='rgba(0,0,0,.18)';x.shadowBlur=22*sc;x.shadowOffsetY=8*sc;x.drawImage(src,dx,dy,w,hg);x.restore()}
+     else{x.save();om2Rr(x,dx,dy,w,hg,22);x.clip();x.drawImage(src,dx,dy,w,hg);x.restore();om2Rr(x,dx,dy,w,hg,22);x.strokeStyle=P.line;x.lineWidth=3;x.stroke()}}
+    cy+=h+gap})})}
+ return c}
+const om2Blob=()=>new Promise((ok,no)=>{try{om2Paint(1).toBlob(b=>b?ok(b):no(new Error('gagal')),'image/png')}catch(e){no(e)}});
+const om2Name=()=>'inspirasi-'+(String(OM2.no||'').replace(/[^\w-]+/g,'')||'outfit')+'.png';
+const om2Ready=()=>!!OM2.photo&&!OM2.busy;
+function om2Say(m){const e=$('om2s');if(e)e.textContent=m}
+function om2Prev(){const e=$('om2i');if(!e)return;try{e.src=om2Paint(.4).toDataURL('image/jpeg',.82)}catch(x){}}
+function om2Sched(){clearTimeout(OM2.tm);OM2.tm=setTimeout(om2Prev,140)}
+function om2Btn(){const o=$('om2');if(!o)return;o.querySelectorAll('[data-o="go"],[data-o="dl"],[data-o="save"]').forEach(b=>{b.disabled=!!OM2.busy})}
+function om2List(){const e=$('om2li');if(!e)return;e.innerHTML=OM2.items.length?OM2.items.map((it,i)=>`<div class="oit"><input class="inp" data-ok="nm" data-i="${i}" value="${esc(it.name)}" maxlength="22" aria-label="Nama item"><input class="inp" data-ok="pr" data-i="${i}" inputmode="numeric" value="${it.pr||''}" placeholder="Harga" aria-label="Harga"><span class="oac">${it.cut?`<button type="button" class="btn ghost sm fit" data-o="cut" data-i="${i}">${it.use?'Tanpa latar':'Dengan latar'}</button>`:''}<button type="button" class="btn ghost sm fit" data-o="del" data-i="${i}" aria-label="Hapus item">✕</button></span></div>`).join(''):'<p class="hint" style="text-align:left">Belum ada item.</p>'}
+function om2Fill(){const set=(id,v)=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v};let u='';try{u=localStorage.getItem('pb_kol_link_v1')||''}catch(x){}set('om2l',u);set('om2n',OM2.no);set('om2a',OM2.akun);set('om2c',OM2.tc||OM2.auto);const t=$('om2t');if(t)t.textContent='Inspirasi Otomatis'+(OM2.no?' · '+OM2.no:'');om2List()}
+function om2Ui(){let o=$('om2');if(o)o.remove();o=document.createElement('div');o.id='om2';
+ o.innerHTML=`<style>#om2{position:absolute;inset:0;z-index:22;background:var(--bg);display:flex;flex-direction:column}#om2 .oh{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--border)}#om2 .oh b{flex:1;font-size:16px}#om2 .ob{flex:1;overflow:auto;padding:12px 14px 18px;-webkit-overflow-scrolling:touch}#om2 .of{display:flex;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--border);background:var(--surface)}#om2 .opv{display:flex;justify-content:center;margin:4px 0 12px}#om2 .opv img{max-width:100%;max-height:52vh;border-radius:12px;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.4)}#om2 .oit{display:grid;grid-template-columns:1fr 104px auto;gap:8px;align-items:center;margin-top:8px}#om2 .oit .inp{margin-top:0}#om2 .oac{display:flex;gap:6px}#om2 .oc{display:flex;gap:8px;align-items:center;margin-top:6px}#om2 input[type=color]{width:56px;height:44px;padding:2px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);flex:none}#om2 .btn:disabled{opacity:.5}</style>
+<div class="oh"><button type="button" class="btn ghost sm fit" data-o="x">Tutup</button><b id="om2t">Inspirasi Otomatis</b></div>
+<div class="ob"><p class="hint" id="om2s" style="text-align:left;color:var(--accent-2);margin:0 0 8px"></p><div class="opv"><img id="om2i" alt="Pratinjau"></div>
+<div class="lb">Link koleksi</div><div class="add"><input class="inp" id="om2l" type="url" inputmode="url" autocomplete="off" placeholder="https://collshp.com/namakamu"><button type="button" class="btn sm fit" data-o="go">Cari ulang</button></div>
+<div class="f2"><label>Nomor<input class="inp" id="om2n" data-ok="no" autocomplete="off"></label><label>Akun (tampil di bawah)<input class="inp" id="om2a" data-ok="akun" autocomplete="off" placeholder="@namaakun"></label></div>
+<div class="lb" style="margin-top:12px">Warna tema</div><div class="oc"><input type="color" id="om2c" data-ok="tc"><button type="button" class="btn ghost sm fit" data-o="auto">Otomatis dari outfit</button></div>
+<div class="lb" style="margin-top:14px">Item (nama &amp; harga bisa diubah)</div><div id="om2li"></div></div>
+<div class="of"><button type="button" class="btn ghost" data-o="dl">${ic('dl',16)}Unduh</button><button type="button" class="btn" data-o="save">${ic('album',16)}Simpan ke album</button></div>`;
+ (document.querySelector('.app')||document.body).appendChild(o);
+ o.addEventListener('click',om2Click);o.addEventListener('input',om2Input)}
+function om2Input(e){const t=e.target,k=t.dataset&&t.dataset.ok;if(!k)return;const i=+t.dataset.i;
+ if(k==='no'){OM2.no=t.value;const h=$('om2t');if(h)h.textContent='Inspirasi Otomatis'+(OM2.no?' · '+OM2.no:'')}
+ else if(k==='akun'){OM2.akun=t.value;try{localStorage.setItem('os_m2_akun',t.value.trim())}catch(x){}}
+ else if(k==='tc')OM2.tc=t.value;
+ else if(k==='nm'&&OM2.items[i])OM2.items[i].name=t.value;
+ else if(k==='pr'&&OM2.items[i])OM2.items[i].pr=parseInt(String(t.value).replace(/\D/g,''),10)||0;
+ om2Sched()}
+function om2Click(e){const b=e.target.closest('[data-o]');if(!b)return;const k=b.dataset.o,i=+b.dataset.i;
+ if(k==='x')om2Close();
+ else if(k==='go')om2Run();
+ else if(k==='auto'){OM2.tc='';om2Fill();om2Prev()}
+ else if(k==='cut'){const it=OM2.items[i];if(it&&it.cut){it.use=it.use?0:1;om2List();om2Prev()}}
+ else if(k==='del'){OM2.items.splice(i,1);om2List();om2Prev()}
+ else if(k==='dl'){if(!om2Ready())return toast('Tunggu foto & item selesai dimuat');busyDl(b,async say=>{try{const bl=await om2Blob();say('Mengunduh…');const r=await dlBlob(bl,om2Name());if(r==='dl')toast('Gambar diunduh');return r!=='abort'}catch(x){toast('Unduh gagal. Coba lagi.');return false}})}
+ else if(k==='save'){if(!om2Ready())return toast('Tunggu foto & item selesai dimuat');sheetSave()}}
+function om2Close(){OM2.tk++;OM2.on=0;OM2.busy=0;OM2.items=[];OM2.photo=null;const o=$('om2');if(o)o.remove()}
+async function om2Photo(p){const tryB=async b=>{if(!b)throw new Error('kosong');const u=URL.createObjectURL(b);try{const i=await new Promise((ok,no)=>{const m=new Image(),t=setTimeout(()=>no(new Error('waktu-habis')),20000);m.onload=()=>{clearTimeout(t);ok(m)};m.onerror=()=>{clearTimeout(t);no(new Error('gagal'))};m.src=u});const k=Math.min(1,1800/Math.max(i.naturalWidth,i.naturalHeight)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(i.naturalWidth*k));c.height=Math.max(1,Math.round(i.naturalHeight*k));c.getContext('2d').drawImage(i,0,0,c.width,c.height);if(!(fvAda(c)&&fvIsi(c)))throw new Error('hitam');return c}finally{URL.revokeObjectURL(u)}};
+ try{return await tryB(await fvAsli(p))}catch(x){}
+ try{return await tryB(p.blob)}catch(x){}
+ try{return await tryB(p.thumb)}catch(x){}
+ try{const c=document.createElement('canvas');await fvLukis(c,p.thumb||p.blob,()=>true);if(c.width>1&&fvAda(c)&&fvIsi(c))return c}catch(x){}
+ return null}
+async function om2Run(){const tk=OM2.tk;let u='';try{u=(($('om2l')||{}).value||localStorage.getItem('pb_kol_link_v1')||'').trim()}catch(x){}
+ const no=String(OM2.no||'').replace(/\D/g,'');
+ if(!u){om2Say('Tempel link koleksi di bawah, lalu tekan Cari ulang.');return}
+ if(!no){om2Say('Isi Nomor dulu (angka di nama album), lalu tekan Cari ulang.');return}
+ if(!/^https?:\/\//i.test(u))u='https://'+u;try{localStorage.setItem('pb_kol_link_v1',u)}catch(x){}
+ if(!window.osInspProd){om2Say('Pencarian belum siap. Muat ulang aplikasi.');return}
+ OM2.busy=1;om2Btn();om2Prev();
+ try{const r=await window.osInspProd(u,no,m=>{if(tk===OM2.tk)om2Say(m)});if(tk!==OM2.tk)return;
+  if(!r.prods||!r.prods.length){om2Say(r.msg||'Item tidak ketemu.');return}
+  om2Say('Memisahkan item dari latarnya…');OM2.items=await om2Build(r.prods);if(tk!==OM2.tk)return;
+  om2List();const np=OM2.items.filter(i=>!i.pr).length;
+  om2Say('Nomor '+no+' ketemu: '+r.total+' produk'+(r.total>8?' (dipakai 8 pertama)':'')+'. Item sudah dipisah dan dipasang di kiri.'+(np?' '+np+' item belum ada harganya, isi di bawah.':' Cek nama & harga di bawah.'))}
+ catch(e){if(tk===OM2.tk)om2Say('Gagal: '+(e&&e.message?e.message:'koneksi bermasalah')+'. Coba lagi.')}
+ finally{if(tk===OM2.tk){OM2.busy=0;om2Btn();om2Prev()}}}
+async function om2Start(el,e,d,id){closeSheet();const p=S.pics.find(x=>x.id===id);if(!p)return;markLast(p.album);
+ const al=S.albums.find(x=>x.id===p.album),nm=((al&&al.name)||'').trim();
+ OM2.tk++;const tk=OM2.tk;OM2.on=1;OM2.busy=0;OM2.no=(nm.match(/\d+/)||[nm])[0]||'';OM2.items=[];OM2.photo=null;OM2.tc='';OM2.auto='#8aa0c0';
+ let ak='';try{ak=localStorage.getItem('os_m2_akun')||''}catch(x){}
+ if(!ak){try{ak=String((prefs('insp')||{}).by||'').replace(/^\s*by\s*[:：-]?\s*/i,'').trim()}catch(x){}}
+ if(/namaakun/i.test(ak))ak='';OM2.akun=ak;
+ om2Ui();om2Fill();om2Prev();om2Say('Memuat foto…');
+ const c=await om2Photo(p);if(tk!==OM2.tk)return;
+ if(c){OM2.photo=c;const a=om2Auto(c);OM2.auto=om2Hex(a.h,Math.max(.28,Math.min(.5,a.s)),.55);om2Fill();om2Prev()}else toast('Foto album gagal dibuka');
+ om2Run()}
+/* pilihan mode saat tombol Inspirasi ditekan */
+const om2P1=ACT2.pinsp;
+ACT2.pinsp1=function(){closeSheet();return om2P1.apply(this,arguments)};
+ACT2.pinsp2=om2Start;
+ACT2.pinsp=function(el,e,d,id){const sh=$('sheet');sh.innerHTML=`<div class="sheet"><h3>Inspirasi: pilih mode</h3><button type="button" class="li" data-a="pinsp1" data-id="${id}"><span><b>Mode 1 · Prompt Gemini</b><small>Cara yang sekarang: item dicari, prompt dibuat, hasil Gemini ditempel manual</small></span>${ic('chev',16)}</button><button type="button" class="li" data-a="pinsp2" data-id="${id}"><span><b>Mode 2 · Otomatis (baru)</b><small>AI cari nomor di link, item dipisah ke kiri lengkap nama &amp; harga, warna ikut tema outfit</small></span>${ic('chev',16)}</button></div>`;sh.classList.add('show')};
 </script></body></html>
