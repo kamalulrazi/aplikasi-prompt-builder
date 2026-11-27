@@ -1828,8 +1828,9 @@ function pwire(){let d=null;const hb=(b,p,m)=>p.x>=b.x-m&&p.x<=b.x+b.w+m&&p.y>=b
  cv.addEventListener('pointermove',e=>{if(!pon||!d||e.pointerId!==d.id)return;e.stopImmediatePropagation();const p=pt(e),dx=p.x-d.x,dy=p.y-d.y,a=pcur();d.x=p.x;d.y=p.y;if(!a)return;
   const X=d.k==='tip'?'tx':'lx',Y=d.k==='tip'?'ty':'ly';let nx=a[X]+dx/W*100,ny=a[Y]+dy/H*100;if(d.k==='lab'){const o=pbx[pa.s];if(o){const mx=(o.b.w/2+6)/W*100,my=(o.b.h/2+6)/H*100;nx=cl(nx,Math.min(mx,50),Math.max(100-mx,50));ny=cl(ny,Math.min(my,50),Math.max(100-my,50))}}a[X]=cl(nx,0,100);a[Y]=cl(ny,0,100);psync(X,a[X]);psync(Y,a[Y]);sched()});
  const end=e=>{if(pon&&d&&e.pointerId===d.id){e.stopImmediatePropagation();d=null}};cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end)}
+function ponSet(c,cb){pimg=c;zon=false;kl.classList.remove('zm');pon=true;kl.classList.add('pm');setH(Math.max(1080,Math.min(1920,Math.round(W*c.height/c.width))));kl.querySelector('.ks').scrollTop=0;if(!pa.a.length)padd();else fillP();sched();if(cb)cb()}
 function ponLoad(f,cb){const u=URL.createObjectURL(f),o=new Image();o.onload=()=>{const m=Math.min(1,2400/Math.max(o.naturalWidth,o.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(o.naturalWidth*m);c.height=Math.round(o.naturalHeight*m);{const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(o,0,0,c.width,c.height)}URL.revokeObjectURL(u);
-  pimg=c;zon=false;kl.classList.remove('zm');pon=true;kl.classList.add('pm');setH(Math.max(1080,Math.min(1920,Math.round(W*c.height/c.width))));kl.querySelector('.ks').scrollTop=0;if(!pa.a.length)padd();else fillP();sched();if(cb)cb()};
+  ponSet(c,cb)};
  o.onerror=()=>{URL.revokeObjectURL(u);toast('Foto tidak bisa dibuka, coba foto lain')};o.src=u}
 kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.pf)return;const f=t.files&&t.files[0];t.value='';if(f)ponLoad(f)});
 kl.addEventListener('change',e=>{const t=e.target;if(!t.dataset||t.dataset.pa!=='pr')return;const a=pcur();if(!a)return;const v=pfmt(t.value);if(v!==t.value){t.value=v;a.pr=v;pchips();sched()}});
@@ -2386,9 +2387,23 @@ function cqBar(){let b=$('kcq');
  const L=CQ.L,n=L.length,it=L[CQ.i]||{},lb='Album '+(it.an||'')+(it.num?' · No '+it.num:'');
  if(CQ.mode==='auto')b.innerHTML=`<div class="kcqt"><b>Memasang panah ${Math.min(CQ.i+1,n)} / ${n}</b><small>${esc(CQ.msg||lb)}</small></div><button type="button" class="btn ghost kb2" data-cq="cx" ${CQ.cx?'disabled':''}>Batalkan</button>`;
  else{const last=CQ.i>=n-1;b.innerHTML=`<button type="button" class="btn ghost kb1" data-cq="prev" aria-label="Foto sebelumnya"${CQ.i&&!CQ.ld?'':' disabled'}>${ic('back',18)}</button><div class="kcqt"><b>${CQ.i+1} / ${n}</b><small>${esc(lb)}</small></div><button type="button" class="btn kb2" data-cq="next"${CQ.ld?' disabled':''}>${last?'Selesai':'Lanjut'}${ic(last?'check':'chev',16)}</button>`}}
+/* 27 Nov 2026: FOTO PUTIH DI KERANJANG. Dulu cqLoad memakai ponLoad (drawImage langsung 2400px tanpa pengecekan) -> di WebView HP hasilnya kanvas putih. Sekarang: foto asli dibaca ulang dari database album (seperti fvAsli), digambar lewat fvLukis (ada pengecekan putih/hitam + ukuran mundur bertahap), kalau tetap gagal pakai thumbnail. */
+async function cqPic(it){
+ const src=[];
+ try{const r=await run('photos','readonly',t=>t.objectStore('photos').get(it.pid));if(r&&r.blob)src.push(r.blob)}catch(e){}
+ if(it.blob)src.push(it.blob);
+ const cp=[];
+ for(const b of src){try{const buf=await new Response(b).arrayBuffer();if(buf.byteLength)cp.push(new Blob([buf],{type:b.type||'image/jpeg'}))}catch(e){}}
+ if(it.th)cp.push(it.th);
+ for(const b of cp){
+  try{const t=document.createElement('canvas');await fvLukis(t,b,()=>true);
+   const m=Math.min(1,2400/Math.max(t.width,t.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(t.width*m));c.height=Math.max(1,Math.round(t.height*m));
+   const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(t,0,0,c.width,c.height);
+   if(zblank(c))continue;return c}catch(e){}}
+ return null}
 function cqLoad(it,fresh){return new Promise(ok=>{let d=0;const fin=v=>{if(!d){d=1;ok(v)}};
  pa.a=fresh?[]:cqCl(it.ar);pa.s=pa.a.length?0:-1;setTimeout(()=>fin(0),25000);
- try{ponLoad(it.blob,()=>fin(1))}catch(e){fin(0)}})}
+ cqPic(it).then(c=>{if(!c){toast('Foto ini tidak bisa dibuka dari keranjang');fin(0);return}ponSet(c,()=>fin(1))}).catch(()=>fin(0))})}
 function cqOpen(){if(!built)build();kl.classList.add('show','kcqm');const t=kl.querySelector('[data-kt="2"]');if(t)t.click();sched()}
 function cqClose(){cqLock(0);const b=$('kcq');if(b)b.remove();kl.classList.remove('kcqm','show');if(pon)pexit();pa.a=[];pa.s=-1;pns('');pnl([]);try{fillP()}catch(e){}CQ.on=0;CQ.mode=''}
 async function cqAuto(L,H){if(CQ.on)return;CQ.on=1;CQ.mode='auto';CQ.L=L;CQ.i=0;CQ.cx=0;CQ.H=H;CQ.msg='';
