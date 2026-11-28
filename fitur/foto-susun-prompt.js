@@ -72,29 +72,27 @@ function _fPoseAngleDesc(n){
 /* v18.41 (Nov 2026, permintaan user) — MODE FACELESS (Foto Referensi cuma Outfit / Outfit + Lokasi).
    Kepala keluar dari tepi atas frame (bukan dihapus/diblur): orang berdiri dekat kamera, tepi atas gambar memotong leher,
    badan full-length sampai sepatu. Sudut kamera dikunci otomatis (lihat foto-pov-tangan-lewati-sudut-kamera.js). */
-var _F_FACELESS_ANGLE_LBL = 'Faceless \u00b7 Full-length (otomatis)';
-var _F_FACELESS_ANGLE_DESC = 'faceless full-length outfit-check framing: the person stands CLOSE to the camera and fills about 90% of the frame height; the very top edge of the image cuts straight through the middle of the neck, so the shoulders and neck run off the top edge and there is NO empty wall or empty space above the shoulders; the head is outside the frame, exactly like a phone held at chest height with the person standing close; the shoes are fully visible with only a small strip of floor (about 5% of the frame height) below them; camera handheld at chest-to-waist height, about 1.5 meters from the subject, pointing straight ahead with a very slight upward tilt, smartphone main lens about 24mm equivalent, torso slightly larger and legs slightly foreshortened; casual TikTok outfit check, not a mirror selfie, no phone visible';
+var _F_FACELESS_ANGLE_LBL = 'Faceless \u00b7 Potongan rapat (otomatis)';
+var _F_FACELESS_ANGLE_DESC = 'tight crop at chest height, about 1 meter from the subject; the top edge of the image sits at the collarbone, just below the chin, and the bottom edge cuts at the lower hem of the outfit, around the ankles; the subject fills almost the whole frame; smartphone main lens about 24mm equivalent; casual TikTok outfit check, not a mirror selfie, no phone visible';
 function _fFacelessRuleText(){
-  var t = 'FACELESS BY FRAME EDGE: no head, face, eyes, nose, lips, chin, or hair anywhere in the image, because the top edge of the frame cuts through the neck. Do NOT erase, blur, cover, or hide the head, and do NOT leave blank space where the head would be. No floating collar, no empty neckline, no mannequin or headless-body effect. No part of the pose may bring the head into the frame.';
-  try{ if(FS && FS.subjek==='hijab') t += ' If the outfit reference includes a hijab, keep it exactly as in the reference (same color, wrapping style, and fabric); only the part from the neck down is visible, cut off by the top edge of the image.'; }catch(e){}
-  t += ' Avoid: visible lips, nose, chin, or skin of the face, empty wall above the shoulders, small distant subject, wide shot, mirror selfie, phone in frame, cropped shoes, cut-off feet, close-up, medium shot cropped at the thigh.';
+  var t = 'The picture is a crop that begins at the collarbone, so only the body from the collarbone down exists in it. Do not leave blank space or background above the shoulders, and do not make the subject small or distant to fit more in.';
+  try{ if(FS && FS.subjek==='hijab') t += ' If the outfit reference includes a hijab or scarf, keep it exactly as in the reference (same color, wrapping style, and fabric) but show only the part that drapes below the chin.'; }catch(e){}
   return t;
 }
 /* v18.42 (Nov 2026, permintaan user) — FACELESS HARUS SEPERTI "OUTFIT CHECK" TIKTOK (leher terpotong tepi atas, orang dekat kamera, full-length ke sepatu).
    Masalah sebelumnya: komposisi cuma terselip di satu kalimat camera_angle, sehingga AI meniru framing FOTO OUTFIT (orang jauh, ada tembok kosong di atas bahu).
    Sekarang (khusus mode faceless): (1) kalimat pembuka prompt = komposisi, (2) blok `composition` + `important` tersendiri di JSON,
    (3) foto Outfit & Lokasi diberi perintah "abaikan framing/jarak/komposisi", (4) `negative_prompt` faceless, (5) teks kualitas kamera tidak lagi bilang "framing tidak rapi/wide". */
-var _F_FACELESS_INTRO = 'A photorealistic faceless \"outfit check\" fashion photo for TikTok, shot as a casual handheld phone photo, full-length from neck to shoes.';
-var _F_FACELESS_IMPORTANT = 'Do NOT copy the framing, distance, or composition of any reference photo. The reference photos are used only for the outfit and the location. The final composition is always the one described in the composition section.';
-var _F_FACELESS_REF_FRAMING = ' Also IGNORE this photo\u2019s framing, distance, camera height, and composition completely \u2014 the final framing is defined only in the composition section (person very close to the camera, top edge of the image cutting through the neck).';
-var _F_FACELESS_NEGATIVE = 'face, eyes, nose, lips, chin, head, facial features, empty wall above the shoulders, blank space above the neck, small distant subject, wide shot, full-body shot with the head visible, catalog pose, floating collar, empty neckline, headless mannequin, erased head, blurred or censored face, mirror selfie, phone in frame, different shoes from the outfit reference, cropped shoes, cut-off feet, close-up, medium shot, cartoon, illustration, 3D render, plastic skin, extra fingers, deformed hands, distorted body, wrong outfit color, changed outfit design, different location from the location reference, text, watermark, logo, low quality, oversharpened, harsh flash, studio backdrop';
+var _F_FACELESS_INTRO = 'A photorealistic casual TikTok outfit-check photo, vertical 9:16, shot handheld on a phone.';
+var _F_FACELESS_IMPORTANT = 'Do NOT copy the framing, distance, or composition of any reference photo; they are used only for the outfit and the place and light. The final framing is always the tight crop described in the composition section: top edge at the collarbone, subject very close, bottom edge at the lower hem.';
+var _F_FACELESS_REF_FRAMING = ' Also IGNORE this photo\u2019s framing, distance, camera height, and composition completely \u2014 the final framing is defined only in the composition section (very close to the camera, top edge at the collarbone).';
+var _F_FACELESS_NEGATIVE = 'empty wall above the shoulders, blank space above the neck, small distant subject, wide shot, full-body shot, mirror selfie, phone in frame, straight-on stiff catalog pose, different outfit from reference, changed colors, different location from reference, cartoon, illustration, 3D render, plastic skin, extra fingers, deformed hands, distorted body, text, watermark, logo, low quality, harsh flash, studio backdrop';
 function _fFacelessComposition(){
-  var hij = false; try{ hij = !!(FS && FS.subjek==='hijab'); }catch(e){}
   return {
-    frame: 'vertical 9:16 full-length photo. The person stands CLOSE to the camera and fills about 90% of the frame height.',
-    top_edge: 'The very top edge of the image cuts straight through the middle of the neck' + (hij ? ' or the hijab at the shoulders' : '') + '. The shoulders and neck touch or run off the top edge of the image. There is NO empty wall or empty space above the shoulders. The head is never in the picture because the frame itself ends there, exactly like a phone held at chest height with the person standing close.',
-    bottom_edge: 'The shoes are fully visible, with only a small strip of floor (about 5% of the frame height) below them.',
-    camera_position: 'handheld at chest-to-waist height, about 1.5 meters from the subject, straight ahead with a very slight upward tilt, smartphone main lens about 24mm equivalent, torso slightly larger and legs slightly foreshortened',
+    frame: 'Vertical 9:16, very tight crop. The person stands very close to the camera, about 1 meter away, and fills almost the entire frame height and width, with the shoulders touching the left and right sides of the image.',
+    top_edge: 'The top edge of the image sits exactly at the collarbone, just below the chin, so the first thing at the top of the frame is the shoulders and chest; the image simply begins there and shows nothing above it. No empty wall, sky or background above the shoulders.',
+    bottom_edge: 'The bottom edge of the image cuts at the lower hem of the outfit, around the ankles; the shoes do not need to be fully visible.',
+    camera_position: 'handheld at chest height, about 1 meter from the subject, straight ahead, smartphone main lens about 24mm equivalent',
     style: 'casual TikTok \"outfit check\", not a mirror selfie, no phone visible'
   };
 }
@@ -297,7 +295,8 @@ function _fBuildImportedPromptJSON(ov){
   } : null;
 
   // v18.41: prompt faceless yang diimpor ulang (camera_angle = framing faceless) tetap membawa aturan faceless-nya.
-  let _impFaceless = !isProdukSaja && typeof effAngle==='string' && effAngle.indexOf('faceless full-length outfit-check framing')===0;
+  // Nov 2026: teks framing faceless diganti (potongan rapat), jadi kenali KEDUA awalan: teks lama (prompt yang dibuat sebelum perubahan) dan teks baru.
+  let _impFaceless = !isProdukSaja && typeof effAngle==='string' && (effAngle.indexOf('faceless full-length outfit-check framing')===0 || effAngle.indexOf(_F_FACELESS_ANGLE_DESC.slice(0,50))===0);
   let introProdukSajaTextImp = angleHasHand
     ? 'A photorealistic product image, clean and detailed, product held by a hand entering the frame — only the hand is visible, no face or rest of the body. '
     : 'A photorealistic product-only image, clean and detailed, no person or human visible. ';
@@ -988,7 +987,7 @@ function _fBuildPromptJSON(ov){
     if(ignoreText && typeof fIsOutfitOnly==='function' && fIsOutfitOnly()){
       ignoreText = ignoreText.replace('wajah karakter HANYA dari foto Karakter Sheet','tidak ada wajah yang boleh muncul di hasil');
     }
-    if(ignoreText && typeof fIsOutfitOnly==='function' && fIsOutfitOnly() && (r.type==='outfit' || r.type==='lokasi')) ignoreText += _F_FACELESS_REF_FRAMING;
+    if(ignoreText && typeof fIsOutfitOnly==='function' && fIsOutfitOnly() && (r.type==='outfit' || r.type==='lokasi')) ignoreText = ignoreText.replace(/[.\s]+$/,'') + '.' + _F_FACELESS_REF_FRAMING;
     if(ignoreText) obj.ignore_completely = ignoreText;
     _fApplyFaceRule(obj, r, realRefs);
     if(r.type==='lokasi'){
@@ -1111,7 +1110,7 @@ function _fBuildPromptJSON(ov){
       quality[k]=String(quality[k]||'').replace(/the subject(?:'|\u2019)s face/g,'the outfit').replace(/of the face/g,'of the outfit');
     });
     // v18.42: framing faceless ditentukan blok composition, bukan "tidak rapi / subtle wide lens".
-    quality.camera=String(quality.camera||'').replace(/The framing is slightly imperfect, not perfectly centered, with a subtle wide lens feel and natural perspective distortion\./,'The framing follows the composition section exactly.');
+    quality.camera=String(quality.camera||'').replace(/The framing is slightly imperfect, not perfectly centered, with a subtle wide lens feel and natural perspective distortion\./,'The framing follows the composition section exactly.').replace(/Framing is casual and slightly imperfect, like an authentic social media photo\./,'The framing follows the composition section exactly.');
   }
   if(_lokRef){
     quality.lighting = 'Follow the lighting of reference photo ' + _lokNo + ' exactly and keep it consistent across the whole frame, on the character, the outfit, and the background; do not add studio lighting or any light that contradicts the location.';

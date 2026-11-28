@@ -2996,17 +2996,14 @@ const F_STEP_TITLES={f0:'Subjek',f1:'Foto Referensi',f3:'Cara Tampil',f4:'Pose',
 // tanpa karakter: step Pose dilewati, prompt tidak menyebut karakter, dan Cara Tampil (mis. "di atas meja") dipakai.
 // MODE "OUTFIT SAJA" = FACELESS (permintaan user): Foto Referensi cuma berisi Outfit (atau Outfit + Lokasi), TANPA Wajah Karakter
 // dan TANPA Produk. Hasilnya foto outfit-check tanpa wajah: kepala keluar dari tepi atas frame (bukan dihapus).
-// v18.41 (Nov 2026): step Pose sekarang punya beberapa pilihan pose yang aman untuk faceless + kolom "isi sendiri",
-// jadi user bisa mengatur pose. Framing/sudut kamera dikunci otomatis di foto-pov-tangan-lewati-sudut-kamera.js
+// v18.41 (Nov 2026): step Pose punya pilihan pose yang aman untuk faceless + kolom "isi sendiri" (sejak Nov 2026 tinggal 2 pilihan:
+// Badan Miring 45\u00b0 dan Pegang Ujung Outfit). Framing/sudut kamera dikunci otomatis di foto-pov-tangan-lewati-sudut-kamera.js
 // (teksnya: F_FACELESS_ANGLE_DESC di foto-susun-prompt.js), dan aturan faceless disuntik di _fBuildPromptJSON.
 // Teks pose di bawah TIDAK boleh menyebut wajah/kepala/ekspresi/arah pandang (kepala di luar frame).
 var F_POSES_OUTFIT_ONLY=[
-  ['standing straight and relaxed, facing the camera directly, arms hanging naturally at the sides, feet slightly apart, casual outfit-check stance','Santai Tangan Menggantung'],
-  ['standing facing the camera with weight shifted onto one leg, one hand resting in the pocket, the other arm hanging naturally, relaxed shoulders, casual outfit-check stance','Satu Tangan di Saku'],
-  ['standing facing the camera, both hands resting in the front pockets, relaxed shoulders, feet slightly apart, casual outfit-check stance','Dua Tangan di Saku'],
-  ['standing facing the camera with a slight hip shift, one hand lightly holding the hem of the outfit, the other arm relaxed at the side','Pegang Ujung Outfit'],
-  ['body turned about 45 degrees to the side while the torso still faces the camera, one foot slightly forward, one hand in the pocket, the other arm relaxed','Badan Miring 45\u00b0'],
-  ['mid-step walking toward the camera in a natural relaxed stride, arms swinging naturally, casual outfit-check feel','Jalan Santai']
+  // Nov 2026 (permintaan user): cuma 2 pose, teksnya sengaja pendek TANPA detail tambahan (kaki, tangan, bahu, dsb).
+  ['body turned 45 degrees','Badan Miring 45\u00b0'],
+  ['holding the hem of the outfit','Pegang Ujung Outfit']
 ];
 // Alias lama (dipakai pengecekan pose lama): pose pertama.
 var F_POSE_OUTFIT_ONLY=F_POSES_OUTFIT_ONLY[0];

@@ -9,14 +9,16 @@
    Teks sudut kamera final dibuat di foto-susun-prompt.js (_fPoseAngleDesc) supaya nomor foto selalu benar.
    Foto pose dihapus -> step Sudut Kamera muncul lagi seperti biasa. */
 /* v18.41 (Nov 2026, permintaan user) — MODE FACELESS: kalau Foto Referensi cuma Outfit atau Outfit + Lokasi (fIsOutfitOnly()),
-   step Sudut Kamera DISEMBUNYIKAN dan sudut kamera dikunci ke framing faceless full-length (label "Faceless · Full-length (otomatis)",
+   step Sudut Kamera DISEMBUNYIKAN dan sudut kamera dikunci ke framing faceless potongan rapat (sejak 28 Nov 2026; label "Faceless · Potongan rapat (otomatis)",
    teks di foto-susun-prompt.js: _F_FACELESS_ANGLE_DESC). Prioritas mode kunci: pov > pose > faceless. Alur lompat/kembali sama dengan mode foto pose. */
 (function(){
 'use strict';
 var LBL='POV (otomatis)';
 var DESC='POV style (first-person perspective), as if the viewer is holding the product';
 var LBL_POSE=(typeof _F_POSE_ANGLE_LBL!=='undefined')?_F_POSE_ANGLE_LBL:'Ikut foto pose (otomatis)';
-var LBL_FACELESS=(typeof _F_FACELESS_ANGLE_LBL!=='undefined')?_F_FACELESS_ANGLE_LBL:'Faceless \u00b7 Full-length (otomatis)';
+var LBL_FACELESS=(typeof _F_FACELESS_ANGLE_LBL!=='undefined')?_F_FACELESS_ANGLE_LBL:'Faceless \u00b7 Potongan rapat (otomatis)';
+/* label lama (sebelum 28 Nov 2026) masih dikenali sebagai label otomatis, supaya state tersimpan lama tetap bisa dilepas kuncinya */
+var LBL_FACELESS_OLD='Faceless \u00b7 Full-length (otomatis)';
 function facelessOn(){
   try{
     if(povOn()||poseOn())return false;
@@ -36,7 +38,7 @@ function poseOn(){
 /* mode kunci aktif: 'pov' | 'pose' | 'faceless' | '' */
 function mode(){return povOn()?'pov':(poseOn()?'pose':(facelessOn()?'faceless':''));}
 function on(){return mode()!=='';}
-function isAuto(){try{return FS.angleLabel===LBL||FS.angleLabel===LBL_POSE||FS.angleLabel===LBL_FACELESS;}catch(e){return false;}}
+function isAuto(){try{return FS.angleLabel===LBL||FS.angleLabel===LBL_POSE||FS.angleLabel===LBL_FACELESS||FS.angleLabel===LBL_FACELESS_OLD;}catch(e){return false;}}
 function sync(){try{fSyncStepNums();}catch(e){}}
 function poseDesc(){
   var n=1;try{n=_scPoseNo();}catch(e){}
@@ -45,7 +47,7 @@ function poseDesc(){
 }
 function facelessDesc(){
   try{if(typeof _F_FACELESS_ANGLE_DESC!=='undefined')return _F_FACELESS_ANGLE_DESC;}catch(e){}
-  return 'faceless full-length outfit-check framing: the top edge of the image cuts through the neck so the head is outside the frame, person close to the camera filling about 90% of the frame height, shoes fully visible near the bottom';
+  return 'tight crop at chest height, about 1 meter from the subject; the top edge of the image sits at the collarbone, just below the chin, and the bottom edge cuts at the lower hem of the outfit, around the ankles; the subject fills almost the whole frame; casual TikTok outfit check, not a mirror selfie, no phone visible';
 }
 function lock(m){
   m=m||mode();
